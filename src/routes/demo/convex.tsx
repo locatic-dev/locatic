@@ -1,47 +1,63 @@
-import { useCallback, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
-import { useQuery, useMutation } from 'convex/react'
-import { Trash2, Plus, Check, Circle } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
+import { Sparkles, Globe2, Activity } from 'lucide-react'
+import type { ReactNode } from 'react'
+import type { QueryClient } from '@tanstack/react-query'
 
-import { api } from '../../../convex/_generated/api'
-import type { Id } from '../../../convex/_generated/dataModel'
+import {
+  pulseQueryOptions,
+  viewerQueryOptions,
+} from '../../integrations/convex/query-options'
 
-export const Route = createFileRoute('/demo/convex')({
-  ssr: false,
+export const Route = createFileRoute('/demo/convex' as never)({
+  loader: ({ context }: { context: { queryClient: QueryClient } }) =>
+    context.queryClient.ensureQueryData(
+      pulseQueryOptions({
+        scopeType: 'global',
+        scopeId: null,
+        timeWindow: 'week',
+        sort: 'locatic_likes',
+        page: 1,
+      }),
+    ),
   component: ConvexTodos,
 })
 
 function ConvexTodos() {
-  const todos = useQuery(api.todos.list)
-  const addTodo = useMutation(api.todos.add)
-  const toggleTodo = useMutation(api.todos.toggle)
-  const removeTodo = useMutation(api.todos.remove)
+  const { data: viewerState } = useQuery(viewerQueryOptions()) as {
+    data:
+      | {
+          isAuthenticated: boolean
+          needsOnboarding: boolean
+          viewer: { _id: string } | null
+        }
+      | undefined
+  }
+  const { data: pulseState } = useQuery(
+    pulseQueryOptions({
+      scopeType: 'global',
+      scopeId: null,
+      timeWindow: 'week',
+      sort: 'locatic_likes',
+      page: 1,
+    }),
+  ) as {
+    data:
+      | {
+          items: Array<{
+            projectId: string
+            rank: number
+            score: number
+            projectSnapshot: {
+              fullName: string
+              cityName: string | null
+            }
+          }>
+        }
+      | undefined
+  }
 
-  const [newTodo, setNewTodo] = useState('')
-
-  const handleAddTodo = useCallback(async () => {
-    if (newTodo.trim()) {
-      await addTodo({ text: newTodo.trim() })
-      setNewTodo('')
-    }
-  }, [addTodo, newTodo])
-
-  const handleToggleTodo = useCallback(
-    async (id: Id<'todos'>) => {
-      await toggleTodo({ id })
-    },
-    [toggleTodo],
-  )
-
-  const handleRemoveTodo = useCallback(
-    async (id: Id<'todos'>) => {
-      await removeTodo({ id })
-    },
-    [removeTodo],
-  )
-
-  const completedCount = todos?.filter((todo) => todo.completed).length || 0
-  const totalCount = todos?.length || 0
+  const pulseItems = pulseState?.items ?? []
 
   return (
     <div
@@ -56,104 +72,76 @@ function ConvexTodos() {
         <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-2xl border border-green-200/50 p-8 mb-6">
           <div className="text-center">
             <h1 className="text-4xl font-bold text-green-800 mb-2">
-              Convex Todos
+              Locatic Convex Backend
             </h1>
-            <p className="text-green-600 text-lg">Powered by real-time sync</p>
-            {totalCount > 0 && (
-              <div className="mt-4 flex justify-center space-x-6 text-sm">
-                <span className="text-green-700 font-medium">
-                  {completedCount} completed
-                </span>
-                <span className="text-gray-600">
-                  {totalCount - completedCount} remaining
-                </span>
-              </div>
-            )}
+            <p className="text-green-600 text-lg">
+              Powered by Convex, Clerk, and TanStack Query
+            </p>
           </div>
         </div>
 
-        {/* Add Todo Card */}
-        <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-xl border border-green-200/50 p-6 mb-6">
-          <div className="flex gap-3">
-            <input
-              type="text"
-              value={newTodo}
-              onChange={(e) => setNewTodo(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  handleAddTodo()
-                }
-              }}
-              placeholder="What needs to be done?"
-              className="flex-1 px-4 py-3 rounded-xl border-2 border-green-200 focus:border-green-400 focus:outline-none text-gray-800 placeholder-gray-500 bg-white/80 transition-colors"
-            />
-            <button
-              onClick={handleAddTodo}
-              disabled={!newTodo.trim()}
-              className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 disabled:from-gray-300 disabled:to-gray-400 disabled:cursor-not-allowed text-white font-semibold py-3 px-6 rounded-xl transition-all duration-200 flex items-center gap-2 shadow-lg hover:shadow-xl"
-            >
-              <Plus size={20} />
-              Add
-            </button>
-          </div>
+        <div className="grid gap-4 md:grid-cols-3 mb-6">
+          <StatusCard
+            icon={<Sparkles size={18} />}
+            label="Auth State"
+            value={
+              viewerState?.isAuthenticated
+                ? viewerState.needsOnboarding
+                  ? 'Needs onboarding'
+                  : 'Signed in'
+                : 'Signed out'
+            }
+          />
+          <StatusCard
+            icon={<Globe2 size={18} />}
+            label="Pulse Rows"
+            value={String(pulseItems.length)}
+          />
+          <StatusCard
+            icon={<Activity size={18} />}
+            label="Viewer Record"
+            value={viewerState?.viewer ? 'Available' : 'Missing'}
+          />
         </div>
 
-        {/* Todos List */}
         <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-xl border border-green-200/50 overflow-hidden">
-          {!todos ? (
+          {pulseState === undefined ? (
             <div className="p-8 text-center">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-500 mx-auto mb-4"></div>
-              <p className="text-green-600">Loading todos...</p>
+              <p className="text-green-600">Loading pulse snapshot...</p>
             </div>
-          ) : todos.length === 0 ? (
+          ) : pulseItems.length === 0 ? (
             <div className="p-12 text-center">
-              <Circle size={48} className="text-green-300 mx-auto mb-4" />
+              <Globe2 size={48} className="text-green-300 mx-auto mb-4" />
               <h3 className="text-xl font-semibold text-green-800 mb-2">
-                No todos yet
+                No pulse rows yet
               </h3>
               <p className="text-green-600">
-                Add your first todo above to get started!
+                Seed cities and let the hourly pulse snapshot cron run.
               </p>
             </div>
           ) : (
             <div className="divide-y divide-green-100">
-              {todos.map((todo, index) => (
+              {pulseItems.map((item, index) => (
                 <div
-                  key={todo._id}
-                  className={`p-4 flex items-center gap-4 hover:bg-green-50/50 transition-colors ${
-                    todo.completed ? 'opacity-75' : ''
-                  }`}
+                  key={`${item.projectId}-${item.rank}`}
+                  className="p-4 flex items-center gap-4 hover:bg-green-50/50 transition-colors"
                   style={{
                     animationDelay: `${index * 50}ms`,
                   }}
                 >
-                  <button
-                    onClick={() => handleToggleTodo(todo._id)}
-                    className={`flex-shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all duration-200 ${
-                      todo.completed
-                        ? 'bg-green-500 border-green-500 text-white'
-                        : 'border-green-300 hover:border-green-400 text-transparent hover:text-green-400'
-                    }`}
-                  >
-                    <Check size={14} />
-                  </button>
-
-                  <span
-                    className={`flex-1 text-lg transition-all duration-200 ${
-                      todo.completed
-                        ? 'line-through text-gray-500'
-                        : 'text-gray-800'
-                    }`}
-                  >
-                    {todo.text}
-                  </span>
-
-                  <button
-                    onClick={() => handleRemoveTodo(todo._id)}
-                    className="flex-shrink-0 p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                  >
-                    <Trash2 size={18} />
-                  </button>
+                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-green-100 text-green-800 font-semibold">
+                    #{item.rank}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-lg text-gray-800 font-medium">
+                      {item.projectSnapshot.fullName}
+                    </p>
+                    <p className="text-sm text-gray-600">
+                      Score {item.score} •{' '}
+                      {item.projectSnapshot.cityName ?? 'Global'}
+                    </p>
+                  </div>
                 </div>
               ))}
             </div>
@@ -163,10 +151,31 @@ function ConvexTodos() {
         {/* Footer */}
         <div className="text-center mt-6">
           <p className="text-green-700/80 text-sm">
-            Built with Convex • Real-time updates • Always in sync
+            Built with Convex React Query integration and SSR-friendly query
+            options
           </p>
         </div>
       </div>
+    </div>
+  )
+}
+
+function StatusCard({
+  icon,
+  label,
+  value,
+}: {
+  icon: ReactNode
+  label: string
+  value: string
+}) {
+  return (
+    <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-xl border border-green-200/50 p-5">
+      <div className="flex items-center gap-3 text-green-700 mb-2">
+        {icon}
+        <span className="font-medium">{label}</span>
+      </div>
+      <p className="text-2xl font-semibold text-green-900">{value}</p>
     </div>
   )
 }
