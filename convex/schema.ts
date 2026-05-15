@@ -251,6 +251,13 @@ export default defineSchema({
     createdAt: v.number(),
   })
     .index('by_target', ['targetType', 'targetId'])
+    .index('by_target_reaction_created', [
+      'targetType',
+      'targetId',
+      'reactionType',
+      'createdAt',
+    ])
+    .index('by_user', ['userId'])
     .index('by_user_target_type', ['userId', 'targetType', 'reactionType'])
     .index('by_user_target_reaction', ['userId', 'targetId', 'reactionType']),
 
@@ -312,6 +319,7 @@ export default defineSchema({
   })
     .index('by_user_priority', ['userId', 'priority'])
     .index('by_user_created', ['userId', 'createdAt'])
+    .index('by_actor_created', ['actorId', 'createdAt'])
     .index('by_user_dedupe', ['userId', 'dedupeKey']),
 
   conversations: defineTable({
@@ -340,7 +348,8 @@ export default defineSchema({
     createdAt: v.number(),
   })
     .index('by_conversation', ['conversationId'])
-    .index('by_conversation_created', ['conversationId', 'createdAt']),
+    .index('by_conversation_created', ['conversationId', 'createdAt'])
+    .index('by_sender_created', ['senderId', 'createdAt']),
 
   notifications: defineTable({
     recipientId: v.id('users'),
@@ -358,7 +367,8 @@ export default defineSchema({
     createdAt: v.number(),
   })
     .index('by_recipient_read', ['recipientId', 'isRead'])
-    .index('by_recipient_created', ['recipientId', 'createdAt']),
+    .index('by_recipient_created', ['recipientId', 'createdAt'])
+    .index('by_actor_created', ['actorId', 'createdAt']),
 
   github_sync_log: defineTable({
     userId: v.id('users'),

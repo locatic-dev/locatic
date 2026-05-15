@@ -22,12 +22,13 @@ async function getGithubAccessToken(clerkId: string) {
     'github',
   )
   const accessToken = response.data[0]?.token ?? ''
+  const scopes = response.data[0]?.scopes ?? []
 
   if (!accessToken) {
     throw new ConvexError('GitHub access token not found')
   }
 
-  return accessToken
+  return { accessToken, scopes }
 }
 
 async function githubRequest<T>(
@@ -50,6 +51,28 @@ async function githubRequest<T>(
   }
 
   return (await response.json()) as T
+}
+
+async function githubNoContentRequest(
+  url: string,
+  accessToken: string,
+  init: RequestInit,
+) {
+  const headers = new Headers(init.headers)
+  headers.set('Accept', 'application/vnd.github+json')
+  headers.set('Authorization', `Bearer ${accessToken}`)
+  headers.set('X-GitHub-Api-Version', '2022-11-28')
+
+  const response = await fetch(`https://api.github.com${url}`, {
+    ...init,
+    headers,
+  })
+
+  if (response.ok || response.status === 304) {
+    return
+  }
+
+  throw new ConvexError(`GitHub request failed: ${response.status}`)
 }
 
 type GithubRepository = {
@@ -87,11 +110,25 @@ export const listRepositories = action({
   args: {},
   handler: async (ctx) => {
     const identity = await requireIdentity(ctx)
-    const accessToken = await getGithubAccessToken(identity.subject)
+    const viewer = await ctx.runQuery(internal.users.viewerByClerkId, {
+      clerkId: identity.subject,
+    })
+    if (!viewer) {
+      throw new ConvexError('Viewer not found')
+    }
+
+    const { accessToken, scopes } = await getGithubAccessToken(identity.subject)
     const repositories = await githubRequest<GithubRepository[]>(
       '/user/repos?visibility=public&sort=updated&per_page=100',
       accessToken,
     )
+
+    await ctx.runMutation(internal.github.recordGithubTokenState, {
+      userId: viewer._id,
+      tokenStatus: 'active',
+      scopes,
+      lastError: null,
+    })
 
     return repositories.map(mapGithubRepository)
   },
@@ -108,9 +145,9 @@ export const importSelectedRepositories = action({
     createdProjectIds: unknown[]
     reposNew: number
     reposUpdated: number
+    skippedRepos: string[]
   }> => {
     const identity = await requireIdentity(ctx)
-    const accessToken = await getGithubAccessToken(identity.subject)
     const viewer = await ctx.runQuery(internal.users.viewerByClerkId, {
       clerkId: identity.subject,
     })
@@ -119,16 +156,30 @@ export const importSelectedRepositories = action({
       throw new ConvexError('Viewer not found')
     }
 
+    const { accessToken, scopes } = await getGithubAccessToken(identity.subject)
+
     const repositories = await Promise.all(
       args.fullNames.map((fullName) =>
         githubRequest<GithubRepository>(`/repos/${fullName}`, accessToken),
       ),
     )
 
-    return await ctx.runMutation(internal.projects.upsertImportedRepositories, {
-      ownerId: viewer._id,
-      repositories: repositories.map(mapGithubRepository),
+    const result = await ctx.runMutation(
+      internal.projects.upsertImportedRepositories,
+      {
+        ownerId: viewer._id,
+        repositories: repositories.map(mapGithubRepository),
+      },
+    )
+
+    await ctx.runMutation(internal.github.recordGithubTokenState, {
+      userId: viewer._id,
+      tokenStatus: 'active',
+      scopes,
+      lastError: null,
     })
+
+    return result
   },
 })
 
@@ -138,26 +189,29 @@ export const likeProject = action({
   },
   handler: async (ctx, args): Promise<null> => {
     const identity = await requireIdentity(ctx)
-    const accessToken = await getGithubAccessToken(identity.subject)
     const project = await ctx.runQuery(internal.projects.projectById, {
       projectId: args.projectId,
     })
+    const viewer = await ctx.runQuery(internal.users.viewerByClerkId, {
+      clerkId: identity.subject,
+    })
 
-    if (!project) {
+    if (!project || !viewer) {
       throw new ConvexError('Project not found')
     }
 
-    await fetch(
-      `https://api.github.com/user/starred/${project.github.fullName}`,
-      {
-        method: 'PUT',
-        headers: {
-          Accept: 'application/vnd.github+json',
-          Authorization: `Bearer ${accessToken}`,
-          'X-GitHub-Api-Version': '2022-11-28',
-        },
-      },
+    const { accessToken, scopes } = await getGithubAccessToken(identity.subject)
+    await githubNoContentRequest(
+      `/user/starred/${project.github.fullName}`,
+      accessToken,
+      { method: 'PUT' },
     )
+    await ctx.runMutation(internal.github.recordGithubTokenState, {
+      userId: viewer._id,
+      tokenStatus: 'active',
+      scopes,
+      lastError: null,
+    })
 
     return await ctx.runMutation(internal.github.applyProjectLike, {
       projectId: args.projectId,
@@ -172,26 +226,29 @@ export const unlikeProject = action({
   },
   handler: async (ctx, args): Promise<null> => {
     const identity = await requireIdentity(ctx)
-    const accessToken = await getGithubAccessToken(identity.subject)
     const project = await ctx.runQuery(internal.projects.projectById, {
       projectId: args.projectId,
     })
+    const viewer = await ctx.runQuery(internal.users.viewerByClerkId, {
+      clerkId: identity.subject,
+    })
 
-    if (!project) {
+    if (!project || !viewer) {
       throw new ConvexError('Project not found')
     }
 
-    await fetch(
-      `https://api.github.com/user/starred/${project.github.fullName}`,
-      {
-        method: 'DELETE',
-        headers: {
-          Accept: 'application/vnd.github+json',
-          Authorization: `Bearer ${accessToken}`,
-          'X-GitHub-Api-Version': '2022-11-28',
-        },
-      },
+    const { accessToken, scopes } = await getGithubAccessToken(identity.subject)
+    await githubNoContentRequest(
+      `/user/starred/${project.github.fullName}`,
+      accessToken,
+      { method: 'DELETE' },
     )
+    await ctx.runMutation(internal.github.recordGithubTokenState, {
+      userId: viewer._id,
+      tokenStatus: 'active',
+      scopes,
+      lastError: null,
+    })
 
     return await ctx.runMutation(internal.github.removeProjectLike, {
       projectId: args.projectId,
@@ -220,7 +277,7 @@ export const refreshProjectMetadata = internalAction({
       return null
     }
 
-    const accessToken = await getGithubAccessToken(owner.clerkId)
+    const { accessToken, scopes } = await getGithubAccessToken(owner.clerkId)
     const repository = await githubRequest<GithubRepository>(
       `/repos/${project.github.fullName}`,
       accessToken,
@@ -229,6 +286,13 @@ export const refreshProjectMetadata = internalAction({
     await ctx.runMutation(internal.github.patchProjectMetadata, {
       projectId: project._id,
       repository: mapGithubRepository(repository),
+    })
+
+    await ctx.runMutation(internal.github.recordGithubTokenState, {
+      userId: owner._id,
+      tokenStatus: 'active',
+      scopes,
+      lastError: null,
     })
 
     return null
@@ -277,7 +341,8 @@ export const cleanupDeletedAccountStars = internalAction({
 
     let accessToken = ''
     try {
-      accessToken = await getGithubAccessToken(user.clerkId)
+      const tokenState = await getGithubAccessToken(user.clerkId)
+      accessToken = tokenState.accessToken
     } catch {
       return null
     }
@@ -291,16 +356,10 @@ export const cleanupDeletedAccountStars = internalAction({
         continue
       }
 
-      await fetch(
-        `https://api.github.com/user/starred/${like.projectFullName}`,
-        {
-          method: 'DELETE',
-          headers: {
-            Accept: 'application/vnd.github+json',
-            Authorization: `Bearer ${accessToken}`,
-            'X-GitHub-Api-Version': '2022-11-28',
-          },
-        },
+      await githubNoContentRequest(
+        `/user/starred/${like.projectFullName}`,
+        accessToken,
+        { method: 'DELETE' },
       )
     }
 

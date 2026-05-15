@@ -1,6 +1,7 @@
 import { ConvexError } from 'convex/values'
 
 import type { ActionCtx, MutationCtx, QueryCtx } from '../_generated/server'
+import { createDefaultViewerProfile } from './viewer'
 
 type AuthCapableCtx =
   | Pick<QueryCtx, 'auth'>
@@ -132,72 +133,20 @@ export async function getOrCreateViewer(ctx: MutationCtx) {
     email,
   )
   const avatarUrl = getIdentityAvatarUrl(identity)
-  const now = Date.now()
-
-  const viewerId = await ctx.db.insert('users', {
-    clerkId: identity.subject,
-    email,
-    github: {
-      id: null,
-      username: githubUsername,
-    },
-    profile: {
-      displayName,
-      fullName: displayName,
+  const viewerId = await ctx.db.insert(
+    'users',
+    createDefaultViewerProfile({
+      clerkId: identity.subject,
+      email,
+      githubId: null,
+      githubUsername,
+      githubUrl: githubUsername
+        ? `https://github.com/${githubUsername}`
+        : 'https://github.com',
       avatarUrl,
-      bio: '',
-      cityId: null,
-      buildStatus: 'just_exploring',
-      primaryLanguages: [],
-      socialLinks: {
-        github: githubUsername
-          ? `https://github.com/${githubUsername}`
-          : 'https://github.com',
-        x: null,
-        linkedin: null,
-        bluesky: null,
-        website: null,
-      },
-    },
-    pinnedOwnedProjectIds: [],
-    stats: {
-      followersCount: 0,
-      followingCount: 0,
-      projectsCount: 0,
-      contributionsCount: 0,
-      commentsCount: 0,
-      likedCount: 0,
-    },
-    exploreConfig: {
-      cityIds: [],
-      stackPrefs: [],
-    },
-    appearInExplore: true,
-    privacy: {
-      profileVisibility: 'public',
-      followGraphVisibility: 'public',
-      commentHistoryVisibility: 'public',
-      likedProjectsVisibility: 'public',
-      cityVisibility: 'exact_city',
-      appearInPulse: true,
-    },
-    notificationPrefs: {
-      projectLikes: true,
-      updateLikes: true,
-      comments: true,
-      commentReplies: true,
-      newFollowers: true,
-      dms: true,
-      weeklyDigest: false,
-      contributorRecognized: true,
-    },
-    githubLastSyncedAt: null,
-    onboardingCompletedAt: null,
-    createdAt: now,
-    updatedAt: now,
-    deactivatedAt: null,
-    deletedAt: null,
-  })
+      displayName,
+    }),
+  )
 
   return await ctx.db.get(viewerId)
 }

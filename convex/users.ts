@@ -18,6 +18,7 @@ import {
   requireIdentity,
 } from './lib/auth'
 import { buildActorSnapshot } from './lib/snapshots'
+import { createDefaultViewerProfile } from './lib/viewer'
 
 function serializeViewer(
   viewer: NonNullable<Awaited<ReturnType<typeof getViewerFromAuth>>>,
@@ -70,24 +71,56 @@ async function getPublicProfilePayload(
 
   const comments =
     viewer.privacy.commentHistoryVisibility === 'public'
-      ? await ctx.db
-          .query('comments')
-          .withIndex('by_author', (query) => query.eq('authorId', viewer._id))
-          .collect()
+      ? (
+          await ctx.db
+            .query('comments')
+            .withIndex('by_author', (query) => query.eq('authorId', viewer._id))
+            .collect()
+        )
+          .filter((comment) => !comment.isDeleted)
+          .map((comment) => ({
+            _id: comment._id,
+            targetType: comment.targetType,
+            targetId: comment.targetId,
+            content: comment.content,
+            replyCount: comment.replyCount,
+            likesCount: comment.likesCount,
+            createdAt: comment.createdAt,
+          }))
       : []
 
-  const likedProjects =
-    viewer.privacy.likedProjectsVisibility === 'public'
-      ? await ctx.db
-          .query('reactions')
-          .withIndex('by_user_target_type', (query) =>
-            query
-              .eq('userId', viewer._id)
-              .eq('targetType', 'project')
-              .eq('reactionType', 'like'),
-          )
-          .collect()
-      : []
+  const likedProjects = []
+  if (viewer.privacy.likedProjectsVisibility === 'public') {
+    const likes = await ctx.db
+      .query('reactions')
+      .withIndex('by_user_target_type', (query) =>
+        query
+          .eq('userId', viewer._id)
+          .eq('targetType', 'project')
+          .eq('reactionType', 'like'),
+      )
+      .collect()
+
+    for (const like of likes) {
+      const projectId = ctx.db.normalizeId('projects', like.targetId)
+      if (!projectId) {
+        continue
+      }
+
+      const project = await ctx.db.get(projectId)
+      if (!project || !project.locatic.isVisible) {
+        continue
+      }
+
+      likedProjects.push({
+        reactionId: like._id,
+        projectId: project._id,
+        fullName: project.github.fullName,
+        name: project.github.name,
+        likedAt: like.createdAt,
+      })
+    }
+  }
 
   return {
     githubUsername: viewer.github.username,
@@ -172,6 +205,7 @@ export const publicProfile = query({
     username: v.string(),
   },
   handler: async (ctx, args) => {
+    const requesterIdentity = await ctx.auth.getUserIdentity()
     const viewer = await ctx.db
       .query('users')
       .withIndex('by_github_username', (query) =>
@@ -180,6 +214,10 @@ export const publicProfile = query({
       .unique()
 
     if (!viewer || viewer.deletedAt || viewer.deactivatedAt) {
+      return null
+    }
+
+    if (viewer.privacy.profileVisibility !== 'public' && !requesterIdentity) {
       return null
     }
 
@@ -436,43 +474,312 @@ export const scrubDeletedAccount = internalMutation({
       return null
     }
 
-    const follows = await ctx.db.query('follows').collect()
-    const notifications = await ctx.db.query('notifications').collect()
-    const messages = await ctx.db.query('messages').collect()
-    const homeFeedItems = await ctx.db.query('home_feed_items').collect()
+    const [
+      ownedProjects,
+      comments,
+      reactions,
+      followsAsFollower,
+      followsAsFollowing,
+      notificationsAsRecipient,
+      notificationsAsActor,
+      conversationsAsLow,
+      conversationsAsHigh,
+      sentMessages,
+      activityEvents,
+      homeFeedItemsAsUser,
+      homeFeedItemsAsActor,
+      contributorRows,
+      reports,
+    ] = await Promise.all([
+      ctx.db
+        .query('projects')
+        .withIndex('by_owner', (query) => query.eq('ownerId', args.userId))
+        .collect(),
+      ctx.db
+        .query('comments')
+        .withIndex('by_author', (query) => query.eq('authorId', args.userId))
+        .collect(),
+      ctx.db
+        .query('reactions')
+        .withIndex('by_user', (query) => query.eq('userId', args.userId))
+        .collect(),
+      ctx.db
+        .query('follows')
+        .withIndex('by_follower', (query) =>
+          query.eq('followerId', args.userId),
+        )
+        .collect(),
+      ctx.db
+        .query('follows')
+        .withIndex('by_following', (query) =>
+          query.eq('followingId', args.userId),
+        )
+        .collect(),
+      ctx.db
+        .query('notifications')
+        .withIndex('by_recipient_created', (query) =>
+          query.eq('recipientId', args.userId),
+        )
+        .collect(),
+      ctx.db
+        .query('notifications')
+        .withIndex('by_actor_created', (query) =>
+          query.eq('actorId', args.userId),
+        )
+        .collect(),
+      ctx.db
+        .query('conversations')
+        .withIndex('by_participant_low_updated', (query) =>
+          query.eq('participantLowId', args.userId),
+        )
+        .collect(),
+      ctx.db
+        .query('conversations')
+        .withIndex('by_participant_high_updated', (query) =>
+          query.eq('participantHighId', args.userId),
+        )
+        .collect(),
+      ctx.db
+        .query('messages')
+        .withIndex('by_sender_created', (query) =>
+          query.eq('senderId', args.userId),
+        )
+        .collect(),
+      ctx.db
+        .query('activity_events')
+        .withIndex('by_actor', (query) => query.eq('actorId', args.userId))
+        .collect(),
+      ctx.db
+        .query('home_feed_items')
+        .withIndex('by_user_created', (query) =>
+          query.eq('userId', args.userId),
+        )
+        .collect(),
+      ctx.db
+        .query('home_feed_items')
+        .withIndex('by_actor_created', (query) =>
+          query.eq('actorId', args.userId),
+        )
+        .collect(),
+      ctx.db
+        .query('project_contributors')
+        .withIndex('by_user', (query) => query.eq('userId', args.userId))
+        .collect(),
+      ctx.db
+        .query('reports')
+        .withIndex('by_reporter', (query) =>
+          query.eq('reporterId', args.userId),
+        )
+        .collect(),
+    ])
+
+    const follows = [...followsAsFollower, ...followsAsFollowing]
+    const notifications = [...notificationsAsRecipient, ...notificationsAsActor]
+    const conversations = [...conversationsAsLow, ...conversationsAsHigh]
+    const homeFeedItems = [...homeFeedItemsAsUser, ...homeFeedItemsAsActor]
+
+    for (const follow of followsAsFollower) {
+      const targetUser = await ctx.db.get(follow.followingId)
+      if (targetUser) {
+        await ctx.db.patch(targetUser._id, {
+          stats: {
+            ...targetUser.stats,
+            followersCount: Math.max(0, targetUser.stats.followersCount - 1),
+          },
+          updatedAt: Date.now(),
+        })
+      }
+    }
+
+    for (const follow of followsAsFollowing) {
+      const follower = await ctx.db.get(follow.followerId)
+      if (follower) {
+        await ctx.db.patch(follower._id, {
+          stats: {
+            ...follower.stats,
+            followingCount: Math.max(0, follower.stats.followingCount - 1),
+          },
+          updatedAt: Date.now(),
+        })
+      }
+    }
+
+    for (const reaction of reactions) {
+      if (reaction.targetType === 'project') {
+        const projectId = ctx.db.normalizeId('projects', reaction.targetId)
+        const project = projectId ? await ctx.db.get(projectId) : null
+        if (project) {
+          await ctx.db.patch(project._id, {
+            locatic: {
+              ...project.locatic,
+              likesCount: Math.max(0, project.locatic.likesCount - 1),
+            },
+            updatedAt: Date.now(),
+          })
+        }
+      }
+
+      if (reaction.targetType === 'update') {
+        const updateId = ctx.db.normalizeId('updates', reaction.targetId)
+        const update = updateId ? await ctx.db.get(updateId) : null
+        if (update) {
+          await ctx.db.patch(update._id, {
+            reactionCounts: {
+              ...update.reactionCounts,
+              [reaction.reactionType]: Math.max(
+                0,
+                (update.reactionCounts[reaction.reactionType] ?? 0) - 1,
+              ),
+            },
+          })
+        }
+      }
+
+      if (reaction.targetType === 'comment') {
+        const commentId = ctx.db.normalizeId('comments', reaction.targetId)
+        const comment = commentId ? await ctx.db.get(commentId) : null
+        if (comment) {
+          await ctx.db.patch(comment._id, {
+            likesCount: Math.max(0, comment.likesCount - 1),
+          })
+        }
+      }
+    }
+
+    for (const comment of comments) {
+      if (comment.isDeleted) {
+        continue
+      }
+
+      if (comment.parentId) {
+        const parent = await ctx.db.get(comment.parentId)
+        if (parent) {
+          await ctx.db.patch(parent._id, {
+            replyCount: Math.max(0, parent.replyCount - 1),
+          })
+        }
+      }
+
+      if (comment.targetType === 'project') {
+        const projectId = ctx.db.normalizeId('projects', comment.targetId)
+        const project = projectId ? await ctx.db.get(projectId) : null
+        if (project) {
+          await ctx.db.patch(project._id, {
+            locatic: {
+              ...project.locatic,
+              commentsCount: Math.max(0, project.locatic.commentsCount - 1),
+            },
+            updatedAt: Date.now(),
+          })
+        }
+      }
+
+      if (comment.targetType === 'update') {
+        const updateId = ctx.db.normalizeId('updates', comment.targetId)
+        const update = updateId ? await ctx.db.get(updateId) : null
+        if (update) {
+          await ctx.db.patch(update._id, {
+            commentsCount: Math.max(0, update.commentsCount - 1),
+          })
+        }
+      }
+
+      await ctx.db.patch(comment._id, {
+        content: '[deleted]',
+        isDeleted: true,
+      })
+    }
+
+    for (const project of ownedProjects) {
+      await ctx.db.patch(project._id, {
+        locatic: {
+          ...project.locatic,
+          isVisible: false,
+        },
+        updatedAt: Date.now(),
+      })
+    }
+
+    for (const conversation of conversations) {
+      const conversationMessages = await ctx.db
+        .query('messages')
+        .withIndex('by_conversation', (query) =>
+          query.eq('conversationId', conversation._id),
+        )
+        .collect()
+
+      await Promise.all(
+        conversationMessages.map((message) => ctx.db.delete(message._id)),
+      )
+    }
 
     await Promise.all([
-      ...follows
-        .filter(
-          (follow) =>
-            follow.followerId === args.userId ||
-            follow.followingId === args.userId,
-        )
-        .map((follow) => ctx.db.delete(follow._id)),
-      ...notifications
-        .filter(
-          (notification) =>
-            notification.recipientId === args.userId ||
-            notification.actorId === args.userId,
-        )
-        .map((notification) => ctx.db.delete(notification._id)),
-      ...messages
-        .filter((message) => message.senderId === args.userId)
-        .map((message) => ctx.db.delete(message._id)),
-      ...homeFeedItems
-        .filter(
-          (item) => item.userId === args.userId || item.actorId === args.userId,
-        )
-        .map((item) => ctx.db.delete(item._id)),
+      ...[
+        ...new Map(
+          follows.map((follow) => [String(follow._id), follow]),
+        ).values(),
+      ].map((follow) => ctx.db.delete(follow._id)),
+      ...[
+        ...new Map(
+          notifications.map((notification) => [
+            String(notification._id),
+            notification,
+          ]),
+        ).values(),
+      ].map((notification) => ctx.db.delete(notification._id)),
+      ...[
+        ...new Map(
+          sentMessages.map((message) => [String(message._id), message]),
+        ).values(),
+      ].map((message) => ctx.db.delete(message._id)),
+      ...[
+        ...new Map(
+          conversations.map((conversation) => [
+            String(conversation._id),
+            conversation,
+          ]),
+        ).values(),
+      ].map((conversation) => ctx.db.delete(conversation._id)),
+      ...[
+        ...new Map(
+          homeFeedItems.map((item) => [String(item._id), item]),
+        ).values(),
+      ].map((item) => ctx.db.delete(item._id)),
+      ...activityEvents.map((event) => ctx.db.delete(event._id)),
+      ...contributorRows.map((row) => ctx.db.delete(row._id)),
+      ...reports.map((report) => ctx.db.delete(report._id)),
+      ...reactions.map((reaction) => ctx.db.delete(reaction._id)),
     ])
+
+    await ctx.db.patch(user._id, {
+      email: `deleted+${String(user._id)}@locatic.invalid`,
+      profile: {
+        ...user.profile,
+        displayName: 'Deleted User',
+        fullName: null,
+        bio: '',
+        socialLinks: {
+          github: 'https://github.com',
+          x: null,
+          linkedin: null,
+          bluesky: null,
+          website: null,
+        },
+      },
+      stats: {
+        ...user.stats,
+        commentsCount: 0,
+        likedCount: 0,
+      },
+      updatedAt: Date.now(),
+    })
 
     return null
   },
 })
 
-export const upsertFromClerkWebhook = mutation({
+export const upsertFromClerkWebhook = internalMutation({
   args: {
-    secret: v.string(),
     clerkId: v.string(),
     email: v.string(),
     githubId: v.union(v.number(), v.null()),
@@ -482,76 +789,22 @@ export const upsertFromClerkWebhook = mutation({
     avatarUrl: v.string(),
   },
   handler: async (ctx, args) => {
-    if (args.secret !== process.env.CLERK_WEBHOOK_SHARED_SECRET) {
-      throw new ConvexError('Invalid webhook secret')
-    }
-
     const existingViewer = await getViewerByClerkId(ctx, args.clerkId)
     const now = Date.now()
 
     if (!existingViewer) {
-      const userId = await ctx.db.insert('users', {
-        clerkId: args.clerkId,
-        email: args.email,
-        github: {
-          id: args.githubId,
-          username: args.githubUsername,
-        },
-        profile: {
-          displayName: args.displayName,
-          fullName: args.displayName,
+      const userId = await ctx.db.insert(
+        'users',
+        createDefaultViewerProfile({
+          clerkId: args.clerkId,
+          email: args.email,
+          githubId: args.githubId,
+          githubUsername: args.githubUsername,
+          githubUrl: args.githubUrl,
           avatarUrl: args.avatarUrl,
-          bio: '',
-          cityId: null,
-          buildStatus: 'just_exploring',
-          primaryLanguages: [],
-          socialLinks: {
-            github: args.githubUrl,
-            x: null,
-            linkedin: null,
-            bluesky: null,
-            website: null,
-          },
-        },
-        pinnedOwnedProjectIds: [],
-        stats: {
-          followersCount: 0,
-          followingCount: 0,
-          projectsCount: 0,
-          contributionsCount: 0,
-          commentsCount: 0,
-          likedCount: 0,
-        },
-        exploreConfig: {
-          cityIds: [],
-          stackPrefs: [],
-        },
-        appearInExplore: true,
-        privacy: {
-          profileVisibility: 'public',
-          followGraphVisibility: 'public',
-          commentHistoryVisibility: 'public',
-          likedProjectsVisibility: 'public',
-          cityVisibility: 'exact_city',
-          appearInPulse: true,
-        },
-        notificationPrefs: {
-          projectLikes: true,
-          updateLikes: true,
-          comments: true,
-          commentReplies: true,
-          newFollowers: true,
-          dms: true,
-          weeklyDigest: false,
-          contributorRecognized: true,
-        },
-        githubLastSyncedAt: null,
-        onboardingCompletedAt: null,
-        createdAt: now,
-        updatedAt: now,
-        deactivatedAt: null,
-        deletedAt: null,
-      })
+          displayName: args.displayName,
+        }),
+      )
 
       return await ctx.db.get(userId)
     }
@@ -579,16 +832,11 @@ export const upsertFromClerkWebhook = mutation({
   },
 })
 
-export const deleteFromClerkWebhook = mutation({
+export const deleteFromClerkWebhook = internalMutation({
   args: {
-    secret: v.string(),
     clerkId: v.string(),
   },
   handler: async (ctx, args) => {
-    if (args.secret !== process.env.CLERK_WEBHOOK_SHARED_SECRET) {
-      throw new ConvexError('Invalid webhook secret')
-    }
-
     const viewer = await getViewerByClerkId(ctx, args.clerkId)
     if (!viewer) {
       return null

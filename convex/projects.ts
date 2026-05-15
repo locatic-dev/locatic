@@ -215,6 +215,7 @@ export const upsertImportedRepositories = internalMutation({
     const ownerSnapshot = await buildOwnerSnapshot(ctx.db, owner)
     let reposNew = 0
     let reposUpdated = 0
+    const skippedRepos: string[] = []
     const now = Date.now()
     const createdProjectIds = []
 
@@ -227,7 +228,6 @@ export const upsertImportedRepositories = internalMutation({
         .unique()
 
       const projectRecord = {
-        ownerId: owner._id,
         github: {
           ...repository,
           commitFrequency: getCommitFrequency(repository.lastCommitAt),
@@ -251,12 +251,20 @@ export const upsertImportedRepositories = internalMutation({
       }
 
       if (existing) {
+        if (existing.ownerId !== owner._id) {
+          skippedRepos.push(repository.fullName)
+          continue
+        }
+
         await ctx.db.patch(existing._id, projectRecord)
         reposUpdated += 1
         continue
       }
 
-      const projectId = await ctx.db.insert('projects', projectRecord)
+      const projectId = await ctx.db.insert('projects', {
+        ...projectRecord,
+        ownerId: owner._id,
+      })
       createdProjectIds.push(projectId)
       reposNew += 1
 
@@ -318,6 +326,7 @@ export const upsertImportedRepositories = internalMutation({
       createdProjectIds,
       reposNew,
       reposUpdated,
+      skippedRepos,
     }
   },
 })

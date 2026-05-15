@@ -11,16 +11,29 @@ export const list = query({
   handler: async (ctx, args) => {
     const viewer = await getViewerOrThrow(ctx)
     const limit = Math.min(args.limit ?? 20, 50)
+    const users = await ctx.db.query('users').collect()
+    const usersById = new Map(users.map((user) => [String(user._id), user]))
     const ownedProjects = await ctx.db
       .query('projects')
       .withIndex('by_owner', (query) => query.eq('ownerId', viewer._id))
       .collect()
 
     const projects = (await ctx.db.query('projects').collect()).filter(
-      (project) =>
-        project.locatic.isVisible &&
-        project.ownerId !== viewer._id &&
-        project.ownerSnapshot.cityId !== null,
+      (project) => {
+        const owner = usersById.get(String(project.ownerId))
+        if (!owner) {
+          return false
+        }
+
+        return (
+          project.locatic.isVisible &&
+          project.ownerId !== viewer._id &&
+          project.ownerSnapshot.cityId !== null &&
+          owner.appearInExplore &&
+          !owner.deletedAt &&
+          !owner.deactivatedAt
+        )
+      },
     )
 
     const exploreHistory = await ctx.db

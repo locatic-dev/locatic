@@ -1,7 +1,7 @@
 export interface CreateDefaultViewerProfileOptions {
   clerkId: string
   email: string
-  githubId: number
+  githubId: number | null
   githubUsername: string
   githubUrl: string
   avatarUrl: string

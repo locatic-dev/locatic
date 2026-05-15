@@ -11,32 +11,27 @@ export const search = query({
   handler: async (ctx, args) => {
     const limit = Math.min(args.limit ?? 10, 20)
     const normalizedQuery = args.query.trim().toLowerCase()
-
-    const cities = await ctx.db.query('cities').withIndex('by_name').collect()
-
-    const activeCities = cities.filter((city) => city.isActive)
     if (!normalizedQuery) {
-      return activeCities.slice(0, limit)
+      return (await ctx.db.query('cities').withIndex('by_name').take(40))
+        .filter((city) => city.isActive)
+        .slice(0, limit)
     }
 
-    return activeCities
-      .filter((city) => {
-        if (city.normalizedName.includes(normalizedQuery)) {
-          return true
-        }
-
-        return city.aliases.some((alias) =>
-          alias.toLowerCase().includes(normalizedQuery),
-        )
-      })
-      .slice(0, limit)
+    return await ctx.db
+      .query('cities')
+      .withSearchIndex('search_text', (query) =>
+        query.search('searchText', normalizedQuery).eq('isActive', true),
+      )
+      .take(limit)
   },
 })
 
 export const listPopular = query({
   args: {},
   handler: async (ctx) => {
-    return await ctx.db.query('cities').withIndex('by_name').take(20)
+    return (await ctx.db.query('cities').withIndex('by_name').take(40))
+      .filter((city) => city.isActive)
+      .slice(0, 20)
   },
 })
 

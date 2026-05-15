@@ -3,6 +3,18 @@ import { v } from 'convex/values'
 import { internalMutation, query } from './_generated/server'
 import { buildPulseSnapshotRows } from './lib/pulse'
 
+function getWindowStart(now: number, timeWindow: 'day' | 'week' | 'month') {
+  switch (timeWindow) {
+    case 'day':
+      return now - 24 * 60 * 60 * 1000
+    case 'week':
+      return now - 7 * 24 * 60 * 60 * 1000
+    case 'month':
+    default:
+      return now - 30 * 24 * 60 * 60 * 1000
+  }
+}
+
 export const listPublic = query({
   args: {
     scopeType: v.union(v.literal('city'), v.literal('global')),
@@ -47,10 +59,30 @@ export const listPublic = query({
 export const rebuildSnapshots = internalMutation({
   args: {},
   handler: async (ctx) => {
-    const projects = (await ctx.db.query('projects').collect()).filter(
-      (project) => project.locatic.isVisible,
-    )
-    const existingSnapshots = await ctx.db.query('pulse_snapshots').collect()
+    const [projects, users, reactions, comments, updates, existingSnapshots] =
+      await Promise.all([
+        ctx.db.query('projects').collect(),
+        ctx.db.query('users').collect(),
+        ctx.db.query('reactions').withIndex('by_user').collect(),
+        ctx.db.query('comments').collect(),
+        ctx.db.query('updates').collect(),
+        ctx.db.query('pulse_snapshots').collect(),
+      ])
+
+    const usersById = new Map(users.map((user) => [String(user._id), user]))
+    const visibleProjects = projects.filter((project) => {
+      if (!project.locatic.isVisible) {
+        return false
+      }
+
+      const owner = usersById.get(String(project.ownerId))
+      if (!owner || owner.deletedAt || owner.deactivatedAt) {
+        return false
+      }
+
+      return owner.privacy.appearInPulse
+    })
+
     await Promise.all(
       existingSnapshots.map((snapshot) => ctx.db.delete(snapshot._id)),
     )
@@ -64,32 +96,93 @@ export const rebuildSnapshots = internalMutation({
     const now = Date.now()
 
     for (const timeWindow of windows) {
+      const windowStart = getWindowStart(now, timeWindow)
+      const likesByProjectId = new Map<string, number>()
+      const commentsByProjectId = new Map<string, number>()
+      const activeProjectIds = new Set<string>()
+
+      for (const reaction of reactions) {
+        if (
+          reaction.targetType !== 'project' ||
+          reaction.reactionType !== 'like' ||
+          reaction.createdAt < windowStart
+        ) {
+          continue
+        }
+
+        likesByProjectId.set(
+          reaction.targetId,
+          (likesByProjectId.get(reaction.targetId) ?? 0) + 1,
+        )
+        activeProjectIds.add(reaction.targetId)
+      }
+
+      for (const comment of comments) {
+        if (
+          comment.targetType !== 'project' ||
+          comment.isDeleted ||
+          comment.createdAt < windowStart
+        ) {
+          continue
+        }
+
+        commentsByProjectId.set(
+          comment.targetId,
+          (commentsByProjectId.get(comment.targetId) ?? 0) + 1,
+        )
+        activeProjectIds.add(comment.targetId)
+      }
+
+      for (const update of updates) {
+        if (update.createdAt >= windowStart) {
+          activeProjectIds.add(String(update.projectId))
+        }
+      }
+
+      for (const project of visibleProjects) {
+        if (
+          project.addedToLocaticAt >= windowStart ||
+          project.github.lastCommitAt >= windowStart
+        ) {
+          activeProjectIds.add(String(project._id))
+        }
+      }
+
+      const scopedProjects =
+        activeProjectIds.size > 0
+          ? visibleProjects.filter((project) =>
+              activeProjectIds.has(String(project._id)),
+            )
+          : visibleProjects
+
       for (const sort of sorts) {
+        const pulseInputs = scopedProjects.map((project) => ({
+          projectId: String(project._id),
+          projectSnapshot: {
+            name: project.github.name,
+            fullName: project.github.fullName,
+            description: project.github.description,
+            primaryLanguage: project.github.primaryLanguage,
+            likesCount: likesByProjectId.get(String(project._id)) ?? 0,
+            commentsCount: commentsByProjectId.get(String(project._id)) ?? 0,
+            stargazersCount: project.github.stargazersCount,
+            ownerId: project.ownerId,
+            ownerDisplayName: project.ownerSnapshot.displayName,
+            ownerAvatarUrl: project.ownerSnapshot.avatarUrl,
+            cityId: project.ownerSnapshot.cityId,
+            cityName: project.ownerSnapshot.cityName ?? null,
+          },
+          likesCount: likesByProjectId.get(String(project._id)) ?? 0,
+          commentsCount: commentsByProjectId.get(String(project._id)) ?? 0,
+          stargazersCount: project.github.stargazersCount,
+        }))
+
         const globalRows = buildPulseSnapshotRows({
           scopeType: 'global',
           scopeId: null,
           timeWindow,
           sort,
-          projects: projects.map((project) => ({
-            projectId: String(project._id),
-            projectSnapshot: {
-              name: project.github.name,
-              fullName: project.github.fullName,
-              description: project.github.description,
-              primaryLanguage: project.github.primaryLanguage,
-              likesCount: project.locatic.likesCount,
-              commentsCount: project.locatic.commentsCount,
-              stargazersCount: project.github.stargazersCount,
-              ownerId: project.ownerId,
-              ownerDisplayName: project.ownerSnapshot.displayName,
-              ownerAvatarUrl: project.ownerSnapshot.avatarUrl,
-              cityId: project.ownerSnapshot.cityId,
-              cityName: project.ownerSnapshot.cityName ?? null,
-            },
-            likesCount: project.locatic.likesCount,
-            commentsCount: project.locatic.commentsCount,
-            stargazersCount: project.github.stargazersCount,
-          })),
+          projects: pulseInputs,
           computedAt: now,
         })
 
@@ -104,9 +197,41 @@ export const rebuildSnapshots = internalMutation({
             }),
           ),
         )
+
+        const cityIds = new Set(
+          pulseInputs
+            .map((project) => project.projectSnapshot.cityId)
+            .filter(Boolean)
+            .map((cityId) => String(cityId)),
+        )
+
+        for (const cityId of cityIds) {
+          const cityRows = buildPulseSnapshotRows({
+            scopeType: 'city',
+            scopeId: cityId,
+            timeWindow,
+            sort,
+            projects: pulseInputs.filter(
+              (project) => String(project.projectSnapshot.cityId) === cityId,
+            ),
+            computedAt: now,
+          })
+
+          await Promise.all(
+            cityRows.map((row) =>
+              ctx.db.insert('pulse_snapshots', {
+                ...row,
+                projectSnapshot: {
+                  ...row.projectSnapshot,
+                  cityId: row.projectSnapshot.cityId ?? null,
+                },
+              }),
+            ),
+          )
+        }
       }
     }
 
-    return { rebuiltAt: now, projects: projects.length }
+    return { rebuiltAt: now, projects: visibleProjects.length }
   },
 })
