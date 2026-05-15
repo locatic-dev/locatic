@@ -1,49 +1,46 @@
 import { createFileRoute } from '@tanstack/react-router'
-import {
-  SignIn,
-  SignedIn,
-  SignedOut,
-  useUser,
-} from '@clerk/tanstack-react-start'
+import { SignIn, useUser } from '@clerk/react'
 
-export const Route = createFileRoute('/demo/clerk')({
+export const Route = createFileRoute('/demo/clerk' as never)({
   component: ClerkDemo,
 })
 
 function ClerkDemo() {
+  const { isSignedIn } = useUser()
+
   return (
     <div className="flex justify-center py-10 px-4">
       <div className="w-full max-w-md p-6 space-y-6">
-        <SignedOut>
-          <div className="space-y-1.5">
-            <h1 className="text-lg font-semibold leading-none tracking-tight">
-              Sign in to continue
-            </h1>
-            <p className="text-sm text-neutral-500 dark:text-neutral-400">
-              Clerk renders the sign-in UI, manages sessions, and handles social
-              providers for you.
+        {!isSignedIn ? (
+          <>
+            <div className="space-y-1.5">
+              <h1 className="text-lg font-semibold leading-none tracking-tight">
+                Sign in to continue
+              </h1>
+              <p className="text-sm text-neutral-500 dark:text-neutral-400">
+                Clerk renders the sign-in UI, manages sessions, and handles
+                social providers for you.
+              </p>
+            </div>
+            <div className="flex justify-center pt-2">
+              <SignIn routing="hash" />
+            </div>
+            <p className="text-xs text-center text-neutral-400 dark:text-neutral-500">
+              Built with{' '}
+              <a
+                href="https://clerk.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium hover:text-neutral-600 dark:hover:text-neutral-300"
+              >
+                CLERK
+              </a>
+              .
             </p>
-          </div>
-          <div className="flex justify-center pt-2">
-            <SignIn routing="hash" />
-          </div>
-          <p className="text-xs text-center text-neutral-400 dark:text-neutral-500">
-            Built with{' '}
-            <a
-              href="https://clerk.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="font-medium hover:text-neutral-600 dark:hover:text-neutral-300"
-            >
-              CLERK
-            </a>
-            .
-          </p>
-        </SignedOut>
+          </>
+        ) : null}
 
-        <SignedIn>
-          <SignedInGreeting />
-        </SignedIn>
+        {isSignedIn ? <SignedInGreeting /> : null}
       </div>
     </div>
   )

@@ -1,20 +1,19 @@
-import { ConvexProvider } from 'convex/react'
-import { ConvexQueryClient } from '@convex-dev/react-query'
+import { QueryClientProvider, type QueryClient } from '@tanstack/react-query'
+import { useAuth } from '@clerk/tanstack-react-start'
+import { ConvexProviderWithClerk } from 'convex/react-clerk'
 
-const CONVEX_URL = (import.meta as any).env.VITE_CONVEX_URL
-if (!CONVEX_URL) {
-  console.error('missing envar CONVEX_URL')
-}
-const convexQueryClient = new ConvexQueryClient(CONVEX_URL)
+import { convexClient } from './client'
 
 export default function AppConvexProvider({
   children,
+  queryClient,
 }: {
   children: React.ReactNode
+  queryClient: QueryClient
 }) {
   return (
-    <ConvexProvider client={convexQueryClient.convexClient}>
-      {children}
-    </ConvexProvider>
+    <ConvexProviderWithClerk client={convexClient} useAuth={useAuth}>
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    </ConvexProviderWithClerk>
   )
 }

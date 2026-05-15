@@ -60,33 +60,33 @@ Locatic uses the following collections:
 
 ```ts
 type BuildStatus =
-  | "building_solo"
-  | "looking_for_cofounder"
-  | "open_to_collab"
-  | "hiring"
-  | "just_exploring";
+  | 'building_solo'
+  | 'looking_for_cofounder'
+  | 'open_to_collab'
+  | 'hiring'
+  | 'just_exploring'
 
-type CommitFrequency = "active" | "slow" | "dormant";
+type CommitFrequency = 'active' | 'slow' | 'dormant'
 
-type ContributorSyncCadence = "daily" | "weekly" | "monthly";
+type ContributorSyncCadence = 'daily' | 'weekly' | 'monthly'
 
 type EventType =
-  | "project_posted"
-  | "update_broadcast"
-  | "project_liked"
-  | "project_commented"
-  | "contributor_matched";
+  | 'project_posted'
+  | 'update_broadcast'
+  | 'project_liked'
+  | 'project_commented'
+  | 'contributor_matched'
 
-type FeedReason = "following" | "liked_project_update";
+type FeedReason = 'following' | 'liked_project_update'
 
 type NotificationType =
-  | "project_liked"
-  | "update_reacted"
-  | "project_commented"
-  | "comment_replied"
-  | "followed"
-  | "dm_received"
-  | "contributor_recognized";
+  | 'project_liked'
+  | 'update_reacted'
+  | 'project_commented'
+  | 'comment_replied'
+  | 'followed'
+  | 'dm_received'
+  | 'contributor_recognized'
 ```
 
 ---
@@ -97,14 +97,14 @@ Stores encrypted GitHub OAuth credentials separately from the user profile so ho
 
 ```ts
 interface GithubToken {
-  _id: string;
-  userId: string;
-  accessTokenEnc: string;
-  tokenStatus: "active" | "revoked" | "needs_reauth";
-  scopes: string[];
-  lastUsedAt: Date | null;
-  createdAt: Date;
-  updatedAt: Date;
+  _id: string
+  userId: string
+  accessTokenEnc: string
+  tokenStatus: 'active' | 'revoked' | 'needs_reauth'
+  scopes: string[]
+  lastUsedAt: Date | null
+  createdAt: Date
+  updatedAt: Date
 }
 ```
 
@@ -129,23 +129,23 @@ Stores canonical city records for onboarding, Explore, ranking, and display.
 
 ```ts
 interface City {
-  _id: string;
-  slug: string;
-  name: string;
-  displayName: string;
-  region: string | null;
-  country: string;
-  countryCode: string;
+  _id: string
+  slug: string
+  name: string
+  displayName: string
+  region: string | null
+  country: string
+  countryCode: string
   location: {
-    lat: number;
-    lng: number;
-  };
-  address: string | null;
-  aliases: string[];
-  timezone: string | null;
-  isActive: boolean;
-  createdAt: Date;
-  updatedAt: Date;
+    lat: number
+    lng: number
+  }
+  address: string | null
+  aliases: string[]
+  timezone: string | null
+  isActive: boolean
+  createdAt: Date
+  updatedAt: Date
 }
 ```
 
@@ -177,58 +177,58 @@ The primary user profile document. This is heavily read, so it should stay compa
 
 ```ts
 interface User {
-  _id: string;
-  clerkId: string;
-  email: string;
+  _id: string
+  clerkId: string
+  email: string
   github: {
-    id: number;
-    username: string;
-  };
+    id: number
+    username: string
+  }
   profile: {
-    displayName: string;
-    fullName: string | null;
-    avatarUrl: string;
-    bio: string;
-    cityId: string;
-    buildStatus: BuildStatus;
-    primaryLanguages: string[];
+    displayName: string
+    fullName: string | null
+    avatarUrl: string
+    bio: string
+    cityId: string
+    buildStatus: BuildStatus
+    primaryLanguages: string[]
     socialLinks: {
-      github: string;
-      x: string | null;
-      linkedin: string | null;
-      bluesky: string | null;
-      website: string | null;
-    };
-  };
-  pinnedOwnedProjectIds: string[];
+      github: string
+      x: string | null
+      linkedin: string | null
+      bluesky: string | null
+      website: string | null
+    }
+  }
+  pinnedOwnedProjectIds: string[]
   stats: {
-    followersCount: number;
-    followingCount: number;
-    projectsCount: number;
-    contributionsCount: number;
-    commentsCount: number;
-    likedCount: number;
-  };
+    followersCount: number
+    followingCount: number
+    projectsCount: number
+    contributionsCount: number
+    commentsCount: number
+    likedCount: number
+  }
   exploreConfig: {
-    cityIds: string[];
-    stackPrefs: string[];
-  };
-  appearInExplore: boolean;
+    cityIds: string[]
+    stackPrefs: string[]
+  }
+  appearInExplore: boolean
   notificationPrefs: {
-    projectLikes: boolean;
-    updateLikes: boolean;
-    comments: boolean;
-    commentReplies: boolean;
-    newFollowers: boolean;
-    dms: boolean;
-    weeklyDigest: boolean;
-    contributorRecognized: boolean;
-  };
-  githubLastSyncedAt: Date | null;
-  createdAt: Date;
-  updatedAt: Date;
-  deactivatedAt: Date | null;
-  deletedAt: Date | null;
+    projectLikes: boolean
+    updateLikes: boolean
+    comments: boolean
+    commentReplies: boolean
+    newFollowers: boolean
+    dms: boolean
+    weeklyDigest: boolean
+    contributorRecognized: boolean
+  }
+  githubLastSyncedAt: Date | null
+  createdAt: Date
+  updatedAt: Date
+  deactivatedAt: Date | null
+  deletedAt: Date | null
 }
 ```
 
@@ -260,48 +260,48 @@ Stores every GitHub repo that has been added to Locatic.
 
 ```ts
 interface Project {
-  _id: string;
-  ownerId: string;
+  _id: string
+  ownerId: string
   github: {
-    repoId: number;
-    fullName: string;
-    name: string;
-    description: string | null;
-    githubUrl: string;
-    projectUrl: string | null;
-    primaryLanguage: string | null;
-    topics: string[];
-    lastCommitAt: Date;
-    commitFrequency: CommitFrequency;
-    readmePreview: string | null;
-  };
+    repoId: number
+    fullName: string
+    name: string
+    description: string | null
+    githubUrl: string
+    projectUrl: string | null
+    primaryLanguage: string | null
+    topics: string[]
+    lastCommitAt: Date
+    commitFrequency: CommitFrequency
+    readmePreview: string | null
+  }
   locatic: {
-    isVisible: boolean;
-    tags: string[];
-    likesCount: number;
-    commentsCount: number;
-    updatesCount: number;
-  };
+    isVisible: boolean
+    tags: string[]
+    likesCount: number
+    commentsCount: number
+    updatesCount: number
+  }
   ownerSnapshot: {
-    displayName: string;
-    avatarUrl: string;
-    cityId: string;
-    cityName: string;
-    buildStatus: BuildStatus;
-  };
+    displayName: string
+    avatarUrl: string
+    cityId: string
+    cityName: string
+    buildStatus: BuildStatus
+  }
   topContributorsSnapshot: Array<{
-    userId: string;
-    displayName: string;
-    avatarUrl: string;
-    commitCount: number;
-  }>;
+    userId: string
+    displayName: string
+    avatarUrl: string
+    commitCount: number
+  }>
   contributorStats: {
-    matchedCount: number;
-    lastSyncedAt: Date | null;
-    syncCadence: ContributorSyncCadence;
-  };
-  addedToLocaticAt: Date;
-  updatedAt: Date;
+    matchedCount: number
+    lastSyncedAt: Date | null
+    syncCadence: ContributorSyncCadence
+  }
+  addedToLocaticAt: Date
+  updatedAt: Date
 }
 ```
 
@@ -336,20 +336,20 @@ The source of truth for matched contribution relationships between Locatic users
 
 ```ts
 interface ProjectContributor {
-  _id: string;
-  projectId: string;
-  userId: string;
-  githubId: number;
-  githubUsername: string;
-  commitCount: number;
-  role: "contributor";
-  isActive: boolean;
-  firstMatchedAt: Date;
-  lastConfirmedAt: Date;
+  _id: string
+  projectId: string
+  userId: string
+  githubId: number
+  githubUsername: string
+  commitCount: number
+  role: 'contributor'
+  isActive: boolean
+  firstMatchedAt: Date
+  lastConfirmedAt: Date
   userSnapshot: {
-    displayName: string;
-    avatarUrl: string;
-  };
+    displayName: string
+    avatarUrl: string
+  }
 }
 ```
 
@@ -379,28 +379,28 @@ Broadcast updates posted by project owners. These are first-class feed items.
 
 ```ts
 interface Update {
-  _id: string;
-  projectId: string;
-  ownerId: string;
-  versionTag: string | null;
-  title: string | null;
-  description: string;
-  additionalDetail: string | null;
-  reactionCounts: Record<string, number>;
-  commentsCount: number;
+  _id: string
+  projectId: string
+  ownerId: string
+  versionTag: string | null
+  title: string | null
+  description: string
+  additionalDetail: string | null
+  reactionCounts: Record<string, number>
+  commentsCount: number
   ownerSnapshot: {
-    displayName: string;
-    avatarUrl: string;
-    cityId: string;
-    cityName: string;
-    buildStatus: BuildStatus;
-  };
+    displayName: string
+    avatarUrl: string
+    cityId: string
+    cityName: string
+    buildStatus: BuildStatus
+  }
   projectSnapshot: {
-    name: string;
-    fullName: string;
-    primaryLanguage: string | null;
-  };
-  createdAt: Date;
+    name: string
+    fullName: string
+    primaryLanguage: string | null
+  }
+  createdAt: Date
 }
 ```
 
@@ -428,14 +428,14 @@ Defines valid reaction types and their UI metadata.
 
 ```ts
 interface ReactionConfig {
-  _id: string;
-  label: string;
-  emoji: string;
-  targetTypes: Array<"project" | "update">;
-  isActive: boolean;
-  sortOrder: number;
-  createdAt: Date;
-  updatedAt: Date;
+  _id: string
+  label: string
+  emoji: string
+  targetTypes: Array<'project' | 'update'>
+  isActive: boolean
+  sortOrder: number
+  createdAt: Date
+  updatedAt: Date
 }
 ```
 
@@ -460,12 +460,12 @@ Stores a user reaction against a project or update.
 
 ```ts
 interface Reaction {
-  _id: string;
-  userId: string;
-  targetType: "project" | "update";
-  targetId: string;
-  reactionType: string;
-  createdAt: Date;
+  _id: string
+  userId: string
+  targetType: 'project' | 'update'
+  targetId: string
+  reactionType: string
+  createdAt: Date
 }
 ```
 
@@ -494,21 +494,21 @@ Public comment threads on projects and updates. Replies are one level deep.
 
 ```ts
 interface Comment {
-  _id: string;
-  targetType: "project" | "update";
-  targetId: string;
-  authorId: string;
-  parentId: string | null;
-  content: string;
-  replyCount: number;
-  isDeleted: boolean;
+  _id: string
+  targetType: 'project' | 'update'
+  targetId: string
+  authorId: string
+  parentId: string | null
+  content: string
+  replyCount: number
+  isDeleted: boolean
   authorSnapshot: {
-    displayName: string;
-    avatarUrl: string;
-    cityId: string;
-    cityName: string;
-  };
-  createdAt: Date;
+    displayName: string
+    avatarUrl: string
+    cityId: string
+    cityName: string
+  }
+  createdAt: Date
 }
 ```
 
@@ -534,10 +534,10 @@ Stores one-directional follow relationships.
 
 ```ts
 interface Follow {
-  _id: string;
-  followerId: string;
-  followingId: string;
-  createdAt: Date;
+  _id: string
+  followerId: string
+  followingId: string
+  createdAt: Date
 }
 ```
 
@@ -560,34 +560,34 @@ Source event log for meaningful social and content activity.
 
 ```ts
 interface ActivityEvent {
-  _id: string;
-  actorId: string;
-  eventType: EventType;
-  projectId: string;
-  updateId: string | null;
-  commentId: string | null;
+  _id: string
+  actorId: string
+  eventType: EventType
+  projectId: string
+  updateId: string | null
+  commentId: string | null
   actorSnapshot: {
-    displayName: string;
-    avatarUrl: string;
-    cityId: string;
-    cityName: string;
-  };
+    displayName: string
+    avatarUrl: string
+    cityId: string
+    cityName: string
+  }
   projectSnapshot: {
-    name: string;
-    fullName: string;
-    description: string | null;
-    primaryLanguage: string | null;
-    likesCount: number;
-    commentsCount: number;
-  };
+    name: string
+    fullName: string
+    description: string | null
+    primaryLanguage: string | null
+    likesCount: number
+    commentsCount: number
+  }
   updateSnapshot: {
-    versionTag: string | null;
-    title: string | null;
-    description: string;
-    reactionCounts: Record<string, number>;
-    commentsCount: number;
-  } | null;
-  createdAt: Date;
+    versionTag: string | null
+    title: string | null
+    description: string
+    reactionCounts: Record<string, number>
+    commentsCount: number
+  } | null
+  createdAt: Date
 }
 ```
 
@@ -615,38 +615,38 @@ Materialized Home feed read model. This is the collection queried by the Home pa
 
 ```ts
 interface HomeFeedItem {
-  _id: string;
-  userId: string;
-  sourceEventId: string;
-  dedupeKey: string;
-  reason: FeedReason;
-  priority: 1 | 2 | 3;
-  actorId: string;
-  eventType: EventType;
-  projectId: string;
-  updateId: string | null;
+  _id: string
+  userId: string
+  sourceEventId: string
+  dedupeKey: string
+  reason: FeedReason
+  priority: 1 | 2 | 3
+  actorId: string
+  eventType: EventType
+  projectId: string
+  updateId: string | null
   actorSnapshot: {
-    displayName: string;
-    avatarUrl: string;
-    cityId: string;
-    cityName: string;
-  };
+    displayName: string
+    avatarUrl: string
+    cityId: string
+    cityName: string
+  }
   projectSnapshot: {
-    name: string;
-    fullName: string;
-    description: string | null;
-    primaryLanguage: string | null;
-    likesCount: number;
-    commentsCount: number;
-  };
+    name: string
+    fullName: string
+    description: string | null
+    primaryLanguage: string | null
+    likesCount: number
+    commentsCount: number
+  }
   updateSnapshot: {
-    versionTag: string | null;
-    title: string | null;
-    description: string;
-    reactionCounts: Record<string, number>;
-    commentsCount: number;
-  } | null;
-  createdAt: Date;
+    versionTag: string | null
+    title: string | null
+    description: string
+    reactionCounts: Record<string, number>
+    commentsCount: number
+  } | null
+  createdAt: Date
 }
 ```
 
@@ -672,19 +672,19 @@ One DM thread per pair of users.
 
 ```ts
 interface Conversation {
-  _id: string;
-  conversationKey: string;
-  participantLowId: string;
-  participantHighId: string;
+  _id: string
+  conversationKey: string
+  participantLowId: string
+  participantHighId: string
   lastMessage: {
-    content: string;
-    senderId: string;
-    sentAt: Date;
-  };
-  unreadCounts: Record<string, number>;
-  isRequest: boolean;
-  createdAt: Date;
-  updatedAt: Date;
+    content: string
+    senderId: string
+    sentAt: Date
+  }
+  unreadCounts: Record<string, number>
+  isRequest: boolean
+  createdAt: Date
+  updatedAt: Date
 }
 ```
 
@@ -710,12 +710,12 @@ Individual messages inside a DM conversation.
 
 ```ts
 interface Message {
-  _id: string;
-  conversationId: string;
-  senderId: string;
-  content: string;
-  readAt: Date | null;
-  createdAt: Date;
+  _id: string
+  conversationId: string
+  senderId: string
+  content: string
+  readAt: Date | null
+  createdAt: Date
 }
 ```
 
@@ -738,20 +738,20 @@ Recipient-specific notification records for in-app alerts.
 
 ```ts
 interface Notification {
-  _id: string;
-  recipientId: string;
-  actorId: string;
-  type: NotificationType;
-  projectId: string | null;
-  updateId: string | null;
-  commentId: string | null;
+  _id: string
+  recipientId: string
+  actorId: string
+  type: NotificationType
+  projectId: string | null
+  updateId: string | null
+  commentId: string | null
   actorSnapshot: {
-    displayName: string;
-    avatarUrl: string;
-  };
-  projectName: string | null;
-  isRead: boolean;
-  createdAt: Date;
+    displayName: string
+    avatarUrl: string
+  }
+  projectName: string | null
+  isRead: boolean
+  createdAt: Date
 }
 ```
 
@@ -778,16 +778,16 @@ Audit trail for GitHub sync activity.
 
 ```ts
 interface GithubSyncLog {
-  _id: string;
-  userId: string;
-  syncType: "initial" | "manual";
-  reposFetched: number;
-  reposNew: number;
-  reposUpdated: number;
-  status: "success" | "failed" | "token_revoked";
-  error: string | null;
-  githubRateLimitRemaining: number | null;
-  syncedAt: Date;
+  _id: string
+  userId: string
+  syncType: 'initial' | 'manual'
+  reposFetched: number
+  reposNew: number
+  reposUpdated: number
+  status: 'success' | 'failed' | 'token_revoked'
+  error: string | null
+  githubRateLimitRemaining: number | null
+  syncedAt: Date
 }
 ```
 
@@ -812,16 +812,16 @@ Singleton configuration for contributor refresh jobs.
 
 ```ts
 interface ContributorSyncConfig {
-  _id: "contributor_sync_config";
+  _id: 'contributor_sync_config'
   cadences: {
-    dailyIntervalHours: number;
-    weeklyIntervalHours: number;
-    monthlyIntervalHours: number;
-  };
-  maxContributorsFetched: number;
-  maxTopContributorsStored: number;
-  lastRunAt: Date | null;
-  updatedAt: Date;
+    dailyIntervalHours: number
+    weeklyIntervalHours: number
+    monthlyIntervalHours: number
+  }
+  maxContributorsFetched: number
+  maxTopContributorsStored: number
+  lastRunAt: Date | null
+  updatedAt: Date
 }
 ```
 

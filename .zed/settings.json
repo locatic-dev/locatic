@@ -3,39 +3,39 @@
     "TypeScript": {
       "format_on_save": "on",
       "prettier": {
-        "allowed": false,
+        "allowed": false
       },
       "formatter": {
         "external": {
           "command": "pnpm",
-          "arguments": ["exec", "oxfmt", "--stdin-filepath", "{buffer_path}"],
-        },
-      },
+          "arguments": ["exec", "oxfmt", "--stdin-filepath", "{buffer_path}"]
+        }
+      }
     },
     "TSX": {
       "format_on_save": "on",
       "prettier": {
-        "allowed": false,
+        "allowed": false
       },
       "formatter": {
         "external": {
           "command": "pnpm",
-          "arguments": ["exec", "oxfmt", "--stdin-filepath", "{buffer_path}"],
-        },
-      },
+          "arguments": ["exec", "oxfmt", "--stdin-filepath", "{buffer_path}"]
+        }
+      }
     },
     "JavaScript": {
       "format_on_save": "on",
       "prettier": {
-        "allowed": false,
+        "allowed": false
       },
       "formatter": {
         "external": {
           "command": "pnpm",
-          "arguments": ["exec", "oxfmt", "--stdin-filepath", "{buffer_path}"],
-        },
-      },
-    },
+          "arguments": ["exec", "oxfmt", "--stdin-filepath", "{buffer_path}"]
+        }
+      }
+    }
   },
   "lsp": {
     "vtsls": {
@@ -44,51 +44,51 @@
           "inlayHints": {
             "parameterNames": {
               "enabled": "all",
-              "suppressWhenArgumentMatchesName": false,
+              "suppressWhenArgumentMatchesName": false
             },
             "parameterTypes": {
-              "enabled": true,
+              "enabled": true
             },
             "variableTypes": {
               "enabled": true,
-              "suppressWhenTypeMatchesName": true,
+              "suppressWhenTypeMatchesName": true
             },
             "propertyDeclarationTypes": {
-              "enabled": true,
+              "enabled": true
             },
             "functionLikeReturnTypes": {
-              "enabled": true,
+              "enabled": true
             },
             "enumMemberValues": {
-              "enabled": true,
-            },
-          },
+              "enabled": true
+            }
+          }
         },
         "javascript": {
           "inlayHints": {
             "parameterNames": {
               "enabled": "all",
-              "suppressWhenArgumentMatchesName": false,
+              "suppressWhenArgumentMatchesName": false
             },
             "parameterTypes": {
-              "enabled": true,
+              "enabled": true
             },
             "variableTypes": {
               "enabled": true,
-              "suppressWhenTypeMatchesName": true,
+              "suppressWhenTypeMatchesName": true
             },
             "propertyDeclarationTypes": {
-              "enabled": true,
+              "enabled": true
             },
             "functionLikeReturnTypes": {
-              "enabled": true,
+              "enabled": true
             },
             "enumMemberValues": {
-              "enabled": true,
-            },
-          },
-        },
-      },
-    },
-  },
+              "enabled": true
+            }
+          }
+        }
+      }
+    }
+  }
 }

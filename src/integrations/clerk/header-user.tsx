@@ -1,19 +1,7 @@
-import {
-  SignedIn,
-  SignInButton,
-  SignedOut,
-  UserButton,
-} from '@clerk/tanstack-react-start'
+import { SignInButton, UserButton, useUser } from '@clerk/react'
 
 export default function HeaderUser() {
-  return (
-    <>
-      <SignedIn>
-        <UserButton />
-      </SignedIn>
-      <SignedOut>
-        <SignInButton />
-      </SignedOut>
-    </>
-  )
+  const { isSignedIn } = useUser()
+
+  return <>{isSignedIn ? <UserButton /> : <SignInButton />}</>
 }

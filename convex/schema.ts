@@ -1,14 +1,431 @@
 import { defineSchema, defineTable } from 'convex/server'
 import { v } from 'convex/values'
+import {
+  actorSnapshotValidator,
+  buildStatusValidator,
+  cityReferenceValidator,
+  commentTargetTypeValidator,
+  commitFrequencyValidator,
+  contributorSyncCadenceValidator,
+  eventTypeValidator,
+  feedReasonValidator,
+  githubSyncStatusValidator,
+  githubSyncTypeValidator,
+  githubTokenStatusValidator,
+  notificationTypeValidator,
+  optionalStringValidator,
+  optionalTimestampValidator,
+  ownerSnapshotValidator,
+  profileVisibilityValidator,
+  projectSnapshotValidator,
+  pulseScopeTypeValidator,
+  pulseSortValidator,
+  pulseTimeWindowValidator,
+  reactionTargetTypeValidator,
+  reportReasonValidator,
+  reportStatusValidator,
+  socialLinksValidator,
+  tabVisibilityValidator,
+  cityVisibilityValidator,
+  updateSnapshotValidator,
+} from './lib/validators'
 
 export default defineSchema({
-  products: defineTable({
-    title: v.string(),
-    imageId: v.string(),
-    price: v.number(),
+  github_tokens: defineTable({
+    userId: v.id('users'),
+    tokenStatus: githubTokenStatusValidator,
+    scopes: v.array(v.string()),
+    lastUsedAt: optionalTimestampValidator,
+    lastValidatedAt: optionalTimestampValidator,
+    lastError: optionalStringValidator,
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index('by_user_id', ['userId']),
+
+  cities: defineTable({
+    slug: v.string(),
+    name: v.string(),
+    displayName: v.string(),
+    normalizedName: v.string(),
+    region: optionalStringValidator,
+    country: v.string(),
+    countryCode: v.string(),
+    location: v.object({
+      lat: v.number(),
+      lng: v.number(),
+    }),
+    address: optionalStringValidator,
+    aliases: v.array(v.string()),
+    timezone: optionalStringValidator,
+    searchText: v.string(),
+    isActive: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_slug', ['slug'])
+    .index('by_name', ['name'])
+    .index('by_country_name', ['countryCode', 'name'])
+    .searchIndex('search_text', {
+      searchField: 'searchText',
+      filterFields: ['isActive', 'countryCode'],
+    }),
+
+  users: defineTable({
+    clerkId: v.string(),
+    email: v.string(),
+    github: v.object({
+      id: v.union(v.number(), v.null()),
+      username: v.string(),
+    }),
+    profile: v.object({
+      displayName: v.string(),
+      fullName: optionalStringValidator,
+      avatarUrl: v.string(),
+      bio: v.string(),
+      cityId: cityReferenceValidator,
+      buildStatus: buildStatusValidator,
+      primaryLanguages: v.array(v.string()),
+      socialLinks: socialLinksValidator,
+    }),
+    pinnedOwnedProjectIds: v.array(v.id('projects')),
+    stats: v.object({
+      followersCount: v.number(),
+      followingCount: v.number(),
+      projectsCount: v.number(),
+      contributionsCount: v.number(),
+      commentsCount: v.number(),
+      likedCount: v.number(),
+    }),
+    exploreConfig: v.object({
+      cityIds: v.array(v.id('cities')),
+      stackPrefs: v.array(v.string()),
+    }),
+    appearInExplore: v.boolean(),
+    privacy: v.object({
+      profileVisibility: profileVisibilityValidator,
+      followGraphVisibility: tabVisibilityValidator,
+      commentHistoryVisibility: tabVisibilityValidator,
+      likedProjectsVisibility: tabVisibilityValidator,
+      cityVisibility: cityVisibilityValidator,
+      appearInPulse: v.boolean(),
+    }),
+    notificationPrefs: v.object({
+      projectLikes: v.boolean(),
+      updateLikes: v.boolean(),
+      comments: v.boolean(),
+      commentReplies: v.boolean(),
+      newFollowers: v.boolean(),
+      dms: v.boolean(),
+      weeklyDigest: v.boolean(),
+      contributorRecognized: v.boolean(),
+    }),
+    githubLastSyncedAt: optionalTimestampValidator,
+    onboardingCompletedAt: optionalTimestampValidator,
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    deactivatedAt: optionalTimestampValidator,
+    deletedAt: optionalTimestampValidator,
+  })
+    .index('by_clerk_id', ['clerkId'])
+    .index('by_github_id', ['github.id'])
+    .index('by_github_username', ['github.username'])
+    .index('by_city_id', ['profile.cityId'])
+    .index('by_created_at', ['createdAt']),
+
+  projects: defineTable({
+    ownerId: v.id('users'),
+    github: v.object({
+      repoId: v.number(),
+      fullName: v.string(),
+      name: v.string(),
+      description: optionalStringValidator,
+      githubUrl: v.string(),
+      projectUrl: optionalStringValidator,
+      primaryLanguage: optionalStringValidator,
+      topics: v.array(v.string()),
+      stargazersCount: v.number(),
+      lastCommitAt: v.number(),
+      lastMetadataSyncedAt: optionalTimestampValidator,
+      commitFrequency: commitFrequencyValidator,
+      readmePreview: optionalStringValidator,
+    }),
+    locatic: v.object({
+      isVisible: v.boolean(),
+      tags: v.array(v.string()),
+      likesCount: v.number(),
+      commentsCount: v.number(),
+      updatesCount: v.number(),
+    }),
+    ownerSnapshot: ownerSnapshotValidator,
+    topContributorsSnapshot: v.array(
+      v.object({
+        userId: v.id('users'),
+        displayName: v.string(),
+        avatarUrl: v.string(),
+        commitCount: v.number(),
+      }),
+    ),
+    contributorStats: v.object({
+      matchedCount: v.number(),
+      lastSyncedAt: optionalTimestampValidator,
+      syncCadence: contributorSyncCadenceValidator,
+    }),
+    addedToLocaticAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_github_repo_id', ['github.repoId'])
+    .index('by_full_name', ['github.fullName'])
+    .index('by_owner', ['ownerId'])
+    .index('by_owner_visible', ['ownerId', 'locatic.isVisible'])
+    .index('by_city_likes', ['ownerSnapshot.cityId', 'locatic.likesCount'])
+    .index('by_city_comments', [
+      'ownerSnapshot.cityId',
+      'locatic.commentsCount',
+    ])
+    .index('by_city_added', ['ownerSnapshot.cityId', 'addedToLocaticAt'])
+    .index('by_city_last_commit', [
+      'ownerSnapshot.cityId',
+      'github.lastCommitAt',
+    ])
+    .index('by_sync_due', [
+      'contributorStats.syncCadence',
+      'contributorStats.lastSyncedAt',
+    ]),
+
+  project_contributors: defineTable({
+    projectId: v.id('projects'),
+    userId: v.id('users'),
+    githubId: v.number(),
+    githubUsername: v.string(),
+    commitCount: v.number(),
+    role: v.literal('contributor'),
+    isActive: v.boolean(),
+    firstMatchedAt: v.number(),
+    lastConfirmedAt: v.number(),
+    userSnapshot: v.object({
+      displayName: v.string(),
+      avatarUrl: v.string(),
+    }),
+  })
+    .index('by_project', ['projectId'])
+    .index('by_user', ['userId'])
+    .index('by_project_user', ['projectId', 'userId'])
+    .index('by_github_id', ['githubId']),
+
+  updates: defineTable({
+    projectId: v.id('projects'),
+    ownerId: v.id('users'),
+    versionTag: optionalStringValidator,
+    title: optionalStringValidator,
+    description: v.string(),
+    additionalDetail: optionalStringValidator,
+    reactionCounts: v.record(v.string(), v.number()),
+    commentsCount: v.number(),
+    ownerSnapshot: ownerSnapshotValidator,
+    projectSnapshot: v.object({
+      name: v.string(),
+      fullName: v.string(),
+      primaryLanguage: optionalStringValidator,
+    }),
+    createdAt: v.number(),
+  })
+    .index('by_project', ['projectId'])
+    .index('by_owner', ['ownerId'])
+    .index('by_created_at', ['createdAt']),
+
+  reaction_config: defineTable({
+    label: v.string(),
+    emoji: v.string(),
+    targetTypes: v.array(reactionTargetTypeValidator),
+    isActive: v.boolean(),
+    sortOrder: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index('by_sort_order', ['sortOrder']),
+
+  reactions: defineTable({
+    userId: v.id('users'),
+    targetType: reactionTargetTypeValidator,
+    targetId: v.string(),
+    reactionType: v.string(),
+    createdAt: v.number(),
+  })
+    .index('by_target', ['targetType', 'targetId'])
+    .index('by_user_target_type', ['userId', 'targetType', 'reactionType'])
+    .index('by_user_target_reaction', ['userId', 'targetId', 'reactionType']),
+
+  comments: defineTable({
+    targetType: commentTargetTypeValidator,
+    targetId: v.string(),
+    authorId: v.id('users'),
+    parentId: v.union(v.id('comments'), v.null()),
+    content: v.string(),
+    replyCount: v.number(),
+    likesCount: v.number(),
+    isDeleted: v.boolean(),
+    authorSnapshot: actorSnapshotValidator,
+    createdAt: v.number(),
+  })
+    .index('by_target_parent', ['targetId', 'parentId'])
+    .index('by_target_created', ['targetId', 'createdAt'])
+    .index('by_target_likes', ['targetId', 'likesCount'])
+    .index('by_author', ['authorId']),
+
+  follows: defineTable({
+    followerId: v.id('users'),
+    followingId: v.id('users'),
+    createdAt: v.number(),
+  })
+    .index('by_follower', ['followerId'])
+    .index('by_following', ['followingId'])
+    .index('by_pair', ['followerId', 'followingId']),
+
+  activity_events: defineTable({
+    actorId: v.id('users'),
+    eventType: eventTypeValidator,
+    projectId: v.id('projects'),
+    updateId: v.union(v.id('updates'), v.null()),
+    commentId: v.union(v.id('comments'), v.null()),
+    actorSnapshot: actorSnapshotValidator,
+    projectSnapshot: projectSnapshotValidator,
+    updateSnapshot: updateSnapshotValidator,
+    createdAt: v.number(),
+  })
+    .index('by_actor', ['actorId'])
+    .index('by_project_event', ['projectId', 'eventType'])
+    .index('by_created_at', ['createdAt']),
+
+  home_feed_items: defineTable({
+    userId: v.id('users'),
+    sourceEventId: v.id('activity_events'),
+    dedupeKey: v.string(),
+    reason: feedReasonValidator,
+    priority: v.union(v.literal(1), v.literal(2), v.literal(3)),
+    actorId: v.id('users'),
+    eventType: eventTypeValidator,
+    projectId: v.id('projects'),
+    updateId: v.union(v.id('updates'), v.null()),
+    actorSnapshot: actorSnapshotValidator,
+    projectSnapshot: projectSnapshotValidator,
+    updateSnapshot: updateSnapshotValidator,
+    createdAt: v.number(),
+  })
+    .index('by_user_priority', ['userId', 'priority'])
+    .index('by_user_created', ['userId', 'createdAt'])
+    .index('by_user_dedupe', ['userId', 'dedupeKey']),
+
+  conversations: defineTable({
+    conversationKey: v.string(),
+    participantLowId: v.id('users'),
+    participantHighId: v.id('users'),
+    lastMessage: v.object({
+      content: v.string(),
+      senderId: v.id('users'),
+      sentAt: v.number(),
+    }),
+    unreadCounts: v.record(v.string(), v.number()),
+    isRequest: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_conversation_key', ['conversationKey'])
+    .index('by_participant_low_updated', ['participantLowId', 'updatedAt'])
+    .index('by_participant_high_updated', ['participantHighId', 'updatedAt']),
+
+  messages: defineTable({
+    conversationId: v.id('conversations'),
+    senderId: v.id('users'),
+    content: v.string(),
+    readAt: optionalTimestampValidator,
+    createdAt: v.number(),
+  })
+    .index('by_conversation', ['conversationId'])
+    .index('by_conversation_created', ['conversationId', 'createdAt']),
+
+  notifications: defineTable({
+    recipientId: v.id('users'),
+    actorId: v.id('users'),
+    type: notificationTypeValidator,
+    projectId: v.union(v.id('projects'), v.null()),
+    updateId: v.union(v.id('updates'), v.null()),
+    commentId: v.union(v.id('comments'), v.null()),
+    actorSnapshot: v.object({
+      displayName: v.string(),
+      avatarUrl: v.string(),
+    }),
+    projectName: optionalStringValidator,
+    isRead: v.boolean(),
+    createdAt: v.number(),
+  })
+    .index('by_recipient_read', ['recipientId', 'isRead'])
+    .index('by_recipient_created', ['recipientId', 'createdAt']),
+
+  github_sync_log: defineTable({
+    userId: v.id('users'),
+    syncType: githubSyncTypeValidator,
+    reposFetched: v.number(),
+    reposNew: v.number(),
+    reposUpdated: v.number(),
+    status: githubSyncStatusValidator,
+    error: optionalStringValidator,
+    githubRateLimitRemaining: v.union(v.number(), v.null()),
+    syncedAt: v.number(),
+  }).index('by_user_synced_at', ['userId', 'syncedAt']),
+
+  contributor_sync_config: defineTable({
+    cadences: v.object({
+      dailyIntervalHours: v.number(),
+      weeklyIntervalHours: v.number(),
+      monthlyIntervalHours: v.number(),
+    }),
+    maxContributorsFetched: v.number(),
+    maxTopContributorsStored: v.number(),
+    lastRunAt: optionalTimestampValidator,
+    updatedAt: v.number(),
   }),
-  todos: defineTable({
-    text: v.string(),
-    completed: v.boolean(),
-  }),
+
+  explore_history: defineTable({
+    userId: v.id('users'),
+    projectId: v.id('projects'),
+    firstSeenAt: v.number(),
+    lastSeenAt: v.number(),
+    dismissedAt: optionalTimestampValidator,
+    likedAt: optionalTimestampValidator,
+  })
+    .index('by_user_project', ['userId', 'projectId'])
+    .index('by_user_last_seen', ['userId', 'lastSeenAt']),
+
+  pulse_snapshots: defineTable({
+    scopeType: pulseScopeTypeValidator,
+    scopeId: optionalStringValidator,
+    timeWindow: pulseTimeWindowValidator,
+    sort: pulseSortValidator,
+    rank: v.number(),
+    score: v.number(),
+    projectId: v.string(),
+    projectSnapshot: projectSnapshotValidator,
+    computedAt: v.number(),
+  })
+    .index('by_scope_window_sort_rank', [
+      'scopeType',
+      'scopeId',
+      'timeWindow',
+      'sort',
+      'rank',
+    ])
+    .index('by_computed_at', ['computedAt']),
+
+  reports: defineTable({
+    reporterId: v.id('users'),
+    targetType: v.literal('comment'),
+    targetId: v.id('comments'),
+    reason: reportReasonValidator,
+    details: optionalStringValidator,
+    status: reportStatusValidator,
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_target', ['targetType', 'targetId'])
+    .index('by_reporter', ['reporterId'])
+    .index('by_status', ['status']),
 })

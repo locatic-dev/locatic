@@ -12,10 +12,12 @@
     "test": "vitest run",
     "lint": "pnpm exec oxlint",
     "format": "pnpm exec oxfmt . && pnpm exec oxlint --fix",
-    "check": "pnpm exec oxfmt --check . && pnpm exec oxlint --check",
+    "check": "pnpm exec oxfmt --check . && pnpm exec oxlint",
     "deploy": "pnpm run build && wrangler deploy"
   },
   "dependencies": {
+    "@clerk/backend": "3.4.4",
+    "@clerk/react": "6.5.0",
     "@clerk/tanstack-react-start": "^1.2.0",
     "@cloudflare/vite-plugin": "^1.26.0",
     "@convex-dev/react-query": "0.1.0",
@@ -32,6 +34,7 @@
     "lucide-react": "^0.577.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "svix": "^1.93.0",
     "tailwindcss": "^4.1.18"
   },
   "devDependencies": {
