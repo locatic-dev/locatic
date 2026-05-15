@@ -1,6 +1,24 @@
 import type { MutationCtx } from '../_generated/server'
 import type { Doc } from './types'
 
+async function insertHomeFeedItemIfMissing(
+  ctx: MutationCtx,
+  item: Omit<Doc<'home_feed_items'>, '_id' | '_creationTime'>,
+) {
+  const existing = await ctx.db
+    .query('home_feed_items')
+    .withIndex('by_user_dedupe', (query) =>
+      query.eq('userId', item.userId).eq('dedupeKey', item.dedupeKey),
+    )
+    .unique()
+
+  if (existing) {
+    return existing._id
+  }
+
+  return await ctx.db.insert('home_feed_items', item)
+}
+
 export async function fanOutActivityEventToFollowers(
   ctx: MutationCtx,
   event: Doc<'activity_events'>,
@@ -16,7 +34,7 @@ export async function fanOutActivityEventToFollowers(
     follows
       .filter((follow) => follow.followerId !== event.actorId)
       .map((follow) =>
-        ctx.db.insert('home_feed_items', {
+        insertHomeFeedItemIfMissing(ctx, {
           userId: follow.followerId,
           sourceEventId: event._id,
           dedupeKey: `${follow.followerId}:${event._id}`,
@@ -51,7 +69,7 @@ export async function backfillHomeFeedForFollow(
 
   await Promise.all(
     sortedEvents.map((event) =>
-      ctx.db.insert('home_feed_items', {
+      insertHomeFeedItemIfMissing(ctx, {
         userId: followerId,
         sourceEventId: event._id,
         dedupeKey: `${followerId}:${event._id}`,

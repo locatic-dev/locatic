@@ -152,7 +152,7 @@ export const sendMessage = mutation({
       },
       isRequest:
         conversation.isRequest &&
-        !conversation.unreadCounts[String(viewer._id)],
+        conversation.lastMessage.senderId === viewer._id,
       updatedAt: Date.now(),
     })
 

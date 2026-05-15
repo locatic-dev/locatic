@@ -1,6 +1,8 @@
 import { ConvexError, v } from 'convex/values'
 
 import { internalMutation, internalQuery } from './_generated/server'
+import { fanOutActivityEventToFollowers } from './lib/homeFeed'
+import { buildActorSnapshot, buildProjectSnapshot } from './lib/snapshots'
 
 export const applyProjectLike = internalMutation({
   args: {
@@ -36,6 +38,31 @@ export const applyProjectLike = internalMutation({
         reactionType: 'like',
         createdAt: Date.now(),
       })
+
+      await ctx.db.patch(viewer._id, {
+        stats: {
+          ...viewer.stats,
+          likedCount: viewer.stats.likedCount + 1,
+        },
+        updatedAt: Date.now(),
+      })
+
+      const eventId = await ctx.db.insert('activity_events', {
+        actorId: viewer._id,
+        eventType: 'project_liked',
+        projectId: project._id,
+        updateId: null,
+        commentId: null,
+        actorSnapshot: await buildActorSnapshot(ctx.db, viewer),
+        projectSnapshot: buildProjectSnapshot(project),
+        updateSnapshot: null,
+        createdAt: Date.now(),
+      })
+
+      const event = await ctx.db.get(eventId)
+      if (event) {
+        await fanOutActivityEventToFollowers(ctx, event)
+      }
     }
 
     await ctx.db.patch(project._id, {
@@ -94,6 +121,13 @@ export const removeProjectLike = internalMutation({
 
     if (existing) {
       await ctx.db.delete(existing._id)
+      await ctx.db.patch(viewer._id, {
+        stats: {
+          ...viewer.stats,
+          likedCount: Math.max(0, viewer.stats.likedCount - 1),
+        },
+        updatedAt: Date.now(),
+      })
     }
 
     await ctx.db.patch(project._id, {
@@ -154,6 +188,49 @@ export const patchProjectMetadata = internalMutation({
   },
 })
 
+export const recordGithubTokenState = internalMutation({
+  args: {
+    userId: v.id('users'),
+    tokenStatus: v.union(
+      v.literal('active'),
+      v.literal('revoked'),
+      v.literal('needs_reauth'),
+    ),
+    scopes: v.array(v.string()),
+    lastError: v.union(v.string(), v.null()),
+  },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query('github_tokens')
+      .withIndex('by_user_id', (query) => query.eq('userId', args.userId))
+      .unique()
+    const now = Date.now()
+
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        tokenStatus: args.tokenStatus,
+        scopes: args.scopes,
+        lastUsedAt: now,
+        lastValidatedAt: now,
+        lastError: args.lastError,
+        updatedAt: now,
+      })
+      return existing._id
+    }
+
+    return await ctx.db.insert('github_tokens', {
+      userId: args.userId,
+      tokenStatus: args.tokenStatus,
+      scopes: args.scopes,
+      lastUsedAt: now,
+      lastValidatedAt: now,
+      lastError: args.lastError,
+      createdAt: now,
+      updatedAt: now,
+    })
+  },
+})
+
 export const likedProjectsByUser = internalQuery({
   args: {
     userId: v.id('users'),
@@ -169,18 +246,17 @@ export const likedProjectsByUser = internalQuery({
       )
       .collect()
 
-    const projects = await ctx.db.query('projects').collect()
-
-    return likes.map((like) => {
-      const project = projects.find(
-        (entry) => String(entry._id) === like.targetId,
-      )
-      return {
-        reactionId: like._id,
-        projectId: like.targetId,
-        projectFullName: project?.github.fullName ?? null,
-      }
-    })
+    return await Promise.all(
+      likes.map(async (like) => {
+        const projectId = ctx.db.normalizeId('projects', like.targetId)
+        const project = projectId ? await ctx.db.get(projectId) : null
+        return {
+          reactionId: like._id,
+          projectId: like.targetId,
+          projectFullName: project?.github.fullName ?? null,
+        }
+      }),
+    )
   },
 })
 

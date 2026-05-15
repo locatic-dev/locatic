@@ -63,10 +63,8 @@ export const reactToTarget = mutation({
     )
 
     if (args.targetType === 'update') {
-      const updates = await ctx.db.query('updates').collect()
-      const update = updates.find(
-        (entry) => String(entry._id) === args.targetId,
-      )
+      const updateId = ctx.db.normalizeId('updates', args.targetId)
+      const update = updateId ? await ctx.db.get(updateId) : null
       if (!update) {
         throw new ConvexError('Update not found')
       }
@@ -95,10 +93,8 @@ export const reactToTarget = mutation({
     }
 
     if (args.targetType === 'comment') {
-      const comments = await ctx.db.query('comments').collect()
-      const comment = comments.find(
-        (entry) => String(entry._id) === args.targetId,
-      )
+      const commentId = ctx.db.normalizeId('comments', args.targetId)
+      const comment = commentId ? await ctx.db.get(commentId) : null
       if (!comment) {
         throw new ConvexError('Comment not found')
       }
@@ -137,10 +133,8 @@ export const unreactFromTarget = mutation({
     await ctx.db.delete(existing._id)
 
     if (args.targetType === 'update') {
-      const updates = await ctx.db.query('updates').collect()
-      const update = updates.find(
-        (entry) => String(entry._id) === args.targetId,
-      )
+      const updateId = ctx.db.normalizeId('updates', args.targetId)
+      const update = updateId ? await ctx.db.get(updateId) : null
       if (update) {
         const nextCount = Math.max(
           0,
@@ -156,10 +150,8 @@ export const unreactFromTarget = mutation({
     }
 
     if (args.targetType === 'comment') {
-      const comments = await ctx.db.query('comments').collect()
-      const comment = comments.find(
-        (entry) => String(entry._id) === args.targetId,
-      )
+      const commentId = ctx.db.normalizeId('comments', args.targetId)
+      const comment = commentId ? await ctx.db.get(commentId) : null
       if (comment) {
         await ctx.db.patch(comment._id, {
           likesCount: Math.max(0, comment.likesCount - 1),
