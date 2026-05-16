@@ -17,8 +17,7 @@
   },
   "dependencies": {
     "@clerk/backend": "3.4.4",
-    "@clerk/react": "6.5.0",
-    "@clerk/tanstack-react-start": "^1.2.0",
+    "@clerk/tanstack-react-start": "^1.2.5",
     "@cloudflare/vite-plugin": "^1.26.0",
     "@convex-dev/react-query": "0.1.0",
     "@radix-ui/react-avatar": "^1.1.11",
@@ -43,11 +42,11 @@
     "@tanstack/react-router-devtools": "latest",
     "@tanstack/react-router-ssr-query": "latest",
     "@tanstack/react-start": "latest",
-    "@tanstack/router-plugin": "^1.132.0",
+    "@tanstack/router-plugin": "^1.168.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
-    "convex": "^1.32.0",
+    "convex": "^1.39.1",
     "lucide-react": "^0.577.0",
     "next-themes": "^0.4.6",
     "react": "^19.2.0",
@@ -79,7 +78,12 @@
   "pnpm": {
     "onlyBuiltDependencies": [
       "esbuild",
-      "lightningcss"
+      "lightningcss",
+      "workerd"
+    ],
+    "ignoredBuiltDependencies": [
+      "@clerk/shared",
+      "sharp"
     ]
   }
 }

@@ -1,4 +1,4 @@
-import { useAuth } from '@clerk/react'
+import { useAuth } from '@clerk/tanstack-react-start'
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'

@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { SignIn } from '@clerk/react'
+import { SignIn } from '@clerk/tanstack-react-start'
 import { Logo } from '@/components/ui/logo'
 
 export const Route = createFileRoute('/sign-in')({

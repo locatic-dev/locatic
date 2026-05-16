@@ -1,4 +1,4 @@
-import { SignInButton, UserButton, useUser } from '@clerk/react'
+import { SignInButton, UserButton, useUser } from '@clerk/tanstack-react-start'
 
 export default function HeaderUser() {
   const { isSignedIn } = useUser()
