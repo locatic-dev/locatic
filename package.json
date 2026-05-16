@@ -2,6 +2,10 @@
   "name": "locatic",
   "private": true,
   "type": "module",
+  "packageManager": "pnpm@11.1.2",
+  "engines": {
+    "node": ">=22.12.0"
+  },
   "imports": {
     "#/*": "./src/*"
   },
@@ -74,16 +78,5 @@
     "vite": "^8.0.0",
     "vitest": "^4.1.5",
     "wrangler": "^4.70.0"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "esbuild",
-      "lightningcss",
-      "workerd"
-    ],
-    "ignoredBuiltDependencies": [
-      "@clerk/shared",
-      "sharp"
-    ]
   }
 }
