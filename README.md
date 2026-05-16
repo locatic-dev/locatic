@@ -133,8 +133,12 @@ pnpm build
 pnpm preview
 pnpm test
 pnpm lint
+pnpm typecheck
 pnpm format
 pnpm check
+pnpm ci:quality
+pnpm ci:build
+pnpm deploy:convex
 pnpm deploy
 ```
 
@@ -169,6 +173,16 @@ pnpm deploy
 That command runs the production build and then deploys with Wrangler.
 
 Before deploying, review [wrangler.jsonc](wrangler.jsonc). The worker name is still set to the starter default and should be changed to a production-appropriate value for Locatic.
+
+## CI/CD
+
+GitHub Actions handles repository CI and Convex production deployment:
+
+- [ci.yml](.github/workflows/ci.yml) runs quality checks on pull requests and pushes to `main`
+- [convex-deploy.yml](.github/workflows/convex-deploy.yml) deploys Convex production only after CI succeeds on `main`
+- Cloudflare frontend deploys remain managed by Cloudflare Git integration
+
+The workflows read Node and pnpm versions from [package.json](package.json) rather than duplicating them in YAML.
 
 ## Testing and Code Quality
 
