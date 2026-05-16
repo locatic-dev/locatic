@@ -4,7 +4,7 @@
   "type": "module",
   "packageManager": "pnpm@11.1.2",
   "engines": {
-    "node": ">=22.12.0"
+    "node": "24.x"
   },
   "imports": {
     "#/*": "./src/*"
@@ -15,8 +15,12 @@
     "preview": "vite preview",
     "test": "vitest run",
     "lint": "pnpm exec oxlint",
+    "typecheck": "pnpm exec tsc --noEmit",
     "format": "pnpm exec oxfmt . && pnpm exec oxlint --fix",
     "check": "pnpm exec oxfmt --check . && pnpm exec oxlint",
+    "ci:quality": "pnpm run check && pnpm run typecheck && pnpm run test",
+    "ci:build": "pnpm run build",
+    "deploy:convex": "pnpm exec convex deploy",
     "deploy": "pnpm run build && wrangler deploy"
   },
   "dependencies": {
