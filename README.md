@@ -5,9 +5,12 @@ Welcome to your new TanStack Start app!
 To run this application:
 
 ```bash
+corepack enable
 pnpm install
 pnpm dev
 ```
+
+This repo is pinned to `pnpm@11.1.2` via the `packageManager` field and expects Node.js `>=22.12.0`.
 
 # Building For Production
 
