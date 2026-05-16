@@ -27,5 +27,8 @@ export function createAppQueryClient() {
 
   convexQueryClient.connect(queryClient)
 
-  return queryClient
+  return {
+    convexQueryClient,
+    queryClient,
+  }
 }

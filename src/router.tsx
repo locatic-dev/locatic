@@ -1,5 +1,6 @@
 import { createRouter as createTanStackRouter } from '@tanstack/react-router'
 import type { QueryClient } from '@tanstack/react-query'
+import type { ConvexQueryClient } from '@convex-dev/react-query'
 import { routeTree } from './routeTree.gen'
 
 import { setupRouterSsrQueryIntegration } from '@tanstack/react-router-ssr-query'
@@ -11,6 +12,7 @@ export function getRouter() {
   const router = createTanStackRouter({
     routeTree: routeTree as any,
     context: context as {
+      convexQueryClient: ConvexQueryClient
       queryClient: QueryClient
     },
     scrollRestoration: true,

@@ -173,6 +173,9 @@ export const privateProfile = query({
   args: {},
   handler: async (ctx) => {
     const viewer = await getViewerOrThrow(ctx)
+    const city = viewer.profile.cityId
+      ? await ctx.db.get(viewer.profile.cityId)
+      : null
     const projects = await ctx.db
       .query('projects')
       .withIndex('by_owner', (query) => query.eq('ownerId', viewer._id))
@@ -181,7 +184,7 @@ export const privateProfile = query({
       .query('comments')
       .withIndex('by_author', (query) => query.eq('authorId', viewer._id))
       .collect()
-    const likedProjects = await ctx.db
+    const likedReactions = await ctx.db
       .query('reactions')
       .withIndex('by_user_target_type', (query) =>
         query
@@ -191,11 +194,35 @@ export const privateProfile = query({
       )
       .collect()
 
+    const likedProjects = await Promise.all(
+      likedReactions.map(async (reaction) => {
+        const projectId = ctx.db.normalizeId('projects', reaction.targetId)
+        const project = projectId ? await ctx.db.get(projectId) : null
+
+        return {
+          reactionId: reaction._id,
+          projectId,
+          likedAt: reaction.createdAt,
+          project,
+        }
+      }),
+    )
+
     return {
       viewer: serializeViewer(viewer),
+      cityName: city?.displayName ?? null,
       projects,
       comments,
-      likedProjects,
+      likedProjects: likedProjects.filter(
+        (
+          likedProject,
+        ): likedProject is {
+          reactionId: typeof likedProject.reactionId
+          projectId: NonNullable<typeof likedProject.projectId>
+          likedAt: number
+          project: NonNullable<typeof likedProject.project>
+        } => Boolean(likedProject.projectId && likedProject.project),
+      ),
     }
   },
 })
@@ -206,6 +233,9 @@ export const publicProfile = query({
   },
   handler: async (ctx, args) => {
     const requesterIdentity = await ctx.auth.getUserIdentity()
+    const requester = requesterIdentity
+      ? await getViewerByClerkId(ctx, requesterIdentity.subject)
+      : null
     const viewer = await ctx.db
       .query('users')
       .withIndex('by_github_username', (query) =>
@@ -221,7 +251,20 @@ export const publicProfile = query({
       return null
     }
 
-    return await getPublicProfilePayload(ctx, viewer)
+    const followRecord = requester
+      ? await ctx.db
+          .query('follows')
+          .withIndex('by_pair', (query) =>
+            query.eq('followerId', requester._id).eq('followingId', viewer._id),
+          )
+          .unique()
+      : null
+
+    return {
+      userId: viewer._id,
+      viewerFollowsProfile: Boolean(followRecord),
+      ...(await getPublicProfilePayload(ctx, viewer)),
+    }
   },
 })
 
