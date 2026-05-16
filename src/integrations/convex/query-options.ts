@@ -17,6 +17,15 @@ export const homeFeedQueryOptions = (cursor?: number, limit = 20) =>
 export const exploreFeedQueryOptions = (limit = 20) =>
   convexQuery(api.explore.list, { limit })
 
+export const citiesSearchQueryOptions = (query: string, limit = 10) =>
+  convexQuery(api.cities.search, { query, limit })
+
+export const popularCitiesQueryOptions = () =>
+  convexQuery(api.cities.listPopular, {})
+
+export const citiesByIdsQueryOptions = (cityIds: Array<any>) =>
+  convexQuery(api.cities.listByIds, { cityIds })
+
 export const pulseQueryOptions = ({
   scopeType,
   scopeId,
@@ -41,8 +50,20 @@ export const pulseQueryOptions = ({
 export const projectDetailQueryOptions = (fullName: string) =>
   convexQuery(api.projects.getPublicByFullName, { fullName })
 
+export const mineProjectsQueryOptions = () =>
+  convexQuery(api.projects.listMine, {})
+
 export const notificationsQueryOptions = () =>
   convexQuery(api.notifications.list, {})
 
+export const notificationsUnreadCountQueryOptions = () =>
+  convexQuery(api.notifications.unreadCount, {})
+
 export const conversationsQueryOptions = () =>
   convexQuery(api.conversations.list, {})
+
+export const conversationDetailQueryOptions = (conversationId: any) =>
+  convexQuery(api.conversations.get, { conversationId })
+
+export const followingQueryOptions = (userId: any) =>
+  convexQuery(api.follows.listFollowing, { userId })

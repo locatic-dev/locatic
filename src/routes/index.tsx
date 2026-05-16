@@ -1,87 +1,491 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, Link, redirect } from '@tanstack/react-router'
+import { Logo } from '@/components/ui/logo'
+import { DotMap } from '@/components/ui/dot-map'
+import { BrandIcon } from '@/components/ui/brand-icon'
+import { ArrowRight, Star, Heart, MessageSquare, MapPin } from '@/lib/icons'
+import { viewerQueryOptions } from '@/features/viewer/queries'
+import type { ViewerBootstrapPayload } from '@/features/contracts'
 
-export const Route = createFileRoute('/' as never)({ component: App })
+export const Route = createFileRoute('/')({
+  beforeLoad: async ({ context }) => {
+    const bootstrap = (await context.queryClient.ensureQueryData(
+      viewerQueryOptions(),
+    )) as ViewerBootstrapPayload
 
-function App() {
+    if (!bootstrap.isAuthenticated) {
+      return
+    }
+
+    throw redirect({ to: bootstrap.needsOnboarding ? '/onboarding' : '/home' })
+  },
+  component: LandingPage,
+})
+
+function LandingPage() {
   return (
-    <main className="page-wrap px-4 pb-8 pt-14">
-      <section className="island-shell rise-in relative overflow-hidden rounded-[2rem] px-6 py-10 sm:px-10 sm:py-14">
-        <div className="pointer-events-none absolute -left-20 -top-24 h-56 w-56 rounded-full bg-[radial-gradient(circle,rgba(79,184,178,0.32),transparent_66%)]" />
-        <div className="pointer-events-none absolute -bottom-20 -right-20 h-56 w-56 rounded-full bg-[radial-gradient(circle,rgba(47,106,74,0.18),transparent_66%)]" />
-        <p className="island-kicker mb-3">TanStack Start Base Template</p>
-        <h1 className="display-title mb-5 max-w-3xl text-4xl leading-[1.02] font-bold tracking-tight text-[var(--sea-ink)] sm:text-6xl">
-          Start simple, ship quickly.
-        </h1>
-        <p className="mb-8 max-w-2xl text-base text-[var(--sea-ink-soft)] sm:text-lg">
-          This base starter intentionally keeps things light: two routes, clean
-          structure, and the essentials you need to build from scratch.
-        </p>
-        <div className="flex flex-wrap gap-3">
-          <a
-            href="/about"
-            className="rounded-full border border-[rgba(50,143,151,0.3)] bg-[rgba(79,184,178,0.14)] px-5 py-2.5 text-sm font-semibold text-[var(--lagoon-deep)] no-underline transition hover:-translate-y-0.5 hover:bg-[rgba(79,184,178,0.24)]"
+    <div
+      style={{
+        minHeight: '100dvh',
+        background: 'var(--lx-bg)',
+        color: 'var(--lx-text)',
+        overflow: 'hidden',
+        position: 'relative',
+      }}
+    >
+      {/* Nav */}
+      <header
+        style={{
+          height: 64,
+          padding: '0 48px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          position: 'relative',
+          zIndex: 2,
+          borderBottom: '1px solid var(--lx-border)',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <Logo size={24} />
+          <span
+            style={{
+              fontFamily: 'var(--lx-font-mono)',
+              fontSize: 16,
+              fontWeight: 700,
+              letterSpacing: '-0.02em',
+            }}
           >
-            About This Starter
-          </a>
+            locatic
+          </span>
+          <span
+            style={{
+              fontFamily: 'var(--lx-font-mono)',
+              fontSize: 10.5,
+              color: 'var(--lx-text-3)',
+              marginLeft: 4,
+              padding: '2px 6px',
+              border: '1px solid var(--lx-border)',
+              borderRadius: 3,
+              lineHeight: 1,
+            }}
+          >
+            v0.1 · beta
+          </span>
+        </div>
+        <nav
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 24,
+            fontFamily: 'var(--lx-font-mono)',
+            fontSize: 12.5,
+            color: 'var(--lx-text-2)',
+          }}
+        >
           <a
-            href="https://tanstack.com/router"
+            href="https://github.com"
+            style={{ color: 'inherit', textDecoration: 'none' }}
             target="_blank"
             rel="noopener noreferrer"
-            className="rounded-full border border-[rgba(23,58,64,0.2)] bg-white/50 px-5 py-2.5 text-sm font-semibold text-[var(--sea-ink)] no-underline transition hover:-translate-y-0.5 hover:border-[rgba(23,58,64,0.35)]"
           >
-            Router Guide
+            github
           </a>
+          <Link
+            to="/sign-in"
+            style={{
+              border: '1px solid var(--lx-border)',
+              background: 'var(--lx-surface)',
+              color: 'var(--lx-text)',
+              padding: '7px 14px',
+              borderRadius: 4,
+              cursor: 'pointer',
+              fontFamily: 'var(--lx-font-mono)',
+              fontSize: 12.5,
+              textDecoration: 'none',
+            }}
+          >
+            sign in
+          </Link>
+        </nav>
+      </header>
+
+      {/* Dot map background */}
+      <div
+        style={{
+          position: 'absolute',
+          top: 64,
+          left: 0,
+          right: 0,
+          height: 520,
+          display: 'flex',
+          justifyContent: 'center',
+          opacity: 0.6,
+          pointerEvents: 'none',
+          maskImage:
+            'radial-gradient(ellipse at center, black 40%, transparent 75%)',
+          WebkitMaskImage:
+            'radial-gradient(ellipse at center, black 40%, transparent 75%)',
+        }}
+      >
+        <DotMap width={1200} height={520} />
+      </div>
+
+      {/* Hero */}
+      <section
+        style={{
+          position: 'relative',
+          zIndex: 1,
+          padding: '80px 48px 0',
+          display: 'grid',
+          gridTemplateColumns: '1fr 420px',
+          gap: 48,
+          alignItems: 'center',
+          maxWidth: 1280,
+          margin: '0 auto',
+        }}
+      >
+        <div>
+          {/* Status badge */}
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '5px 11px 5px 8px',
+              borderRadius: 999,
+              border: '1px solid var(--lx-border)',
+              background: 'var(--lx-surface)',
+              fontFamily: 'var(--lx-font-mono)',
+              fontSize: 11.5,
+              color: 'var(--lx-text-2)',
+              marginBottom: 28,
+            }}
+          >
+            <span
+              style={{
+                width: 6,
+                height: 6,
+                borderRadius: '50%',
+                background: 'var(--lx-accent)',
+                boxShadow: '0 0 0 3px oklch(72% 0.17 185 / 0.25)',
+              }}
+            />
+            <span>1,284 builders shipping in 47 cities</span>
+          </div>
+
+          <h1
+            style={{
+              margin: 0,
+              fontFamily: 'var(--lx-font-mono)',
+              fontSize: 'clamp(56px, 7vw, 88px)',
+              fontWeight: 700,
+              lineHeight: 0.96,
+              letterSpacing: '-0.045em',
+              color: 'var(--lx-text)',
+            }}
+          >
+            GitHub
+            <br />
+            with a <span style={{ color: 'var(--lx-accent)' }}>map.</span>
+          </h1>
+
+          <p
+            style={{
+              margin: '28px 0 0',
+              maxWidth: 460,
+              fontFamily: 'var(--lx-font-sans)',
+              fontSize: 17,
+              lineHeight: 1.55,
+              color: 'var(--lx-text-2)',
+            }}
+          >
+            Discover what developers in your city are building. Like their
+            projects. Star their repos. Follow the builders.
+          </p>
+
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 14,
+              marginTop: 36,
+            }}
+          >
+            <Link
+              to="/sign-in"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 10,
+                padding: '14px 22px',
+                background: 'var(--lx-accent)',
+                color: '#0d1117',
+                border: 'none',
+                borderRadius: 5,
+                cursor: 'pointer',
+                fontFamily: 'var(--lx-font-mono)',
+                fontSize: 13.5,
+                fontWeight: 600,
+                textDecoration: 'none',
+              }}
+            >
+              <BrandIcon name="github" size={16} />
+              Sign in with GitHub
+            </Link>
+            <button
+              style={{
+                padding: '14px 18px',
+                background: 'transparent',
+                color: 'var(--lx-text-2)',
+                border: '1px solid var(--lx-border)',
+                borderRadius: 5,
+                cursor: 'pointer',
+                fontFamily: 'var(--lx-font-mono)',
+                fontSize: 13.5,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+              }}
+              onClick={() =>
+                document
+                  .getElementById('features')
+                  ?.scrollIntoView({ behavior: 'smooth' })
+              }
+            >
+              browse the feed <ArrowRight size={14} />
+            </button>
+          </div>
+
+          <div
+            style={{
+              marginTop: 20,
+              fontFamily: 'var(--lx-font-mono)',
+              fontSize: 11.5,
+              color: 'var(--lx-text-3)',
+            }}
+          >
+            free · no spam · only public repo scope required
+          </div>
+        </div>
+
+        {/* Preview card float */}
+        <div style={{ position: 'relative', height: 320 }}>
+          <div
+            style={{
+              position: 'absolute',
+              top: 20,
+              left: 20,
+              right: -12,
+              height: 180,
+              borderRadius: 6,
+              background: 'var(--lx-surface)',
+              border: '1px solid var(--lx-border)',
+              opacity: 0.4,
+              transform: 'rotate(2.5deg)',
+            }}
+          />
+          <div
+            style={{
+              position: 'absolute',
+              top: 36,
+              left: 0,
+              right: 0,
+              transform: 'rotate(-1.5deg)',
+              boxShadow: '0 24px 60px rgba(0,0,0,0.5)',
+              borderRadius: 6,
+              background: 'var(--lx-surface)',
+              border: '1px solid var(--lx-border)',
+              padding: '18px 20px',
+            }}
+          >
+            <div
+              style={{
+                fontFamily: 'var(--lx-font-mono)',
+                fontSize: 14.5,
+                fontWeight: 600,
+                marginBottom: 6,
+              }}
+            >
+              <span style={{ color: 'var(--lx-text-3)', fontWeight: 400 }}>
+                sonia/
+              </span>
+              wisp.tsx
+            </div>
+            <p
+              style={{
+                margin: '0 0 12px',
+                fontFamily: 'var(--lx-font-sans)',
+                fontSize: 13,
+                color: 'var(--lx-text-2)',
+                lineHeight: 1.5,
+              }}
+            >
+              Tiny React state primitive — signals without the ceremony.
+            </p>
+            <div
+              style={{
+                display: 'flex',
+                gap: 16,
+                fontFamily: 'var(--lx-font-mono)',
+                fontSize: 11.5,
+                color: 'var(--lx-text-3)',
+              }}
+            >
+              <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <Star size={11} strokeWidth={1.4} /> 8.1k
+              </span>
+              <span
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  color: 'var(--lx-accent)',
+                }}
+              >
+                <Heart size={11} fill="currentColor" strokeWidth={1.4} /> 612
+              </span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <MessageSquare size={11} strokeWidth={1.4} /> 48
+              </span>
+            </div>
+          </div>
+          <div
+            style={{
+              position: 'absolute',
+              top: 8,
+              right: 24,
+              background: 'var(--lx-surface)',
+              border: '1px solid var(--lx-border)',
+              borderRadius: 4,
+              padding: '6px 10px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              fontFamily: 'var(--lx-font-mono)',
+              fontSize: 11,
+              color: 'var(--lx-accent)',
+              transform: 'rotate(4deg)',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+            }}
+          >
+            <Heart size={11} fill="currentColor" /> +12
+          </div>
         </div>
       </section>
 
-      <section className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {/* Feature row */}
+      <section
+        id="features"
+        style={{
+          position: 'relative',
+          zIndex: 1,
+          margin: '80px 48px 0',
+          padding: '40px 0',
+          borderTop: '1px solid var(--lx-border)',
+          borderBottom: '1px solid var(--lx-border)',
+          display: 'grid',
+          gridTemplateColumns: 'repeat(3, 1fr)',
+          gap: 0,
+          maxWidth: 1184,
+          marginLeft: 'auto',
+          marginRight: 'auto',
+        }}
+      >
         {[
-          [
-            'Type-Safe Routing',
-            'Routes and links stay in sync across every page.',
-          ],
-          [
-            'Server Functions',
-            'Call server code from your UI without creating API boilerplate.',
-          ],
-          [
-            'Streaming by Default',
-            'Ship progressively rendered responses for faster experiences.',
-          ],
-          [
-            'Tailwind Native',
-            'Design quickly with utility-first styling and reusable tokens.',
-          ],
-        ].map(([title, desc], index) => (
-          <article
-            key={title}
-            className="island-shell feature-card rise-in rounded-2xl p-5"
-            style={{ animationDelay: `${index * 90 + 80}ms` }}
+          {
+            num: '01',
+            title: 'discover',
+            desc: 'See projects shipped by people in your city, your stack, your tier of weird.',
+            Icon: MapPin,
+          },
+          {
+            num: '02',
+            title: 'like & star',
+            desc: 'A heart for taste, a star for code. Both signals matter — they go to different places.',
+            Icon: Heart,
+          },
+          {
+            num: '03',
+            title: 'connect',
+            desc: 'Follow builders whose work you admire. Their next push shows up at the top of your feed.',
+            Icon: ArrowRight,
+          },
+        ].map((f, i) => (
+          <div
+            key={i}
+            style={{
+              padding: '8px 32px',
+              borderLeft: i > 0 ? '1px solid var(--lx-border)' : 'none',
+            }}
           >
-            <h2 className="mb-2 text-base font-semibold text-[var(--sea-ink)]">
-              {title}
-            </h2>
-            <p className="m-0 text-sm text-[var(--sea-ink-soft)]">{desc}</p>
-          </article>
+            <div
+              style={{
+                fontFamily: 'var(--lx-font-mono)',
+                fontSize: 11,
+                color: 'var(--lx-text-3)',
+                marginBottom: 14,
+              }}
+            >
+              {f.num}
+            </div>
+            <div
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 4,
+                border: '1px solid var(--lx-border)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--lx-accent)',
+                marginBottom: 14,
+              }}
+            >
+              <f.Icon size={18} strokeWidth={1.4} />
+            </div>
+            <h3
+              style={{
+                margin: '0 0 8px',
+                fontFamily: 'var(--lx-font-mono)',
+                fontSize: 18,
+                fontWeight: 600,
+                color: 'var(--lx-text)',
+                letterSpacing: '-0.01em',
+              }}
+            >
+              {f.title}
+            </h3>
+            <p
+              style={{
+                margin: 0,
+                fontFamily: 'var(--lx-font-sans)',
+                fontSize: 14,
+                color: 'var(--lx-text-2)',
+                lineHeight: 1.55,
+                maxWidth: 280,
+              }}
+            >
+              {f.desc}
+            </p>
+          </div>
         ))}
       </section>
 
-      <section className="island-shell mt-8 rounded-2xl p-6">
-        <p className="island-kicker mb-2">Quick Start</p>
-        <ul className="m-0 list-disc space-y-2 pl-5 text-sm text-[var(--sea-ink-soft)]">
-          <li>
-            Edit <code>src/routes/index.tsx</code> to customize the home page.
-          </li>
-          <li>
-            Update <code>src/components/Header.tsx</code> and{' '}
-            <code>src/components/Footer.tsx</code> for brand links.
-          </li>
-          <li>
-            Add routes in <code>src/routes</code> and tweak visual tokens in{' '}
-            <code>src/styles.css</code>.
-          </li>
-        </ul>
-      </section>
-    </main>
+      {/* Footer */}
+      <footer
+        style={{
+          padding: '28px 48px',
+          textAlign: 'center',
+          fontFamily: 'var(--lx-font-mono)',
+          fontSize: 11.5,
+          color: 'var(--lx-text-3)',
+        }}
+      >
+        <div>built with love for developers.</div>
+        <div style={{ marginTop: 8, opacity: 0.7 }}>
+          locatic · {new Date().getFullYear()} · made in 7 cities
+        </div>
+      </footer>
+    </div>
   )
 }

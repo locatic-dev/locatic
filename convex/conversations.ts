@@ -24,8 +24,34 @@ export const list = query({
         .collect(),
     ])
 
-    return [...asLow, ...asHigh].sort(
+    const conversations = [...asLow, ...asHigh].sort(
       (left, right) => right.updatedAt - left.updatedAt,
+    )
+
+    return await Promise.all(
+      conversations.map(async (conversation) => {
+        const otherUserId =
+          conversation.participantLowId === viewer._id
+            ? conversation.participantHighId
+            : conversation.participantLowId
+        const otherUser = await ctx.db.get(otherUserId)
+        const city = otherUser?.profile.cityId
+          ? await ctx.db.get(otherUser.profile.cityId)
+          : null
+
+        return {
+          ...conversation,
+          otherUser: otherUser
+            ? {
+                userId: otherUser._id,
+                githubUsername: otherUser.github.username,
+                displayName: otherUser.profile.displayName,
+                avatarUrl: otherUser.profile.avatarUrl,
+                cityName: city?.displayName ?? null,
+              }
+            : null,
+        }
+      }),
     )
   },
 })
@@ -52,7 +78,30 @@ export const get = query({
       )
       .collect()
 
-    return { conversation, messages }
+    const otherUserId =
+      conversation.participantLowId === viewer._id
+        ? conversation.participantHighId
+        : conversation.participantLowId
+    const otherUser = await ctx.db.get(otherUserId)
+    const city = otherUser?.profile.cityId
+      ? await ctx.db.get(otherUser.profile.cityId)
+      : null
+
+    return {
+      conversation: {
+        ...conversation,
+        otherUser: otherUser
+          ? {
+              userId: otherUser._id,
+              githubUsername: otherUser.github.username,
+              displayName: otherUser.profile.displayName,
+              avatarUrl: otherUser.profile.avatarUrl,
+              cityName: city?.displayName ?? null,
+            }
+          : null,
+      },
+      messages,
+    }
   },
 })
 

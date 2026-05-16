@@ -35,6 +35,15 @@ export const getPublicByFullName = query({
     fullName: v.string(),
   },
   handler: async (ctx, args) => {
+    const requesterIdentity = await ctx.auth.getUserIdentity()
+    const requester = requesterIdentity
+      ? await ctx.db
+          .query('users')
+          .withIndex('by_clerk_id', (query) =>
+            query.eq('clerkId', requesterIdentity.subject),
+          )
+          .unique()
+      : null
     const project = await ctx.db
       .query('projects')
       .withIndex('by_full_name', (query) =>
@@ -63,18 +72,43 @@ export const getPublicByFullName = query({
       )
       .collect()
 
+    const viewerHasLiked = requester
+      ? await ctx.db
+          .query('reactions')
+          .withIndex('by_user_target_reaction', (query) =>
+            query
+              .eq('userId', requester._id)
+              .eq('targetId', String(project._id))
+              .eq('reactionType', 'like'),
+          )
+          .unique()
+      : null
+
+    const viewerFollowsOwner = requester
+      ? await ctx.db
+          .query('follows')
+          .withIndex('by_pair', (query) =>
+            query.eq('followerId', requester._id).eq('followingId', owner._id),
+          )
+          .unique()
+      : null
+
     return {
       project,
       updates,
       comments: comments.sort(
         (left, right) => right.likesCount - left.likesCount,
       ),
+      viewerHasLiked: Boolean(viewerHasLiked),
+      viewerFollowsOwner: Boolean(viewerFollowsOwner),
       owner: {
+        userId: owner._id,
         githubUsername: owner.github.username,
         displayName: owner.profile.displayName,
         avatarUrl: owner.profile.avatarUrl,
         socialLinks: owner.profile.socialLinks,
         buildStatus: owner.profile.buildStatus,
+        city: owner.profile.cityId ? project.ownerSnapshot.cityName : null,
       },
     }
   },

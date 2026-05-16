@@ -35,6 +35,20 @@ export const listPopular = query({
   },
 })
 
+export const listByIds = query({
+  args: {
+    cityIds: v.array(v.id('cities')),
+  },
+  handler: async (ctx, args) => {
+    const cities = await Promise.all(
+      args.cityIds.map((cityId) => ctx.db.get(cityId)),
+    )
+    return cities.filter((city): city is NonNullable<typeof city> =>
+      Boolean(city),
+    )
+  },
+})
+
 export const seedDefaultCities = internalMutation({
   args: {},
   handler: async (ctx) => {
