@@ -1,6 +1,6 @@
 # PROJECT KNOWLEDGE BASE
 
-**Generated:** 2026-05-16
+**Generated:** 2026-05-17
 **Stack:** TanStack Start + Convex + Clerk + Cloudflare Workers + Tailwind v4
 
 ## OVERVIEW
@@ -27,17 +27,18 @@ Locatic — "GitHub with a map." Developer activity platform: discover projects,
 
 ## WHERE TO LOOK
 
-| Task                | Location                                         | Notes                                                   |
-| ------------------- | ------------------------------------------------ | ------------------------------------------------------- |
-| Add route           | `src/routes/`                                    | File-based routing, `_app/` = auth-required             |
-| Add feature         | `src/features/`                                  | Domain logic, hooks, types per feature                  |
-| Add UI component    | `src/components/ui/`                             | shadcn/ui components                                    |
-| Add Convex function | `convex/`                                        | Queries, mutations, HTTP endpoints                      |
-| Add DB table        | `convex/schema.ts`                               | Define table + validators in `convex/lib/validators.ts` |
-| Auth logic          | `convex/lib/auth.ts` + `src/integrations/clerk/` | Clerk for auth, Convex for backend validation           |
-| API integrations    | `convex/github.ts`                               | GitHub API sync, webhooks                               |
-| App shell/layout    | `src/components/app-shell/`                      | Sidebar, header, navigation                             |
-| Vite config         | `vite.config.ts`                                 | Code splitting groups, plugins                          |
+| Task                | Location                                          | Notes                                                   |
+| ------------------- | ------------------------------------------------- | ------------------------------------------------------- |
+| Add route           | `src/routes/`                                     | File-based routing, `_app/` = auth-required             |
+| Add feature         | `src/features/`                                   | Domain logic, hooks, types per feature                  |
+| Add UI component    | `src/components/ui/`                              | shadcn/ui components                                    |
+| Add Convex function | `convex/`                                         | Queries, mutations, HTTP endpoints                      |
+| Add DB table        | `convex/schema.ts`                                | Define table + validators in `convex/lib/validators.ts` |
+| Auth logic          | `src/routes/__root.tsx` + `convex/auth.config.ts` | SSR auth centralized in root, Convex JWT issuer config  |
+| API integrations    | `convex/github.ts`                                | GitHub API sync, webhooks                               |
+| App shell/layout    | `src/components/app-shell/`                       | Sidebar, header, navigation                             |
+| Vite config         | `vite.config.ts`                                  | Code splitting groups, plugins                          |
+| Start config        | `src/start.ts`                                    | CSRF middleware, Clerk middleware, request pipeline     |
 
 ## CONVENTIONS
 
@@ -48,6 +49,7 @@ Locatic — "GitHub with a map." Developer activity platform: discover projects,
 - Convex validators: defined in `convex/lib/validators.ts`, used in schema
 - Feature modules: each feature in `src/features/<name>/` has its own domain logic
 - Route guards: `_app/` prefix = authenticated routes
+- TanStack deps pinned to compatible versions (see package.json) — do not upgrade independently
 
 ## ANTI-PATTERNS (THIS PROJECT)
 
@@ -56,14 +58,32 @@ Locatic — "GitHub with a map." Developer activity platform: discover projects,
 - DO NOT bypass Convex for data — all data flows through Convex queries
 - NEVER commit `.env.local` — use `.env.example` as template
 - DO NOT add global CSS — use Tailwind classes or `src/styles.css` for CSS variables
+- DO NOT create per-route auth server functions — auth is centralized in `__root.tsx` via `createServerFn`
+- DO NOT add TanStack Router plugin or devtools wiring manually — `tanstackStart` handles router in vite.config.ts
 
 ## UNIQUE STYLES
 
 - Convex + TanStack Query integration via `@convex-dev/react-query`
-- Clerk auth wired through SSR (`createServerFn` in `__root.tsx`)
+- Clerk auth wired through SSR (`createServerFn` in `__root.tsx`) — `context.auth` available in all route `beforeLoad`
+- CSRF protection via `createCsrfMiddleware` in `src/start.ts`, filtered to server functions only
 - Vite code splitting: vendor-react, vendor-tanstack, vendor-clerk, vendor-convex, vendor-ui
 - Cloudflare Workers deployment via `@cloudflare/vite-plugin`
 - City-based developer discovery (custom `cities` table with search index)
+- `autoCodeSplitting: false` — manual chunk groups in vite.config.ts
+
+## ENV / RUNTIME BOUNDARIES
+
+| Variable                       | Runtime               | Purpose                                       |
+| ------------------------------ | --------------------- | --------------------------------------------- |
+| `VITE_CLERK_PUBLISHABLE_KEY`   | Browser               | ClerkProvider client key                      |
+| `VITE_CONVEX_URL`              | Browser               | Convex React client URL                       |
+| `CLERK_SECRET_KEY`             | TanStack Start server | `auth()` and `getToken()` in server functions |
+| `CONVEX_DEPLOYMENT`            | Convex CLI            | Local `npx convex dev` target                 |
+| `CLERK_JWT_ISSUER_DOMAIN`      | Convex runtime        | `convex/auth.config.ts` JWT verification      |
+| `CLERK_SECRET_KEY` (Convex)    | Convex actions        | Backend API calls (e.g., `github_actions.ts`) |
+| `CLERK_WEBHOOK_SIGNING_SECRET` | Convex HTTP           | `/clerk/webhooks` handler                     |
+
+Convex env vars must be set via `npx convex env set` — `.env.local` values do not propagate to Convex runtime.
 
 ## COMMANDS
 
@@ -85,3 +105,5 @@ pnpm deploy           # Build + wrangler deploy
 - Route file naming: `_app` = layout route, `$param` = dynamic segment, `__root` = root
 - Tailwind v4 uses `@tailwindcss/vite` plugin — no `tailwind.config.js` needed
 - Wrangler config in `wrangler.jsonc` — secrets via `wrangler secret put`
+- `CLERK_SECRET_KEY` is NOT a browser variable — used only by TanStack Start server runtime and Convex backend actions
+- Convex tsconfig requires `"types": ["node"]` for Node.js type access in server code

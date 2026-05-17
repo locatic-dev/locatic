@@ -11,7 +11,6 @@ import {
   type ViewerBootstrapPayload,
 } from '@/features/contracts'
 import { viewerQueryOptions } from '@/features/viewer/queries'
-import { requireSignedInRoute } from '@/lib/route-auth'
 
 export const Route = createFileRoute('/_app')({
   beforeLoad: async ({ context, location }) => {
@@ -19,7 +18,9 @@ export const Route = createFileRoute('/_app')({
       return
     }
 
-    await requireSignedInRoute()
+    if (!context.auth.isAuthenticated) {
+      throw redirect({ to: '/sign-in' })
+    }
 
     const bootstrap = (await context.queryClient.ensureQueryData(
       viewerQueryOptions(),

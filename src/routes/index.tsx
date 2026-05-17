@@ -8,13 +8,13 @@ import type { ViewerBootstrapPayload } from '@/features/contracts'
 
 export const Route = createFileRoute('/')({
   beforeLoad: async ({ context }) => {
+    if (!context.auth.isAuthenticated) {
+      return
+    }
+
     const bootstrap = (await context.queryClient.ensureQueryData(
       viewerQueryOptions(),
     )) as ViewerBootstrapPayload
-
-    if (!bootstrap.isAuthenticated) {
-      return
-    }
 
     throw redirect({ to: bootstrap.needsOnboarding ? '/onboarding' : '/home' })
   },

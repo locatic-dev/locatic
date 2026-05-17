@@ -10,7 +10,6 @@ import { StatusPill, BUILD_STATUS } from '@/components/ui/status-pill'
 import { LangDot } from '@/components/ui/lang-dot'
 import { ArrowRight, Star, Pin, Search, Check } from '@/lib/icons'
 import { useCompleteOnboarding } from '@/features/onboarding/mutations'
-import { requireSignedInRoute } from '@/lib/route-auth'
 import { viewerQueryOptions } from '@/features/viewer/queries'
 import { mineProjectsQueryOptions } from '@/features/projects/queries'
 import {
@@ -34,7 +33,9 @@ import { normalizeSocialLinkValue } from '@/lib/social-links'
 
 export const Route = createFileRoute('/onboarding')({
   beforeLoad: async ({ context }) => {
-    await requireSignedInRoute()
+    if (!context.auth.isAuthenticated) {
+      throw redirect({ to: '/sign-in' })
+    }
 
     const bootstrap = (await context.queryClient.ensureQueryData(
       viewerQueryOptions(),
