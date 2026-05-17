@@ -64,7 +64,7 @@ export function ProjectCard({
 
   return (
     <div
-      className={cn('lx-card lx-fade-up', className)}
+      className={cn('lx-card lx-fade-up @container', className)}
       style={{
         background: 'var(--lx-surface)',
         border: '1px solid var(--lx-border)',
@@ -90,6 +90,11 @@ export function ProjectCard({
             {/* Repo name */}
             <button
               onClick={onCardClick}
+              aria-label={
+                onCardClick
+                  ? `Open ${project.fullName ?? `${project.owner}/${project.repo}`}`
+                  : undefined
+              }
               style={{
                 background: 'none',
                 border: 'none',
@@ -101,10 +106,10 @@ export function ProjectCard({
                 fontWeight: 600,
                 color: 'var(--lx-text)',
                 letterSpacing: '-0.01em',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
                 maxWidth: '100%',
+                whiteSpace: 'normal',
+                wordBreak: 'break-word',
+                lineHeight: 1.35,
               }}
             >
               <span style={{ color: 'var(--lx-text-3)', fontWeight: 400 }}>
@@ -248,11 +253,12 @@ export function ProjectCard({
       <div
         style={{
           display: 'flex',
-          alignItems: 'center',
+          alignItems: 'flex-start',
           justifyContent: 'space-between',
           gap: 10,
           paddingTop: compact ? 4 : 6,
           borderTop: '1px solid var(--lx-border)',
+          flexWrap: 'wrap',
         }}
       >
         <div
@@ -262,6 +268,7 @@ export function ProjectCard({
             gap: 8,
             minWidth: 0,
             flex: 1,
+            flexWrap: 'wrap',
           }}
         >
           <LxAvatar
@@ -292,6 +299,8 @@ export function ProjectCard({
               alignItems: 'center',
               gap: 6,
               flexShrink: 0,
+              flexWrap: 'wrap',
+              width: '100%',
             }}
           >
             {onFollow && (
@@ -300,11 +309,10 @@ export function ProjectCard({
                 variant="outline"
                 onClick={onFollow}
                 disabled={followPending}
+                className="min-h-11"
                 style={{
                   fontFamily: 'var(--lx-font-mono)',
                   fontSize: 10.5,
-                  padding: '4px 10px',
-                  height: 'auto',
                   borderColor: project.followed
                     ? 'var(--lx-border-strong)'
                     : undefined,
@@ -319,11 +327,10 @@ export function ProjectCard({
                 size="sm"
                 variant="ghost"
                 onClick={onDM}
+                className="min-h-11"
                 style={{
                   fontFamily: 'var(--lx-font-mono)',
                   fontSize: 10.5,
-                  padding: '4px 8px',
-                  height: 'auto',
                   color: 'var(--lx-text-3)',
                 }}
               >
@@ -339,12 +346,15 @@ export function ProjectCard({
                 border: 'none',
                 background: 'transparent',
                 cursor: likePending ? 'default' : 'pointer',
-                padding: 4,
+                padding: 12,
                 display: 'flex',
                 alignItems: 'center',
                 color: project.liked ? 'var(--lx-accent)' : 'var(--lx-text-3)',
                 opacity: likePending ? 0.6 : 1,
                 transition: 'color 0.15s',
+                minWidth: 44,
+                minHeight: 44,
+                justifyContent: 'center',
               }}
             >
               <Heart

@@ -221,6 +221,9 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <HeadContent />
       </head>
       <body className="antialiased [overflow-wrap:anywhere]">
+        <a className="lx-skip-link" href="#main-content">
+          Skip to main content
+        </a>
         <ClerkProvider>
           <ConvexProvider queryClient={router.options.context.queryClient}>
             {children}

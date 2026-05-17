@@ -113,21 +113,14 @@ function InboxPage() {
   ] as const
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        height: '100%',
-        overflow: 'hidden',
-      }}
-    >
+    <div className="lx-page-shell">
       <div
         style={{ borderBottom: '1px solid var(--lx-border)', flexShrink: 0 }}
       >
         <div
           style={{
-            height: 56,
-            padding: '0 24px',
+            minHeight: 56,
+            padding: '0 var(--lx-gutter)',
             display: 'flex',
             alignItems: 'center',
           }}
@@ -144,7 +137,15 @@ function InboxPage() {
             inbox
           </h1>
         </div>
-        <div style={{ padding: '0 24px', display: 'flex', gap: 0 }}>
+        <div
+          className="lx-inline-tabs"
+          style={{
+            padding: '0 var(--lx-gutter)',
+            display: 'flex',
+            gap: 0,
+            overflowX: 'auto',
+          }}
+        >
           {tabItems.map((tabItem) => (
             <button
               key={tabItem.id}
@@ -203,15 +204,25 @@ function InboxPage() {
         </div>
       </div>
 
-      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+      <div
+        style={{
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          minHeight: 0,
+        }}
+      >
         <div
           style={{
-            width: 320,
-            borderRight: '1px solid var(--lx-border)',
+            width: '100%',
+            borderBottom: selectedConversation
+              ? 'none'
+              : '1px solid var(--lx-border)',
             display: 'flex',
             flexDirection: 'column',
-            overflow: 'hidden',
             flexShrink: 0,
+            minHeight: 0,
+            ...(selectedConversation ? { display: 'none' } : null),
           }}
         >
           <div style={{ flex: 1, overflowY: 'auto' }}>
@@ -281,6 +292,8 @@ function InboxPage() {
                         display: 'flex',
                         justifyContent: 'space-between',
                         marginBottom: 4,
+                        gap: 8,
+                        flexWrap: 'wrap',
                       }}
                     >
                       <span
@@ -289,9 +302,7 @@ function InboxPage() {
                           fontSize: 12.5,
                           fontWeight: 600,
                           color: 'var(--lx-text)',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
+                          overflowWrap: 'anywhere',
                         }}
                       >
                         {conversation.otherUser?.displayName ??
@@ -315,9 +326,7 @@ function InboxPage() {
                         fontFamily: 'var(--lx-font-sans)',
                         fontSize: 12,
                         color: 'var(--lx-text-2)',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
+                        overflowWrap: 'anywhere',
                       }}
                     >
                       {conversation.lastMessage.content}
@@ -387,8 +396,8 @@ function InboxPage() {
             <>
               <div
                 style={{
-                  height: 56,
-                  padding: '0 24px',
+                  minHeight: 56,
+                  padding: '0 var(--lx-gutter)',
                   borderBottom: '1px solid var(--lx-border)',
                   display: 'flex',
                   alignItems: 'center',
@@ -396,6 +405,19 @@ function InboxPage() {
                   flexShrink: 0,
                 }}
               >
+                <Button
+                  variant="ghost"
+                  onClick={() =>
+                    void navigate({
+                      to: '/inbox',
+                      search: { tab, conversation: null } as never,
+                    } as never)
+                  }
+                  className="md:hidden"
+                  style={{ fontFamily: 'var(--lx-font-mono)', fontSize: 12 }}
+                >
+                  back
+                </Button>
                 <LxAvatar
                   name={
                     selectedConversation.otherUser?.displayName ??
@@ -437,7 +459,7 @@ function InboxPage() {
                 style={{
                   flex: 1,
                   overflowY: 'auto',
-                  padding: '24px 24px 32px',
+                  padding: '24px var(--lx-gutter) 32px',
                   display: 'flex',
                   flexDirection: 'column',
                   gap: 12,
@@ -455,7 +477,7 @@ function InboxPage() {
                     >
                       <div
                         style={{
-                          maxWidth: '75%',
+                          maxWidth: 'min(100%, 36rem)',
                           padding: '10px 12px',
                           borderRadius: 8,
                           background: isMe
@@ -494,12 +516,13 @@ function InboxPage() {
 
               <div
                 style={{
-                  padding: '16px 24px 20px',
+                  padding: '16px var(--lx-gutter) 20px',
                   borderTop: '1px solid var(--lx-border)',
                   display: 'flex',
                   gap: 12,
                   alignItems: 'flex-end',
                   flexShrink: 0,
+                  flexWrap: 'wrap',
                 }}
               >
                 <Textarea
@@ -524,6 +547,7 @@ function InboxPage() {
                 <Button
                   onClick={() => void handleSend()}
                   disabled={!newMessage.trim() || sending}
+                  className="min-h-11"
                   style={{
                     background: 'var(--lx-accent)',
                     color: '#0d1117',
@@ -540,6 +564,13 @@ function InboxPage() {
           )}
         </div>
       </div>
+      <style>{`
+        @media (min-width: 768px) {
+          .md\\:hidden {
+            display: none;
+          }
+        }
+      `}</style>
     </div>
   )
 }

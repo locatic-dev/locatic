@@ -227,11 +227,13 @@ function PublicProfilePage() {
     <div style={{ minHeight: '100dvh', background: 'var(--lx-bg)' }}>
       <header
         style={{
-          height: 56,
-          padding: '0 32px',
+          minHeight: 56,
+          padding: '12px var(--lx-gutter)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
+          gap: 12,
+          flexWrap: 'wrap',
           borderBottom: '1px solid var(--lx-border)',
         }}
       >
@@ -302,15 +304,14 @@ function PublicProfilePage() {
         )}
       </header>
 
-      <div
-        style={{ maxWidth: 960, margin: '0 auto', padding: '40px 32px 80px' }}
-      >
+      <div className="lx-page-width-detail" style={{ padding: '32px 0 80px' }}>
         <div
           style={{
             display: 'flex',
             alignItems: 'flex-start',
             gap: 24,
             marginBottom: 32,
+            flexDirection: 'column',
           }}
         >
           <LxAvatar
@@ -484,12 +485,14 @@ function PublicProfilePage() {
         </div>
 
         <div
+          className="lx-inline-tabs"
           style={{
             display: 'flex',
             gap: 10,
             flexWrap: 'wrap',
             marginBottom: 22,
             borderBottom: '1px solid var(--lx-border)',
+            overflowX: 'auto',
           }}
         >
           {tabs.map((tabItem) => (

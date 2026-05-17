@@ -24,15 +24,13 @@ export function AppLayout({
 }: AppLayoutProps) {
   return (
     <div
+      className="min-h-dvh bg-background md:flex"
       style={{
-        display: 'flex',
-        height: '100dvh',
-        overflow: 'hidden',
         background: 'var(--lx-bg)',
       }}
     >
       {/* Desktop sidebar — hidden on mobile */}
-      <div className="hidden md:flex" style={{ height: '100%' }}>
+      <div className="hidden md:flex md:min-h-dvh">
         <SidebarNav
           viewer={viewer}
           unreadNotifications={unreadNotifications}
@@ -42,20 +40,17 @@ export function AppLayout({
 
       {/* Main content area */}
       <main
+        id="main-content"
+        tabIndex={-1}
+        className="lx-main-content flex min-h-dvh flex-1"
         style={{
           flex: 1,
-          display: 'flex',
-          overflow: 'hidden',
-          minWidth: 0,
         }}
       >
         <div
+          className="lx-page-shell lx-main-content w-full"
           style={{
             flex: 1,
-            display: 'flex',
-            flexDirection: 'column',
-            overflow: 'hidden',
-            minWidth: 0,
           }}
         >
           {children}
@@ -64,9 +59,9 @@ export function AppLayout({
         {/* Right rail — desktop xl only */}
         {rightRail && (
           <aside
-            className="hidden xl:flex"
+            className="hidden xl:flex xl:min-h-dvh"
             style={{
-              width: 280,
+              width: 'var(--lx-right-rail-width)',
               borderLeft: '1px solid var(--lx-border)',
               padding: '24px',
               background: 'var(--lx-bg)',

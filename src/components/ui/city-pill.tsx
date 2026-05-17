@@ -14,7 +14,7 @@ export function CityPill({ city, onRemove, className }: CityPillProps) {
         display: 'inline-flex',
         alignItems: 'center',
         gap: 5,
-        padding: '3px 8px',
+        padding: '5px 8px',
         borderRadius: 3,
         border: '1px solid var(--lx-border)',
         background: 'var(--lx-surface-alt)',
@@ -22,7 +22,8 @@ export function CityPill({ city, onRemove, className }: CityPillProps) {
         fontSize: 11,
         color: 'var(--lx-text-2)',
         lineHeight: 1,
-        whiteSpace: 'nowrap',
+        maxWidth: '100%',
+        minHeight: 28,
       }}
     >
       <MapPin size={10} style={{ color: 'var(--lx-text-3)', flexShrink: 0 }} />
@@ -34,12 +35,15 @@ export function CityPill({ city, onRemove, className }: CityPillProps) {
           style={{
             background: 'none',
             border: 'none',
-            padding: 0,
+            padding: 2,
             marginLeft: 2,
             color: 'var(--lx-text-3)',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
+            minWidth: 20,
+            minHeight: 20,
+            justifyContent: 'center',
           }}
         >
           <X size={9} strokeWidth={2} />

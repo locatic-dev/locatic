@@ -24,8 +24,8 @@ export function StatusPill({
 
   const baseStyle =
     size === 'sm'
-      ? { fontSize: 10.5, padding: '2px 7px', height: 18 }
-      : { fontSize: 11.5, padding: '3px 9px', height: 22 }
+      ? { fontSize: 10.5, padding: '4px 7px', minHeight: 22 }
+      : { fontSize: 11.5, padding: '5px 9px', minHeight: 28 }
 
   const dotColor = isMuted ? '#8b949e' : `hsl(${s.hue} 70% 60%)`
   const textColor = isMuted ? '#8b949e' : `hsl(${s.hue} 60% 70%)`
@@ -48,7 +48,7 @@ export function StatusPill({
         background: bg,
         border: `1px solid ${border}`,
         lineHeight: 1,
-        whiteSpace: 'nowrap',
+        maxWidth: '100%',
       }}
     >
       <span

@@ -15,15 +15,9 @@ export function PageHeader({
 }: PageHeaderProps) {
   return (
     <header
-      className={className}
+      className={`flex flex-col gap-3 border-b border-border px-[var(--lx-gutter)] py-4 sm:flex-row sm:items-center sm:justify-between ${className ?? ''}`}
       style={{
-        padding: subtitle ? '20px 32px' : '0 32px',
-        borderBottom: '1px solid var(--lx-border)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
         flexShrink: 0,
-        ...(subtitle ? {} : { height: 56 }),
       }}
     >
       <div>
@@ -54,9 +48,7 @@ export function PageHeader({
         </h1>
       </div>
       {actions && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          {actions}
-        </div>
+        <div className="lx-stack-actions sm:justify-end">{actions}</div>
       )}
     </header>
   )

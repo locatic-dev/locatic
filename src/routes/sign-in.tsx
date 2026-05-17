@@ -9,6 +9,7 @@ export const Route = createFileRoute('/sign-in')({
 function SignInPage() {
   return (
     <div
+      className="lx-page-width-form"
       style={{
         minHeight: '100dvh',
         background: 'var(--lx-bg)',
@@ -17,7 +18,7 @@ function SignInPage() {
         alignItems: 'center',
         justifyContent: 'center',
         gap: 32,
-        padding: '32px 16px',
+        padding: '32px 0',
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>

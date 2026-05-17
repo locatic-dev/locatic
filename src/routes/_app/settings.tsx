@@ -170,18 +170,11 @@ function SettingsPage() {
   } as const
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        height: '100%',
-        overflow: 'hidden',
-      }}
-    >
+    <div className="lx-page-shell">
       <div
         style={{
-          height: 56,
-          padding: '0 32px',
+          minHeight: 56,
+          padding: '0 var(--lx-gutter)',
           display: 'flex',
           alignItems: 'center',
           borderBottom: '1px solid var(--lx-border)',
@@ -201,13 +194,22 @@ function SettingsPage() {
         </h1>
       </div>
 
-      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+      <div
+        style={{
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          minHeight: 0,
+        }}
+      >
         <nav
+          className="lx-inline-tabs lg:block"
           style={{
-            width: 220,
-            borderRight: '1px solid var(--lx-border)',
-            padding: '16px 0',
+            width: '100%',
+            borderBottom: '1px solid var(--lx-border)',
+            padding: '12px var(--lx-gutter)',
             flexShrink: 0,
+            overflowX: 'auto',
           }}
         >
           {TABS.map((tabItem) => (
@@ -221,7 +223,8 @@ function SettingsPage() {
               }
               style={{
                 width: '100%',
-                padding: '8px 20px',
+                minHeight: 44,
+                padding: '10px 14px',
                 background:
                   tab === tabItem.id ? 'var(--lx-surface-alt)' : 'transparent',
                 border: 'none',
@@ -232,6 +235,8 @@ function SettingsPage() {
                 color:
                   tab === tabItem.id ? 'var(--lx-text)' : 'var(--lx-text-2)',
                 fontWeight: tab === tabItem.id ? 600 : 400,
+                borderRadius: 999,
+                whiteSpace: 'nowrap',
               }}
               type="button"
             >
@@ -240,257 +245,358 @@ function SettingsPage() {
           ))}
         </nav>
 
-        <div style={{ flex: 1, overflowY: 'auto', padding: '28px 40px 80px' }}>
-          {tab === 'account' && (
-            <div
-              style={{
-                maxWidth: 640,
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 28,
-              }}
-            >
-              <div>
-                <div style={sectionTitle}>profile</div>
-                <div
-                  style={{ display: 'flex', flexDirection: 'column', gap: 16 }}
-                >
-                  <div>
-                    <label style={labelStyle}>display name</label>
-                    <Input
-                      value={displayName}
-                      onChange={(event) => setDisplayName(event.target.value)}
-                      style={fieldStyle}
-                      placeholder="your display name"
-                    />
-                  </div>
+        <div className="lx-page-scroll" style={{ flex: 1 }}>
+          <div className="lx-page-width-form">
+            {tab === 'account' && (
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 28,
+                }}
+              >
+                <div>
+                  <div style={sectionTitle}>profile</div>
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 16,
+                    }}
+                  >
+                    <div>
+                      <label style={labelStyle}>display name</label>
+                      <Input
+                        value={displayName}
+                        onChange={(event) => setDisplayName(event.target.value)}
+                        style={fieldStyle}
+                        placeholder="your display name"
+                      />
+                    </div>
 
-                  <div>
-                    <label style={labelStyle}>
-                      bio{' '}
-                      <span style={{ color: 'var(--lx-text-3)' }}>
-                        ({bio.length}/140)
-                      </span>
-                    </label>
-                    <Textarea
-                      value={bio}
-                      onChange={(event) =>
-                        setBio(event.target.value.slice(0, 140))
-                      }
-                      style={{ ...fieldStyle, resize: 'none' }}
-                      rows={3}
-                      placeholder="what are you building?"
-                    />
-                  </div>
+                    <div>
+                      <label style={labelStyle}>
+                        bio{' '}
+                        <span style={{ color: 'var(--lx-text-3)' }}>
+                          ({bio.length}/140)
+                        </span>
+                      </label>
+                      <Textarea
+                        value={bio}
+                        onChange={(event) =>
+                          setBio(event.target.value.slice(0, 140))
+                        }
+                        style={{ ...fieldStyle, resize: 'none' }}
+                        rows={3}
+                        placeholder="what are you building?"
+                      />
+                    </div>
 
-                  <div>
-                    <label style={labelStyle}>build status</label>
-                    <div
-                      style={{
-                        display: 'grid',
-                        gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-                        gap: 10,
-                      }}
-                    >
-                      {(
-                        Object.entries(BUILD_STATUS) as Array<
-                          [BuildStatus, (typeof BUILD_STATUS)[BuildStatus]]
+                    <div>
+                      <label style={labelStyle}>build status</label>
+                      <div
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns: 'minmax(0, 1fr)',
+                          gap: 10,
+                        }}
+                      >
+                        {(
+                          Object.entries(BUILD_STATUS) as Array<
+                            [BuildStatus, (typeof BUILD_STATUS)[BuildStatus]]
+                          >
+                        ).map(([statusId]) => {
+                          const selected = buildStatus === statusId
+
+                          return (
+                            <button
+                              key={statusId}
+                              onClick={() => setBuildStatus(statusId)}
+                              style={{
+                                border: '1px solid var(--lx-border)',
+                                borderColor: selected
+                                  ? 'var(--lx-accent)'
+                                  : 'var(--lx-border)',
+                                background: selected
+                                  ? 'var(--lx-accent-quiet)'
+                                  : 'var(--lx-surface)',
+                                borderRadius: 4,
+                                padding: '12px 14px',
+                                textAlign: 'left',
+                                cursor: 'pointer',
+                              }}
+                              type="button"
+                            >
+                              <StatusPill status={statusId} size="md" />
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label style={labelStyle}>city</label>
+                      <Input
+                        value={citySearch}
+                        onChange={(event) => setCitySearch(event.target.value)}
+                        style={fieldStyle}
+                        placeholder={selectedCityName ?? 'search for your city'}
+                      />
+                      {selectedCityName && (
+                        <div
+                          style={{
+                            marginTop: 8,
+                            fontFamily: 'var(--lx-font-mono)',
+                            fontSize: 11,
+                            color: 'var(--lx-text-3)',
+                          }}
                         >
-                      ).map(([statusId]) => {
-                        const selected = buildStatus === statusId
-
-                        return (
+                          selected: {selectedCityName}
+                        </div>
+                      )}
+                      {(citySearch.trim()
+                        ? cityResults
+                        : cityResults.slice(0, 6)
+                      )
+                        .slice(0, 6)
+                        .map((city) => (
                           <button
-                            key={statusId}
-                            onClick={() => setBuildStatus(statusId)}
+                            key={String(city._id)}
+                            onClick={() => {
+                              setSelectedCityId(String(city._id))
+                              setSelectedCityName(city.displayName)
+                              setCitySearch('')
+                            }}
                             style={{
-                              border: '1px solid var(--lx-border)',
-                              borderColor: selected
-                                ? 'var(--lx-accent)'
-                                : 'var(--lx-border)',
-                              background: selected
-                                ? 'var(--lx-accent-quiet)'
-                                : 'var(--lx-surface)',
+                              width: '100%',
+                              marginTop: 8,
+                              border: '1px dashed var(--lx-border)',
+                              background: 'transparent',
                               borderRadius: 4,
-                              padding: '12px 14px',
+                              padding: '8px 10px',
                               textAlign: 'left',
+                              fontFamily: 'var(--lx-font-mono)',
+                              fontSize: 11.5,
+                              color: 'var(--lx-text-2)',
                               cursor: 'pointer',
                             }}
                             type="button"
                           >
-                            <StatusPill status={statusId} size="md" />
+                            {city.displayName}
                           </button>
-                        )
-                      })}
+                        ))}
                     </div>
                   </div>
+                </div>
 
-                  <div>
-                    <label style={labelStyle}>city</label>
-                    <Input
-                      value={citySearch}
-                      onChange={(event) => setCitySearch(event.target.value)}
-                      style={fieldStyle}
-                      placeholder={selectedCityName ?? 'search for your city'}
-                    />
-                    {selectedCityName && (
-                      <div
-                        style={{
-                          marginTop: 8,
-                          fontFamily: 'var(--lx-font-mono)',
-                          fontSize: 11,
-                          color: 'var(--lx-text-3)',
-                        }}
-                      >
-                        selected: {selectedCityName}
-                      </div>
-                    )}
-                    {(citySearch.trim() ? cityResults : cityResults.slice(0, 6))
-                      .slice(0, 6)
-                      .map((city) => (
-                        <button
-                          key={String(city._id)}
-                          onClick={() => {
-                            setSelectedCityId(String(city._id))
-                            setSelectedCityName(city.displayName)
-                            setCitySearch('')
-                          }}
-                          style={{
-                            width: '100%',
-                            marginTop: 8,
-                            border: '1px dashed var(--lx-border)',
-                            background: 'transparent',
-                            borderRadius: 4,
-                            padding: '8px 10px',
-                            textAlign: 'left',
-                            fontFamily: 'var(--lx-font-mono)',
-                            fontSize: 11.5,
-                            color: 'var(--lx-text-2)',
-                            cursor: 'pointer',
-                          }}
-                          type="button"
-                        >
-                          {city.displayName}
-                        </button>
-                      ))}
+                <div>
+                  <div style={sectionTitle}>social links</div>
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 16,
+                    }}
+                  >
+                    <div>
+                      <label style={labelStyle}>x</label>
+                      <Input
+                        value={twitter}
+                        onChange={(event) => setTwitter(event.target.value)}
+                        style={fieldStyle}
+                        placeholder="@username"
+                      />
+                    </div>
+                    <div>
+                      <label style={labelStyle}>linkedin</label>
+                      <Input
+                        value={linkedin}
+                        onChange={(event) => setLinkedin(event.target.value)}
+                        style={fieldStyle}
+                        placeholder="linkedin.com/in/username"
+                      />
+                    </div>
+                    <div>
+                      <label style={labelStyle}>bluesky</label>
+                      <Input
+                        value={bluesky}
+                        onChange={(event) => setBluesky(event.target.value)}
+                        style={fieldStyle}
+                        placeholder="@username.bsky.social"
+                      />
+                    </div>
+                    <div>
+                      <label style={labelStyle}>website</label>
+                      <Input
+                        value={website}
+                        onChange={(event) => setWebsite(event.target.value)}
+                        style={fieldStyle}
+                        placeholder="https://yoursite.dev"
+                      />
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <div>
-                <div style={sectionTitle}>social links</div>
-                <div
-                  style={{ display: 'flex', flexDirection: 'column', gap: 16 }}
-                >
-                  <div>
-                    <label style={labelStyle}>x</label>
-                    <Input
-                      value={twitter}
-                      onChange={(event) => setTwitter(event.target.value)}
-                      style={fieldStyle}
-                      placeholder="@username"
-                    />
-                  </div>
-                  <div>
-                    <label style={labelStyle}>linkedin</label>
-                    <Input
-                      value={linkedin}
-                      onChange={(event) => setLinkedin(event.target.value)}
-                      style={fieldStyle}
-                      placeholder="linkedin.com/in/username"
-                    />
-                  </div>
-                  <div>
-                    <label style={labelStyle}>bluesky</label>
-                    <Input
-                      value={bluesky}
-                      onChange={(event) => setBluesky(event.target.value)}
-                      style={fieldStyle}
-                      placeholder="@username.bsky.social"
-                    />
-                  </div>
-                  <div>
-                    <label style={labelStyle}>website</label>
-                    <Input
-                      value={website}
-                      onChange={(event) => setWebsite(event.target.value)}
-                      style={fieldStyle}
-                      placeholder="https://yoursite.dev"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <Button
-                  onClick={() => void handleSaveAccount()}
-                  disabled={saving || !displayName.trim()}
-                  style={{
-                    background: 'var(--lx-accent)',
-                    color: '#0d1117',
-                    border: 'none',
-                    fontFamily: 'var(--lx-font-mono)',
-                    fontSize: 12.5,
-                    fontWeight: 600,
-                  }}
-                >
-                  {saving ? 'saving…' : 'save changes'}
-                </Button>
-                {saved && (
-                  <span
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div
                     style={{
                       display: 'flex',
                       alignItems: 'center',
-                      gap: 6,
-                      fontFamily: 'var(--lx-font-mono)',
-                      fontSize: 12,
-                      color: 'var(--lx-success)',
+                      gap: 12,
+                      flexWrap: 'wrap',
                     }}
                   >
-                    <CheckCircle2 size={14} /> saved
-                  </span>
-                )}
+                    <Button
+                      onClick={() => void handleSaveAccount()}
+                      disabled={saving || !displayName.trim()}
+                      style={{
+                        background: 'var(--lx-accent)',
+                        color: '#0d1117',
+                        border: 'none',
+                        fontFamily: 'var(--lx-font-mono)',
+                        fontSize: 12.5,
+                        fontWeight: 600,
+                      }}
+                    >
+                      {saving ? 'saving…' : 'save changes'}
+                    </Button>
+                    {saved && (
+                      <span
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          fontFamily: 'var(--lx-font-mono)',
+                          fontSize: 12,
+                          color: 'var(--lx-success)',
+                        }}
+                      >
+                        <CheckCircle2 size={14} /> saved
+                      </span>
+                    )}
+                  </div>
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {tab === 'privacy' && (
-            <div
-              style={{
-                maxWidth: 560,
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 28,
-              }}
-            >
-              <div>
-                <div style={sectionTitle}>visibility</div>
+            {tab === 'privacy' && (
+              <div
+                style={{
+                  maxWidth: 560,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 28,
+                }}
+              >
+                <div>
+                  <div style={sectionTitle}>visibility</div>
+                  {[
+                    {
+                      key: 'commentHistoryVisibility',
+                      label: 'comment history',
+                      desc: 'who can see your comment history tab on your profile',
+                      type: 'tab',
+                    },
+                    {
+                      key: 'likedProjectsVisibility',
+                      label: 'liked projects',
+                      desc: 'who can see your liked tab on your profile',
+                      type: 'tab',
+                    },
+                    {
+                      key: 'followGraphVisibility',
+                      label: 'follow graph',
+                      desc: 'who can see your followers and following counts',
+                      type: 'tab',
+                    },
+                    {
+                      key: 'appearInPulse',
+                      label: 'appear in pulse rankings',
+                      desc: 'allow your projects to appear in trending charts',
+                      type: 'boolean',
+                    },
+                  ].map(({ key, label, desc, type }) => (
+                    <div
+                      key={key}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '14px 0',
+                        borderBottom: '1px solid var(--lx-border)',
+                      }}
+                    >
+                      <div>
+                        <div
+                          style={{
+                            fontFamily: 'var(--lx-font-mono)',
+                            fontSize: 13,
+                            color: 'var(--lx-text)',
+                            marginBottom: 3,
+                          }}
+                        >
+                          {label}
+                        </div>
+                        <div
+                          style={{
+                            fontFamily: 'var(--lx-font-sans)',
+                            fontSize: 12,
+                            color: 'var(--lx-text-3)',
+                          }}
+                        >
+                          {desc}
+                        </div>
+                      </div>
+                      <Switch
+                        checked={
+                          type === 'boolean'
+                            ? profile.viewer.privacy[key as 'appearInPulse']
+                            : profile.viewer.privacy[
+                                key as
+                                  | 'commentHistoryVisibility'
+                                  | 'likedProjectsVisibility'
+                                  | 'followGraphVisibility'
+                              ] === 'public'
+                        }
+                        onCheckedChange={async (checked) => {
+                          const nextPrivacy = {
+                            ...profile.viewer.privacy,
+                            [key]:
+                              type === 'boolean'
+                                ? checked
+                                : checked
+                                  ? 'public'
+                                  : 'private',
+                          }
+                          try {
+                            await updatePrivacy(nextPrivacy)
+                          } catch (error) {
+                            console.error(error)
+                          }
+                        }}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {tab === 'notifications' && (
+              <div style={{ maxWidth: 560 }}>
+                <div style={sectionTitle}>notification preferences</div>
                 {[
+                  { key: 'projectLikes', label: 'likes on your projects' },
+                  { key: 'updateLikes', label: 'likes on your updates' },
+                  { key: 'comments', label: 'comments on your projects' },
+                  { key: 'commentReplies', label: 'replies to your comments' },
+                  { key: 'newFollowers', label: 'new followers' },
+                  { key: 'dms', label: 'direct messages' },
+                  { key: 'weeklyDigest', label: 'weekly digest email' },
                   {
-                    key: 'commentHistoryVisibility',
-                    label: 'comment history',
-                    desc: 'who can see your comment history tab on your profile',
-                    type: 'tab',
+                    key: 'contributorRecognized',
+                    label: 'contributor recognition',
                   },
-                  {
-                    key: 'likedProjectsVisibility',
-                    label: 'liked projects',
-                    desc: 'who can see your liked tab on your profile',
-                    type: 'tab',
-                  },
-                  {
-                    key: 'followGraphVisibility',
-                    label: 'follow graph',
-                    desc: 'who can see your followers and following counts',
-                    type: 'tab',
-                  },
-                  {
-                    key: 'appearInPulse',
-                    label: 'appear in pulse rankings',
-                    desc: 'allow your projects to appear in trending charts',
-                    type: 'boolean',
-                  },
-                ].map(({ key, label, desc, type }) => (
+                ].map(({ key, label }) => (
                   <div
                     key={key}
                     style={{
@@ -501,50 +607,28 @@ function SettingsPage() {
                       borderBottom: '1px solid var(--lx-border)',
                     }}
                   >
-                    <div>
-                      <div
-                        style={{
-                          fontFamily: 'var(--lx-font-mono)',
-                          fontSize: 13,
-                          color: 'var(--lx-text)',
-                          marginBottom: 3,
-                        }}
-                      >
-                        {label}
-                      </div>
-                      <div
-                        style={{
-                          fontFamily: 'var(--lx-font-sans)',
-                          fontSize: 12,
-                          color: 'var(--lx-text-3)',
-                        }}
-                      >
-                        {desc}
-                      </div>
-                    </div>
+                    <span
+                      style={{
+                        fontFamily: 'var(--lx-font-mono)',
+                        fontSize: 13,
+                        color: 'var(--lx-text)',
+                      }}
+                    >
+                      {label}
+                    </span>
                     <Switch
                       checked={
-                        type === 'boolean'
-                          ? profile.viewer.privacy[key as 'appearInPulse']
-                          : profile.viewer.privacy[
-                              key as
-                                | 'commentHistoryVisibility'
-                                | 'likedProjectsVisibility'
-                                | 'followGraphVisibility'
-                            ] === 'public'
+                        profile.viewer.notificationPrefs[
+                          key as keyof typeof profile.viewer.notificationPrefs
+                        ]
                       }
                       onCheckedChange={async (checked) => {
-                        const nextPrivacy = {
-                          ...profile.viewer.privacy,
-                          [key]:
-                            type === 'boolean'
-                              ? checked
-                              : checked
-                                ? 'public'
-                                : 'private',
+                        const nextPrefs = {
+                          ...profile.viewer.notificationPrefs,
+                          [key]: checked,
                         }
                         try {
-                          await updatePrivacy(nextPrivacy)
+                          await updateNotifPrefs(nextPrefs)
                         } catch (error) {
                           console.error(error)
                         }
@@ -553,251 +637,212 @@ function SettingsPage() {
                   </div>
                 ))}
               </div>
-            </div>
-          )}
+            )}
 
-          {tab === 'notifications' && (
-            <div style={{ maxWidth: 560 }}>
-              <div style={sectionTitle}>notification preferences</div>
-              {[
-                { key: 'projectLikes', label: 'likes on your projects' },
-                { key: 'updateLikes', label: 'likes on your updates' },
-                { key: 'comments', label: 'comments on your projects' },
-                { key: 'commentReplies', label: 'replies to your comments' },
-                { key: 'newFollowers', label: 'new followers' },
-                { key: 'dms', label: 'direct messages' },
-                { key: 'weeklyDigest', label: 'weekly digest email' },
-                {
-                  key: 'contributorRecognized',
-                  label: 'contributor recognition',
-                },
-              ].map(({ key, label }) => (
+            {tab === 'connected' && (
+              <div
+                style={{
+                  maxWidth: 560,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 16,
+                }}
+              >
+                <div style={sectionTitle}>connected accounts</div>
                 <div
-                  key={key}
                   style={{
+                    padding: '16px 18px',
+                    borderRadius: 6,
+                    border: '1px solid var(--lx-border)',
+                    background: 'var(--lx-surface)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
-                    padding: '14px 0',
-                    borderBottom: '1px solid var(--lx-border)',
                   }}
                 >
+                  <div
+                    style={{ display: 'flex', alignItems: 'center', gap: 12 }}
+                  >
+                    <BrandIcon name="github" size={18} />
+                    <div>
+                      <div
+                        style={{
+                          fontFamily: 'var(--lx-font-mono)',
+                          fontSize: 13,
+                          color: 'var(--lx-text)',
+                          fontWeight: 600,
+                        }}
+                      >
+                        GitHub
+                      </div>
+                      <div
+                        style={{
+                          fontFamily: 'var(--lx-font-mono)',
+                          fontSize: 11,
+                          color: 'var(--lx-text-3)',
+                        }}
+                      >
+                        @{profile.viewer.githubUsername}
+                      </div>
+                    </div>
+                  </div>
                   <span
                     style={{
                       fontFamily: 'var(--lx-font-mono)',
-                      fontSize: 13,
-                      color: 'var(--lx-text)',
+                      fontSize: 11,
+                      color: 'var(--lx-success)',
                     }}
                   >
-                    {label}
+                    connected
                   </span>
-                  <Switch
-                    checked={
-                      profile.viewer.notificationPrefs[
-                        key as keyof typeof profile.viewer.notificationPrefs
-                      ]
-                    }
-                    onCheckedChange={async (checked) => {
-                      const nextPrefs = {
-                        ...profile.viewer.notificationPrefs,
-                        [key]: checked,
-                      }
-                      try {
-                        await updateNotifPrefs(nextPrefs)
-                      } catch (error) {
-                        console.error(error)
+                </div>
+              </div>
+            )}
+
+            {tab === 'danger' && (
+              <div
+                style={{
+                  maxWidth: 560,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 20,
+                }}
+              >
+                <div
+                  style={{
+                    padding: '20px',
+                    border: '1px solid var(--lx-border)',
+                    borderRadius: 6,
+                    background: 'var(--lx-surface)',
+                  }}
+                >
+                  <div
+                    style={{
+                      fontFamily: 'var(--lx-font-mono)',
+                      fontSize: 13,
+                      fontWeight: 600,
+                      color: 'var(--lx-text)',
+                      marginBottom: 8,
+                    }}
+                  >
+                    deactivate account
+                  </div>
+                  <p
+                    style={{
+                      margin: '0 0 14px',
+                      fontFamily: 'var(--lx-font-sans)',
+                      fontSize: 13,
+                      color: 'var(--lx-text-2)',
+                      lineHeight: 1.5,
+                    }}
+                  >
+                    hides your profile from Explore and public surfaces until
+                    you reactivate.
+                  </p>
+                  <Button
+                    variant="outline"
+                    onClick={async () => {
+                      if (
+                        window.confirm(
+                          'Deactivate your account? Your profile will be hidden.',
+                        )
+                      ) {
+                        try {
+                          await deactivate({})
+                        } catch (error) {
+                          console.error(error)
+                        }
                       }
                     }}
-                  />
+                    style={{
+                      fontFamily: 'var(--lx-font-mono)',
+                      fontSize: 12.5,
+                      borderColor: 'var(--lx-border-strong)',
+                      color: 'var(--lx-text-2)',
+                    }}
+                  >
+                    deactivate account
+                  </Button>
                 </div>
-              ))}
-            </div>
-          )}
 
-          {tab === 'connected' && (
-            <div
-              style={{
-                maxWidth: 560,
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 16,
-              }}
-            >
-              <div style={sectionTitle}>connected accounts</div>
-              <div
-                style={{
-                  padding: '16px 18px',
-                  borderRadius: 6,
-                  border: '1px solid var(--lx-border)',
-                  background: 'var(--lx-surface)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <BrandIcon name="github" size={18} />
-                  <div>
-                    <div
-                      style={{
-                        fontFamily: 'var(--lx-font-mono)',
-                        fontSize: 13,
-                        color: 'var(--lx-text)',
-                        fontWeight: 600,
-                      }}
-                    >
-                      GitHub
-                    </div>
-                    <div
-                      style={{
-                        fontFamily: 'var(--lx-font-mono)',
-                        fontSize: 11,
-                        color: 'var(--lx-text-3)',
-                      }}
-                    >
-                      @{profile.viewer.githubUsername}
-                    </div>
+                <div
+                  style={{
+                    padding: '20px',
+                    border: '1px solid oklch(62% 0.22 25 / 0.4)',
+                    borderRadius: 6,
+                    background: 'oklch(62% 0.22 25 / 0.04)',
+                  }}
+                >
+                  <div
+                    style={{
+                      fontFamily: 'var(--lx-font-mono)',
+                      fontSize: 13,
+                      fontWeight: 600,
+                      color: 'var(--lx-danger)',
+                      marginBottom: 8,
+                    }}
+                  >
+                    delete account
                   </div>
-                </div>
-                <span
-                  style={{
-                    fontFamily: 'var(--lx-font-mono)',
-                    fontSize: 11,
-                    color: 'var(--lx-success)',
-                  }}
-                >
-                  connected
-                </span>
-              </div>
-            </div>
-          )}
-
-          {tab === 'danger' && (
-            <div
-              style={{
-                maxWidth: 560,
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 20,
-              }}
-            >
-              <div
-                style={{
-                  padding: '20px',
-                  border: '1px solid var(--lx-border)',
-                  borderRadius: 6,
-                  background: 'var(--lx-surface)',
-                }}
-              >
-                <div
-                  style={{
-                    fontFamily: 'var(--lx-font-mono)',
-                    fontSize: 13,
-                    fontWeight: 600,
-                    color: 'var(--lx-text)',
-                    marginBottom: 8,
-                  }}
-                >
-                  deactivate account
-                </div>
-                <p
-                  style={{
-                    margin: '0 0 14px',
-                    fontFamily: 'var(--lx-font-sans)',
-                    fontSize: 13,
-                    color: 'var(--lx-text-2)',
-                    lineHeight: 1.5,
-                  }}
-                >
-                  hides your profile from Explore and public surfaces until you
-                  reactivate.
-                </p>
-                <Button
-                  variant="outline"
-                  onClick={async () => {
-                    if (
-                      window.confirm(
-                        'Deactivate your account? Your profile will be hidden.',
+                  <p
+                    style={{
+                      margin: '0 0 14px',
+                      fontFamily: 'var(--lx-font-sans)',
+                      fontSize: 13,
+                      color: 'var(--lx-text-2)',
+                      lineHeight: 1.5,
+                    }}
+                  >
+                    permanently removes all your Locatic data and unstars all
+                    repos starred via Locatic. this cannot be undone.
+                  </p>
+                  <Button
+                    onClick={async () => {
+                      const confirmed = window.prompt(
+                        'Type DELETE to confirm permanent account deletion:',
                       )
-                    ) {
-                      try {
-                        await deactivate({})
-                      } catch (error) {
-                        console.error(error)
+                      if (confirmed === 'DELETE') {
+                        try {
+                          await deleteAccount({})
+                        } catch (error) {
+                          console.error(error)
+                        }
                       }
-                    }
-                  }}
-                  style={{
-                    fontFamily: 'var(--lx-font-mono)',
-                    fontSize: 12.5,
-                    borderColor: 'var(--lx-border-strong)',
-                    color: 'var(--lx-text-2)',
-                  }}
-                >
-                  deactivate account
-                </Button>
-              </div>
-
-              <div
-                style={{
-                  padding: '20px',
-                  border: '1px solid oklch(62% 0.22 25 / 0.4)',
-                  borderRadius: 6,
-                  background: 'oklch(62% 0.22 25 / 0.04)',
-                }}
-              >
-                <div
-                  style={{
-                    fontFamily: 'var(--lx-font-mono)',
-                    fontSize: 13,
-                    fontWeight: 600,
-                    color: 'var(--lx-danger)',
-                    marginBottom: 8,
-                  }}
-                >
-                  delete account
+                    }}
+                    style={{
+                      background: 'var(--lx-danger)',
+                      color: 'oklch(93% 0.005 230)',
+                      border: 'none',
+                      fontFamily: 'var(--lx-font-mono)',
+                      fontSize: 12.5,
+                      fontWeight: 600,
+                    }}
+                  >
+                    delete account permanently
+                  </Button>
                 </div>
-                <p
-                  style={{
-                    margin: '0 0 14px',
-                    fontFamily: 'var(--lx-font-sans)',
-                    fontSize: 13,
-                    color: 'var(--lx-text-2)',
-                    lineHeight: 1.5,
-                  }}
-                >
-                  permanently removes all your Locatic data and unstars all
-                  repos starred via Locatic. this cannot be undone.
-                </p>
-                <Button
-                  onClick={async () => {
-                    const confirmed = window.prompt(
-                      'Type DELETE to confirm permanent account deletion:',
-                    )
-                    if (confirmed === 'DELETE') {
-                      try {
-                        await deleteAccount({})
-                      } catch (error) {
-                        console.error(error)
-                      }
-                    }
-                  }}
-                  style={{
-                    background: 'var(--lx-danger)',
-                    color: 'oklch(93% 0.005 230)',
-                    border: 'none',
-                    fontFamily: 'var(--lx-font-mono)',
-                    fontSize: 12.5,
-                    fontWeight: 600,
-                  }}
-                >
-                  delete account permanently
-                </Button>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
+      <style>{`
+        @media (min-width: 1024px) {
+          .lg\\:block {
+            width: 220px !important;
+            border-bottom: none !important;
+            border-right: 1px solid var(--lx-border);
+            padding: 16px 0 !important;
+            overflow: visible !important;
+          }
+        }
+
+        @media (min-width: 640px) {
+          div[style*='grid-template-columns: minmax(0, 1fr);'] {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+        }
+      `}</style>
     </div>
   )
 }

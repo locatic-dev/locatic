@@ -43,6 +43,9 @@ routes/
 - `__root.tsx` handles Clerk SSR auth via `createServerFn` — `context.auth` available in all route `beforeLoad`
 - Auth is centralized in root — do NOT create per-route auth server functions
 - `_app.tsx` reuses `context.auth` from root for auth checks
+- All routes use `.page-shell` class for responsive spacing and safe-area handling
+- Public routes (index, sign-in, u.$username, onboarding): full-width mobile, centered desktop
+- `__root.tsx` includes skip link for keyboard accessibility
 
 ## ANTI-PATTERNS
 
@@ -50,3 +53,5 @@ routes/
 - DO NOT bypass the `_app/` layout for protected routes
 - DO NOT add global providers outside `__root.tsx`
 - DO NOT create per-route auth server functions — use centralized `context.auth` from root
+- DO NOT use fixed px spacing in routes — use `.page-shell` + CSS tokens
+- DO NOT create route-specific scroll handling — content scrolls within page-shell

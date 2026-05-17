@@ -203,19 +203,21 @@ function ExplorePage() {
   ]
 
   return (
-    <div style={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
+    <div
+      className="lx-page-shell xl:flex-row"
+      style={{ display: 'flex', flexDirection: 'column' }}
+    >
       <div
         style={{
           flex: 1,
           display: 'flex',
           flexDirection: 'column',
-          overflow: 'hidden',
           minWidth: 0,
         }}
       >
         <header
           style={{
-            padding: '20px 32px',
+            padding: '20px var(--lx-gutter)',
             borderBottom: '1px solid var(--lx-border)',
             flexShrink: 0,
           }}
@@ -223,9 +225,10 @@ function ExplorePage() {
           <div
             style={{
               display: 'flex',
-              alignItems: 'center',
+              alignItems: 'flex-start',
               justifyContent: 'space-between',
               gap: 16,
+              flexWrap: 'wrap',
             }}
           >
             <div>
@@ -254,12 +257,13 @@ function ExplorePage() {
               </h1>
             </div>
             <div
+              className="lx-chip-wrap"
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: 8,
                 flexWrap: 'wrap',
-                justifyContent: 'flex-end',
+                justifyContent: 'flex-start',
               }}
             >
               <span
@@ -288,8 +292,8 @@ function ExplorePage() {
           </div>
         </header>
 
-        <div style={{ flex: 1, overflowY: 'auto', padding: '24px 32px 80px' }}>
-          <div style={{ maxWidth: 720, margin: '0 auto' }}>
+        <div className="lx-page-scroll">
+          <div className="lx-page-width-feed">
             {isLoading && (
               <div
                 style={{ display: 'flex', flexDirection: 'column', gap: 14 }}
@@ -381,7 +385,7 @@ function ExplorePage() {
         style={{
           width: 280,
           borderLeft: '1px solid var(--lx-border)',
-          padding: '24px',
+          padding: '24px var(--lx-gutter)',
           background: 'var(--lx-bg)',
           flexDirection: 'column',
           gap: 24,

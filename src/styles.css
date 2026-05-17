@@ -52,6 +52,15 @@
   --lx-warning: oklch(72% 0.18 75);
   --lx-font-sans: var(--font-sans);
   --lx-font-mono: var(--font-mono);
+  --lx-gutter: clamp(16px, 4vw, 32px);
+  --lx-section-gap: clamp(20px, 4vw, 40px);
+  --lx-feed-max: 720px;
+  --lx-form-max: 720px;
+  --lx-detail-max: 1040px;
+  --lx-public-max: 1184px;
+  --lx-sidebar-width: 220px;
+  --lx-right-rail-width: 280px;
+  --lx-mobile-tab-height: calc(72px + env(safe-area-inset-bottom));
 }
 
 /* ── Register as Tailwind color utilities ───────────────────────────────── */
@@ -97,6 +106,11 @@ body,
   min-height: 100%;
 }
 
+html {
+  color-scheme: dark;
+  background: var(--lx-bg);
+}
+
 body {
   margin: 0;
   color: var(--lx-text);
@@ -105,6 +119,7 @@ body {
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 a {
@@ -114,6 +129,7 @@ a {
 
 button {
   cursor: pointer;
+  touch-action: manipulation;
 }
 
 /* ── Focus ───────────────────────────────────────────────────────────────── */
@@ -210,4 +226,102 @@ button {
 /* ── Mono text helper ────────────────────────────────────────────────────── */
 .lx-mono {
   font-family: var(--lx-font-mono);
+}
+
+.lx-skip-link {
+  position: absolute;
+  left: 16px;
+  top: 16px;
+  z-index: 100;
+  transform: translateY(-160%);
+  padding: 10px 14px;
+  border-radius: 4px;
+  border: 1px solid var(--lx-border-strong);
+  background: var(--lx-surface);
+  color: var(--lx-text);
+  font-family: var(--lx-font-mono);
+  font-size: 12px;
+  transition:
+    transform 160ms ease,
+    opacity 160ms ease;
+  opacity: 0;
+}
+
+.lx-skip-link:focus-visible {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+.lx-main-content {
+  min-width: 0;
+}
+
+.lx-page-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  min-width: 0;
+}
+
+.lx-page-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 24px var(--lx-gutter) calc(var(--lx-mobile-tab-height) + 16px);
+}
+
+.lx-page-width-feed,
+.lx-page-width-form,
+.lx-page-width-detail,
+.lx-page-width-public {
+  width: min(100%, var(--lx-feed-max));
+  margin-inline: auto;
+  min-width: 0;
+}
+
+.lx-page-width-form {
+  width: min(100%, var(--lx-form-max));
+}
+
+.lx-page-width-detail {
+  width: min(100%, var(--lx-detail-max));
+}
+
+.lx-page-width-public {
+  width: min(100%, var(--lx-public-max));
+}
+
+.lx-stack-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.lx-inline-tabs {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.lx-chip-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.lx-responsive-grid {
+  display: grid;
+  gap: 16px;
+}
+
+.lx-touch-target {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+@media (min-width: 768px) {
+  .lx-page-scroll {
+    padding-bottom: 80px;
+  }
 }

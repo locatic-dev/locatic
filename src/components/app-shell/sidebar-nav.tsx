@@ -66,8 +66,9 @@ export function SidebarNav({
 
   return (
     <aside
+      className="h-full"
       style={{
-        width: 220,
+        width: 'var(--lx-sidebar-width)',
         height: '100%',
         borderRight: '1px solid var(--lx-border)',
         background: 'var(--lx-bg)',

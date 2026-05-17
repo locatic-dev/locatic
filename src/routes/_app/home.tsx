@@ -127,18 +127,12 @@ function HomePage() {
   }
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        height: '100%',
-        overflow: 'hidden',
-      }}
-    >
+    <div className="lx-page-shell">
       <PageHeader
         title="home"
         actions={
           <button
+            className="lx-touch-target"
             style={{
               border: '1px solid var(--lx-border)',
               background: 'transparent',
@@ -156,8 +150,8 @@ function HomePage() {
         }
       />
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: '24px 32px 80px' }}>
-        <div style={{ maxWidth: 720, margin: '0 auto' }}>
+      <div className="lx-page-scroll">
+        <div className="lx-page-width-feed">
           {isLoading && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               {[1, 2, 3].map((skeletonId) => (
@@ -197,9 +191,11 @@ function HomePage() {
               <div
                 style={{
                   display: 'flex',
-                  alignItems: 'center',
+                  alignItems: 'flex-start',
                   justifyContent: 'space-between',
                   marginBottom: 16,
+                  gap: 12,
+                  flexWrap: 'wrap',
                 }}
               >
                 <span
