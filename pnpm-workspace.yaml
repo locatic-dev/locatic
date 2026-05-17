@@ -7,3 +7,4 @@ allowBuilds:
   workerd: true
   '@clerk/shared': false
   sharp: false
+  '@parcel/watcher': false

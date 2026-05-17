@@ -1,7 +1,4 @@
 import { defineConfig } from 'vite'
-import { devtools } from '@tanstack/devtools-vite'
-import { tanstackRouter } from '@tanstack/router-plugin/vite'
-
 import { tanstackStart } from '@tanstack/react-start/plugin/vite'
 
 import viteReact from '@vitejs/plugin-react'
@@ -56,6 +53,15 @@ const packageChunkGroups = [
     priority: 60,
   },
 ] as const
+
+// `tanstackStart` forwards router options to the underlying router plugin,
+// but the exported Vite config type still rejects `autoCodeSplitting` on a
+// fresh object literal in this release line. Keep the config in a named object
+// so TypeScript accepts the supported runtime option.
+const tanstackStartRouterOptions = {
+  routesDirectory: 'routes',
+  autoCodeSplitting: false,
+}
 
 function matchesPackageGroup(packageName: string, packages: readonly string[]) {
   return packages.some((value) =>
@@ -118,13 +124,14 @@ const config = defineConfig({
     },
   },
   plugins: [
-    devtools(),
-    cloudflare({ viteEnvironment: { name: 'ssr' } }),
-    tailwindcss(),
-    tanstackRouter({
-      autoCodeSplitting: true,
+    cloudflare({
+      viteEnvironment: { name: 'ssr' },
+      inspectorPort: false,
     }),
-    tanstackStart({}),
+    tailwindcss(),
+    tanstackStart({
+      router: tanstackStartRouterOptions,
+    }),
     viteReact(),
   ],
 })

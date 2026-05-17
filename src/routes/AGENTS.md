@@ -40,10 +40,13 @@ routes/
 - `_app` prefix = layout route that wraps children in auth guard
 - `$param` = dynamic URL segment (e.g., `$username` → `/u/:username`)
 - Routes delegate to `src/features/` for domain logic — keep routes thin
-- `__root.tsx` handles Clerk SSR auth via `createServerFn`
+- `__root.tsx` handles Clerk SSR auth via `createServerFn` — `context.auth` available in all route `beforeLoad`
+- Auth is centralized in root — do NOT create per-route auth server functions
+- `_app.tsx` reuses `context.auth` from root for auth checks
 
 ## ANTI-PATTERNS
 
 - DO NOT put business logic in route files — delegate to features
 - DO NOT bypass the `_app/` layout for protected routes
 - DO NOT add global providers outside `__root.tsx`
+- DO NOT create per-route auth server functions — use centralized `context.auth` from root

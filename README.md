@@ -70,21 +70,62 @@ pnpm install
 Create `.env.local` from `.env.example` and set:
 
 ```bash
+# Browser / client bundle
 VITE_CLERK_PUBLISHABLE_KEY=
-CONVEX_DEPLOYMENT=
 VITE_CONVEX_URL=
+
+# TanStack Start server
+CLERK_SECRET_KEY=
+
+# Convex CLI / local tooling
+CONVEX_DEPLOYMENT=
+
+# Convex deployment / runtime
+CLERK_JWT_ISSUER_DOMAIN=
 ```
 
-The frontend expects:
+Browser / client bundle:
 
 - `VITE_CLERK_PUBLISHABLE_KEY` for the Clerk client provider
 - `VITE_CONVEX_URL` for the Convex React client
+
+TanStack Start server:
+
+- `CLERK_SECRET_KEY` for `auth()` and `getToken()` in server functions and SSR route auth
+
+Convex CLI / local tooling:
+
 - `CONVEX_DEPLOYMENT` for local Convex tooling
 
-The Convex backend also expects Clerk server-side configuration:
+Convex deployment / runtime:
 
-- `CLERK_SECRET_KEY`
-- `CLERK_JWT_ISSUER_DOMAIN`
+- `CLERK_JWT_ISSUER_DOMAIN` for `convex/auth.config.ts`
+- `CLERK_SECRET_KEY` if Convex actions call Clerk's Backend API
+  - This app needs it for `convex/github_actions.ts`
+- `CLERK_WEBHOOK_SIGNING_SECRET` if you use the `/clerk/webhooks` handler
+
+Important: `CLERK_SECRET_KEY` is not a browser variable. It is used by the TanStack Start server runtime and, separately, by Convex only where backend actions explicitly call Clerk server APIs.
+
+### Convex Env Setup
+
+Setting values in `.env.local` is not enough for Convex-managed runtime config. Configure Convex deployment variables separately:
+
+```bash
+# Local dev deployment
+npx convex env set CLERK_JWT_ISSUER_DOMAIN https://your-clerk-domain
+npx convex env set CLERK_SECRET_KEY sk_test_...
+
+# Production deployment
+npx convex env set --prod CLERK_JWT_ISSUER_DOMAIN https://your-clerk-domain
+npx convex env set --prod CLERK_SECRET_KEY sk_live_...
+```
+
+If you enable Clerk webhooks, also configure:
+
+```bash
+npx convex env set CLERK_WEBHOOK_SIGNING_SECRET whsec_...
+npx convex env set --prod CLERK_WEBHOOK_SIGNING_SECRET whsec_...
+```
 
 There is also a Clerk webhook handler at `/clerk/webhooks`. If you enable webhook syncing locally or in production, configure the Clerk webhook signing secret in Convex as well.
 
