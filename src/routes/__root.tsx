@@ -3,6 +3,7 @@ import {
   Link,
   Scripts,
   createRootRouteWithContext,
+  type ErrorComponentProps,
   useRouter,
 } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
@@ -28,12 +29,17 @@ const fetchClerkAuth = createServerFn({ method: 'GET' }).handler(async () => {
     )
   }
 
-  const { getToken, isAuthenticated, userId } = await auth()
+  const authState = await auth()
+  const useConvexTokenTemplate = authState.sessionClaims?.aud !== 'convex'
 
   return {
-    isAuthenticated,
-    token: await getToken(),
-    userId,
+    isAuthenticated: authState.isAuthenticated,
+    token: authState.isAuthenticated
+      ? await authState.getToken(
+          useConvexTokenTemplate ? { template: 'convex' } : undefined,
+        )
+      : null,
+    userId: authState.userId,
   }
 })
 
@@ -62,35 +68,76 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
     ],
     links: [{ rel: 'stylesheet', href: appCss }],
   }),
+  errorComponent: RootErrorPage,
   notFoundComponent: NotFoundPage,
   shellComponent: RootDocument,
 })
 
+function RootErrorPage({ error, reset }: ErrorComponentProps) {
+  const router = useRouter()
+  const message =
+    error instanceof Error
+      ? error.message
+      : 'Something went wrong while loading this page.'
+  const isAuthConfigError =
+    message.includes('NoAuthProvider') ||
+    message.includes('issuer and audience match')
+
+  return (
+    <div className="flex min-h-dvh items-center justify-center bg-canvas px-6 text-text">
+      <div className="flex w-full max-w-[560px] flex-col gap-[18px] rounded-card border border-line bg-surface p-6 shadow-card">
+        <div className="flex items-center gap-2.5">
+          <Logo size={18} />
+          <span className="font-mono text-[13px] font-bold">locatic</span>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <h1 className="m-0 font-mono text-lg font-bold">
+            {isAuthConfigError
+              ? 'Authentication needs one more sync'
+              : 'Something interrupted this page'}
+          </h1>
+          <p className="m-0 text-sm leading-6 text-text-muted">
+            {isAuthConfigError
+              ? 'Locatic reached Clerk, but the token used for this request was not the Convex-scoped token. Retrying after refresh usually clears it once auth finishes syncing.'
+              : 'The route hit an unexpected error. You can retry this request or head back to sign in.'}
+          </p>
+        </div>
+
+        <div className="overflow-wrap-anywhere rounded-control border border-line bg-canvas px-3 py-2.5 font-mono text-[11.5px] text-text-faint [overflow-wrap:anywhere] whitespace-pre-wrap">
+          {message}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            onClick={() => {
+              reset()
+              void router.invalidate()
+            }}
+            className="min-h-11 rounded-[5px] bg-brand px-4 py-2.5 font-mono text-[12.5px] font-bold text-[#0d1117]"
+            type="button"
+          >
+            Retry
+          </button>
+          <Link
+            to="/sign-in"
+            className="inline-flex min-h-11 items-center rounded-[5px] border border-line bg-surface-alt px-4 py-2.5 font-mono text-[12.5px] font-bold text-text no-underline"
+          >
+            Back to sign in
+          </Link>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function NotFoundPage() {
   return (
-    <div
-      style={{
-        minHeight: '100dvh',
-        background: 'var(--lx-bg)',
-        color: 'var(--lx-text)',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        position: 'relative',
-        overflow: 'hidden',
-      }}
-    >
+    <div className="relative flex min-h-dvh flex-col items-center justify-center overflow-hidden bg-canvas text-text">
       {/* Faded dot-map backdrop */}
       <div
+        className="pointer-events-none absolute inset-0 flex items-center justify-center opacity-[0.22]"
         style={{
-          position: 'absolute',
-          inset: 0,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          opacity: 0.22,
-          pointerEvents: 'none',
           maskImage:
             'radial-gradient(ellipse at center, black 30%, transparent 72%)',
           WebkitMaskImage:
@@ -100,112 +147,41 @@ function NotFoundPage() {
         <DotMap width={960} height={520} />
       </div>
 
-      <div
-        style={{
-          position: 'relative',
-          zIndex: 1,
-          textAlign: 'center',
-          padding: '0 24px',
-          maxWidth: 480,
-        }}
-      >
+      <div className="relative z-[1] max-w-[480px] px-6 text-center">
         {/* Wordmark */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 10,
-            marginBottom: 48,
-          }}
-        >
+        <div className="mb-12 flex items-center justify-center gap-2.5">
           <Logo size={20} />
-          <span
-            style={{
-              fontFamily: 'var(--lx-font-mono)',
-              fontSize: 14,
-              fontWeight: 700,
-              letterSpacing: '-0.02em',
-            }}
-          >
+          <span className="font-mono text-sm font-bold tracking-[-0.02em]">
             locatic
           </span>
         </div>
 
         {/* 404 */}
-        <div
-          style={{
-            fontFamily: 'var(--lx-font-mono)',
-            fontSize: 'clamp(72px, 14vw, 144px)',
-            fontWeight: 700,
-            lineHeight: 1,
-            letterSpacing: '-0.05em',
-            color: 'var(--lx-accent)',
-            marginBottom: 20,
-          }}
-        >
+        <div className="mb-5 font-mono text-[clamp(72px,14vw,144px)] leading-none font-bold tracking-[-0.05em] text-brand">
           404
         </div>
 
-        <h1
-          style={{
-            margin: '0 0 12px',
-            fontFamily: 'var(--lx-font-mono)',
-            fontSize: 20,
-            fontWeight: 600,
-            letterSpacing: '-0.02em',
-            color: 'var(--lx-text)',
-          }}
-        >
+        <h1 className="mb-3 mt-0 font-mono text-xl font-semibold tracking-[-0.02em] text-text">
           page not found
         </h1>
 
-        <p
-          style={{
-            margin: '0 0 36px',
-            fontFamily: 'var(--lx-font-sans)',
-            fontSize: 15,
-            color: 'var(--lx-text-2)',
-            lineHeight: 1.6,
-          }}
-        >
+        <p className="mb-9 mt-0 font-sans text-[15px] leading-6 text-text-muted">
           this coordinate doesn't exist on the map. the path you followed leads
           nowhere.
         </p>
 
-        <Link
-          to="/"
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 8,
-            padding: '11px 20px',
-            background: 'var(--lx-accent)',
-            color: '#0d1117',
-            borderRadius: 5,
-            textDecoration: 'none',
-            fontFamily: 'var(--lx-font-mono)',
-            fontSize: 13,
-            fontWeight: 600,
-          }}
-        >
-          <ArrowLeft size={14} />
-          go home
-        </Link>
+        <div className="flex flex-col items-center gap-6">
+          <Link
+            to="/"
+            className="inline-flex items-center gap-2 rounded-[5px] bg-brand px-5 py-[11px] font-mono text-[13px] font-semibold text-[#0d1117] no-underline"
+          >
+            <ArrowLeft size={14} />
+            go home
+          </Link>
 
-        <div
-          style={{
-            marginTop: 40,
-            fontFamily: 'var(--lx-font-mono)',
-            fontSize: 11,
-            color: 'var(--lx-text-3)',
-            display: 'inline-block',
-            padding: '4px 10px',
-            border: '1px solid var(--lx-border)',
-            borderRadius: 4,
-          }}
-        >
-          error:404 · route not matched
+          <div className="rounded-control border border-line px-2.5 py-1 font-mono text-[11px] text-text-faint">
+            error:404 · route not matched
+          </div>
         </div>
       </div>
     </div>
@@ -220,7 +196,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       <head>
         <HeadContent />
       </head>
-      <body className="antialiased [overflow-wrap:anywhere]">
+      <body className="antialiased wrap-anywhere">
         <a className="lx-skip-link" href="#main-content">
           Skip to main content
         </a>

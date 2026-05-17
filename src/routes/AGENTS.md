@@ -20,7 +20,8 @@ routes/
 │   └── settings.tsx    # User settings
 ├── index.tsx           # Landing page (public)
 ├── onboarding.tsx      # New user onboarding flow
-├── sign-in.tsx         # Clerk sign-in
+├── sign-in.$.tsx       # Clerk sign-in (splat route)
+├── sign-up.$tsx        # Clerk sign-up (splat route)
 └── u.$username.tsx     # Public user profile
 ```
 
@@ -44,8 +45,9 @@ routes/
 - Auth is centralized in root — do NOT create per-route auth server functions
 - `_app.tsx` reuses `context.auth` from root for auth checks
 - All routes use `.page-shell` class for responsive spacing and safe-area handling
-- Public routes (index, sign-in, u.$username, onboarding): full-width mobile, centered desktop
+- Public routes (index, sign-in.$, sign-up.$, u.$username, onboarding): full-width mobile, centered desktop
 - `__root.tsx` includes skip link for keyboard accessibility
+- Routes use Tailwind-first styling — semantic tokens (`bg-surface`, `text-text-muted`) over inline styles or `var(--lx-*)`
 
 ## ANTI-PATTERNS
 
@@ -55,3 +57,5 @@ routes/
 - DO NOT create per-route auth server functions — use centralized `context.auth` from root
 - DO NOT use fixed px spacing in routes — use `.page-shell` + CSS tokens
 - DO NOT create route-specific scroll handling — content scrolls within page-shell
+- DO NOT use inline `style={{}}` for layout — use Tailwind utility classes
+- DO NOT use direct `var(--lx-*)` — use semantic Tailwind tokens (`bg-surface`, `text-text-muted`, etc.)

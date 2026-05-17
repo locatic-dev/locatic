@@ -26,74 +26,18 @@ export function EmptyState({
 }: EmptyStateProps) {
   return (
     <div
-      className={className}
-      style={{
-        flex: 1,
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 32,
-        textAlign: 'center',
-      }}
+      className={`flex flex-1 flex-col items-center justify-center p-8 text-center ${className ?? ''}`}
     >
-      {icon && (
-        <div
-          style={{
-            marginBottom: 20,
-            color: 'var(--lx-text-3)',
-          }}
-        >
-          {icon}
-        </div>
-      )}
-      <div
-        style={{
-          fontFamily: 'var(--lx-font-mono)',
-          fontSize: 11,
-          color: 'var(--lx-text-3)',
-          marginBottom: 20,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-        }}
-      >
-        <span
-          style={{
-            display: 'inline-block',
-            width: 8,
-            height: 14,
-            background: 'var(--lx-accent)',
-          }}
-          aria-hidden
-        />
+      {icon && <div className="mb-5 text-text-faint">{icon}</div>}
+      <div className="mb-5 flex items-center gap-2 font-mono text-[11px] text-text-faint">
+        <span className="inline-block h-3.5 w-2 bg-brand" aria-hidden />
         <span>~/empty</span>
       </div>
-      <h2
-        style={{
-          margin: 0,
-          fontFamily: 'var(--lx-font-mono)',
-          fontSize: 22,
-          fontWeight: 600,
-          letterSpacing: '-0.02em',
-          color: 'var(--lx-text)',
-          maxWidth: 400,
-          lineHeight: 1.3,
-        }}
-      >
+      <h2 className="m-0 max-w-[400px] font-mono text-[22px] font-semibold leading-[1.3] tracking-[-0.02em] text-text">
         {title}
       </h2>
       {description && (
-        <p
-          style={{
-            margin: '12px 0 0',
-            maxWidth: 360,
-            fontFamily: 'var(--lx-font-sans)',
-            fontSize: 14,
-            color: 'var(--lx-text-2)',
-            lineHeight: 1.6,
-          }}
-        >
+        <p className="mt-3 max-w-[360px] font-sans text-sm leading-6 text-text-muted">
           {description}
         </p>
       )}
@@ -107,7 +51,7 @@ export function EmptyState({
               onClick={action.onClick}
               className="min-h-11 w-full sm:w-auto"
               style={{
-                background: 'var(--lx-accent)',
+                background: 'var(--color-brand)',
                 color: '#0d1117',
                 border: 'none',
                 fontFamily: 'var(--lx-font-mono)',

@@ -1,4 +1,5 @@
 import { createFileRoute, Link, redirect } from '@tanstack/react-router'
+import { cn } from '@/lib/utils'
 import { Logo } from '@/components/ui/logo'
 import { DotMap } from '@/components/ui/dot-map'
 import { BrandIcon } from '@/components/ui/brand-icon'
@@ -134,48 +135,8 @@ function LandingPage() {
       </div>
 
       {/* Hero */}
-      <section
-        style={{
-          position: 'relative',
-          zIndex: 1,
-          padding: '48px var(--lx-gutter) 0',
-          display: 'grid',
-          gridTemplateColumns: 'minmax(0, 1fr)',
-          gap: 32,
-          alignItems: 'center',
-          maxWidth: 'var(--lx-public-max)',
-          margin: '0 auto',
-        }}
-      >
+      <section className="relative z-[1] mx-auto grid max-w-[var(--lx-public-max)] grid-cols-1 items-center gap-8 px-[var(--lx-gutter)] pt-12 md:grid-cols-[1fr_420px] md:gap-12 md:pt-20">
         <div>
-          {/* Status badge */}
-          <div
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 8,
-              padding: '5px 11px 5px 8px',
-              borderRadius: 999,
-              border: '1px solid var(--lx-border)',
-              background: 'var(--lx-surface)',
-              fontFamily: 'var(--lx-font-mono)',
-              fontSize: 11.5,
-              color: 'var(--lx-text-2)',
-              marginBottom: 28,
-            }}
-          >
-            <span
-              style={{
-                width: 6,
-                height: 6,
-                borderRadius: '50%',
-                background: 'var(--lx-accent)',
-                boxShadow: '0 0 0 3px oklch(72% 0.17 185 / 0.25)',
-              }}
-            />
-            <span>1,284 builders shipping in 47 cities</span>
-          </div>
-
           <h1
             style={{
               margin: 0,
@@ -274,8 +235,8 @@ function LandingPage() {
           </div>
         </div>
 
-        {/* Preview card float */}
-        <div style={{ position: 'relative', height: 320 }}>
+        {/* Preview card float — hidden on mobile */}
+        <div className="relative hidden h-80 md:block">
           <div
             style={{
               position: 'absolute',
@@ -382,20 +343,7 @@ function LandingPage() {
       {/* Feature row */}
       <section
         id="features"
-        style={{
-          position: 'relative',
-          zIndex: 1,
-          margin: '64px var(--lx-gutter) 0',
-          padding: '40px 0',
-          borderTop: '1px solid var(--lx-border)',
-          borderBottom: '1px solid var(--lx-border)',
-          display: 'grid',
-          gridTemplateColumns: 'minmax(0, 1fr)',
-          gap: 20,
-          maxWidth: 1184,
-          marginLeft: 'auto',
-          marginRight: 'auto',
-        }}
+        className="relative z-[1] mx-auto mt-16 grid max-w-[1184px] grid-cols-1 gap-5 border-y border-[var(--lx-border)] px-[var(--lx-gutter)] py-10 md:grid-cols-3 md:gap-0 md:px-0"
       >
         {[
           {
@@ -419,11 +367,11 @@ function LandingPage() {
         ].map((f, i) => (
           <div
             key={i}
-            style={{
-              padding: '8px 0',
-              borderLeft: 'none',
-              borderTop: i > 0 ? '1px solid var(--lx-border)' : 'none',
-            }}
+            className={cn(
+              'px-0 py-2 md:px-8',
+              i > 0 &&
+                'border-t border-[var(--lx-border)] md:border-l md:border-t-0',
+            )}
           >
             <div
               style={{
@@ -493,31 +441,6 @@ function LandingPage() {
           locatic · {new Date().getFullYear()} · made in 7 cities
         </div>
       </footer>
-      <style>{`
-        @media (min-width: 900px) {
-          #features {
-            grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 0;
-          }
-
-          #features > div {
-            padding: 8px 32px;
-            border-top: none;
-          }
-
-          #features > div:not(:first-child) {
-            border-left: 1px solid var(--lx-border);
-          }
-        }
-
-        @media (min-width: 980px) {
-          section[style*='max-width: var(--lx-public-max)'] {
-            grid-template-columns: minmax(0, 1fr) 420px;
-            gap: 48px;
-            padding-top: 80px;
-          }
-        }
-      `}</style>
     </div>
   )
 }

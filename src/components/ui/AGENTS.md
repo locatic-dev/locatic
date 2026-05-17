@@ -27,6 +27,9 @@ ui/
 - Use `max-w-full` + `truncate` or `break-words` — never let content escape viewport
 - Dialog: consider full-screen on mobile, centered on desktop
 - Pills (CityPill, StatusPill): inline-flex, shrink-safe, no text overflow
+- Tailwind-first styling: `EmptyState`, `ProjectCard` migrated from inline styles to semantic utility classes
+- Use semantic tokens: `bg-surface`, `text-text-muted`, `rounded-card`, `shadow-card` instead of `var(--lx-*)`
+- Inline `style={{}}` only for dynamic runtime values — never for static layout
 
 ## ANTI-PATTERNS
 

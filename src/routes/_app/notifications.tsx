@@ -19,21 +19,15 @@ export const Route = createFileRoute('/_app/notifications')({
 
 function notifIcon(type: string) {
   if (type === 'project_liked') {
-    return (
-      <Heart
-        size={14}
-        style={{ color: 'var(--lx-accent)' }}
-        fill="currentColor"
-      />
-    )
+    return <Heart size={14} className="text-brand" fill="currentColor" />
   }
   if (type === 'project_commented' || type === 'comment_replied') {
-    return <MessageSquare size={14} style={{ color: 'var(--lx-text-2)' }} />
+    return <MessageSquare size={14} className="text-text-muted" />
   }
   if (type === 'followed') {
-    return <UserPlus size={14} style={{ color: 'var(--lx-text-2)' }} />
+    return <UserPlus size={14} className="text-text-muted" />
   }
-  return <Bell size={14} style={{ color: 'var(--lx-text-2)' }} />
+  return <Bell size={14} className="text-text-muted" />
 }
 
 function notifText(notification: Doc<'notifications'>) {
@@ -119,28 +113,8 @@ function NotificationsPage() {
 
   return (
     <div className="lx-page-shell">
-      <div
-        style={{
-          minHeight: 56,
-          padding: '0 var(--lx-gutter)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 12,
-          flexWrap: 'wrap',
-          borderBottom: '1px solid var(--lx-border)',
-          flexShrink: 0,
-        }}
-      >
-        <h1
-          style={{
-            margin: 0,
-            fontFamily: 'var(--lx-font-mono)',
-            fontSize: 14,
-            fontWeight: 600,
-            color: 'var(--lx-text)',
-          }}
-        >
+      <div className="flex min-h-14 shrink-0 flex-wrap items-center justify-between gap-3 border-b border-line px-[var(--lx-gutter)]">
+        <h1 className="m-0 font-mono text-sm font-semibold text-text">
           notifications
         </h1>
         {unreadCount > 0 && (
@@ -148,11 +122,7 @@ function NotificationsPage() {
             variant="ghost"
             onClick={() => void handleMarkAll()}
             disabled={markingAll}
-            style={{
-              fontFamily: 'var(--lx-font-mono)',
-              fontSize: 11.5,
-              color: 'var(--lx-text-3)',
-            }}
+            className="font-mono text-[11.5px] text-text-faint"
           >
             mark all read
           </Button>
@@ -162,21 +132,9 @@ function NotificationsPage() {
       <div className="lx-page-scroll" style={{ flex: 1 }}>
         <div className="lx-page-width-feed">
           {notifications.length === 0 && (
-            <div
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                padding: '64px 32px',
-                gap: 12,
-                color: 'var(--lx-text-3)',
-              }}
-            >
+            <div className="flex flex-col items-center justify-center gap-3 px-8 py-16 text-text-faint">
               <Bell size={32} strokeWidth={1.2} />
-              <span style={{ fontFamily: 'var(--lx-font-mono)', fontSize: 12 }}>
-                no notifications yet.
-              </span>
+              <span className="font-mono text-xs">no notifications yet.</span>
             </div>
           )}
 
@@ -188,78 +146,30 @@ function NotificationsPage() {
             return (
               <button
                 key={notificationId}
-                style={{
-                  width: '100%',
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  gap: 14,
-                  padding: '16px 0',
-                  border: 'none',
-                  borderBottom: '1px solid var(--lx-border)',
-                  background: !isRead
-                    ? 'oklch(72% 0.17 185 / 0.04)'
-                    : 'transparent',
-                  cursor: 'pointer',
-                  transition: 'background 0.14s',
-                  textAlign: 'left',
-                }}
+                className={`flex w-full items-start gap-3 border-b border-line px-0 py-4 text-left transition-colors hover:bg-surface-alt focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
+                  !isRead ? 'bg-[oklch(72%_0.17_185_/_0.04)]' : 'bg-transparent'
+                }`}
                 onClick={() => void handleMarkRead(notificationId)}
                 type="button"
               >
-                <div style={{ position: 'relative', flexShrink: 0 }}>
+                <div className="relative shrink-0">
                   <LxAvatar
                     name={notification.actorSnapshot.displayName}
                     avatarUrl={notification.actorSnapshot.avatarUrl}
                     size={36}
                   />
-                  <div
-                    style={{
-                      position: 'absolute',
-                      bottom: -2,
-                      right: -2,
-                      width: 18,
-                      height: 18,
-                      borderRadius: '50%',
-                      background: 'var(--lx-surface)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      border: '1px solid var(--lx-border)',
-                    }}
-                  >
+                  <div className="absolute -bottom-0.5 -right-0.5 flex size-[18px] items-center justify-center rounded-full border border-line bg-surface">
                     {notifIcon(notification.type)}
                   </div>
                 </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <p
-                    style={{
-                      margin: 0,
-                      fontFamily: 'var(--lx-font-sans)',
-                      fontSize: 13.5,
-                      color: 'var(--lx-text)',
-                      lineHeight: 1.5,
-                      overflowWrap: 'anywhere',
-                    }}
-                  >
-                    <strong
-                      style={{
-                        fontFamily: 'var(--lx-font-mono)',
-                        fontWeight: 600,
-                      }}
-                    >
+                <div className="min-w-0 flex-1">
+                  <p className="m-0 font-sans text-[13.5px] leading-6 text-text [overflow-wrap:anywhere]">
+                    <strong className="font-mono font-semibold">
                       {notification.actorSnapshot.displayName}
                     </strong>{' '}
                     {notifText(notification)}
                   </p>
-                  <span
-                    style={{
-                      fontFamily: 'var(--lx-font-mono)',
-                      fontSize: 11,
-                      color: 'var(--lx-text-3)',
-                      marginTop: 4,
-                      display: 'block',
-                    }}
-                  >
+                  <span className="mt-1 block font-mono text-[11px] text-text-faint">
                     {relativeTime(notification.createdAt)}
                   </span>
                 </div>

@@ -64,21 +64,18 @@ export function ProjectCard({
 
   return (
     <div
-      className={cn('lx-card lx-fade-up @container', className)}
+      className={cn(
+        'lx-card lx-fade-up @container relative flex flex-col rounded-card border border-line bg-surface',
+        className,
+      )}
       style={{
-        background: 'var(--lx-surface)',
-        border: '1px solid var(--lx-border)',
-        borderRadius: 6,
         padding: pad,
-        display: 'flex',
-        flexDirection: 'column',
         gap,
-        position: 'relative',
       }}
     >
       {/* Top row: repo name + dismiss */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
+      <div className="flex items-start gap-2.5">
+        <div className="min-w-0 flex-1">
           <div
             style={{
               display: 'flex',
@@ -104,7 +101,7 @@ export function ProjectCard({
                 fontFamily: 'var(--lx-font-mono)',
                 fontSize: 14.5,
                 fontWeight: 600,
-                color: 'var(--lx-text)',
+                color: 'var(--color-text)',
                 letterSpacing: '-0.01em',
                 maxWidth: '100%',
                 whiteSpace: 'normal',
@@ -112,26 +109,16 @@ export function ProjectCard({
                 lineHeight: 1.35,
               }}
             >
-              <span style={{ color: 'var(--lx-text-3)', fontWeight: 400 }}>
+              <span
+                style={{ color: 'var(--color-text-faint)', fontWeight: 400 }}
+              >
                 {project.owner}/
               </span>
               {project.repo}
             </button>
 
             {project.isRecommended && (
-              <span
-                style={{
-                  fontFamily: 'var(--lx-font-mono)',
-                  fontSize: 9.5,
-                  padding: '2px 6px',
-                  borderRadius: 2,
-                  color: 'var(--lx-accent)',
-                  background: 'var(--lx-accent-quiet)',
-                  border: '1px solid oklch(72% 0.17 185 / 0.3)',
-                  lineHeight: 1,
-                  whiteSpace: 'nowrap',
-                }}
-              >
+              <span className="rounded-[2px] border border-[oklch(72%_0.17_185_/_0.3)] bg-brand-quiet px-1.5 py-0.5 font-mono text-[9.5px] leading-none whitespace-nowrap text-brand">
                 {project.matchPct
                   ? `${project.matchPct}% match`
                   : 'recommended'}
@@ -145,7 +132,7 @@ export function ProjectCard({
                 margin: 0,
                 fontFamily: 'var(--lx-font-sans)',
                 fontSize: 13.5,
-                color: 'var(--lx-text-2)',
+                color: 'var(--color-text-muted)',
                 lineHeight: 1.5,
                 display: '-webkit-box',
                 WebkitLineClamp: compact ? 1 : 2,
@@ -165,7 +152,7 @@ export function ProjectCard({
             style={{
               border: 'none',
               background: 'transparent',
-              color: 'var(--lx-text-3)',
+              color: 'var(--color-text-faint)',
               cursor: 'pointer',
               padding: 4,
               marginRight: -4,
@@ -188,7 +175,7 @@ export function ProjectCard({
           gap: compact ? 12 : 14,
           fontFamily: 'var(--lx-font-mono)',
           fontSize: 11.5,
-          color: 'var(--lx-text-3)',
+          color: 'var(--color-text-faint)',
           flexWrap: 'wrap',
         }}
       >
@@ -210,7 +197,9 @@ export function ProjectCard({
             display: 'inline-flex',
             alignItems: 'center',
             gap: 4,
-            color: project.liked ? 'var(--lx-accent)' : 'var(--lx-text-3)',
+            color: project.liked
+              ? 'var(--color-brand)'
+              : 'var(--color-text-faint)',
           }}
         >
           <Heart
@@ -230,7 +219,7 @@ export function ProjectCard({
             background: 'none',
             border: 'none',
             padding: 0,
-            color: 'var(--lx-text-3)',
+            color: 'var(--color-text-faint)',
             cursor: onComment ? 'pointer' : 'default',
             fontFamily: 'inherit',
             fontSize: 'inherit',
@@ -257,7 +246,7 @@ export function ProjectCard({
           justifyContent: 'space-between',
           gap: 10,
           paddingTop: compact ? 4 : 6,
-          borderTop: '1px solid var(--lx-border)',
+          borderTop: '1px solid var(--color-line)',
           flexWrap: 'wrap',
         }}
       >
@@ -280,7 +269,7 @@ export function ProjectCard({
             style={{
               fontFamily: 'var(--lx-font-sans)',
               fontSize: 12.5,
-              color: 'var(--lx-text-2)',
+              color: 'var(--color-text-muted)',
               fontWeight: 500,
               overflow: 'hidden',
               textOverflow: 'ellipsis',
@@ -293,16 +282,7 @@ export function ProjectCard({
         </div>
 
         {showActions && (
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              flexShrink: 0,
-              flexWrap: 'wrap',
-              width: '100%',
-            }}
-          >
+          <div className="flex flex-shrink-0 flex-wrap items-center gap-1.5">
             {onFollow && (
               <Button
                 size="sm"
@@ -314,9 +294,11 @@ export function ProjectCard({
                   fontFamily: 'var(--lx-font-mono)',
                   fontSize: 10.5,
                   borderColor: project.followed
-                    ? 'var(--lx-border-strong)'
+                    ? 'var(--color-line-strong)'
                     : undefined,
-                  color: project.followed ? 'var(--lx-text-2)' : undefined,
+                  color: project.followed
+                    ? 'var(--color-text-muted)'
+                    : undefined,
                 }}
               >
                 {project.followed ? 'following' : 'follow'}
@@ -331,7 +313,7 @@ export function ProjectCard({
                 style={{
                   fontFamily: 'var(--lx-font-mono)',
                   fontSize: 10.5,
-                  color: 'var(--lx-text-3)',
+                  color: 'var(--color-text-faint)',
                 }}
               >
                 dm
@@ -349,7 +331,9 @@ export function ProjectCard({
                 padding: 12,
                 display: 'flex',
                 alignItems: 'center',
-                color: project.liked ? 'var(--lx-accent)' : 'var(--lx-text-3)',
+                color: project.liked
+                  ? 'var(--color-brand)'
+                  : 'var(--color-text-faint)',
                 opacity: likePending ? 0.6 : 1,
                 transition: 'color 0.15s',
                 minWidth: 44,
@@ -379,20 +363,16 @@ export function ProjectCardSkeleton({
   const pad = compact ? '14px 16px' : '18px 20px'
   return (
     <div
+      className="flex flex-col rounded-card border border-line bg-surface"
       style={{
-        background: 'var(--lx-surface)',
-        border: '1px solid var(--lx-border)',
-        borderRadius: 6,
         padding: pad,
-        display: 'flex',
-        flexDirection: 'column',
         gap: 12,
       }}
     >
       <div className="lx-skeleton" style={{ height: 14, width: '60%' }} />
       <div className="lx-skeleton" style={{ height: 12, width: '90%' }} />
       <div className="lx-skeleton" style={{ height: 12, width: '75%' }} />
-      <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+      <div className="mt-1 flex gap-2">
         <div className="lx-skeleton" style={{ height: 10, width: 40 }} />
         <div className="lx-skeleton" style={{ height: 10, width: 40 }} />
         <div className="lx-skeleton" style={{ height: 10, width: 40 }} />

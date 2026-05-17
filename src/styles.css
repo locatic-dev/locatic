@@ -61,6 +61,13 @@
   --lx-sidebar-width: 220px;
   --lx-right-rail-width: 280px;
   --lx-mobile-tab-height: calc(72px + env(safe-area-inset-bottom));
+  --lx-radius-control: 0.25rem;
+  --lx-radius-card: 0.375rem;
+  --lx-radius-pill: 999px;
+  --lx-shadow-card:
+    0 1px 0 oklch(100% 0 0 / 0.04), 0 12px 32px oklch(0% 0 0 / 0.18);
+  --lx-shadow-floating:
+    0 1px 0 oklch(100% 0 0 / 0.05), 0 18px 44px oklch(0% 0 0 / 0.28);
 }
 
 /* ── Register as Tailwind color utilities ───────────────────────────────── */
@@ -93,6 +100,24 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+  --color-canvas: var(--lx-bg);
+  --color-surface: var(--lx-surface);
+  --color-surface-alt: var(--lx-surface-alt);
+  --color-line: var(--lx-border);
+  --color-line-strong: var(--lx-border-strong);
+  --color-text: var(--lx-text);
+  --color-text-muted: var(--lx-text-2);
+  --color-text-faint: var(--lx-text-3);
+  --color-brand: var(--lx-accent);
+  --color-brand-quiet: var(--lx-accent-quiet);
+  --color-success: var(--lx-success);
+  --color-warning: var(--lx-warning);
+  --color-danger: var(--lx-danger);
+  --radius-control: var(--lx-radius-control);
+  --radius-card: var(--lx-radius-card);
+  --radius-pill: var(--lx-radius-pill);
+  --shadow-card: var(--lx-shadow-card);
+  --shadow-floating: var(--lx-shadow-floating);
 }
 
 /* ── Base reset ──────────────────────────────────────────────────────────── */
@@ -205,11 +230,14 @@ button {
 
 /* ── Project card hover ──────────────────────────────────────────────────── */
 .lx-card {
-  transition: border-color 0.14s ease;
+  transition:
+    border-color 0.14s ease,
+    box-shadow 0.14s ease;
 }
 
 .lx-card:hover {
   border-color: var(--lx-border-strong);
+  box-shadow: var(--lx-shadow-card);
 }
 
 /* ── Sidebar nav active bar ──────────────────────────────────────────────── */
