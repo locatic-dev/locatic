@@ -922,6 +922,43 @@ export const viewerByClerkId = internalQuery({
   },
 })
 
+export const ensureViewerFromIdentity = internalMutation({
+  args: {
+    clerkId: v.string(),
+    email: v.string(),
+    githubUsername: v.string(),
+    githubUrl: v.string(),
+    avatarUrl: v.string(),
+    displayName: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const existingViewer = await getViewerByClerkId(ctx, args.clerkId)
+    if (existingViewer) {
+      return existingViewer
+    }
+
+    const viewerId = await ctx.db.insert(
+      'users',
+      createDefaultViewerProfile({
+        clerkId: args.clerkId,
+        email: args.email,
+        githubId: null,
+        githubUsername: args.githubUsername,
+        githubUrl: args.githubUrl,
+        avatarUrl: args.avatarUrl,
+        displayName: args.displayName,
+      }),
+    )
+
+    const viewer = await ctx.db.get(viewerId)
+    if (!viewer) {
+      throw new ConvexError('Viewer not found')
+    }
+
+    return viewer
+  },
+})
+
 export const actorSnapshotById = internalQuery({
   args: {
     userId: v.id('users'),

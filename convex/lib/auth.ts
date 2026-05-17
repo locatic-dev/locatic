@@ -9,6 +9,9 @@ type AuthCapableCtx =
   | Pick<ActionCtx, 'auth'>
 
 export type ViewerRecord = Awaited<ReturnType<typeof getViewerByClerkId>>
+export type AuthIdentity = Record<string, unknown> & {
+  subject: string
+}
 
 export async function requireIdentity(ctx: AuthCapableCtx) {
   const identity = await ctx.auth.getUserIdentity()
@@ -115,16 +118,7 @@ function getIdentityGithubUsername(
   return email.split('@')[0] || clerkId
 }
 
-export async function getOrCreateViewer(ctx: MutationCtx) {
-  const identity = (await requireIdentity(ctx)) as Record<string, unknown> & {
-    subject: string
-  }
-
-  const existingViewer = await getViewerByClerkId(ctx, identity.subject)
-  if (existingViewer) {
-    return existingViewer
-  }
-
+export function buildViewerSeedFromIdentity(identity: AuthIdentity) {
   const email = getIdentityEmail(identity)
   const displayName = getIdentityDisplayName(identity, email)
   const githubUsername = getIdentityGithubUsername(
@@ -133,18 +127,38 @@ export async function getOrCreateViewer(ctx: MutationCtx) {
     email,
   )
   const avatarUrl = getIdentityAvatarUrl(identity)
+
+  return {
+    clerkId: identity.subject,
+    email,
+    displayName,
+    githubUsername,
+    githubUrl: githubUsername
+      ? `https://github.com/${githubUsername}`
+      : 'https://github.com',
+    avatarUrl,
+  }
+}
+
+export async function getOrCreateViewer(ctx: MutationCtx) {
+  const identity = (await requireIdentity(ctx)) as AuthIdentity
+
+  const existingViewer = await getViewerByClerkId(ctx, identity.subject)
+  if (existingViewer) {
+    return existingViewer
+  }
+
+  const seed = buildViewerSeedFromIdentity(identity)
   const viewerId = await ctx.db.insert(
     'users',
     createDefaultViewerProfile({
-      clerkId: identity.subject,
-      email,
+      clerkId: seed.clerkId,
+      email: seed.email,
       githubId: null,
-      githubUsername,
-      githubUrl: githubUsername
-        ? `https://github.com/${githubUsername}`
-        : 'https://github.com',
-      avatarUrl,
-      displayName,
+      githubUsername: seed.githubUsername,
+      githubUrl: seed.githubUrl,
+      avatarUrl: seed.avatarUrl,
+      displayName: seed.displayName,
     }),
   )
 
