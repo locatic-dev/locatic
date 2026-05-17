@@ -1,263 +1,234 @@
-Welcome to your new TanStack Start app!
+# Locatic
 
-# Getting Started
+Locatic is a location-aware developer discovery product built around a simple idea: **GitHub with a map.**
 
-To run this application:
+Developers sign in with GitHub, choose which repositories to showcase, set their city, and discover what other people are building nearby or across the world. The core interaction loop is social and project-first: follow builders, like projects, comment on work, and start direct conversations.
+
+## What Exists Today
+
+The repository already includes the core MVP surfaces and backend model:
+
+- Public landing page
+- GitHub sign-in with Clerk
+- Multi-step onboarding for profile, city, and repository selection
+- Authenticated Home feed for followed builders
+- Authenticated Explore feed driven by city preferences
+- Project detail pages with likes and comments
+- Public user profiles
+- Inbox, notifications, profile, and settings
+- Convex data model and cron jobs for feeds, sync, cleanup, and Pulse snapshots
+
+The current codebase also makes a clear distinction between what is implemented now and what is still planned:
+
+- Pulse ranking logic exists in Convex
+- A dedicated Pulse UI route is not implemented yet
+- The broader map-heavy browsing experience is still future scope
+
+## Product Model
+
+Locatic organizes discovery into distinct surfaces:
+
+- **Home** is the personal feed. It shows projects and activity from people you follow.
+- **Explore** is the discovery feed. It pulls projects from selected cities and uses lightweight preference signals.
+- **Project detail** is the main conversion surface for likes, comments, follow actions, and repository context.
+- **Profile** presents a builder's identity, selected projects, comment history, and liked work depending on privacy settings.
+- **Inbox** supports direct builder-to-builder messaging.
+- **Settings** controls account data, privacy, notifications, and connected account state.
+
+The current application stays intentionally scoped to the MVP surfaces listed above. Data model details are documented in [docs/Locatic_Database_Design.md](docs/Locatic_Database_Design.md).
+
+## Tech Stack
+
+- React 19
+- TanStack Start
+- TanStack Router
+- TanStack Query
+- Convex
+- Clerk
+- Tailwind CSS v4
+- Cloudflare Workers via Wrangler
+- Vitest for tests
+
+## Local Development
+
+### Prerequisites
+
+- Node.js `24.x`
+- `pnpm@11.1.2` via the `packageManager` field
+- A Clerk application with GitHub OAuth enabled
+- A Convex project
+
+### Install
 
 ```bash
+corepack enable
 pnpm install
+```
+
+### Environment Variables
+
+Create `.env.local` from `.env.example` and set:
+
+```bash
+# Browser / client bundle
+VITE_CLERK_PUBLISHABLE_KEY=
+VITE_CONVEX_URL=
+
+# TanStack Start server
+CLERK_SECRET_KEY=
+
+# Convex CLI / local tooling
+CONVEX_DEPLOYMENT=
+
+# Convex deployment / runtime
+CLERK_JWT_ISSUER_DOMAIN=
+```
+
+Browser / client bundle:
+
+- `VITE_CLERK_PUBLISHABLE_KEY` for the Clerk client provider
+- `VITE_CONVEX_URL` for the Convex React client
+
+TanStack Start server:
+
+- `CLERK_SECRET_KEY` for `auth()` and `getToken()` in server functions and SSR route auth
+
+Convex CLI / local tooling:
+
+- `CONVEX_DEPLOYMENT` for local Convex tooling
+
+Convex deployment / runtime:
+
+- `CLERK_JWT_ISSUER_DOMAIN` for `convex/auth.config.ts`
+- `CLERK_SECRET_KEY` if Convex actions call Clerk's Backend API
+  - This app needs it for `convex/github_actions.ts`
+- `CLERK_WEBHOOK_SIGNING_SECRET` if you use the `/clerk/webhooks` handler
+
+Important: `CLERK_SECRET_KEY` is not a browser variable. It is used by the TanStack Start server runtime and, separately, by Convex only where backend actions explicitly call Clerk server APIs.
+
+### Convex Env Setup
+
+Setting values in `.env.local` is not enough for Convex-managed runtime config. Configure Convex deployment variables separately:
+
+```bash
+# Local dev deployment
+npx convex env set CLERK_JWT_ISSUER_DOMAIN https://your-clerk-domain
+npx convex env set CLERK_SECRET_KEY sk_test_...
+
+# Production deployment
+npx convex env set --prod CLERK_JWT_ISSUER_DOMAIN https://your-clerk-domain
+npx convex env set --prod CLERK_SECRET_KEY sk_live_...
+```
+
+If you enable Clerk webhooks, also configure:
+
+```bash
+npx convex env set CLERK_WEBHOOK_SIGNING_SECRET whsec_...
+npx convex env set --prod CLERK_WEBHOOK_SIGNING_SECRET whsec_...
+```
+
+There is also a Clerk webhook handler at `/clerk/webhooks`. If you enable webhook syncing locally or in production, configure the Clerk webhook signing secret in Convex as well.
+
+### Run the App
+
+Start Convex in one terminal:
+
+```bash
+pnpm dlx convex dev
+```
+
+Start the frontend in another:
+
+```bash
 pnpm dev
 ```
 
-# Building For Production
+The Vite app runs on `http://localhost:3000`.
 
-To build this application for production:
+### Clerk and GitHub Setup Notes
+
+Locatic assumes users authenticate through Clerk with GitHub connected. The codebase uses Clerk's GitHub OAuth token to:
+
+- list a user's public repositories during onboarding
+- import selected repositories into Locatic
+- star or unstar repositories when a user likes or unlikes a project
+
+In practice, that means your Clerk setup needs GitHub OAuth configured with the permissions required for those flows.
+
+### Seed Data and Background Jobs
+
+The Convex backend includes scheduled jobs for:
+
+- seeding default cities
+- rebuilding Pulse snapshots
+- refreshing active GitHub project metadata
+- cleaning up feed and notification history
+
+Default city seed data lives in [convex/citiesSeed.ts](convex/citiesSeed.ts), and the cron definitions live in [convex/crons.ts](convex/crons.ts).
+
+## Available Scripts
 
 ```bash
+pnpm dev
 pnpm build
-```
-
-## Testing
-
-This project uses [Vitest](https://vitest.dev/) for testing. You can run the tests with:
-
-```bash
+pnpm preview
 pnpm test
-```
-
-## Styling
-
-This project uses [Tailwind CSS](https://tailwindcss.com/) for styling.
-
-### Removing Tailwind CSS
-
-If you prefer not to use Tailwind CSS:
-
-1. Remove the demo pages in `src/routes/demo/`
-2. Replace the Tailwind import in `src/styles.css` with your own styles
-3. Remove `tailwindcss()` from the plugins array in `vite.config.ts`
-4. Uninstall the packages: `pnpm add @tailwindcss/vite tailwindcss --dev`
-
-## Linting & Formatting
-
-This project uses [eslint](https://eslint.org/) and [prettier](https://prettier.io/) for linting and formatting. Eslint is configured using [tanstack/eslint-config](https://tanstack.com/config/latest/docs/eslint). The following scripts are available:
-
-```bash
 pnpm lint
+pnpm typecheck
 pnpm format
 pnpm check
+pnpm ci:quality
+pnpm ci:build
+pnpm deploy:convex
+pnpm deploy
 ```
 
-## Deploy to Cloudflare Workers
+## Project Structure
 
-This project uses the Cloudflare Vite plugin (configured in `vite.config.ts`) and `wrangler.jsonc`:
+```text
+src/
+  routes/        TanStack file-based routes
+  features/      Domain query and mutation adapters
+  components/    App shell and reusable UI
+  integrations/  Clerk, Convex, and TanStack Query wiring
+  lib/           Shared utilities
 
-1. Install Wrangler: `npm install -g wrangler`
-2. Authenticate: `wrangler login`
-3. Deploy: `npx wrangler deploy`
+convex/
+  schema.ts      Primary data model
+  *.ts           Queries, mutations, actions, and cron workflows
 
-For production env vars, run `wrangler secret put MY_VAR` for each secret listed in `.env.example`. Public (non-secret) vars go in `wrangler.jsonc` under `vars`.
-
-KV, D1, R2, and Durable Object bindings are configured in `wrangler.jsonc` — see https://developers.cloudflare.com/workers/wrangler/configuration/.
-
-## Setting up Clerk
-
-1. Sign up at [clerk.com](https://clerk.com) and create an application
-2. Copy the **Publishable Key** from the Clerk dashboard
-3. Set it in your `.env.local`:
-   ```bash
-   VITE_CLERK_PUBLISHABLE_KEY=pk_test_...
-   ```
-4. Visit the demo route at `/demo/clerk` once `npm run dev` is running
-
-### What's wired up
-
-- **`<ClerkProvider>`** at the app root (`src/integrations/clerk/provider.tsx`) handles auth context for the whole tree
-- **`<SignInButton>` / `<UserButton>`** in the header swap based on auth state
-- **`/demo/clerk`** shows Clerk's prebuilt sign-in UI and a signed-in greeting
-
-### Protecting a route
-
-Wrap any component in `<SignedIn>` / `<SignedOut>`:
-
-```tsx
-import { SignInButton, SignedIn, SignedOut } from '@clerk/tanstack-react-start'
-
-function ProtectedPage() {
-  return (
-    <>
-      <SignedIn>
-        <YourPageContent />
-      </SignedIn>
-      <SignedOut>
-        <SignInButton />
-      </SignedOut>
-    </>
-  )
-}
+docs/
+  Locatic_Database_Design.md
 ```
 
-For server-side checks (route loaders, server functions), see the Clerk docs on [`auth()`](https://clerk.com/docs/references/backend/auth).
+There is also route-specific guidance in [src/routes/AGENTS.md](src/routes/AGENTS.md), plus additional repository instructions in [AGENTS.md](AGENTS.md).
 
-### Production checklist
+## Deployment
 
-- Replace the test keys with **production keys** from a dedicated production Clerk instance
-- Configure your production domain under **Domains** in the Clerk dashboard
-- Set up social providers (Google, GitHub, etc.) under **User & Authentication → Social Connections**
+The current deployment target is Cloudflare Workers.
 
-## Setting up Convex
-
-- Set the `VITE_CONVEX_URL` and `CONVEX_DEPLOYMENT` environment variables in your `.env.local`. (Or run `pnpm dlx convex init` to set them automatically.)
-- Run `pnpm dlx convex dev` to start the Convex server.
-
-## Routing
-
-This project uses [TanStack Router](https://tanstack.com/router) with file-based routing. Routes are managed as files in `src/routes`.
-
-### Adding A Route
-
-To add a new route to your application just add a new file in the `./src/routes` directory.
-
-TanStack will automatically generate the content of the route file for you.
-
-Now that you have two routes you can use a `Link` component to navigate between them.
-
-### Adding Links
-
-To use SPA (Single Page Application) navigation you will need to import the `Link` component from `@tanstack/react-router`.
-
-```tsx
-import { Link } from '@tanstack/react-router'
+```bash
+pnpm deploy
 ```
 
-Then anywhere in your JSX you can use it like so:
+That command runs the production build and then deploys with Wrangler.
 
-```tsx
-<Link to="/about">About</Link>
-```
+Before deploying, review [wrangler.jsonc](wrangler.jsonc). The worker name is still set to the starter default and should be changed to a production-appropriate value for Locatic.
 
-This will create a link that will navigate to the `/about` route.
+## CI/CD
 
-More information on the `Link` component can be found in the [Link documentation](https://tanstack.com/router/v1/docs/framework/react/api/router/linkComponent).
+GitHub Actions handles repository CI and Convex production deployment:
 
-### Using A Layout
+- [ci.yml](.github/workflows/ci.yml) runs quality checks on pull requests and pushes to `main`
+- [convex-deploy.yml](.github/workflows/convex-deploy.yml) deploys Convex production only after CI succeeds on `main`
+- Cloudflare frontend deploys remain managed by Cloudflare Git integration
 
-In the File Based Routing setup the layout is located in `src/routes/__root.tsx`. Anything you add to the root route will appear in all the routes. The route content will appear in the JSX where you render `{children}` in the `shellComponent`.
+The workflows read Node and pnpm versions from [package.json](package.json) rather than duplicating them in YAML.
 
-Here is an example layout that includes a header:
+## Testing and Code Quality
 
-```tsx
-import { HeadContent, Scripts, createRootRoute } from '@tanstack/react-router'
+- Unit tests use Vitest
+- Formatting uses `oxfmt`
+- Linting uses `oxlint`
 
-export const Route = createRootRoute({
-  head: () => ({
-    meta: [
-      { charSet: 'utf-8' },
-      { name: 'viewport', content: 'width=device-width, initial-scale=1' },
-      { title: 'My App' },
-    ],
-  }),
-  shellComponent: ({ children }) => (
-    <html lang="en">
-      <head>
-        <HeadContent />
-      </head>
-      <body>
-        <header>
-          <nav>
-            <Link to="/">Home</Link>
-            <Link to="/about">About</Link>
-          </nav>
-        </header>
-        {children}
-        <Scripts />
-      </body>
-    </html>
-  ),
-})
-```
-
-More information on layouts can be found in the [Layouts documentation](https://tanstack.com/router/latest/docs/framework/react/guide/routing-concepts#layouts).
-
-## Server Functions
-
-TanStack Start provides server functions that allow you to write server-side code that seamlessly integrates with your client components.
-
-```tsx
-import { createServerFn } from '@tanstack/react-start'
-
-const getServerTime = createServerFn({
-  method: 'GET',
-}).handler(async () => {
-  return new Date().toISOString()
-})
-
-// Use in a component
-function MyComponent() {
-  const [time, setTime] = useState('')
-
-  useEffect(() => {
-    getServerTime().then(setTime)
-  }, [])
-
-  return <div>Server time: {time}</div>
-}
-```
-
-## API Routes
-
-You can create API routes by using the `server` property in your route definitions:
-
-```tsx
-import { createFileRoute } from '@tanstack/react-router'
-import { json } from '@tanstack/react-start'
-
-export const Route = createFileRoute('/api/hello')({
-  server: {
-    handlers: {
-      GET: () => json({ message: 'Hello, World!' }),
-    },
-  },
-})
-```
-
-## Data Fetching
-
-There are multiple ways to fetch data in your application. You can use TanStack Query to fetch data from a server. But you can also use the `loader` functionality built into TanStack Router to load the data for a route before it's rendered.
-
-For example:
-
-```tsx
-import { createFileRoute } from '@tanstack/react-router'
-
-export const Route = createFileRoute('/people')({
-  loader: async () => {
-    const response = await fetch('https://swapi.dev/api/people')
-    return response.json()
-  },
-  component: PeopleComponent,
-})
-
-function PeopleComponent() {
-  const data = Route.useLoaderData()
-  return (
-    <ul>
-      {data.results.map((person) => (
-        <li key={person.name}>{person.name}</li>
-      ))}
-    </ul>
-  )
-}
-```
-
-Loaders simplify your data fetching logic dramatically. Check out more information in the [Loader documentation](https://tanstack.com/router/latest/docs/framework/react/guide/data-loading#loader-parameters).
-
-# Demo files
-
-Files prefixed with `demo` can be safely deleted. They are there to provide a starting point for you to play around with the features you've installed.
-
-# Learn More
-
-You can learn more about all of the offerings from TanStack in the [TanStack documentation](https://tanstack.com).
-
-For TanStack Start specific documentation, visit [TanStack Start](https://tanstack.com/start).
+Tests currently cover utilities, contract mapping, onboarding helpers, and selected Convex library logic.

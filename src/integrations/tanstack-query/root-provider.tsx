@@ -1,10 +1,5 @@
-import { QueryClient } from '@tanstack/react-query'
+import { createAppQueryClient } from '../convex/client'
 
 export function getContext() {
-  const queryClient = new QueryClient()
-
-  return {
-    queryClient,
-  }
+  return createAppQueryClient()
 }
-export default function TanstackQueryProvider() {}
