@@ -5,7 +5,7 @@ import { ConvexError, v } from 'convex/values'
 
 import { internal } from './_generated/api'
 import { action, internalAction } from './_generated/server'
-import { requireIdentity } from './lib/auth'
+import { buildViewerSeedFromIdentity, requireIdentity } from './lib/auth'
 
 async function getClerkClient() {
   if (!process.env.CLERK_SECRET_KEY) {
@@ -110,9 +110,12 @@ export const listRepositories = action({
   args: {},
   handler: async (ctx) => {
     const identity = await requireIdentity(ctx)
-    const viewer = await ctx.runQuery(internal.users.viewerByClerkId, {
-      clerkId: identity.subject,
-    })
+    const viewer = await ctx.runMutation(
+      internal.users.ensureViewerFromIdentity,
+      {
+        ...buildViewerSeedFromIdentity(identity),
+      },
+    )
     if (!viewer) {
       throw new ConvexError('Viewer not found')
     }
@@ -148,10 +151,12 @@ export const importSelectedRepositories = action({
     skippedRepos: string[]
   }> => {
     const identity = await requireIdentity(ctx)
-    const viewer = await ctx.runQuery(internal.users.viewerByClerkId, {
-      clerkId: identity.subject,
-    })
-
+    const viewer = await ctx.runMutation(
+      internal.users.ensureViewerFromIdentity,
+      {
+        ...buildViewerSeedFromIdentity(identity),
+      },
+    )
     if (!viewer) {
       throw new ConvexError('Viewer not found')
     }
@@ -192,11 +197,17 @@ export const likeProject = action({
     const project = await ctx.runQuery(internal.projects.projectById, {
       projectId: args.projectId,
     })
-    const viewer = await ctx.runQuery(internal.users.viewerByClerkId, {
-      clerkId: identity.subject,
-    })
+    const viewer = await ctx.runMutation(
+      internal.users.ensureViewerFromIdentity,
+      {
+        ...buildViewerSeedFromIdentity(identity),
+      },
+    )
+    if (!viewer) {
+      throw new ConvexError('Viewer not found')
+    }
 
-    if (!project || !viewer) {
+    if (!project) {
       throw new ConvexError('Project not found')
     }
 
@@ -229,11 +240,17 @@ export const unlikeProject = action({
     const project = await ctx.runQuery(internal.projects.projectById, {
       projectId: args.projectId,
     })
-    const viewer = await ctx.runQuery(internal.users.viewerByClerkId, {
-      clerkId: identity.subject,
-    })
+    const viewer = await ctx.runMutation(
+      internal.users.ensureViewerFromIdentity,
+      {
+        ...buildViewerSeedFromIdentity(identity),
+      },
+    )
+    if (!viewer) {
+      throw new ConvexError('Viewer not found')
+    }
 
-    if (!project || !viewer) {
+    if (!project) {
       throw new ConvexError('Project not found')
     }
 

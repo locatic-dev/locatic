@@ -1,8 +1,21 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, redirect } from '@tanstack/react-router'
 import { SignIn } from '@clerk/tanstack-react-start'
+import type { ViewerBootstrapPayload } from '@/features/contracts'
+import { viewerQueryOptions } from '@/features/viewer/queries'
 import { Logo } from '@/components/ui/logo'
 
 export const Route = createFileRoute('/sign-in/$')({
+  beforeLoad: async ({ context }) => {
+    if (!context.auth.isAuthenticated) {
+      return
+    }
+
+    const bootstrap = (await context.queryClient.ensureQueryData(
+      viewerQueryOptions(),
+    )) as ViewerBootstrapPayload
+
+    throw redirect({ to: bootstrap.needsOnboarding ? '/onboarding' : '/home' })
+  },
   component: SignInPage,
 })
 
