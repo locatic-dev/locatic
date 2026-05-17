@@ -85,7 +85,7 @@ function RootErrorPage({ error, reset }: ErrorComponentProps) {
 
   return (
     <div className="flex min-h-dvh items-center justify-center bg-canvas px-6 text-text">
-      <div className="flex w-full max-w-[560px] flex-col gap-[18px] rounded-card border border-line bg-surface p-6 shadow-card">
+      <div className="flex w-full max-w-140 flex-col gap-4.5 rounded-card border border-line bg-surface p-6 shadow-card">
         <div className="flex items-center gap-2.5">
           <Logo size={18} />
           <span className="font-mono text-[13px] font-bold">locatic</span>
@@ -104,7 +104,7 @@ function RootErrorPage({ error, reset }: ErrorComponentProps) {
           </p>
         </div>
 
-        <div className="overflow-wrap-anywhere rounded-control border border-line bg-canvas px-3 py-2.5 font-mono text-[11.5px] text-text-faint [overflow-wrap:anywhere] whitespace-pre-wrap">
+        <div className="overflow-wrap-anywhere rounded-control border border-line bg-canvas px-3 py-2.5 font-mono text-[11.5px] text-text-faint wrap-anywhere whitespace-pre-wrap">
           {message}
         </div>
 
@@ -147,7 +147,7 @@ function NotFoundPage() {
         <DotMap width={960} height={520} />
       </div>
 
-      <div className="relative z-[1] max-w-[480px] px-6 text-center">
+      <div className="relative z-1 max-w-120 px-6 text-center">
         {/* Wordmark */}
         <div className="mb-12 flex items-center justify-center gap-2.5">
           <Logo size={20} />
@@ -157,7 +157,7 @@ function NotFoundPage() {
         </div>
 
         {/* 404 */}
-        <div className="mb-5 font-mono text-[clamp(72px,14vw,144px)] leading-none font-bold tracking-[-0.05em] text-brand">
+        <div className="mb-5 font-mono text-[clamp(72px,14vw,144px)] leading-none font-bold tracking-tighter text-brand">
           404
         </div>
 
@@ -173,7 +173,7 @@ function NotFoundPage() {
         <div className="flex flex-col items-center gap-6">
           <Link
             to="/"
-            className="inline-flex items-center gap-2 rounded-[5px] bg-brand px-5 py-[11px] font-mono text-[13px] font-semibold text-[#0d1117] no-underline"
+            className="inline-flex items-center gap-2 rounded-[5px] bg-brand px-5 py-2.75 font-mono text-[13px] font-semibold text-[#0d1117] no-underline"
           >
             <ArrowLeft size={14} />
             go home

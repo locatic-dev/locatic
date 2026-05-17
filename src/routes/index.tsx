@@ -135,7 +135,7 @@ function LandingPage() {
       </div>
 
       {/* Hero */}
-      <section className="relative z-[1] mx-auto grid max-w-[var(--lx-public-max)] grid-cols-1 items-center gap-8 px-[var(--lx-gutter)] pt-12 md:grid-cols-[1fr_420px] md:gap-12 md:pt-20">
+      <section className="relative z-1 mx-auto grid max-w-(--lx-public-max) grid-cols-1 items-center gap-8 px-(--lx-gutter) pt-12 md:grid-cols-[1fr_420px] md:gap-12 md:pt-20">
         <div>
           <h1
             style={{
@@ -343,7 +343,7 @@ function LandingPage() {
       {/* Feature row */}
       <section
         id="features"
-        className="relative z-[1] mx-auto mt-16 grid max-w-[1184px] grid-cols-1 gap-5 border-y border-[var(--lx-border)] px-[var(--lx-gutter)] py-10 md:grid-cols-3 md:gap-0 md:px-0"
+        className="relative z-1 mx-auto mt-16 grid max-w-296 grid-cols-1 gap-5 border-y border-line px-(--lx-gutter) py-10 md:grid-cols-3 md:gap-0 md:px-0"
       >
         {[
           {
@@ -369,8 +369,7 @@ function LandingPage() {
             key={i}
             className={cn(
               'px-0 py-2 md:px-8',
-              i > 0 &&
-                'border-t border-[var(--lx-border)] md:border-l md:border-t-0',
+              i > 0 && 'border-t border-line md:border-l md:border-t-0',
             )}
           >
             <div
