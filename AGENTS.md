@@ -50,6 +50,7 @@ Locatic — "GitHub with a map." Developer activity platform: discover projects,
 - Feature modules: each feature in `src/features/<name>/` has its own domain logic
 - Route guards: `_app/` prefix = authenticated routes
 - TanStack deps pinned to compatible versions (see package.json) — do not upgrade independently
+- Semantic Tailwind tokens preferred over inline styles or direct CSS var usage
 
 ## ANTI-PATTERNS (THIS PROJECT)
 
@@ -62,6 +63,8 @@ Locatic — "GitHub with a map." Developer activity platform: discover projects,
 - DO NOT add TanStack Router plugin or devtools wiring manually — `tanstackStart` handles router in vite.config.ts
 - DO NOT use fixed px spacing — use CSS custom properties from `src/styles.css` (fluid spacing tokens)
 - DO NOT bypass mobile-first breakpoints — all new UI must work at 320px viewport
+- DO NOT use direct `var(--lx-*)` in components — use semantic Tailwind utilities (`bg-surface`, `text-text-muted`, `rounded-card`, `shadow-card`, etc.)
+- DO NOT use inline `style={{}}` for layout — prefer Tailwind utility classes
 
 ## UNIQUE STYLES
 
@@ -74,6 +77,8 @@ Locatic — "GitHub with a map." Developer activity platform: discover projects,
 - `autoCodeSplitting: false` — manual chunk groups in vite.config.ts
 - Mobile-first responsive layout: fluid spacing tokens, safe-area padding, CSS custom properties in `src/styles.css`
 - Touch-friendly targets (min 44px), content wrapping, mobile tab bar for navigation
+- Semantic Tailwind tokens: `--color-*`, `--radius-*`, `--shadow-*` registered via `@theme` in `styles.css` — use utility classes like `bg-surface`, `text-text-muted`, `rounded-card`, `shadow-card` instead of direct `var(--lx-*)`
+- Auth routes use splat pattern: `sign-in.$.tsx`, `sign-up.$tsx` (not flat `sign-in.tsx`)
 
 ## ENV / RUNTIME BOUNDARIES
 

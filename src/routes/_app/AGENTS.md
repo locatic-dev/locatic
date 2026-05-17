@@ -25,6 +25,8 @@ _app/
 - Forms: full-width inputs mobile, constrained width desktop
 - Use CSS tokens: `--space-*` for gaps, `--width-*` for max-widths
 - Safe-area padding: handled by `.page-shell` — do not add manually
+- Tailwind-first styling: semantic tokens (`bg-surface`, `text-text-muted`, `rounded-card`) replace inline style blocks
+- Profile, settings, notifications routes simplified — large inline style blocks replaced with utility classes
 
 ## ANTI-PATTERNS
 

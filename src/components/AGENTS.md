@@ -42,6 +42,8 @@ components/
 - Touch targets: min 44px height/width for interactive elements
 - Use CSS custom properties (`--space-*`) for spacing — no fixed px
 - Dialog, Card, EmptyState: allow content wrapping (`break-words`, `overflow-wrap`)
+- Semantic Tailwind tokens: `bg-surface`, `text-text-muted`, `rounded-card`, `shadow-card` — use instead of `var(--lx-*)`
+- Inline `style={{}}` banned for static layout — Tailwind utility classes only
 
 ## ANTI-PATTERNS
 
@@ -51,3 +53,5 @@ components/
 - DO NOT use fixed-width containers — allow fluid content wrapping
 - DO NOT create touch targets below 44px
 - DO NOT hide overflow on scrollable containers without testing mobile
+- DO NOT use direct `var(--lx-*)` in component styling — use semantic Tailwind utilities
+- DO NOT use inline `style={{}}` for static layout — Tailwind-first only

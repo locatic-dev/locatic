@@ -59,6 +59,13 @@ const TABS = [
   { id: 'danger', label: 'danger zone' },
 ] as const
 
+const fieldClassName = 'border-line bg-canvas font-sans text-text'
+const labelClassName = 'mb-1.5 block font-mono text-[11.5px] text-text-muted'
+const sectionTitleClassName =
+  'mb-4 font-mono text-[10.5px] font-semibold uppercase tracking-[0.06em] text-text-faint'
+const settingsRowClassName =
+  'flex items-center justify-between gap-4 border-b border-line py-3.5'
+
 function SettingsPage() {
   const { tab } = useSearch({ from: '/_app/settings' })
   const navigate = useNavigate()
@@ -109,9 +116,7 @@ function SettingsPage() {
   }, [profile])
 
   if (!profile) {
-    return (
-      <div style={{ padding: 32, color: 'var(--lx-text-3)' }}>loading…</div>
-    )
+    return <div className="p-8 text-text-faint">loading…</div>
   }
 
   const cityResults =
@@ -146,72 +151,16 @@ function SettingsPage() {
     }
   }
 
-  const fieldStyle = {
-    background: 'var(--lx-bg)',
-    borderColor: 'var(--lx-border)',
-    color: 'var(--lx-text)',
-    fontFamily: 'var(--lx-font-sans)',
-  }
-  const labelStyle = {
-    fontFamily: 'var(--lx-font-mono)',
-    fontSize: 11.5,
-    color: 'var(--lx-text-2)',
-    display: 'block',
-    marginBottom: 6,
-  } as const
-  const sectionTitle = {
-    fontFamily: 'var(--lx-font-mono)',
-    fontSize: 10.5,
-    fontWeight: 600,
-    color: 'var(--lx-text-3)',
-    marginBottom: 16,
-    textTransform: 'uppercase' as const,
-    letterSpacing: '0.06em',
-  } as const
-
   return (
     <div className="lx-page-shell">
-      <div
-        style={{
-          minHeight: 56,
-          padding: '0 var(--lx-gutter)',
-          display: 'flex',
-          alignItems: 'center',
-          borderBottom: '1px solid var(--lx-border)',
-          flexShrink: 0,
-        }}
-      >
-        <h1
-          style={{
-            margin: 0,
-            fontFamily: 'var(--lx-font-mono)',
-            fontSize: 14,
-            fontWeight: 600,
-            color: 'var(--lx-text)',
-          }}
-        >
+      <div className="flex min-h-14 shrink-0 items-center border-b border-line px-[var(--lx-gutter)]">
+        <h1 className="m-0 font-mono text-sm font-semibold text-text">
           settings
         </h1>
       </div>
 
-      <div
-        style={{
-          flex: 1,
-          display: 'flex',
-          flexDirection: 'column',
-          minHeight: 0,
-        }}
-      >
-        <nav
-          className="lx-inline-tabs lg:block"
-          style={{
-            width: '100%',
-            borderBottom: '1px solid var(--lx-border)',
-            padding: '12px var(--lx-gutter)',
-            flexShrink: 0,
-            overflowX: 'auto',
-          }}
-        >
+      <div className="flex min-h-0 flex-1 flex-col">
+        <nav className="lx-inline-tabs lg:block" style={{ width: '100%' }}>
           {TABS.map((tabItem) => (
             <button
               key={tabItem.id}
@@ -221,23 +170,11 @@ function SettingsPage() {
                   search: { tab: tabItem.id } as never,
                 } as never)
               }
-              style={{
-                width: '100%',
-                minHeight: 44,
-                padding: '10px 14px',
-                background:
-                  tab === tabItem.id ? 'var(--lx-surface-alt)' : 'transparent',
-                border: 'none',
-                cursor: 'pointer',
-                textAlign: 'left',
-                fontFamily: 'var(--lx-font-mono)',
-                fontSize: 12.5,
-                color:
-                  tab === tabItem.id ? 'var(--lx-text)' : 'var(--lx-text-2)',
-                fontWeight: tab === tabItem.id ? 600 : 400,
-                borderRadius: 999,
-                whiteSpace: 'nowrap',
-              }}
+              className={`min-h-11 w-full rounded-full px-3.5 py-2.5 text-left font-mono text-[12.5px] whitespace-nowrap ${
+                tab === tabItem.id
+                  ? 'bg-surface-alt font-semibold text-text'
+                  : 'text-text-muted'
+              }`}
               type="button"
             >
               {tabItem.label}
@@ -256,28 +193,22 @@ function SettingsPage() {
                 }}
               >
                 <div>
-                  <div style={sectionTitle}>profile</div>
-                  <div
-                    style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: 16,
-                    }}
-                  >
+                  <div className={sectionTitleClassName}>profile</div>
+                  <div className="flex flex-col gap-4">
                     <div>
-                      <label style={labelStyle}>display name</label>
+                      <label className={labelClassName}>display name</label>
                       <Input
                         value={displayName}
                         onChange={(event) => setDisplayName(event.target.value)}
-                        style={fieldStyle}
+                        className={fieldClassName}
                         placeholder="your display name"
                       />
                     </div>
 
                     <div>
-                      <label style={labelStyle}>
+                      <label className={labelClassName}>
                         bio{' '}
-                        <span style={{ color: 'var(--lx-text-3)' }}>
+                        <span className="text-text-faint">
                           ({bio.length}/140)
                         </span>
                       </label>
@@ -286,21 +217,15 @@ function SettingsPage() {
                         onChange={(event) =>
                           setBio(event.target.value.slice(0, 140))
                         }
-                        style={{ ...fieldStyle, resize: 'none' }}
+                        className={`${fieldClassName} resize-none`}
                         rows={3}
                         placeholder="what are you building?"
                       />
                     </div>
 
                     <div>
-                      <label style={labelStyle}>build status</label>
-                      <div
-                        style={{
-                          display: 'grid',
-                          gridTemplateColumns: 'minmax(0, 1fr)',
-                          gap: 10,
-                        }}
-                      >
+                      <label className={labelClassName}>build status</label>
+                      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
                         {(
                           Object.entries(BUILD_STATUS) as Array<
                             [BuildStatus, (typeof BUILD_STATUS)[BuildStatus]]
@@ -312,19 +237,11 @@ function SettingsPage() {
                             <button
                               key={statusId}
                               onClick={() => setBuildStatus(statusId)}
-                              style={{
-                                border: '1px solid var(--lx-border)',
-                                borderColor: selected
-                                  ? 'var(--lx-accent)'
-                                  : 'var(--lx-border)',
-                                background: selected
-                                  ? 'var(--lx-accent-quiet)'
-                                  : 'var(--lx-surface)',
-                                borderRadius: 4,
-                                padding: '12px 14px',
-                                textAlign: 'left',
-                                cursor: 'pointer',
-                              }}
+                              className={`rounded border px-3.5 py-3 text-left ${
+                                selected
+                                  ? 'border-[var(--lx-accent)] bg-[var(--lx-accent-quiet)]'
+                                  : 'border-[var(--lx-border)] bg-[var(--lx-surface)]'
+                              }`}
                               type="button"
                             >
                               <StatusPill status={statusId} size="md" />
@@ -335,22 +252,15 @@ function SettingsPage() {
                     </div>
 
                     <div>
-                      <label style={labelStyle}>city</label>
+                      <label className={labelClassName}>city</label>
                       <Input
                         value={citySearch}
                         onChange={(event) => setCitySearch(event.target.value)}
-                        style={fieldStyle}
+                        className={fieldClassName}
                         placeholder={selectedCityName ?? 'search for your city'}
                       />
                       {selectedCityName && (
-                        <div
-                          style={{
-                            marginTop: 8,
-                            fontFamily: 'var(--lx-font-mono)',
-                            fontSize: 11,
-                            color: 'var(--lx-text-3)',
-                          }}
-                        >
+                        <div className="mt-2 font-mono text-[11px] text-text-faint">
                           selected: {selectedCityName}
                         </div>
                       )}
@@ -367,19 +277,7 @@ function SettingsPage() {
                               setSelectedCityName(city.displayName)
                               setCitySearch('')
                             }}
-                            style={{
-                              width: '100%',
-                              marginTop: 8,
-                              border: '1px dashed var(--lx-border)',
-                              background: 'transparent',
-                              borderRadius: 4,
-                              padding: '8px 10px',
-                              textAlign: 'left',
-                              fontFamily: 'var(--lx-font-mono)',
-                              fontSize: 11.5,
-                              color: 'var(--lx-text-2)',
-                              cursor: 'pointer',
-                            }}
+                            className="mt-2 w-full rounded border border-dashed border-line bg-transparent px-2.5 py-2 text-left font-mono text-[11.5px] text-text-muted"
                             type="button"
                           >
                             {city.displayName}
@@ -390,62 +288,49 @@ function SettingsPage() {
                 </div>
 
                 <div>
-                  <div style={sectionTitle}>social links</div>
-                  <div
-                    style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: 16,
-                    }}
-                  >
+                  <div className={sectionTitleClassName}>social links</div>
+                  <div className="flex flex-col gap-4">
                     <div>
-                      <label style={labelStyle}>x</label>
+                      <label className={labelClassName}>x</label>
                       <Input
                         value={twitter}
                         onChange={(event) => setTwitter(event.target.value)}
-                        style={fieldStyle}
+                        className={fieldClassName}
                         placeholder="@username"
                       />
                     </div>
                     <div>
-                      <label style={labelStyle}>linkedin</label>
+                      <label className={labelClassName}>linkedin</label>
                       <Input
                         value={linkedin}
                         onChange={(event) => setLinkedin(event.target.value)}
-                        style={fieldStyle}
+                        className={fieldClassName}
                         placeholder="linkedin.com/in/username"
                       />
                     </div>
                     <div>
-                      <label style={labelStyle}>bluesky</label>
+                      <label className={labelClassName}>bluesky</label>
                       <Input
                         value={bluesky}
                         onChange={(event) => setBluesky(event.target.value)}
-                        style={fieldStyle}
+                        className={fieldClassName}
                         placeholder="@username.bsky.social"
                       />
                     </div>
                     <div>
-                      <label style={labelStyle}>website</label>
+                      <label className={labelClassName}>website</label>
                       <Input
                         value={website}
                         onChange={(event) => setWebsite(event.target.value)}
-                        style={fieldStyle}
+                        className={fieldClassName}
                         placeholder="https://yoursite.dev"
                       />
                     </div>
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 12,
-                      flexWrap: 'wrap',
-                    }}
-                  >
+                <div className="flex items-center gap-3">
+                  <div className="flex flex-wrap items-center gap-3">
                     <Button
                       onClick={() => void handleSaveAccount()}
                       disabled={saving || !displayName.trim()}
@@ -461,16 +346,7 @@ function SettingsPage() {
                       {saving ? 'saving…' : 'save changes'}
                     </Button>
                     {saved && (
-                      <span
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 6,
-                          fontFamily: 'var(--lx-font-mono)',
-                          fontSize: 12,
-                          color: 'var(--lx-success)',
-                        }}
-                      >
+                      <span className="flex items-center gap-1.5 font-mono text-xs text-success">
                         <CheckCircle2 size={14} /> saved
                       </span>
                     )}
@@ -480,16 +356,9 @@ function SettingsPage() {
             )}
 
             {tab === 'privacy' && (
-              <div
-                style={{
-                  maxWidth: 560,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 28,
-                }}
-              >
+              <div className="flex max-w-[560px] flex-col gap-7">
                 <div>
-                  <div style={sectionTitle}>visibility</div>
+                  <div className={sectionTitleClassName}>visibility</div>
                   {[
                     {
                       key: 'commentHistoryVisibility',
@@ -516,34 +385,12 @@ function SettingsPage() {
                       type: 'boolean',
                     },
                   ].map(({ key, label, desc, type }) => (
-                    <div
-                      key={key}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        padding: '14px 0',
-                        borderBottom: '1px solid var(--lx-border)',
-                      }}
-                    >
+                    <div key={key} className={settingsRowClassName}>
                       <div>
-                        <div
-                          style={{
-                            fontFamily: 'var(--lx-font-mono)',
-                            fontSize: 13,
-                            color: 'var(--lx-text)',
-                            marginBottom: 3,
-                          }}
-                        >
+                        <div className="mb-0.5 font-mono text-[13px] text-text">
                           {label}
                         </div>
-                        <div
-                          style={{
-                            fontFamily: 'var(--lx-font-sans)',
-                            fontSize: 12,
-                            color: 'var(--lx-text-3)',
-                          }}
-                        >
+                        <div className="font-sans text-xs text-text-faint">
                           {desc}
                         </div>
                       </div>
@@ -582,8 +429,10 @@ function SettingsPage() {
             )}
 
             {tab === 'notifications' && (
-              <div style={{ maxWidth: 560 }}>
-                <div style={sectionTitle}>notification preferences</div>
+              <div className="max-w-[560px]">
+                <div className={sectionTitleClassName}>
+                  notification preferences
+                </div>
                 {[
                   { key: 'projectLikes', label: 'likes on your projects' },
                   { key: 'updateLikes', label: 'likes on your updates' },
@@ -597,23 +446,8 @@ function SettingsPage() {
                     label: 'contributor recognition',
                   },
                 ].map(({ key, label }) => (
-                  <div
-                    key={key}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '14px 0',
-                      borderBottom: '1px solid var(--lx-border)',
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontFamily: 'var(--lx-font-mono)',
-                        fontSize: 13,
-                        color: 'var(--lx-text)',
-                      }}
-                    >
+                  <div key={key} className={settingsRowClassName}>
+                    <span className="font-mono text-[13px] text-text">
                       {label}
                     </span>
                     <Switch
@@ -640,59 +474,21 @@ function SettingsPage() {
             )}
 
             {tab === 'connected' && (
-              <div
-                style={{
-                  maxWidth: 560,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 16,
-                }}
-              >
-                <div style={sectionTitle}>connected accounts</div>
-                <div
-                  style={{
-                    padding: '16px 18px',
-                    borderRadius: 6,
-                    border: '1px solid var(--lx-border)',
-                    background: 'var(--lx-surface)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                  }}
-                >
-                  <div
-                    style={{ display: 'flex', alignItems: 'center', gap: 12 }}
-                  >
+              <div className="flex max-w-[560px] flex-col gap-4">
+                <div className={sectionTitleClassName}>connected accounts</div>
+                <div className="flex items-center justify-between rounded-card border border-line bg-surface px-[18px] py-4 shadow-card">
+                  <div className="flex items-center gap-3">
                     <BrandIcon name="github" size={18} />
                     <div>
-                      <div
-                        style={{
-                          fontFamily: 'var(--lx-font-mono)',
-                          fontSize: 13,
-                          color: 'var(--lx-text)',
-                          fontWeight: 600,
-                        }}
-                      >
+                      <div className="font-mono text-[13px] font-semibold text-text">
                         GitHub
                       </div>
-                      <div
-                        style={{
-                          fontFamily: 'var(--lx-font-mono)',
-                          fontSize: 11,
-                          color: 'var(--lx-text-3)',
-                        }}
-                      >
+                      <div className="font-mono text-[11px] text-text-faint">
                         @{profile.viewer.githubUsername}
                       </div>
                     </div>
                   </div>
-                  <span
-                    style={{
-                      fontFamily: 'var(--lx-font-mono)',
-                      fontSize: 11,
-                      color: 'var(--lx-success)',
-                    }}
-                  >
+                  <span className="font-mono text-[11px] text-success">
                     connected
                   </span>
                 </div>
