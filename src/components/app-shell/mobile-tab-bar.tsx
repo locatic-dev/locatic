@@ -55,18 +55,19 @@ export function MobileTabBar({
   return (
     <nav
       aria-label="Main navigation"
+      className="pb-safe"
       style={{
         position: 'fixed',
         bottom: 0,
         left: 0,
         right: 0,
-        height: 64,
+        minHeight: 'var(--lx-mobile-tab-height)',
         background: 'var(--lx-bg)',
         borderTop: '1px solid var(--lx-border)',
         display: 'flex',
         alignItems: 'flex-start',
         justifyContent: 'space-around',
-        padding: '8px 8px 0',
+        padding: '8px 8px calc(env(safe-area-inset-bottom) + 4px)',
         zIndex: 50,
       }}
     >
@@ -84,10 +85,12 @@ export function MobileTabBar({
               flexDirection: 'column',
               alignItems: 'center',
               gap: 4,
-              padding: '4px 12px',
+              padding: '6px 12px',
               position: 'relative',
               flex: 1,
               textDecoration: 'none',
+              minHeight: 44,
+              justifyContent: 'center',
             }}
           >
             {isActive && (

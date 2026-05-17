@@ -17,9 +17,10 @@ components/
 │   ├── ...           # Radix-based primitives
 │   └── __tests__/    # Component tests
 ├── app-shell/        # Layout components (4 files)
-│   ├── sidebar.tsx
-│   ├── header.tsx
-│   └── ...           # Navigation, layout wrappers
+│   ├── app-layout.tsx    # Main app layout wrapper
+│   ├── sidebar.tsx       # Collapsible sidebar
+│   ├── header.tsx        # Page header with wrapped actions
+│   └── mobile-tab-bar.tsx # Bottom tab bar (mobile only)
 └── ...               # Top-level shared components
 ```
 
@@ -37,9 +38,16 @@ components/
 - `cn()` utility from `@/lib/utils` for className merging
 - App-shell components handle layout structure only — no business logic
 - Components accept props, no internal state for data fetching
+- All UI primitives must work at 320px viewport — test content wrapping, overflow
+- Touch targets: min 44px height/width for interactive elements
+- Use CSS custom properties (`--space-*`) for spacing — no fixed px
+- Dialog, Card, EmptyState: allow content wrapping (`break-words`, `overflow-wrap`)
 
 ## ANTI-PATTERNS
 
 - DO NOT add business logic to UI components
 - DO NOT bypass shadcn/ui for standard primitives
-- DO NOT add global styles — use Tailwind classes
+- DO NOT add global styles — use Tailwind classes or `src/styles.css`
+- DO NOT use fixed-width containers — allow fluid content wrapping
+- DO NOT create touch targets below 44px
+- DO NOT hide overflow on scrollable containers without testing mobile

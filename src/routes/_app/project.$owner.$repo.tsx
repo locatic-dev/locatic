@@ -196,21 +196,23 @@ function ProjectDetailPage() {
 
   return (
     <div
+      className="lx-page-shell"
       style={{
         display: 'flex',
         flexDirection: 'column',
-        minHeight: '100dvh',
         background: 'var(--lx-bg)',
       }}
     >
       <div
         style={{
-          height: 52,
+          minHeight: 52,
           borderBottom: '1px solid var(--lx-border)',
-          padding: '0 32px',
+          padding: '12px var(--lx-gutter)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
+          gap: 12,
+          flexWrap: 'wrap',
           flexShrink: 0,
           background: 'var(--lx-bg)',
         }}
@@ -238,7 +240,7 @@ function ProjectDetailPage() {
           <ArrowLeft size={14} /> back
         </button>
 
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <Button
             onClick={() => void handleLike()}
             disabled={likePending || !isSignedIn}
@@ -286,12 +288,11 @@ function ProjectDetailPage() {
         </div>
       </div>
 
-      <div style={{ flex: 1, overflowY: 'auto' }}>
+      <div className="lx-page-scroll" style={{ flex: 1 }}>
         <div
+          className="lx-page-width-detail"
           style={{
-            maxWidth: 1040,
-            margin: '0 auto',
-            padding: '32px 32px 80px',
+            padding: '8px 0 0',
           }}
         >
           <div
@@ -391,7 +392,6 @@ function ProjectDetailPage() {
 
             <div
               style={{
-                marginLeft: 'auto',
                 display: 'flex',
                 alignItems: 'center',
                 gap: 10,
@@ -399,6 +399,7 @@ function ProjectDetailPage() {
                 fontSize: 11.5,
                 color: 'var(--lx-text-3)',
                 flexWrap: 'wrap',
+                width: '100%',
               }}
             >
               {detail.project.github.primaryLanguage && (
@@ -416,7 +417,7 @@ function ProjectDetailPage() {
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: '1fr 280px',
+              gridTemplateColumns: 'minmax(0, 1fr)',
               gap: 32,
             }}
           >
@@ -568,6 +569,7 @@ function ProjectDetailPage() {
                       borderRadius: 6,
                       background: 'var(--lx-surface)',
                       marginBottom: 16,
+                      flexWrap: 'wrap',
                     }}
                   >
                     <Textarea
@@ -599,6 +601,7 @@ function ProjectDetailPage() {
                         fontWeight: 600,
                         alignSelf: 'flex-end',
                       }}
+                      className="min-h-11"
                     >
                       {postingComment ? '…' : 'post'}
                     </Button>

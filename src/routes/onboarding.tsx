@@ -122,7 +122,7 @@ function OnboardingShell({
         background: 'var(--lx-surface)',
         border: '1px solid var(--lx-border)',
         borderRadius: 6,
-        padding: '32px 40px 36px',
+        padding: '24px',
         display: 'flex',
         flexDirection: 'column',
         gap: 28,
@@ -131,8 +131,10 @@ function OnboardingShell({
       <div
         style={{
           display: 'flex',
-          alignItems: 'center',
+          alignItems: 'flex-start',
           justifyContent: 'space-between',
+          gap: 16,
+          flexWrap: 'wrap',
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -391,6 +393,8 @@ function OnboardingPage() {
         alignItems: 'center',
         justifyContent: 'space-between',
         marginTop: 'auto',
+        gap: 12,
+        flexWrap: 'wrap',
       }}
     >
       <button
@@ -404,6 +408,7 @@ function OnboardingPage() {
           fontSize: 12.5,
           cursor: step === 0 || saving ? 'not-allowed' : 'pointer',
           opacity: step === 0 || saving ? 0.4 : 1,
+          minHeight: 44,
         }}
         type="button"
       >
@@ -427,6 +432,7 @@ function OnboardingPage() {
           alignItems: 'center',
           gap: 8,
         }}
+        className="min-h-11"
       >
         {isLast ? (saving ? 'saving…' : 'finish') : 'continue'}
         {!isLast && <ArrowRight size={13} strokeWidth={2} />}
@@ -439,7 +445,7 @@ function OnboardingPage() {
       style={{
         minHeight: '100dvh',
         background: 'var(--lx-bg)',
-        padding: '60px 16px',
+        padding: '32px var(--lx-gutter)',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
@@ -693,9 +699,7 @@ function OnboardingPage() {
                             fontFamily: 'var(--lx-font-sans)',
                             fontSize: 12.5,
                             color: 'var(--lx-text-2)',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
+                            overflowWrap: 'anywhere',
                           }}
                         >
                           {repository.description || 'no description provided'}

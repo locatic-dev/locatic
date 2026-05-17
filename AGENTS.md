@@ -60,6 +60,8 @@ Locatic — "GitHub with a map." Developer activity platform: discover projects,
 - DO NOT add global CSS — use Tailwind classes or `src/styles.css` for CSS variables
 - DO NOT create per-route auth server functions — auth is centralized in `__root.tsx` via `createServerFn`
 - DO NOT add TanStack Router plugin or devtools wiring manually — `tanstackStart` handles router in vite.config.ts
+- DO NOT use fixed px spacing — use CSS custom properties from `src/styles.css` (fluid spacing tokens)
+- DO NOT bypass mobile-first breakpoints — all new UI must work at 320px viewport
 
 ## UNIQUE STYLES
 
@@ -70,6 +72,8 @@ Locatic — "GitHub with a map." Developer activity platform: discover projects,
 - Cloudflare Workers deployment via `@cloudflare/vite-plugin`
 - City-based developer discovery (custom `cities` table with search index)
 - `autoCodeSplitting: false` — manual chunk groups in vite.config.ts
+- Mobile-first responsive layout: fluid spacing tokens, safe-area padding, CSS custom properties in `src/styles.css`
+- Touch-friendly targets (min 44px), content wrapping, mobile tab bar for navigation
 
 ## ENV / RUNTIME BOUNDARIES
 
@@ -107,3 +111,12 @@ pnpm deploy           # Build + wrangler deploy
 - Wrangler config in `wrangler.jsonc` — secrets via `wrangler secret put`
 - `CLERK_SECRET_KEY` is NOT a browser variable — used only by TanStack Start server runtime and Convex backend actions
 - Convex tsconfig requires `"types": ["node"]` for Node.js type access in server code
+
+## RESPONSIVE LAYOUT
+
+- `src/styles.css` defines fluid spacing (`--space-*`), max-width tokens (`--width-*`), safe-area padding (`--safe-*`)
+- Page-shell helpers: `.page-shell`, `.page-shell__content` for consistent route layouts
+- Mobile-first breakpoints: Tailwind `sm:` (640px), `md:` (768px), `lg:` (1024px)
+- App shell: sidebar collapses on mobile, mobile tab bar appears at bottom, header actions wrap
+- All routes use `.page-shell` for consistent padding, max-width, and safe-area handling
+- Skip link in `__root.tsx` for keyboard accessibility

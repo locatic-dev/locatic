@@ -118,21 +118,16 @@ function NotificationsPage() {
   }
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        height: '100%',
-        overflow: 'hidden',
-      }}
-    >
+    <div className="lx-page-shell">
       <div
         style={{
-          height: 56,
-          padding: '0 32px',
+          minHeight: 56,
+          padding: '0 var(--lx-gutter)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
+          gap: 12,
+          flexWrap: 'wrap',
           borderBottom: '1px solid var(--lx-border)',
           flexShrink: 0,
         }}
@@ -164,110 +159,114 @@ function NotificationsPage() {
         )}
       </div>
 
-      <div style={{ flex: 1, overflowY: 'auto' }}>
-        {notifications.length === 0 && (
-          <div
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '64px 32px',
-              gap: 12,
-              color: 'var(--lx-text-3)',
-            }}
-          >
-            <Bell size={32} strokeWidth={1.2} />
-            <span style={{ fontFamily: 'var(--lx-font-mono)', fontSize: 12 }}>
-              no notifications yet.
-            </span>
-          </div>
-        )}
-
-        {notifications.map((notification) => {
-          const notificationId = String(notification._id)
-          const isRead = notification.isRead || localReadIds.has(notificationId)
-
-          return (
-            <button
-              key={notificationId}
+      <div className="lx-page-scroll" style={{ flex: 1 }}>
+        <div className="lx-page-width-feed">
+          {notifications.length === 0 && (
+            <div
               style={{
-                width: '100%',
                 display: 'flex',
-                alignItems: 'flex-start',
-                gap: 14,
-                padding: '16px 32px',
-                border: 'none',
-                borderBottom: '1px solid var(--lx-border)',
-                background: !isRead
-                  ? 'oklch(72% 0.17 185 / 0.04)'
-                  : 'transparent',
-                cursor: 'pointer',
-                transition: 'background 0.14s',
-                textAlign: 'left',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '64px 32px',
+                gap: 12,
+                color: 'var(--lx-text-3)',
               }}
-              onClick={() => void handleMarkRead(notificationId)}
-              type="button"
             >
-              <div style={{ position: 'relative', flexShrink: 0 }}>
-                <LxAvatar
-                  name={notification.actorSnapshot.displayName}
-                  avatarUrl={notification.actorSnapshot.avatarUrl}
-                  size={36}
-                />
-                <div
-                  style={{
-                    position: 'absolute',
-                    bottom: -2,
-                    right: -2,
-                    width: 18,
-                    height: 18,
-                    borderRadius: '50%',
-                    background: 'var(--lx-surface)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    border: '1px solid var(--lx-border)',
-                  }}
-                >
-                  {notifIcon(notification.type)}
-                </div>
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <p
-                  style={{
-                    margin: 0,
-                    fontFamily: 'var(--lx-font-sans)',
-                    fontSize: 13.5,
-                    color: 'var(--lx-text)',
-                    lineHeight: 1.5,
-                  }}
-                >
-                  <strong
+              <Bell size={32} strokeWidth={1.2} />
+              <span style={{ fontFamily: 'var(--lx-font-mono)', fontSize: 12 }}>
+                no notifications yet.
+              </span>
+            </div>
+          )}
+
+          {notifications.map((notification) => {
+            const notificationId = String(notification._id)
+            const isRead =
+              notification.isRead || localReadIds.has(notificationId)
+
+            return (
+              <button
+                key={notificationId}
+                style={{
+                  width: '100%',
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: 14,
+                  padding: '16px 0',
+                  border: 'none',
+                  borderBottom: '1px solid var(--lx-border)',
+                  background: !isRead
+                    ? 'oklch(72% 0.17 185 / 0.04)'
+                    : 'transparent',
+                  cursor: 'pointer',
+                  transition: 'background 0.14s',
+                  textAlign: 'left',
+                }}
+                onClick={() => void handleMarkRead(notificationId)}
+                type="button"
+              >
+                <div style={{ position: 'relative', flexShrink: 0 }}>
+                  <LxAvatar
+                    name={notification.actorSnapshot.displayName}
+                    avatarUrl={notification.actorSnapshot.avatarUrl}
+                    size={36}
+                  />
+                  <div
                     style={{
-                      fontFamily: 'var(--lx-font-mono)',
-                      fontWeight: 600,
+                      position: 'absolute',
+                      bottom: -2,
+                      right: -2,
+                      width: 18,
+                      height: 18,
+                      borderRadius: '50%',
+                      background: 'var(--lx-surface)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      border: '1px solid var(--lx-border)',
                     }}
                   >
-                    {notification.actorSnapshot.displayName}
-                  </strong>{' '}
-                  {notifText(notification)}
-                </p>
-                <span
-                  style={{
-                    fontFamily: 'var(--lx-font-mono)',
-                    fontSize: 11,
-                    color: 'var(--lx-text-3)',
-                    marginTop: 4,
-                    display: 'block',
-                  }}
-                >
-                  {relativeTime(notification.createdAt)}
-                </span>
-              </div>
-            </button>
-          )
-        })}
+                    {notifIcon(notification.type)}
+                  </div>
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p
+                    style={{
+                      margin: 0,
+                      fontFamily: 'var(--lx-font-sans)',
+                      fontSize: 13.5,
+                      color: 'var(--lx-text)',
+                      lineHeight: 1.5,
+                      overflowWrap: 'anywhere',
+                    }}
+                  >
+                    <strong
+                      style={{
+                        fontFamily: 'var(--lx-font-mono)',
+                        fontWeight: 600,
+                      }}
+                    >
+                      {notification.actorSnapshot.displayName}
+                    </strong>{' '}
+                    {notifText(notification)}
+                  </p>
+                  <span
+                    style={{
+                      fontFamily: 'var(--lx-font-mono)',
+                      fontSize: 11,
+                      color: 'var(--lx-text-3)',
+                      marginTop: 4,
+                      display: 'block',
+                    }}
+                  >
+                    {relativeTime(notification.createdAt)}
+                  </span>
+                </div>
+              </button>
+            )
+          })}
+        </div>
       </div>
     </div>
   )

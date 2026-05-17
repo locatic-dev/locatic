@@ -24,22 +24,24 @@ export const Route = createFileRoute('/')({
 function LandingPage() {
   return (
     <div
+      className="overflow-x-clip"
       style={{
         minHeight: '100dvh',
         background: 'var(--lx-bg)',
         color: 'var(--lx-text)',
-        overflow: 'hidden',
         position: 'relative',
       }}
     >
       {/* Nav */}
       <header
         style={{
-          height: 64,
-          padding: '0 48px',
+          minHeight: 64,
+          padding: '16px var(--lx-gutter)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
+          gap: 16,
+          flexWrap: 'wrap',
           position: 'relative',
           zIndex: 2,
           borderBottom: '1px solid var(--lx-border)',
@@ -76,7 +78,8 @@ function LandingPage() {
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: 24,
+            gap: 12,
+            flexWrap: 'wrap',
             fontFamily: 'var(--lx-font-mono)',
             fontSize: 12.5,
             color: 'var(--lx-text-2)',
@@ -135,12 +138,12 @@ function LandingPage() {
         style={{
           position: 'relative',
           zIndex: 1,
-          padding: '80px 48px 0',
+          padding: '48px var(--lx-gutter) 0',
           display: 'grid',
-          gridTemplateColumns: '1fr 420px',
-          gap: 48,
+          gridTemplateColumns: 'minmax(0, 1fr)',
+          gap: 32,
           alignItems: 'center',
-          maxWidth: 1280,
+          maxWidth: 'var(--lx-public-max)',
           margin: '0 auto',
         }}
       >
@@ -207,8 +210,9 @@ function LandingPage() {
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: 14,
+              gap: 12,
               marginTop: 36,
+              flexWrap: 'wrap',
             }}
           >
             <Link
@@ -227,6 +231,7 @@ function LandingPage() {
                 fontSize: 13.5,
                 fontWeight: 600,
                 textDecoration: 'none',
+                minHeight: 44,
               }}
             >
               <BrandIcon name="github" size={16} />
@@ -245,6 +250,7 @@ function LandingPage() {
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: 8,
+                minHeight: 44,
               }}
               onClick={() =>
                 document
@@ -379,13 +385,13 @@ function LandingPage() {
         style={{
           position: 'relative',
           zIndex: 1,
-          margin: '80px 48px 0',
+          margin: '64px var(--lx-gutter) 0',
           padding: '40px 0',
           borderTop: '1px solid var(--lx-border)',
           borderBottom: '1px solid var(--lx-border)',
           display: 'grid',
-          gridTemplateColumns: 'repeat(3, 1fr)',
-          gap: 0,
+          gridTemplateColumns: 'minmax(0, 1fr)',
+          gap: 20,
           maxWidth: 1184,
           marginLeft: 'auto',
           marginRight: 'auto',
@@ -414,8 +420,9 @@ function LandingPage() {
           <div
             key={i}
             style={{
-              padding: '8px 32px',
-              borderLeft: i > 0 ? '1px solid var(--lx-border)' : 'none',
+              padding: '8px 0',
+              borderLeft: 'none',
+              borderTop: i > 0 ? '1px solid var(--lx-border)' : 'none',
             }}
           >
             <div
@@ -474,7 +481,7 @@ function LandingPage() {
       {/* Footer */}
       <footer
         style={{
-          padding: '28px 48px',
+          padding: '28px var(--lx-gutter)',
           textAlign: 'center',
           fontFamily: 'var(--lx-font-mono)',
           fontSize: 11.5,
@@ -486,6 +493,31 @@ function LandingPage() {
           locatic · {new Date().getFullYear()} · made in 7 cities
         </div>
       </footer>
+      <style>{`
+        @media (min-width: 900px) {
+          #features {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 0;
+          }
+
+          #features > div {
+            padding: 8px 32px;
+            border-top: none;
+          }
+
+          #features > div:not(:first-child) {
+            border-left: 1px solid var(--lx-border);
+          }
+        }
+
+        @media (min-width: 980px) {
+          section[style*='max-width: var(--lx-public-max)'] {
+            grid-template-columns: minmax(0, 1fr) 420px;
+            gap: 48px;
+            padding-top: 80px;
+          }
+        }
+      `}</style>
     </div>
   )
 }

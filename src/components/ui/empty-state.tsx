@@ -98,10 +98,14 @@ export function EmptyState({
         </p>
       )}
       {(action || secondaryAction) && (
-        <div style={{ display: 'flex', gap: 10, marginTop: 24 }}>
+        <div
+          className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row"
+          style={{ marginTop: 24 }}
+        >
           {action && (
             <Button
               onClick={action.onClick}
+              className="min-h-11 w-full sm:w-auto"
               style={{
                 background: 'var(--lx-accent)',
                 color: '#0d1117',
@@ -118,6 +122,7 @@ export function EmptyState({
             <Button
               variant="outline"
               onClick={secondaryAction.onClick}
+              className="min-h-11 w-full sm:w-auto"
               style={{
                 fontFamily: 'var(--lx-font-mono)',
                 fontSize: 12.5,
