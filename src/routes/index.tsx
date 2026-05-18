@@ -198,29 +198,12 @@ function LandingPage() {
               <BrandIcon name="github" size={16} />
               Sign in with GitHub
             </Link>
-            <button
-              style={{
-                padding: '14px 18px',
-                background: 'transparent',
-                color: 'var(--lx-text-2)',
-                border: '1px solid var(--lx-border)',
-                borderRadius: 5,
-                cursor: 'pointer',
-                fontFamily: 'var(--lx-font-mono)',
-                fontSize: 13.5,
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 8,
-                minHeight: 44,
-              }}
-              onClick={() =>
-                document
-                  .getElementById('features')
-                  ?.scrollIntoView({ behavior: 'smooth' })
-              }
+            <Link
+              to="/sign-in"
+              className="inline-flex min-h-11 items-center gap-2 rounded-card border border-line bg-transparent px-4.5 py-3.5 font-mono text-[13.5px] text-text-muted no-underline"
             >
               browse the feed <ArrowRight size={14} />
-            </button>
+            </Link>
           </div>
 
           <div
@@ -233,6 +216,18 @@ function LandingPage() {
           >
             free · no spam · only public repo scope required
           </div>
+
+          <button
+            className="mt-2 border-0 bg-transparent p-0 font-mono text-[11.5px] text-text-faint"
+            onClick={() =>
+              document
+                .getElementById('features')
+                ?.scrollIntoView({ behavior: 'smooth' })
+            }
+            type="button"
+          >
+            see how it works ↓
+          </button>
         </div>
 
         {/* Preview card float — hidden on mobile */}

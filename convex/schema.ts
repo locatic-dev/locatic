@@ -119,6 +119,22 @@ export default defineSchema({
       weeklyDigest: v.boolean(),
       contributorRecognized: v.boolean(),
     }),
+    githubContributions: v.optional(
+      v.object({
+        totalContributions: v.number(),
+        weeks: v.array(
+          v.object({
+            days: v.array(
+              v.object({
+                date: v.string(),
+                count: v.number(),
+              }),
+            ),
+          }),
+        ),
+        syncedAt: v.number(),
+      }),
+    ),
     githubLastSyncedAt: optionalTimestampValidator,
     onboardingCompletedAt: optionalTimestampValidator,
     createdAt: v.number(),

@@ -1,5 +1,8 @@
 import { createFileRoute, useNavigate, useSearch } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
+import { useEffect } from 'react'
+import { useAction } from 'convex/react'
+import { api } from '../../../convex/_generated/api'
 import type { Doc } from '../../../convex/_generated/dataModel'
 import { privateProfileQueryOptions } from '@/features/profile/queries'
 import { LxAvatar } from '@/components/ui/lx-avatar'
@@ -50,6 +53,18 @@ function ProfilePage() {
   const profile = mapPrivateProfile(
     profileQuery.data as PrivateProfilePayload | undefined,
   )
+  const syncContributions = useAction(api.github_actions.syncContributions)
+
+  useEffect(() => {
+    if (!profile) return
+    const syncedAt = profile.viewer.githubContributions?.syncedAt
+    const isStale = !syncedAt || Date.now() - syncedAt > 6 * 60 * 60 * 1000
+    if (isStale) {
+      void syncContributions({})
+        .then(() => profileQuery.refetch())
+        .catch(console.error)
+    }
+  }, [profile, syncContributions])
 
   if (!profile) {
     return <div className="p-8 text-text-faint">loading…</div>
@@ -191,15 +206,23 @@ function ProfilePage() {
 
             <div className="mt-7">
               <div className="mb-2.5 font-mono text-[10.5px] uppercase tracking-[0.06em] text-text-faint">
-                contributions this year
+                {profile.viewer.githubContributions?.totalContributions != null
+                  ? `${profile.viewer.githubContributions.totalContributions.toLocaleString()} contributions this year`
+                  : 'contributions this year'}
               </div>
               <div className="overflow-x-auto">
-                <ContributionGraph />
+                <ContributionGraph
+                  weeks={profile.viewer.githubContributions?.weeks ?? undefined}
+                  totalContributions={
+                    profile.viewer.githubContributions?.totalContributions ??
+                    undefined
+                  }
+                />
               </div>
             </div>
           </div>
 
-          <div className="flex items-center overflow-x-auto border-b border-line px-0">
+          <div className="grid grid-cols-3 items-center border-b border-line px-0">
             {tabs.map((tabItem) => (
               <button
                 key={tabItem.id}
@@ -209,7 +232,7 @@ function ProfilePage() {
                     search: { tab: tabItem.id } as never,
                   } as never)
                 }
-                className={`relative inline-flex items-center gap-[7px] px-4 py-3.5 font-mono text-[12.5px] ${
+                className={`relative inline-flex min-w-0 items-center justify-center gap-[7px] px-3 py-3.5 text-center font-mono text-[12.5px] ${
                   tab === tabItem.id
                     ? 'font-semibold text-text'
                     : 'text-text-faint'

@@ -23,14 +23,9 @@ export function AppLayout({
   unreadMessages,
 }: AppLayoutProps) {
   return (
-    <div
-      className="min-h-dvh bg-background md:flex"
-      style={{
-        background: 'var(--lx-bg)',
-      }}
-    >
-      {/* Desktop sidebar — hidden on mobile */}
-      <div className="hidden md:flex md:min-h-dvh">
+    <div className="min-h-dvh bg-background md:flex">
+      {/* Desktop sidebar — hidden on mobile, sticky so it doesn't scroll with content */}
+      <div className="sticky top-0 z-10 hidden h-dvh shrink-0 self-start md:flex">
         <SidebarNav
           viewer={viewer}
           unreadNotifications={unreadNotifications}
@@ -43,16 +38,8 @@ export function AppLayout({
         id="main-content"
         tabIndex={-1}
         className="lx-main-content flex min-h-dvh flex-1"
-        style={{
-          flex: 1,
-        }}
       >
-        <div
-          className="lx-page-shell lx-main-content w-full"
-          style={{
-            flex: 1,
-          }}
-        >
+        <div className="lx-page-shell lx-main-content w-full flex-1">
           {children}
         </div>
 

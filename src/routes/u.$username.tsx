@@ -26,6 +26,8 @@ import {
 import { publicProfileQueryOptions } from '@/features/profile/queries'
 import { socialLinkHref } from '@/lib/social-links'
 import { useFollowUser, useUnfollowUser } from '@/features/follows/mutations'
+import { useStartOrGetConversation } from '@/features/inbox/mutations'
+import { getInboxDestinationSearch } from '@/features/inbox/navigation'
 import { viewerQueryOptions } from '@/features/viewer/queries'
 
 export const Route = createFileRoute('/u/$username')({
@@ -76,8 +78,10 @@ function PublicProfilePage() {
   )
   const followUser = useFollowUser()
   const unfollowUser = useUnfollowUser()
+  const startOrGetConversation = useStartOrGetConversation()
   const [followOverride, setFollowOverride] = useState<boolean | null>(null)
   const [followPending, setFollowPending] = useState(false)
+  const [dmPending, setDmPending] = useState(false)
 
   if (!profile && profileQuery.isLoading) {
     return (
@@ -179,6 +183,29 @@ function PublicProfilePage() {
     profile.profile.socialLinks.website,
   )
 
+  const handleDM = async () => {
+    if (dmPending || isOwnProfile || !profile) return
+    setDmPending(true)
+    try {
+      const conversation = await startOrGetConversation({
+        otherUserId: profile.userId,
+      })
+      if (conversation) {
+        void navigate({
+          to: '/inbox',
+          search: getInboxDestinationSearch(
+            String(conversation._id),
+            conversation.isRequest,
+          ) as never,
+        } as never)
+      }
+    } catch (error) {
+      console.error('Failed to open DM:', error)
+    } finally {
+      setDmPending(false)
+    }
+  }
+
   const handleFollow = async () => {
     if (followPending || isOwnProfile) {
       return
@@ -270,25 +297,35 @@ function PublicProfilePage() {
             your profile
           </Button>
         ) : isSignedIn ? (
-          <Button
-            variant={followed ? 'outline' : 'default'}
-            onClick={() => void handleFollow()}
-            disabled={followPending}
-            style={{
-              fontFamily: 'var(--lx-font-mono)',
-              fontSize: 12,
-              ...(followed
-                ? {}
-                : {
-                    background: 'var(--lx-accent)',
-                    color: '#0d1117',
-                    border: 'none',
-                    fontWeight: 600,
-                  }),
-            }}
-          >
-            {followPending ? 'working…' : followed ? 'following' : 'follow'}
-          </Button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Button
+              variant="outline"
+              onClick={() => void handleDM()}
+              disabled={dmPending}
+              style={{ fontFamily: 'var(--lx-font-mono)', fontSize: 12 }}
+            >
+              {dmPending ? 'opening…' : 'message'}
+            </Button>
+            <Button
+              variant={followed ? 'outline' : 'default'}
+              onClick={() => void handleFollow()}
+              disabled={followPending}
+              style={{
+                fontFamily: 'var(--lx-font-mono)',
+                fontSize: 12,
+                ...(followed
+                  ? {}
+                  : {
+                      background: 'var(--lx-accent)',
+                      color: '#0d1117',
+                      border: 'none',
+                      fontWeight: 600,
+                    }),
+              }}
+            >
+              {followPending ? 'working…' : followed ? 'following' : 'follow'}
+            </Button>
+          </div>
         ) : (
           <Link
             to="/sign-in"

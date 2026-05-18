@@ -2,6 +2,14 @@ import { Link, useRouterState } from '@tanstack/react-router'
 import { Home, Compass, Inbox, User, Bell, MoreHorizontal } from '@/lib/icons'
 import { Logo } from '@/components/ui/logo'
 import { LxAvatar } from '@/components/ui/lx-avatar'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { useClerk } from '@clerk/tanstack-react-start'
 import type { ReactNode } from 'react'
 
 interface NavItem {
@@ -74,8 +82,9 @@ export function SidebarNav({
         background: 'var(--lx-bg)',
         display: 'flex',
         flexDirection: 'column',
-        padding: '20px 0',
+        padding: '20px 0 8px',
         flexShrink: 0,
+        overflowY: 'auto',
       }}
     >
       {/* Logo */}
@@ -159,60 +168,71 @@ export function SidebarNav({
 
       {/* User footer */}
       {viewer && (
-        <div style={{ marginTop: 'auto', padding: '0 20px' }}>
-          <Link
-            to="/settings"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10,
-              padding: '10px 0',
-              borderTop: '1px solid var(--lx-border)',
-              textDecoration: 'none',
-              color: 'inherit',
-            }}
-          >
-            <LxAvatar
-              name={viewer.githubUsername}
-              avatarUrl={viewer.avatarUrl}
-              size={28}
-            />
-            <div style={{ minWidth: 0, flex: 1 }}>
-              <div
-                style={{
-                  fontFamily: 'var(--lx-font-mono)',
-                  fontSize: 12,
-                  color: 'var(--lx-text)',
-                  fontWeight: 600,
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {viewer.displayName || viewer.githubUsername}
-              </div>
-              {viewer.city && (
-                <div
-                  style={{
-                    fontFamily: 'var(--lx-font-mono)',
-                    fontSize: 10.5,
-                    color: 'var(--lx-text-3)',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  {viewer.city}
+        <div className="mt-auto px-5">
+          <div className="flex items-center gap-2.5 border-t border-line py-1.5">
+            {/* Avatar + name — navigates to profile */}
+            <Link
+              to="/profile"
+              className="flex min-w-0 flex-1 items-center gap-2.5 text-inherit no-underline"
+            >
+              <LxAvatar
+                name={viewer.githubUsername}
+                avatarUrl={viewer.avatarUrl}
+                size={28}
+              />
+              <div className="min-w-0 flex-1">
+                <div className="truncate font-mono text-[12px] font-semibold text-text">
+                  {viewer.displayName || viewer.githubUsername}
                 </div>
-              )}
-            </div>
-            <MoreHorizontal
-              size={14}
-              style={{ color: 'var(--lx-text-3)', flexShrink: 0 }}
-            />
-          </Link>
+                {viewer.city && (
+                  <div className="truncate font-mono text-[10.5px] text-text-faint">
+                    {viewer.city}
+                  </div>
+                )}
+              </div>
+            </Link>
+
+            {/* More icon — opens account menu */}
+            <AccountMenu />
+          </div>
         </div>
       )}
     </aside>
+  )
+}
+
+function AccountMenu() {
+  const { signOut } = useClerk()
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          className="flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-md border-0 bg-transparent p-0 text-text-faint"
+          aria-label="Account menu"
+          type="button"
+        >
+          <MoreHorizontal size={14} />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent side="right" align="end" sideOffset={8}>
+        <DropdownMenuItem asChild>
+          <Link to="/profile" className="text-inherit no-underline">
+            View profile
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link to="/settings" className="text-inherit no-underline">
+            Settings
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          onClick={() => void signOut({ redirectUrl: '/' })}
+          className="cursor-pointer text-destructive"
+        >
+          Sign out
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
