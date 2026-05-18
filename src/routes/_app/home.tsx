@@ -4,7 +4,6 @@ import { useState } from 'react'
 import type { Doc } from '../../../convex/_generated/dataModel'
 import { homeFeedQueryOptions } from '@/features/home/queries'
 import { privateProfileQueryOptions } from '@/features/profile/queries'
-import { followingQueryOptions } from '@/features/follows/queries'
 import {
   ProjectCard,
   ProjectCardSkeleton,
@@ -14,7 +13,7 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { PageHeader } from '@/components/app-shell/page-header'
 import { relativeTime } from '@/lib/time'
 import { useLikeProject, useUnlikeProject } from '@/features/projects/mutations'
-import { useFollowUser, useUnfollowUser } from '@/features/follows/mutations'
+import { useOpenConversation } from '@/features/inbox/use-open-conversation'
 import {
   mapPrivateProfile,
   type PrivateProfilePayload,
@@ -31,35 +30,20 @@ function HomePage() {
   const profile = mapPrivateProfile(
     profileQuery.data as PrivateProfilePayload | undefined,
   )
-  const viewerId = profile?.viewer.id
-  const followingQuery = useQuery({
-    ...followingQueryOptions(viewerId ?? ('missing' as never)),
-    enabled: Boolean(viewerId),
-  })
 
   const likeProject = useLikeProject()
   const unlikeProject = useUnlikeProject()
-  const followUser = useFollowUser()
-  const unfollowUser = useUnfollowUser()
+  const { openConversation, pendingUserId } = useOpenConversation()
 
   const [pendingLikes, setPendingLikes] = useState<Set<string>>(new Set())
-  const [pendingFollows, setPendingFollows] = useState<Set<string>>(new Set())
   const [likedOverrides, setLikedOverrides] = useState<Record<string, boolean>>(
     {},
   )
-  const [followOverrides, setFollowOverrides] = useState<
-    Record<string, boolean>
-  >({})
 
   const likedProjectIds = new Set(
     profile?.likedProjects.map((likedProject) =>
       String(likedProject.projectId),
     ) ?? [],
-  )
-  const followedUserIds = new Set(
-    ((followingQuery.data as Array<Doc<'follows'>> | undefined) ?? []).map(
-      (follow) => String(follow.followingId),
-    ),
   )
 
   const feedData = feedQuery.data as
@@ -97,58 +81,9 @@ function HomePage() {
     }
   }
 
-  const handleFollow = async (userId: string, currentlyFollowed: boolean) => {
-    if (pendingFollows.has(userId)) return
-    setPendingFollows((current) => new Set(current).add(userId))
-    setFollowOverrides((current) => ({
-      ...current,
-      [userId]: !currentlyFollowed,
-    }))
-
-    try {
-      if (currentlyFollowed) {
-        await unfollowUser({ targetUserId: userId as never })
-      } else {
-        await followUser({ targetUserId: userId as never })
-      }
-    } catch (error) {
-      console.error('Follow failed', error)
-      setFollowOverrides((current) => ({
-        ...current,
-        [userId]: currentlyFollowed,
-      }))
-    } finally {
-      setPendingFollows((current) => {
-        const next = new Set(current)
-        next.delete(userId)
-        return next
-      })
-    }
-  }
-
   return (
     <div className="lx-page-shell">
-      <PageHeader
-        title="home"
-        actions={
-          <button
-            className="lx-touch-target"
-            style={{
-              border: '1px solid var(--lx-border)',
-              background: 'transparent',
-              padding: '6px 12px',
-              borderRadius: 4,
-              color: 'var(--lx-text)',
-              fontFamily: 'var(--lx-font-mono)',
-              fontSize: 11.5,
-              cursor: 'pointer',
-            }}
-            type="button"
-          >
-            + share project
-          </button>
-        }
-      />
+      <PageHeader title="home" />
 
       <div className="lx-page-scroll">
         <div className="lx-page-width-feed">
@@ -224,14 +159,12 @@ function HomePage() {
               >
                 {items.map((item) => {
                   const snapshot = item.projectSnapshot
-                  const actorId = String(item.actorId)
                   const owner = snapshot.fullName.split('/')[0] ?? ''
                   const repo = snapshot.name
                   const projectId = String(item.projectId)
+                  const actorUserId = String(item.actorId)
                   const liked =
                     likedOverrides[projectId] ?? likedProjectIds.has(projectId)
-                  const followed =
-                    followOverrides[actorId] ?? followedUserIds.has(actorId)
 
                   const cardData: ProjectCardData = {
                     id: projectId,
@@ -249,7 +182,6 @@ function HomePage() {
                     authorAvatarUrl: snapshot.ownerAvatarUrl,
                     city: snapshot.cityName,
                     liked,
-                    followed,
                   }
 
                   return (
@@ -257,15 +189,25 @@ function HomePage() {
                       key={String(item._id)}
                       project={cardData}
                       onLike={() => void handleLike(projectId, liked)}
-                      onFollow={() => void handleFollow(actorId, followed)}
+                      onAuthorClick={() =>
+                        void navigate({
+                          to: '/u/$username',
+                          params: { username: owner } as never,
+                        } as never)
+                      }
                       onCardClick={() =>
                         void navigate({
                           to: '/project/$owner/$repo',
                           params: { owner, repo } as never,
                         } as never)
                       }
+                      onDM={
+                        profile?.viewer.id !== actorUserId
+                          ? () => void openConversation(actorUserId)
+                          : undefined
+                      }
                       likePending={pendingLikes.has(projectId)}
-                      followPending={pendingFollows.has(actorId)}
+                      dmPending={pendingUserId === actorUserId}
                     />
                   )
                 })}

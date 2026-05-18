@@ -87,22 +87,22 @@ function ShellSkeleton() {
 }
 
 function AppFrame() {
-  const currentPath = useRouterState({
-    select: (state) => state.location.pathname,
-  })
-
-  if (currentPath.startsWith('/project/')) {
-    return <Outlet />
-  }
-
   return <AuthenticatedApp />
 }
 
 function AuthenticatedApp() {
+  const currentPath = useRouterState({
+    select: (state) => state.location.pathname,
+  })
   const viewerQuery = useQuery(viewerQueryOptions())
   const bootstrap = mapViewerBootstrap(
     viewerQuery.data as ViewerBootstrapPayload | undefined,
   )
+
+  // Guest accessing project detail — no auth session, render without shell
+  if (!bootstrap && currentPath.startsWith('/project/')) {
+    return <Outlet />
+  }
 
   if (!bootstrap) return <ShellSkeleton />
 

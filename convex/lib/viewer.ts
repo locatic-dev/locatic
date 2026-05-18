@@ -1,3 +1,5 @@
+import { buildDiscoverabilitySearchText } from './discoverability'
+
 export interface CreateDefaultViewerProfileOptions {
   clerkId: string
   email: string
@@ -50,6 +52,12 @@ export function createDefaultViewerProfile(
       stackPrefs: [],
     },
     appearInExplore: true,
+    discoverability: {
+      searchText: buildDiscoverabilitySearchText(
+        options.githubUsername,
+        options.displayName,
+      ),
+    },
     privacy: {
       profileVisibility: 'public' as const,
       followGraphVisibility: 'public' as const,

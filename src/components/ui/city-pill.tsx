@@ -10,6 +10,7 @@ export function CityPill({ city, onRemove, className }: CityPillProps) {
   return (
     <span
       className={className}
+      title={city}
       style={{
         display: 'inline-flex',
         alignItems: 'center',
@@ -24,10 +25,19 @@ export function CityPill({ city, onRemove, className }: CityPillProps) {
         lineHeight: 1,
         maxWidth: '100%',
         minHeight: 28,
+        overflow: 'hidden',
       }}
     >
       <MapPin size={10} style={{ color: 'var(--lx-text-3)', flexShrink: 0 }} />
-      {city}
+      <span
+        style={{
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        {city}
+      </span>
       {onRemove && (
         <button
           onClick={onRemove}

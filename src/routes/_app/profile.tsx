@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate, useSearch } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useAction } from 'convex/react'
 import { api } from '../../../convex/_generated/api'
 import type { Doc } from '../../../convex/_generated/dataModel'
@@ -54,15 +54,18 @@ function ProfilePage() {
     profileQuery.data as PrivateProfilePayload | undefined,
   )
   const syncContributions = useAction(api.github_actions.syncContributions)
+  const [isSyncing, setIsSyncing] = useState(false)
 
   useEffect(() => {
     if (!profile) return
     const syncedAt = profile.viewer.githubContributions?.syncedAt
     const isStale = !syncedAt || Date.now() - syncedAt > 6 * 60 * 60 * 1000
     if (isStale) {
+      setIsSyncing(true)
       void syncContributions({})
         .then(() => profileQuery.refetch())
         .catch(console.error)
+        .finally(() => setIsSyncing(false))
     }
   }, [profile, syncContributions])
 
@@ -217,6 +220,12 @@ function ProfilePage() {
                     profile.viewer.githubContributions?.totalContributions ??
                     undefined
                   }
+                  loading={isSyncing && !profile.viewer.githubContributions}
+                  unavailable={
+                    !isSyncing &&
+                    (!profile.viewer.githubContributions?.weeks ||
+                      profile.viewer.githubContributions.weeks.length === 0)
+                  }
                 />
               </div>
             </div>
@@ -275,6 +284,12 @@ function ProfilePage() {
                       key={String(project._id)}
                       project={projectCardData(project)}
                       showActions={false}
+                      onAuthorClick={() =>
+                        void navigate({
+                          to: '/u/$username',
+                          params: { username: owner } as never,
+                        } as never)
+                      }
                       onCardClick={() =>
                         void navigate({
                           to: '/project/$owner/$repo',
@@ -369,6 +384,12 @@ function ProfilePage() {
                         liked: true,
                       }}
                       showActions={false}
+                      onAuthorClick={() =>
+                        void navigate({
+                          to: '/u/$username',
+                          params: { username: owner } as never,
+                        } as never)
+                      }
                       onCardClick={() =>
                         void navigate({
                           to: '/project/$owner/$repo',

@@ -38,8 +38,10 @@ interface ProjectCardProps {
   onFollow?: () => void
   onDismiss?: () => void
   onCardClick?: () => void
+  onAuthorClick?: () => void
   likePending?: boolean
   followPending?: boolean
+  dmPending?: boolean
   className?: string
   showActions?: boolean
 }
@@ -53,14 +55,17 @@ export function ProjectCard({
   onFollow,
   onDismiss,
   onCardClick,
+  onAuthorClick,
   likePending,
   followPending,
+  dmPending,
   className,
   showActions = true,
 }: ProjectCardProps) {
   const compact = density === 'compact'
   const pad = compact ? '14px 16px' : '18px 20px'
   const gap = compact ? 10 : 14
+  const authorLabel = project.authorName || project.authorHandle
 
   return (
     <div
@@ -250,34 +255,55 @@ export function ProjectCard({
           flexWrap: 'wrap',
         }}
       >
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            minWidth: 0,
-            flex: 1,
-            flexWrap: 'wrap',
-          }}
-        >
-          <LxAvatar
-            name={project.authorHandle}
-            avatarUrl={project.authorAvatarUrl}
-            size={22}
-          />
-          <span
-            style={{
-              fontFamily: 'var(--lx-font-sans)',
-              fontSize: 12.5,
-              color: 'var(--color-text-muted)',
-              fontWeight: 500,
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {project.authorName || project.authorHandle}
-          </span>
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+          {onAuthorClick ? (
+            <button
+              type="button"
+              onClick={onAuthorClick}
+              aria-label={`Open ${authorLabel}'s profile`}
+              className="flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-md bg-transparent px-0 py-2 text-left transition-colors hover:text-text"
+            >
+              <LxAvatar
+                name={project.authorHandle}
+                avatarUrl={project.authorAvatarUrl}
+                size={22}
+              />
+              <span
+                style={{
+                  fontFamily: 'var(--lx-font-sans)',
+                  fontSize: 12.5,
+                  color: 'var(--color-text-muted)',
+                  fontWeight: 500,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {authorLabel}
+              </span>
+            </button>
+          ) : (
+            <div className="flex min-h-11 min-w-0 flex-1 items-center gap-2 py-2">
+              <LxAvatar
+                name={project.authorHandle}
+                avatarUrl={project.authorAvatarUrl}
+                size={22}
+              />
+              <span
+                style={{
+                  fontFamily: 'var(--lx-font-sans)',
+                  fontSize: 12.5,
+                  color: 'var(--color-text-muted)',
+                  fontWeight: 500,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {authorLabel}
+              </span>
+            </div>
+          )}
           {project.city && <CityPill city={project.city} />}
         </div>
 
@@ -309,6 +335,7 @@ export function ProjectCard({
                 size="sm"
                 variant="ghost"
                 onClick={onDM}
+                disabled={dmPending}
                 className="min-h-11"
                 style={{
                   fontFamily: 'var(--lx-font-mono)',
@@ -316,7 +343,7 @@ export function ProjectCard({
                   color: 'var(--color-text-faint)',
                 }}
               >
-                dm
+                {dmPending ? 'opening…' : 'message'}
               </Button>
             )}
             <button

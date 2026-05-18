@@ -1,8 +1,13 @@
 import { useAuth } from '@clerk/tanstack-react-start'
 import { useQuery } from '@tanstack/react-query'
-import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import {
+  createFileRoute,
+  useCanGoBack,
+  useRouter,
+} from '@tanstack/react-router'
 import { useState } from 'react'
 import { projectDetailQueryOptions } from '@/features/projects/queries'
+import { privateProfileQueryOptions } from '@/features/profile/queries'
 import { LxAvatar } from '@/components/ui/lx-avatar'
 import { LangDot } from '@/components/ui/lang-dot'
 import { StatusPill } from '@/components/ui/status-pill'
@@ -25,10 +30,13 @@ import {
 } from '@/features/projects/mutations'
 import { useFollowUser, useUnfollowUser } from '@/features/follows/mutations'
 import {
+  mapPrivateProfile,
   mapProjectDetail,
+  type PrivateProfilePayload,
   type ProjectDetailPayload,
 } from '@/features/contracts'
 import { socialLinkHref } from '@/lib/social-links'
+import { useOpenConversation } from '@/features/inbox/use-open-conversation'
 
 export const Route = createFileRoute('/_app/project/$owner/$repo')({
   loader: ({ context, params }) =>
@@ -40,16 +48,22 @@ export const Route = createFileRoute('/_app/project/$owner/$repo')({
 
 function ProjectDetailPage() {
   const { owner, repo } = Route.useParams()
-  const navigate = useNavigate()
+  const router = useRouter()
+  const canGoBack = useCanGoBack()
   const { isSignedIn } = useAuth()
   const likeProject = useLikeProject()
   const unlikeProject = useUnlikeProject()
   const addComment = useAddComment()
   const followUser = useFollowUser()
   const unfollowUser = useUnfollowUser()
+  const { openConversation, pendingUserId } = useOpenConversation()
 
   const fullName = `${owner}/${repo}`
   const projectQuery = useQuery(projectDetailQueryOptions(fullName))
+  const profileQuery = useQuery(privateProfileQueryOptions())
+  const profile = mapPrivateProfile(
+    profileQuery.data as PrivateProfilePayload | undefined,
+  )
   const detail = mapProjectDetail(
     projectQuery.data as ProjectDetailPayload | null | undefined,
   )
@@ -62,19 +76,11 @@ function ProjectDetailPage() {
   const [followedOverride, setFollowedOverride] = useState<boolean | null>(null)
 
   if (!detail && projectQuery.isLoading) {
-    return (
-      <div style={{ padding: 32, color: 'var(--lx-text-3)' }}>
-        loading project…
-      </div>
-    )
+    return <div className="p-8 text-text-faint">loading project…</div>
   }
 
   if (!detail) {
-    return (
-      <div style={{ padding: 32, color: 'var(--lx-text-2)' }}>
-        project not found.
-      </div>
-    )
+    return <div className="p-8 text-text-muted">project not found.</div>
   }
 
   const liked = likedOverride ?? detail.viewerHasLiked
@@ -91,6 +97,7 @@ function ProjectDetailPage() {
     detail.project.github.readmePreview ||
     description ||
     `# ${detail.project.github.name}`
+  const isOwnProject = profile?.viewer.id === String(detail.owner.userId)
   const githubHref = `https://github.com/${detail.project.github.fullName}`
   const ownerGithubHref = socialLinkHref('github', detail.owner.githubUsername)
   const ownerXHref = socialLinkHref('x', detail.owner.socialLinks.x)
@@ -218,29 +225,32 @@ function ProjectDetailPage() {
         }}
       >
         <button
-          onClick={() =>
-            void navigate({
-              to: isSignedIn ? '/home' : '/',
-              search: {} as never,
-            } as never)
-          }
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            background: 'none',
-            border: 'none',
-            color: 'var(--lx-text-2)',
-            fontFamily: 'var(--lx-font-mono)',
-            fontSize: 12,
-            cursor: 'pointer',
+          onClick={() => {
+            if (canGoBack) {
+              router.history.back()
+            } else {
+              void router.navigate({ to: isSignedIn ? '/home' : '/' })
+            }
           }}
+          className="inline-flex min-h-11 items-center gap-2 rounded-md bg-transparent px-2 py-2 font-mono text-[12px] text-text-muted transition-colors hover:text-text"
           type="button"
         >
           <ArrowLeft size={14} /> back
         </button>
 
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {!isOwnProject && (
+            <Button
+              variant="outline"
+              onClick={() => void openConversation(String(detail.owner.userId))}
+              disabled={pendingUserId === String(detail.owner.userId)}
+              style={{ fontFamily: 'var(--lx-font-mono)', fontSize: 12 }}
+            >
+              {pendingUserId === String(detail.owner.userId)
+                ? 'opening…'
+                : 'message'}
+            </Button>
+          )}
           <Button
             onClick={() => void handleLike()}
             disabled={likePending || !isSignedIn}
@@ -730,12 +740,27 @@ function ProjectDetailPage() {
                   background: 'var(--lx-surface)',
                 }}
               >
-                <div
+                <button
+                  type="button"
+                  onClick={() =>
+                    void router.navigate({
+                      to: '/u/$username',
+                      params: {
+                        username: detail.owner.githubUsername,
+                      } as never,
+                    } as never)
+                  }
                   style={{
                     display: 'flex',
                     alignItems: 'center',
                     gap: 12,
                     marginBottom: 14,
+                    width: '100%',
+                    background: 'transparent',
+                    border: 'none',
+                    padding: 0,
+                    cursor: 'pointer',
+                    textAlign: 'left',
                   }}
                 >
                   <LxAvatar
@@ -764,7 +789,7 @@ function ProjectDetailPage() {
                       @{detail.owner.githubUsername}
                     </div>
                   </div>
-                </div>
+                </button>
 
                 <div
                   style={{

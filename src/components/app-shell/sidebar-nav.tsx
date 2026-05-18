@@ -168,8 +168,8 @@ export function SidebarNav({
 
       {/* User footer */}
       {viewer && (
-        <div className="mt-auto px-5">
-          <div className="flex items-center gap-2.5 border-t border-line py-1.5">
+        <div className="mt-auto px-4">
+          <div className="flex items-center gap-2.5 border-t border-line py-2.5">
             {/* Avatar + name — navigates to profile */}
             <Link
               to="/profile"
@@ -207,11 +207,11 @@ function AccountMenu() {
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button
-          className="flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-md border-0 bg-transparent p-0 text-text-faint"
+          className="flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-md border-0 bg-transparent p-0 text-text-muted transition-colors hover:bg-surface-alt hover:text-text"
           aria-label="Account menu"
           type="button"
         >
-          <MoreHorizontal size={14} />
+          <MoreHorizontal size={15} />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent side="right" align="end" sideOffset={8}>
