@@ -17,6 +17,7 @@ import {
   getViewerOrThrow,
   requireIdentity,
 } from './lib/auth'
+import { buildDiscoverabilitySearchText } from './lib/discoverability'
 import { buildActorSnapshot } from './lib/snapshots'
 import { createDefaultViewerProfile } from './lib/viewer'
 
@@ -299,10 +300,18 @@ export const updateProfile = mutation({
       profile: {
         ...viewer.profile,
         displayName: args.displayName,
+        fullName: args.displayName,
         bio: args.bio,
         cityId: args.cityId,
         buildStatus: args.buildStatus,
         socialLinks: args.socialLinks,
+      },
+      discoverability: {
+        searchText: buildDiscoverabilitySearchText(
+          viewer.github.username,
+          args.displayName,
+          args.displayName,
+        ),
       },
       updatedAt: Date.now(),
     })
@@ -439,10 +448,18 @@ export const completeOnboarding = mutation({
       profile: {
         ...viewer.profile,
         displayName: args.displayName,
+        fullName: args.displayName,
         bio: args.bio,
         cityId: args.cityId,
         buildStatus: args.buildStatus,
         socialLinks: args.socialLinks,
+      },
+      discoverability: {
+        searchText: buildDiscoverabilitySearchText(
+          viewer.github.username,
+          args.displayName,
+          args.displayName,
+        ),
       },
       pinnedOwnedProjectIds: args.pinnedOwnedProjectIds,
       exploreConfig: {
@@ -810,6 +827,9 @@ export const scrubDeletedAccount = internalMutation({
           website: null,
         },
       },
+      discoverability: {
+        searchText: '',
+      },
       stats: {
         ...user.stats,
         commentsCount: 0,
@@ -868,6 +888,13 @@ export const upsertFromClerkWebhook = internalMutation({
           ...existingViewer.profile.socialLinks,
           github: args.githubUrl,
         },
+      },
+      discoverability: {
+        searchText: buildDiscoverabilitySearchText(
+          args.githubUsername,
+          args.displayName,
+          args.displayName,
+        ),
       },
       updatedAt: now,
     })
@@ -935,6 +962,19 @@ export const ensureViewerFromIdentity = internalMutation({
   handler: async (ctx, args) => {
     const existingViewer = await getViewerByClerkId(ctx, args.clerkId)
     if (existingViewer) {
+      const nextSearchText = buildDiscoverabilitySearchText(
+        existingViewer.github.username,
+        existingViewer.profile.displayName,
+        existingViewer.profile.fullName ?? existingViewer.profile.displayName,
+      )
+      if (existingViewer.discoverability?.searchText !== nextSearchText) {
+        await ctx.db.patch(existingViewer._id, {
+          discoverability: {
+            searchText: nextSearchText,
+          },
+          updatedAt: Date.now(),
+        })
+      }
       return existingViewer
     }
 
@@ -957,6 +997,36 @@ export const ensureViewerFromIdentity = internalMutation({
     }
 
     return viewer
+  },
+})
+
+export const backfillDiscoverability = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const users = await ctx.db.query('users').collect()
+    let updatedCount = 0
+
+    for (const user of users) {
+      const nextSearchText = buildDiscoverabilitySearchText(
+        user.github.username,
+        user.profile.displayName,
+        user.profile.fullName ?? user.profile.displayName,
+      )
+
+      if (user.discoverability?.searchText === nextSearchText) {
+        continue
+      }
+
+      await ctx.db.patch(user._id, {
+        discoverability: {
+          searchText: nextSearchText,
+        },
+        updatedAt: Date.now(),
+      })
+      updatedCount++
+    }
+
+    return { updatedCount }
   },
 })
 

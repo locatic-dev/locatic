@@ -74,4 +74,18 @@ describe('ContributionGraph', () => {
     expect(titles).toContain('No contributions')
     expect(titles).toContain('1 contribution on May 3, 2026')
   })
+
+  it('renders a loading skeleton when contribution data is syncing', () => {
+    render(<ContributionGraph loading />)
+
+    expect(screen.getByLabelText('Loading GitHub contributions')).not.toBeNull()
+  })
+
+  it('renders an unavailable message when contribution data is missing', () => {
+    render(<ContributionGraph unavailable />)
+
+    expect(
+      screen.getByText(/contribution data is not available yet/i),
+    ).not.toBeNull()
+  })
 })

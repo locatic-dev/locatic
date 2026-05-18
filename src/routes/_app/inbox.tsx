@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate, useSearch } from '@tanstack/react-router'
-import { useQuery } from '@tanstack/react-query'
+import { skipToken, useQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import {
   conversationDetailQueryOptions,
@@ -44,10 +44,15 @@ function InboxPage() {
   const viewerId = profile?.viewer.id
 
   const convsQuery = useQuery(conversationsQueryOptions())
-  const detailQuery = useQuery({
-    ...conversationDetailQueryOptions(selectedId as never),
-    enabled: Boolean(selectedId),
-  })
+  const idleConversationDetailQuery = {
+    queryKey: ['conversations', 'detail', 'idle'],
+    queryFn: skipToken,
+  } as any
+  const detailQuery = useQuery(
+    selectedId
+      ? conversationDetailQueryOptions(selectedId as never)
+      : idleConversationDetailQuery,
+  )
   const sendMessage = useSendMessage()
   const markConversationRead = useMarkConversationRead()
 
@@ -113,39 +118,14 @@ function InboxPage() {
   ] as const
 
   return (
-    <div className="lx-page-shell">
-      <div
-        style={{ borderBottom: '1px solid var(--lx-border)', flexShrink: 0 }}
-      >
-        <div
-          style={{
-            minHeight: 56,
-            padding: '0 var(--lx-gutter)',
-            display: 'flex',
-            alignItems: 'center',
-          }}
-        >
-          <h1
-            style={{
-              margin: 0,
-              fontFamily: 'var(--lx-font-mono)',
-              fontSize: 14,
-              fontWeight: 600,
-              color: 'var(--lx-text)',
-            }}
-          >
+    <div className="lx-page-shell min-h-0 overflow-hidden">
+      <div className="shrink-0 border-b border-line">
+        <div className="flex min-h-14 items-center px-[var(--lx-gutter)]">
+          <h1 className="m-0 font-mono text-sm font-semibold text-text">
             inbox
           </h1>
         </div>
-        <div
-          className="lx-inline-tabs"
-          style={{
-            padding: '0 var(--lx-gutter)',
-            display: 'flex',
-            gap: 0,
-            overflowX: 'auto',
-          }}
-        >
+        <div className="lx-inline-tabs gap-0 px-[var(--lx-gutter)]">
           {tabItems.map((tabItem) => (
             <button
               key={tabItem.id}
@@ -155,63 +135,28 @@ function InboxPage() {
                   search: { tab: tabItem.id } as never,
                 } as never)
               }
-              style={{
-                padding: '10px 16px',
-                position: 'relative',
-                cursor: 'pointer',
-                fontFamily: 'var(--lx-font-mono)',
-                fontSize: 12,
-                color:
-                  tab === tabItem.id ? 'var(--lx-text)' : 'var(--lx-text-3)',
-                fontWeight: tab === tabItem.id ? 600 : 400,
-                background: 'none',
-                border: 'none',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 7,
-              }}
+              className={`relative inline-flex items-center gap-[7px] px-4 py-2.5 font-mono text-[12px] transition-colors ${
+                tab === tabItem.id
+                  ? 'font-semibold text-text'
+                  : 'text-text-faint'
+              }`}
               type="button"
             >
               {tabItem.label}
               {tabItem.count > 0 && (
-                <span
-                  style={{
-                    fontSize: 10,
-                    padding: '1px 5px',
-                    borderRadius: 8,
-                    background: 'var(--lx-surface-alt)',
-                    color: 'var(--lx-text-3)',
-                    lineHeight: 1.3,
-                  }}
-                >
+                <span className="rounded-pill bg-surface-alt px-[5px] py-px font-mono text-[10px] leading-[1.3] text-text-faint">
                   {tabItem.count}
                 </span>
               )}
               {tab === tabItem.id && (
-                <div
-                  style={{
-                    position: 'absolute',
-                    bottom: -1,
-                    left: 8,
-                    right: 8,
-                    height: 2,
-                    background: 'var(--lx-accent)',
-                  }}
-                />
+                <div className="absolute right-2 -bottom-px left-2 h-0.5 bg-brand" />
               )}
             </button>
           ))}
         </div>
       </div>
 
-      <div
-        style={{
-          flex: 1,
-          display: 'flex',
-          flexDirection: 'column',
-          minHeight: 0,
-        }}
-      >
+      <div className="flex flex-1 flex-col min-h-0">
         <div
           style={{
             width: '100%',
@@ -225,7 +170,11 @@ function InboxPage() {
             ...(selectedConversation ? { display: 'none' } : null),
           }}
         >
-          <div style={{ flex: 1, overflowY: 'auto' }}>
+          <div
+            className={
+              conversations.length > 0 ? 'flex-1 overflow-y-auto' : undefined
+            }
+          >
             {conversations.length === 0 && (
               <div
                 style={{

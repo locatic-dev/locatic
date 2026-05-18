@@ -17,6 +17,14 @@ export const homeFeedQueryOptions = (cursor?: number, limit = 20) =>
 export const exploreFeedQueryOptions = (limit = 20) =>
   convexQuery(api.explore.list, { limit })
 
+export const nearbyBuildersQueryOptions = () =>
+  convexQuery(api.explore.listNearbyBuilders, {})
+
+export const builderSearchQueryOptions = (
+  q: string,
+  cityIds: Array<any> = [],
+) => convexQuery(api.explore.searchBuilders, { q, cityIds })
+
 export const citiesSearchQueryOptions = (query: string, limit = 10) =>
   convexQuery(api.cities.search, { query, limit })
 

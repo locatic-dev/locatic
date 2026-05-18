@@ -65,10 +65,6 @@ const sectionTitleClassName =
   'mb-4 font-mono text-[10.5px] font-semibold uppercase tracking-[0.06em] text-text-faint'
 const settingsRowClassName =
   'flex items-center justify-between gap-4 border-b border-line py-3.5'
-const settingsTabsClassName =
-  'flex shrink-0 gap-1 overflow-x-auto border-b border-line px-[var(--lx-gutter)] py-3'
-const settingsTabButtonClassName =
-  'min-h-11 whitespace-nowrap rounded-full border border-transparent px-3.5 py-2 font-mono text-[12.5px] transition-colors'
 
 function SettingsPage() {
   const { tab } = useSearch({ from: '/_app/settings' })
@@ -157,14 +153,11 @@ function SettingsPage() {
 
   return (
     <div className="lx-page-shell">
-      <div className="flex min-h-14 shrink-0 items-center border-b border-line px-[var(--lx-gutter)]">
-        <h1 className="m-0 font-mono text-sm font-semibold text-text">
+      <div className="shrink-0 border-b border-line px-[var(--lx-gutter)] pt-5">
+        <h1 className="mb-4 font-mono text-sm font-semibold text-text">
           settings
         </h1>
-      </div>
-
-      <div className="flex min-h-0 flex-1 flex-col">
-        <nav className={settingsTabsClassName}>
+        <nav className="flex gap-1 overflow-x-auto">
           {TABS.map((tabItem) => (
             <button
               key={tabItem.id}
@@ -174,10 +167,10 @@ function SettingsPage() {
                   search: { tab: tabItem.id } as never,
                 } as never)
               }
-              className={`${settingsTabButtonClassName} ${
+              className={`mb-[-1px] whitespace-nowrap border-b-2 px-1 pb-2.5 font-mono text-[12px] transition-colors ${
                 tab === tabItem.id
-                  ? 'bg-surface-alt font-semibold text-text'
-                  : 'text-text-muted'
+                  ? 'border-text font-semibold text-text'
+                  : 'border-transparent text-text-muted hover:text-text'
               }`}
               type="button"
             >
@@ -185,17 +178,13 @@ function SettingsPage() {
             </button>
           ))}
         </nav>
+      </div>
 
-        <div className="lx-page-scroll" style={{ flex: 1 }}>
+      <div className="flex min-h-0 flex-1 flex-col">
+        <div className="lx-page-scroll flex-1">
           <div className="lx-page-width-form">
             {tab === 'account' && (
-              <div
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 28,
-                }}
-              >
+              <div className="flex flex-col gap-7">
                 <div>
                   <div className={sectionTitleClassName}>profile</div>
                   <div className="flex flex-col gap-4">

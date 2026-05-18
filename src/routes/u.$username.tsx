@@ -26,9 +26,8 @@ import {
 import { publicProfileQueryOptions } from '@/features/profile/queries'
 import { socialLinkHref } from '@/lib/social-links'
 import { useFollowUser, useUnfollowUser } from '@/features/follows/mutations'
-import { useStartOrGetConversation } from '@/features/inbox/mutations'
-import { getInboxDestinationSearch } from '@/features/inbox/navigation'
 import { viewerQueryOptions } from '@/features/viewer/queries'
+import { useOpenConversation } from '@/features/inbox/use-open-conversation'
 
 export const Route = createFileRoute('/u/$username')({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -78,87 +77,38 @@ function PublicProfilePage() {
   )
   const followUser = useFollowUser()
   const unfollowUser = useUnfollowUser()
-  const startOrGetConversation = useStartOrGetConversation()
+  const { openConversation, pendingUserId } = useOpenConversation()
   const [followOverride, setFollowOverride] = useState<boolean | null>(null)
   const [followPending, setFollowPending] = useState(false)
-  const [dmPending, setDmPending] = useState(false)
 
   if (!profile && profileQuery.isLoading) {
     return (
-      <div style={{ minHeight: '100dvh', background: 'var(--lx-bg)' }}>
-        <header
-          style={{
-            height: 56,
-            padding: '0 32px',
-            display: 'flex',
-            alignItems: 'center',
-            borderBottom: '1px solid var(--lx-border)',
-          }}
-        >
-          <Link
-            to="/"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10,
-              textDecoration: 'none',
-            }}
-          >
+      <div className="min-h-dvh bg-canvas">
+        <header className="flex h-14 items-center border-b border-line px-8">
+          <Link to="/" className="flex items-center gap-2.5 no-underline">
             <Logo size={20} />
-            <span
-              style={{
-                fontFamily: 'var(--lx-font-mono)',
-                fontSize: 14,
-                fontWeight: 700,
-                color: 'var(--lx-text)',
-              }}
-            >
+            <span className="font-mono text-sm font-bold text-text">
               locatic
             </span>
           </Link>
         </header>
-        <div style={{ padding: 32, color: 'var(--lx-text-3)' }}>
-          loading profile…
-        </div>
+        <div className="p-8 text-text-faint">loading profile…</div>
       </div>
     )
   }
 
   if (!profile) {
     return (
-      <div style={{ minHeight: '100dvh', background: 'var(--lx-bg)' }}>
-        <header
-          style={{
-            height: 56,
-            padding: '0 32px',
-            display: 'flex',
-            alignItems: 'center',
-            borderBottom: '1px solid var(--lx-border)',
-          }}
-        >
-          <Link
-            to="/"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10,
-              textDecoration: 'none',
-            }}
-          >
+      <div className="min-h-dvh bg-canvas">
+        <header className="flex h-14 items-center border-b border-line px-8">
+          <Link to="/" className="flex items-center gap-2.5 no-underline">
             <Logo size={20} />
-            <span
-              style={{
-                fontFamily: 'var(--lx-font-mono)',
-                fontSize: 14,
-                fontWeight: 700,
-                color: 'var(--lx-text)',
-              }}
-            >
+            <span className="font-mono text-sm font-bold text-text">
               locatic
             </span>
           </Link>
         </header>
-        <div style={{ padding: '40px 32px', color: 'var(--lx-text-2)' }}>
+        <div className="px-8 py-10 text-text-muted">
           profile not found or not publicly available.
         </div>
       </div>
@@ -182,29 +132,6 @@ function PublicProfilePage() {
     'website',
     profile.profile.socialLinks.website,
   )
-
-  const handleDM = async () => {
-    if (dmPending || isOwnProfile || !profile) return
-    setDmPending(true)
-    try {
-      const conversation = await startOrGetConversation({
-        otherUserId: profile.userId,
-      })
-      if (conversation) {
-        void navigate({
-          to: '/inbox',
-          search: getInboxDestinationSearch(
-            String(conversation._id),
-            conversation.isRequest,
-          ) as never,
-        } as never)
-      }
-    } catch (error) {
-      console.error('Failed to open DM:', error)
-    } finally {
-      setDmPending(false)
-    }
-  }
 
   const handleFollow = async () => {
     if (followPending || isOwnProfile) {
@@ -251,39 +178,11 @@ function PublicProfilePage() {
   )
 
   return (
-    <div style={{ minHeight: '100dvh', background: 'var(--lx-bg)' }}>
-      <header
-        style={{
-          minHeight: 56,
-          padding: '12px var(--lx-gutter)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 12,
-          flexWrap: 'wrap',
-          borderBottom: '1px solid var(--lx-border)',
-        }}
-      >
-        <Link
-          to="/"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 10,
-            textDecoration: 'none',
-          }}
-        >
+    <div className="min-h-dvh bg-canvas">
+      <header className="flex min-h-14 flex-wrap items-center justify-between gap-3 border-b border-line px-[var(--lx-gutter)] py-3">
+        <Link to="/" className="flex items-center gap-2.5 no-underline">
           <Logo size={20} />
-          <span
-            style={{
-              fontFamily: 'var(--lx-font-mono)',
-              fontSize: 14,
-              fontWeight: 700,
-              color: 'var(--lx-text)',
-            }}
-          >
-            locatic
-          </span>
+          <span className="font-mono text-sm font-bold text-text">locatic</span>
         </Link>
 
         {isOwnProfile ? (
@@ -292,36 +191,29 @@ function PublicProfilePage() {
             onClick={() =>
               void navigate({ to: '/profile', search: {} as never } as never)
             }
-            style={{ fontFamily: 'var(--lx-font-mono)', fontSize: 12 }}
+            className="min-h-11 font-mono text-[12px]"
           >
             your profile
           </Button>
         ) : isSignedIn ? (
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div className="flex gap-2">
             <Button
               variant="outline"
-              onClick={() => void handleDM()}
-              disabled={dmPending}
-              style={{ fontFamily: 'var(--lx-font-mono)', fontSize: 12 }}
+              onClick={() => void openConversation(profile.userId)}
+              disabled={pendingUserId === profile.userId}
+              className="min-h-11 font-mono text-[12px]"
             >
-              {dmPending ? 'opening…' : 'message'}
+              {pendingUserId === profile.userId ? 'opening…' : 'message'}
             </Button>
             <Button
               variant={followed ? 'outline' : 'default'}
               onClick={() => void handleFollow()}
               disabled={followPending}
-              style={{
-                fontFamily: 'var(--lx-font-mono)',
-                fontSize: 12,
-                ...(followed
-                  ? {}
-                  : {
-                      background: 'var(--lx-accent)',
-                      color: '#0d1117',
-                      border: 'none',
-                      fontWeight: 600,
-                    }),
-              }}
+              className={
+                followed
+                  ? 'min-h-11 font-mono text-[12px]'
+                  : 'min-h-11 font-mono text-[12px] font-semibold'
+              }
             >
               {followPending ? 'working…' : followed ? 'following' : 'follow'}
             </Button>
@@ -329,19 +221,14 @@ function PublicProfilePage() {
         ) : (
           <Link
             to="/sign-in"
-            style={{
-              fontFamily: 'var(--lx-font-mono)',
-              fontSize: 12.5,
-              color: 'var(--lx-accent)',
-              textDecoration: 'none',
-            }}
+            className="font-mono text-[12.5px] text-primary no-underline"
           >
             sign in
           </Link>
         )}
       </header>
 
-      <div className="lx-page-width-detail" style={{ padding: '32px 0 80px' }}>
+      <div className="lx-page-width-detail py-8 pb-20">
         <div
           style={{
             display: 'flex',
@@ -588,6 +475,12 @@ function PublicProfilePage() {
                   <ProjectCard
                     key={String(project._id)}
                     project={projectCardData(project)}
+                    onAuthorClick={() =>
+                      void navigate({
+                        to: '/u/$username',
+                        params: { username: owner } as never,
+                      } as never)
+                    }
                     onCardClick={() =>
                       void navigate({
                         to: '/project/$owner/$repo',

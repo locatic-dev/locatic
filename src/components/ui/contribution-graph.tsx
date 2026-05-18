@@ -16,6 +16,8 @@ interface ContributionGraphProps {
   className?: string
   weeks?: ContributionWeek[]
   totalContributions?: number
+  loading?: boolean
+  unavailable?: boolean
 }
 
 export function ContributionGraph({
@@ -24,7 +26,26 @@ export function ContributionGraph({
   className,
   weeks,
   totalContributions,
+  loading,
+  unavailable,
 }: ContributionGraphProps) {
+  if (loading) {
+    return (
+      <div
+        className="lx-skeleton h-20 rounded-md"
+        aria-label="Loading GitHub contributions"
+      />
+    )
+  }
+
+  if (unavailable) {
+    return (
+      <p className="py-3 font-mono text-[12px] text-text-faint">
+        contribution data is not available yet. If GitHub is already connected,
+        check back after the next sync.
+      </p>
+    )
+  }
   const cells: ContributionCell[] = []
 
   if (weeks && weeks.length > 0) {
