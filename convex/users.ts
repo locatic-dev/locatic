@@ -35,6 +35,7 @@ function serializeViewer(
     pinnedOwnedProjectIds: viewer.pinnedOwnedProjectIds,
     onboardingCompletedAt: viewer.onboardingCompletedAt,
     appearInExplore: viewer.appearInExplore,
+    githubContributions: viewer.githubContributions ?? null,
     deactivatedAt: viewer.deactivatedAt,
     deletedAt: viewer.deletedAt,
   }
@@ -979,5 +980,26 @@ export const userById = internalQuery({
   },
   handler: async (ctx, args) => {
     return await ctx.db.get(args.userId)
+  },
+})
+
+export const patchContributions = internalMutation({
+  args: {
+    userId: v.id('users'),
+    contributions: v.object({
+      totalContributions: v.number(),
+      weeks: v.array(
+        v.object({
+          days: v.array(v.object({ date: v.string(), count: v.number() })),
+        }),
+      ),
+      syncedAt: v.number(),
+    }),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.userId, {
+      githubContributions: args.contributions,
+      updatedAt: Date.now(),
+    })
   },
 })

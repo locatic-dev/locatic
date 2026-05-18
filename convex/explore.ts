@@ -76,9 +76,38 @@ export const list = query({
       projects.map((project) => [String(project._id), project]),
     )
 
-    return result
+    const ranked = result
       .map((candidate) => projectById.get(candidate.id))
       .filter(Boolean)
+
+    const isCityFiltered =
+      viewer.exploreConfig.cityIds.length > 0 || Boolean(viewer.profile.cityId)
+
+    // When city-filtered results are empty, include globally recent projects
+    // the viewer hasn't dismissed — so the feed is never completely blank.
+    const fallback =
+      ranked.length === 0
+        ? (await ctx.db.query('projects').collect())
+            .filter((p) => {
+              const owner = usersById.get(String(p.ownerId))
+              return (
+                p.locatic.isVisible &&
+                p.ownerId !== viewer._id &&
+                owner?.appearInExplore &&
+                !owner?.deletedAt &&
+                !owner?.deactivatedAt &&
+                !exploreHistory.some(
+                  (h) =>
+                    String(h.projectId) === String(p._id) &&
+                    h.dismissedAt != null,
+                )
+              )
+            })
+            .sort((a, b) => b.addedToLocaticAt - a.addedToLocaticAt)
+            .slice(0, 10)
+        : []
+
+    return { projects: ranked, fallback, isCityFiltered }
   },
 })
 

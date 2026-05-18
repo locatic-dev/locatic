@@ -27,6 +27,8 @@ import {
 } from '@/features/contracts'
 import { useUpdateExploreConfig } from '@/features/settings/mutations'
 import { useDismissExploreProject } from '@/features/explore/mutations'
+import { useStartOrGetConversation } from '@/features/inbox/mutations'
+import { getInboxDestinationSearch } from '@/features/inbox/navigation'
 
 export const Route = createFileRoute('/_app/explore')({
   component: ExplorePage,
@@ -51,6 +53,7 @@ function ExplorePage() {
   const unfollowUser = useUnfollowUser()
   const updateExploreConfig = useUpdateExploreConfig()
   const dismissProject = useDismissExploreProject()
+  const startOrGetConversation = useStartOrGetConversation()
 
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set())
   const [pendingLikes, setPendingLikes] = useState<Set<string>>(new Set())
@@ -99,8 +102,17 @@ function ExplorePage() {
     ),
   )
 
-  const allItems = (feedQuery.data as Array<Doc<'projects'>> | undefined) ?? []
+  const feedData = feedQuery.data as
+    | {
+        projects: Array<Doc<'projects'>>
+        fallback: Array<Doc<'projects'>>
+        isCityFiltered: boolean
+      }
+    | undefined
+  const allItems = feedData?.projects ?? []
   const items = allItems.filter((item) => !dismissedIds.has(String(item._id)))
+  const fallbackItems = feedData?.fallback ?? []
+  const isCityFiltered = feedData?.isCityFiltered ?? false
   const selectedCities =
     (selectedCitiesQuery.data as Array<Doc<'cities'>> | undefined) ?? []
   const cityResults =
@@ -132,6 +144,25 @@ function ExplorePage() {
         next.delete(projectId)
         return next
       })
+    }
+  }
+
+  const handleDM = async (ownerId: string) => {
+    try {
+      const conversation = await startOrGetConversation({
+        otherUserId: ownerId as never,
+      })
+      if (conversation) {
+        void navigate({
+          to: '/inbox',
+          search: getInboxDestinationSearch(
+            String(conversation._id),
+            conversation.isRequest,
+          ) as never,
+        } as never)
+      }
+    } catch (error) {
+      console.error('Failed to open DM:', error)
     }
   }
 
@@ -316,10 +347,84 @@ function ExplorePage() {
             )}
 
             {!isLoading && !feedQuery.isError && items.length === 0 && (
-              <EmptyState
-                title="you've seen everything from these cities recently."
-                description="add another city to widen your explore graph, or check back later."
-              />
+              <div style={{ padding: '40px 0' }}>
+                <EmptyState
+                  title={
+                    isCityFiltered
+                      ? 'no projects in these cities yet.'
+                      : 'nothing to explore right now.'
+                  }
+                  description={
+                    isCityFiltered
+                      ? 'locatic is growing — add more cities or check back later.'
+                      : 'follow more builders or check back later.'
+                  }
+                />
+                {fallbackItems.length > 0 && (
+                  <div style={{ marginTop: 40 }}>
+                    <div
+                      style={{
+                        fontFamily: 'var(--lx-font-mono)',
+                        fontSize: 10.5,
+                        color: 'var(--lx-text-3)',
+                        marginBottom: 16,
+                        letterSpacing: '0.05em',
+                        textTransform: 'uppercase',
+                      }}
+                    >
+                      from around the world
+                    </div>
+                    <div
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 14,
+                      }}
+                    >
+                      {fallbackItems.map((project) => {
+                        const owner =
+                          project.github.fullName.split('/')[0] ?? ''
+                        const repo = project.github.name
+                        const projectId = String(project._id)
+                        const ownerId = String(project.ownerId)
+                        const cardData: ProjectCardData = {
+                          id: projectId,
+                          owner,
+                          repo,
+                          fullName: project.github.fullName,
+                          description: project.github.description,
+                          lang: project.github.primaryLanguage,
+                          lastCommitLabel: relativeTime(
+                            project.github.lastCommitAt,
+                          ),
+                          githubStars: project.github.stargazersCount,
+                          locaticLikes: project.locatic.likesCount,
+                          commentsCount: project.locatic.commentsCount,
+                          authorName: project.ownerSnapshot.displayName,
+                          authorHandle: owner,
+                          authorAvatarUrl: project.ownerSnapshot.avatarUrl,
+                          city: project.ownerSnapshot.cityName,
+                          liked: false,
+                          followed: false,
+                        }
+                        return (
+                          <ProjectCard
+                            key={projectId}
+                            project={cardData}
+                            onDM={() => void handleDM(ownerId)}
+                            onCardClick={() =>
+                              void navigate({
+                                to: '/project/$owner/$repo',
+                                params: { owner, repo } as never,
+                              } as never)
+                            }
+                          />
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
             )}
 
             {!isLoading && items.length > 0 && (
@@ -363,6 +468,7 @@ function ExplorePage() {
                       onDismiss={() => void handleDismiss(projectId)}
                       onLike={() => void handleLike(projectId, liked)}
                       onFollow={() => void handleFollow(ownerId, followed)}
+                      onDM={() => void handleDM(ownerId)}
                       onCardClick={() =>
                         void navigate({
                           to: '/project/$owner/$repo',

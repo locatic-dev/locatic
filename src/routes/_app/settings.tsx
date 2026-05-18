@@ -65,6 +65,10 @@ const sectionTitleClassName =
   'mb-4 font-mono text-[10.5px] font-semibold uppercase tracking-[0.06em] text-text-faint'
 const settingsRowClassName =
   'flex items-center justify-between gap-4 border-b border-line py-3.5'
+const settingsTabsClassName =
+  'flex shrink-0 gap-1 overflow-x-auto border-b border-line px-[var(--lx-gutter)] py-3'
+const settingsTabButtonClassName =
+  'min-h-11 whitespace-nowrap rounded-full border border-transparent px-3.5 py-2 font-mono text-[12.5px] transition-colors'
 
 function SettingsPage() {
   const { tab } = useSearch({ from: '/_app/settings' })
@@ -160,7 +164,7 @@ function SettingsPage() {
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col">
-        <nav className="lx-inline-tabs lg:block" style={{ width: '100%' }}>
+        <nav className={settingsTabsClassName}>
           {TABS.map((tabItem) => (
             <button
               key={tabItem.id}
@@ -170,7 +174,7 @@ function SettingsPage() {
                   search: { tab: tabItem.id } as never,
                 } as never)
               }
-              className={`min-h-11 w-full rounded-full px-3.5 py-2.5 text-left font-mono text-[12.5px] whitespace-nowrap ${
+              className={`${settingsTabButtonClassName} ${
                 tab === tabItem.id
                   ? 'bg-surface-alt font-semibold text-text'
                   : 'text-text-muted'

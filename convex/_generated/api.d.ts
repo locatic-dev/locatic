@@ -24,6 +24,7 @@ import type * as lib_auth from '../lib/auth.js'
 import type * as lib_constants from '../lib/constants.js'
 import type * as lib_conversation from '../lib/conversation.js'
 import type * as lib_explore from '../lib/explore.js'
+import type * as lib_github from '../lib/github.js'
 import type * as lib_homeFeed from '../lib/homeFeed.js'
 import type * as lib_notifications from '../lib/notifications.js'
 import type * as lib_pulse from '../lib/pulse.js'
@@ -61,6 +62,7 @@ declare const fullApi: ApiFromModules<{
   'lib/constants': typeof lib_constants
   'lib/conversation': typeof lib_conversation
   'lib/explore': typeof lib_explore
+  'lib/github': typeof lib_github
   'lib/homeFeed': typeof lib_homeFeed
   'lib/notifications': typeof lib_notifications
   'lib/pulse': typeof lib_pulse

@@ -11,6 +11,7 @@ export type ViewerRecord = {
   notificationPrefs: Doc<'users'>['notificationPrefs']
   pinnedOwnedProjectIds: Doc<'users'>['pinnedOwnedProjectIds']
   onboardingCompletedAt: Doc<'users'>['onboardingCompletedAt']
+  githubContributions?: Doc<'users'>['githubContributions']
 }
 
 export type ViewerBootstrapPayload = {
@@ -122,6 +123,7 @@ export function mapViewer(
     ),
     exploreConfig: viewer.exploreConfig,
     githubUsername: viewer.github.username,
+    githubContributions: viewer.githubContributions ?? null,
     id: viewer._id,
     notificationPrefs: viewer.notificationPrefs,
     onboardingCompletedAt: viewer.onboardingCompletedAt,

@@ -15,6 +15,7 @@ describe('contract mappers', () => {
         appearInExplore: true,
         exploreConfig: { cityIds: [], stackPrefs: [] },
         github: { username: 'octocat' },
+        githubContributions: null,
         notificationPrefs: {
           comments: true,
           commentReplies: true,
@@ -77,6 +78,15 @@ describe('contract mappers', () => {
         appearInExplore: false,
         exploreConfig: { cityIds: [], stackPrefs: ['TypeScript'] },
         github: { username: 'octocat' },
+        githubContributions: {
+          totalContributions: 12,
+          syncedAt: 123,
+          weeks: [
+            {
+              days: [{ count: 2, date: '2026-05-01' }],
+            },
+          ],
+        },
         notificationPrefs: {
           comments: true,
           commentReplies: true,
@@ -162,6 +172,9 @@ describe('contract mappers', () => {
     } as never)
 
     expect(privateProfile?.viewer.cityName).toBe('Bengaluru, India')
+    expect(privateProfile?.viewer.githubContributions?.totalContributions).toBe(
+      12,
+    )
     expect(publicProfile?.viewerFollowsProfile).toBe(true)
     expect(publicProfile?.profile.city).toBe('Berlin, Germany')
   })
