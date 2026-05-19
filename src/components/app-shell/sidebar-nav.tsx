@@ -73,90 +73,43 @@ export function SidebarNav({
   }))
 
   return (
-    <aside
-      className="h-full"
-      style={{
-        width: 'var(--lx-sidebar-width)',
-        height: '100%',
-        borderRight: '1px solid var(--lx-border)',
-        background: 'var(--lx-bg)',
-        display: 'flex',
-        flexDirection: 'column',
-        padding: '20px 0 8px',
-        flexShrink: 0,
-        overflowY: 'auto',
-      }}
-    >
+    <aside className="flex h-full w-(--lx-sidebar-width) shrink-0 flex-col overflow-y-auto border-r border-line bg-canvas px-0 pt-5 pb-2">
       {/* Logo */}
-      <div
-        style={{
-          padding: '0 20px 28px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 10,
-        }}
-      >
+      <div className="flex items-center gap-2.5 px-5 pb-7">
         <Logo size={22} />
-        <span
-          style={{
-            fontFamily: 'var(--lx-font-mono)',
-            fontSize: 15,
-            fontWeight: 700,
-            color: 'var(--lx-text)',
-            letterSpacing: '-0.02em',
-          }}
-        >
+        <span className="font-mono text-[15px] font-bold tracking-[-0.02em] text-text">
           locatic
         </span>
       </div>
 
       {/* Nav links */}
-      <nav style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <nav className="flex flex-col gap-0.5">
         {items.map((item) => {
           const isActive =
             currentPath === item.href || currentPath.startsWith(item.href + '/')
           return (
-            <div key={item.id} style={{ position: 'relative' }}>
+            <div key={item.id} className="relative">
               {isActive && <div className="lx-nav-active-bar" />}
               <Link
                 to={item.href}
                 aria-current={isActive ? 'page' : undefined}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 12,
-                  padding: '8px 20px',
-                  color: isActive ? 'var(--lx-text)' : 'var(--lx-text-2)',
-                  fontFamily: 'var(--lx-font-mono)',
-                  fontSize: 13,
-                  textDecoration: 'none',
-                  transition: 'color 0.14s',
-                }}
+                className={[
+                  'flex items-center gap-3 px-5 py-2 font-mono text-[13px] no-underline transition-colors',
+                  isActive ? 'text-text' : 'text-text-muted hover:text-text',
+                ]
+                  .filter(Boolean)
+                  .join(' ')}
               >
                 <span
-                  style={{
-                    color: isActive ? 'var(--lx-accent)' : 'var(--lx-text-3)',
-                    display: 'flex',
-                  }}
+                  className={
+                    isActive ? 'flex text-brand' : 'flex text-text-faint'
+                  }
                 >
                   {item.icon}
                 </span>
                 <span>{item.label}</span>
                 {item.badge != null && item.badge > 0 && (
-                  <span
-                    style={{
-                      marginLeft: 'auto',
-                      fontSize: 10,
-                      fontFamily: 'var(--lx-font-mono)',
-                      padding: '2px 6px',
-                      borderRadius: 8,
-                      background: 'var(--lx-surface-alt)',
-                      color: 'var(--lx-text-2)',
-                      minWidth: 18,
-                      textAlign: 'center',
-                      lineHeight: 1,
-                    }}
-                  >
+                  <span className="ml-auto min-w-4.5 rounded-pill bg-surface-alt px-1.5 py-0.5 text-center font-mono text-[10px] leading-none text-text-muted">
                     {item.badge > 99 ? '99+' : item.badge}
                   </span>
                 )}

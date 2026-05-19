@@ -45,19 +45,7 @@ export function AppLayout({
 
         {/* Right rail — desktop xl only */}
         {rightRail && (
-          <aside
-            className="hidden xl:flex xl:min-h-dvh"
-            style={{
-              width: 'var(--lx-right-rail-width)',
-              borderLeft: '1px solid var(--lx-border)',
-              padding: '24px',
-              background: 'var(--lx-bg)',
-              flexDirection: 'column',
-              gap: 28,
-              overflow: 'auto',
-              flexShrink: 0,
-            }}
-          >
+          <aside className="hidden w-(--lx-right-rail-width) shrink-0 flex-col gap-7 overflow-auto border-l border-line bg-canvas p-6 xl:flex xl:min-h-dvh">
             {rightRail}
           </aside>
         )}

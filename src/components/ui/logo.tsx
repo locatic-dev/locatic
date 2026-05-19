@@ -6,16 +6,10 @@ interface LogoProps {
 export function Logo({ size = 24, className }: LogoProps) {
   return (
     <div
-      className={className}
+      className={`flex shrink-0 items-center justify-center rounded-[4px] bg-brand ${className ?? ''}`}
       style={{
         width: size,
         height: size,
-        borderRadius: 4,
-        background: 'var(--lx-accent)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        flexShrink: 0,
       }}
     >
       <svg

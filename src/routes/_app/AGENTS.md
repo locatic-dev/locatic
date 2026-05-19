@@ -20,10 +20,10 @@ _app/
 ## CONVENTIONS
 
 - All routes use `.page-shell` + `.page-shell__content` for consistent spacing
-- Content: `w-full` mobile, `max-w-[var(--width-content)]` desktop
+- Content: `w-full` mobile, shared layout-width helpers desktop
 - Lists: single column mobile, consider grid/list toggle on desktop
 - Forms: full-width inputs mobile, constrained width desktop
-- Use CSS tokens: `--space-*` for gaps, `--width-*` for max-widths
+- Use shared layout tokens from `src/styles.css` for gaps and max-widths
 - Safe-area padding: handled by `.page-shell` — do not add manually
 - Tailwind-first styling: semantic tokens (`bg-surface`, `text-text-muted`, `rounded-card`) replace inline style blocks
 - Profile, settings, notifications routes simplified — large inline style blocks replaced with utility classes
