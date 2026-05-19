@@ -2,12 +2,12 @@ import { useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { toast } from 'sonner'
 
-import { useStartOrGetConversation } from './mutations'
+import { api } from '../../../convex/_generated/api'
+import { convexClient } from '@/integrations/convex/client'
 import { getInboxDestinationSearch } from './navigation'
 
 export function useOpenConversation() {
   const navigate = useNavigate()
-  const startOrGetConversation = useStartOrGetConversation()
   const [pendingUserId, setPendingUserId] = useState<string | null>(null)
 
   const openConversation = async (otherUserId: string) => {
@@ -18,9 +18,12 @@ export function useOpenConversation() {
     setPendingUserId(otherUserId)
 
     try {
-      const conversation = await startOrGetConversation({
-        otherUserId: otherUserId as never,
-      })
+      const conversation = await convexClient.mutation(
+        api.conversations.startOrGet,
+        {
+          otherUserId: otherUserId as never,
+        },
+      )
       if (!conversation) {
         throw new Error('Conversation could not be opened')
       }
