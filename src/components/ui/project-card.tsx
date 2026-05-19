@@ -63,32 +63,20 @@ export function ProjectCard({
   showActions = true,
 }: ProjectCardProps) {
   const compact = density === 'compact'
-  const pad = compact ? '14px 16px' : '18px 20px'
-  const gap = compact ? 10 : 14
   const authorLabel = project.authorName || project.authorHandle
 
   return (
     <div
       className={cn(
         'lx-card lx-fade-up @container relative flex flex-col rounded-card border border-line bg-surface',
+        compact ? 'gap-2.5 px-4 py-3.5' : 'gap-3.5 px-5 py-[18px]',
         className,
       )}
-      style={{
-        padding: pad,
-        gap,
-      }}
     >
       {/* Top row: repo name + dismiss */}
       <div className="flex items-start gap-2.5">
         <div className="min-w-0 flex-1">
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              marginBottom: 4,
-            }}
-          >
+          <div className="mb-1 flex items-center gap-2">
             {/* Repo name */}
             <button
               onClick={onCardClick}
@@ -97,26 +85,11 @@ export function ProjectCard({
                   ? `Open ${project.fullName ?? `${project.owner}/${project.repo}`}`
                   : undefined
               }
-              style={{
-                background: 'none',
-                border: 'none',
-                padding: 0,
-                cursor: onCardClick ? 'pointer' : 'default',
-                textAlign: 'left',
-                fontFamily: 'var(--lx-font-mono)',
-                fontSize: 14.5,
-                fontWeight: 600,
-                color: 'var(--color-text)',
-                letterSpacing: '-0.01em',
-                maxWidth: '100%',
-                whiteSpace: 'normal',
-                wordBreak: 'break-word',
-                lineHeight: 1.35,
-              }}
+              className="max-w-full whitespace-normal border-none bg-transparent p-0 text-left font-mono text-[14.5px] font-semibold tracking-[-0.01em] text-text transition-colors [overflow-wrap:anywhere] leading-[1.35] disabled:cursor-default"
+              disabled={!onCardClick}
+              type="button"
             >
-              <span
-                style={{ color: 'var(--color-text-faint)', fontWeight: 400 }}
-              >
+              <span className="font-normal text-text-faint">
                 {project.owner}/
               </span>
               {project.repo}
@@ -133,17 +106,10 @@ export function ProjectCard({
 
           {project.description && (
             <p
-              style={{
-                margin: 0,
-                fontFamily: 'var(--lx-font-sans)',
-                fontSize: 13.5,
-                color: 'var(--color-text-muted)',
-                lineHeight: 1.5,
-                display: '-webkit-box',
-                WebkitLineClamp: compact ? 1 : 2,
-                WebkitBoxOrient: 'vertical',
-                overflow: 'hidden',
-              }}
+              className={cn(
+                'm-0 overflow-hidden font-sans text-[13.5px] leading-6 text-text-muted',
+                compact ? 'line-clamp-1' : 'line-clamp-2',
+              )}
             >
               {project.description}
             </p>
@@ -154,18 +120,8 @@ export function ProjectCard({
           <button
             onClick={onDismiss}
             aria-label="Dismiss"
-            style={{
-              border: 'none',
-              background: 'transparent',
-              color: 'var(--color-text-faint)',
-              cursor: 'pointer',
-              padding: 4,
-              marginRight: -4,
-              marginTop: -2,
-              borderRadius: 4,
-              display: 'flex',
-              flexShrink: 0,
-            }}
+            className="-mr-1 -mt-0.5 flex shrink-0 rounded-sm border-none bg-transparent p-1 text-text-faint transition-colors hover:text-text"
+            type="button"
           >
             <X size={12} />
           </button>
@@ -174,38 +130,27 @@ export function ProjectCard({
 
       {/* Meta row */}
       <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: compact ? 12 : 14,
-          fontFamily: 'var(--lx-font-mono)',
-          fontSize: 11.5,
-          color: 'var(--color-text-faint)',
-          flexWrap: 'wrap',
-        }}
+        className={cn(
+          'flex flex-wrap items-center font-mono text-[11.5px] text-text-faint',
+          compact ? 'gap-3' : 'gap-3.5',
+        )}
       >
         {project.lang && (
-          <span
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}
-          >
+          <span className="inline-flex items-center gap-1.5">
             <LangDot lang={project.lang} />
             {project.lang}
           </span>
         )}
         {project.lastCommitLabel && <span>{project.lastCommitLabel}</span>}
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+        <span className="inline-flex items-center gap-1">
           <Star size={11} strokeWidth={1.4} />
           {project.githubStars.toLocaleString()}
         </span>
         <span
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 4,
-            color: project.liked
-              ? 'var(--color-brand)'
-              : 'var(--color-text-faint)',
-          }}
+          className={cn(
+            'inline-flex items-center gap-1',
+            project.liked ? 'text-brand' : 'text-text-faint',
+          )}
         >
           <Heart
             size={11}
@@ -217,26 +162,15 @@ export function ProjectCard({
         <button
           onClick={onComment}
           aria-label="Comments"
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 4,
-            background: 'none',
-            border: 'none',
-            padding: 0,
-            color: 'var(--color-text-faint)',
-            cursor: onComment ? 'pointer' : 'default',
-            fontFamily: 'inherit',
-            fontSize: 'inherit',
-          }}
+          className="inline-flex items-center gap-1 border-none bg-transparent p-0 text-inherit"
+          disabled={!onComment}
+          type="button"
         >
           <MessageSquare size={11} strokeWidth={1.4} />
           {project.commentsCount}
         </button>
         {project.forksCount !== undefined && (
-          <span
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
-          >
+          <span className="inline-flex items-center gap-1">
             <GitFork size={11} strokeWidth={1.4} />
             {project.forksCount.toLocaleString()}
           </span>
@@ -245,15 +179,10 @@ export function ProjectCard({
 
       {/* Author row */}
       <div
-        style={{
-          display: 'flex',
-          alignItems: 'flex-start',
-          justifyContent: 'space-between',
-          gap: 10,
-          paddingTop: compact ? 4 : 6,
-          borderTop: '1px solid var(--color-line)',
-          flexWrap: 'wrap',
-        }}
+        className={cn(
+          'flex flex-wrap items-start justify-between gap-2.5 border-t border-line',
+          compact ? 'pt-1' : 'pt-1.5',
+        )}
       >
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
           {onAuthorClick ? (
@@ -268,17 +197,7 @@ export function ProjectCard({
                 avatarUrl={project.authorAvatarUrl}
                 size={22}
               />
-              <span
-                style={{
-                  fontFamily: 'var(--lx-font-sans)',
-                  fontSize: 12.5,
-                  color: 'var(--color-text-muted)',
-                  fontWeight: 500,
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                }}
-              >
+              <span className="truncate font-sans text-[12.5px] font-medium text-text-muted">
                 {authorLabel}
               </span>
             </button>
@@ -289,17 +208,7 @@ export function ProjectCard({
                 avatarUrl={project.authorAvatarUrl}
                 size={22}
               />
-              <span
-                style={{
-                  fontFamily: 'var(--lx-font-sans)',
-                  fontSize: 12.5,
-                  color: 'var(--color-text-muted)',
-                  fontWeight: 500,
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                }}
-              >
+              <span className="truncate font-sans text-[12.5px] font-medium text-text-muted">
                 {authorLabel}
               </span>
             </div>
@@ -315,17 +224,10 @@ export function ProjectCard({
                 variant="outline"
                 onClick={onFollow}
                 disabled={followPending}
-                className="min-h-11"
-                style={{
-                  fontFamily: 'var(--lx-font-mono)',
-                  fontSize: 10.5,
-                  borderColor: project.followed
-                    ? 'var(--color-line-strong)'
-                    : undefined,
-                  color: project.followed
-                    ? 'var(--color-text-muted)'
-                    : undefined,
-                }}
+                className={cn(
+                  'min-h-11 font-mono text-[10.5px]',
+                  project.followed && 'border-line-strong text-text-muted',
+                )}
               >
                 {project.followed ? 'following' : 'follow'}
               </Button>
@@ -336,12 +238,7 @@ export function ProjectCard({
                 variant="ghost"
                 onClick={onDM}
                 disabled={dmPending}
-                className="min-h-11"
-                style={{
-                  fontFamily: 'var(--lx-font-mono)',
-                  fontSize: 10.5,
-                  color: 'var(--color-text-faint)',
-                }}
+                className="min-h-11 font-mono text-[10.5px] text-text-faint"
               >
                 {dmPending ? 'opening…' : 'message'}
               </Button>
@@ -351,22 +248,14 @@ export function ProjectCard({
               disabled={likePending}
               aria-label={project.liked ? 'Unlike' : 'Like'}
               aria-pressed={project.liked}
-              style={{
-                border: 'none',
-                background: 'transparent',
-                cursor: likePending ? 'default' : 'pointer',
-                padding: 12,
-                display: 'flex',
-                alignItems: 'center',
-                color: project.liked
-                  ? 'var(--color-brand)'
-                  : 'var(--color-text-faint)',
-                opacity: likePending ? 0.6 : 1,
-                transition: 'color 0.15s',
-                minWidth: 44,
-                minHeight: 44,
-                justifyContent: 'center',
-              }}
+              className={cn(
+                'flex min-h-11 min-w-11 items-center justify-center border-none bg-transparent p-3 transition-colors',
+                project.liked ? 'text-brand' : 'text-text-faint',
+                likePending
+                  ? 'cursor-default opacity-60'
+                  : 'cursor-pointer hover:text-brand',
+              )}
+              type="button"
             >
               <Heart
                 size={16}
@@ -387,22 +276,20 @@ export function ProjectCardSkeleton({
 }: {
   compact?: boolean
 }) {
-  const pad = compact ? '14px 16px' : '18px 20px'
   return (
     <div
-      className="flex flex-col rounded-card border border-line bg-surface"
-      style={{
-        padding: pad,
-        gap: 12,
-      }}
+      className={cn(
+        'flex flex-col gap-3 rounded-card border border-line bg-surface',
+        compact ? 'px-4 py-3.5' : 'px-5 py-[18px]',
+      )}
     >
-      <div className="lx-skeleton" style={{ height: 14, width: '60%' }} />
-      <div className="lx-skeleton" style={{ height: 12, width: '90%' }} />
-      <div className="lx-skeleton" style={{ height: 12, width: '75%' }} />
+      <div className="lx-skeleton h-3.5 w-3/5" />
+      <div className="lx-skeleton h-3 w-[90%]" />
+      <div className="lx-skeleton h-3 w-3/4" />
       <div className="mt-1 flex gap-2">
-        <div className="lx-skeleton" style={{ height: 10, width: 40 }} />
-        <div className="lx-skeleton" style={{ height: 10, width: 40 }} />
-        <div className="lx-skeleton" style={{ height: 10, width: 40 }} />
+        <div className="lx-skeleton h-2.5 w-10" />
+        <div className="lx-skeleton h-2.5 w-10" />
+        <div className="lx-skeleton h-2.5 w-10" />
       </div>
     </div>
   )

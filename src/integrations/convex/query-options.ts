@@ -1,6 +1,7 @@
 import { convexQuery } from '@convex-dev/react-query'
 
 import { api } from '../../../convex/_generated/api'
+import type { Id } from '../../../convex/_generated/dataModel'
 
 export const viewerQueryOptions = () =>
   convexQuery(api.users.viewerBootstrap, {})
@@ -22,7 +23,7 @@ export const nearbyBuildersQueryOptions = () =>
 
 export const builderSearchQueryOptions = (
   q: string,
-  cityIds: Array<any> = [],
+  cityIds: Array<Id<'cities'>> = [],
 ) => convexQuery(api.explore.searchBuilders, { q, cityIds })
 
 export const citiesSearchQueryOptions = (query: string, limit = 10) =>
@@ -70,8 +71,9 @@ export const notificationsUnreadCountQueryOptions = () =>
 export const conversationsQueryOptions = () =>
   convexQuery(api.conversations.list, {})
 
-export const conversationDetailQueryOptions = (conversationId: any) =>
-  convexQuery(api.conversations.get, { conversationId })
+export const conversationDetailQueryOptions = (
+  conversationId: Id<'conversations'>,
+) => convexQuery(api.conversations.get, { conversationId })
 
-export const followingQueryOptions = (userId: any) =>
+export const followingQueryOptions = (userId: Id<'users'>) =>
   convexQuery(api.follows.listFollowing, { userId })

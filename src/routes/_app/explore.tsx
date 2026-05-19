@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { skipToken, useQuery } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
-import type { Doc } from '../../../convex/_generated/dataModel'
+import type { Doc, Id } from '../../../convex/_generated/dataModel'
 import {
   builderSearchQueryOptions,
   exploreFeedQueryOptions,
@@ -34,6 +34,7 @@ import {
 import { useUpdateExploreConfig } from '@/features/settings/mutations'
 import { useDismissExploreProject } from '@/features/explore/mutations'
 import { useOpenConversation } from '@/features/inbox/use-open-conversation'
+import { disabledQuery } from '@/lib/query'
 
 export const Route = createFileRoute('/_app/explore')({
   component: ExplorePage,
@@ -52,12 +53,10 @@ function ExplorePage() {
     profileQuery.data as PrivateProfilePayload | undefined,
   )
   const viewerId = profile?.viewer.id
-  const idleFollowingQuery = {
-    queryKey: ['follows', 'idle'],
-    queryFn: skipToken,
-  } as any
   const followingQuery = useQuery(
-    viewerId ? followingQueryOptions(viewerId as never) : idleFollowingQuery,
+    viewerId
+      ? followingQueryOptions(viewerId)
+      : disabledQuery(followingQueryOptions('users_idle' as Id<'users'>)),
   )
 
   const likeProject = useLikeProject()
@@ -124,17 +123,13 @@ function ExplorePage() {
     return () => window.clearTimeout(timeout)
   }, [builderQuery])
 
-  const idleBuilderSearchQuery = {
-    queryKey: ['explore', 'searchBuilders', 'idle'],
-    queryFn: skipToken,
-  } as any
   const builderSearchQuery = useQuery(
     viewerId && debouncedBuilderQuery.trim().length > 0
       ? builderSearchQueryOptions(
           debouncedBuilderQuery,
-          selectedCityIds as never[],
+          selectedCityIds as Array<Id<'cities'>>,
         )
-      : idleBuilderSearchQuery,
+      : disabledQuery(builderSearchQueryOptions('', [])),
   )
 
   const selectedCitiesQuery = useQuery({

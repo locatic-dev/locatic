@@ -14,6 +14,7 @@ import { PageHeader } from '@/components/app-shell/page-header'
 import { relativeTime } from '@/lib/time'
 import { useLikeProject, useUnlikeProject } from '@/features/projects/mutations'
 import { useOpenConversation } from '@/features/inbox/use-open-conversation'
+import { getHomeCardDmTargetUserId } from '@/features/home/project-card-targets'
 import {
   mapPrivateProfile,
   type PrivateProfilePayload,
@@ -88,7 +89,7 @@ function HomePage() {
       <div className="lx-page-scroll">
         <div className="lx-page-width-feed">
           {isLoading && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div className="flex flex-col gap-3.5">
               {[1, 2, 3].map((skeletonId) => (
                 <ProjectCardSkeleton key={skeletonId} />
               ))}
@@ -123,46 +124,28 @@ function HomePage() {
 
           {!isLoading && items.length > 0 && (
             <>
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  justifyContent: 'space-between',
-                  marginBottom: 16,
-                  gap: 12,
-                  flexWrap: 'wrap',
-                }}
-              >
-                <span
-                  style={{
-                    fontFamily: 'var(--lx-font-mono)',
-                    fontSize: 11.5,
-                    color: 'var(--lx-text-3)',
-                    textTransform: 'lowercase',
-                  }}
-                >
+              <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+                <span className="font-mono text-[11.5px] lowercase text-text-faint">
                   {'// from people you follow'}
                 </span>
-                <span
-                  style={{
-                    fontFamily: 'var(--lx-font-mono)',
-                    fontSize: 11,
-                    color: 'var(--lx-text-3)',
-                  }}
-                >
+                <span className="font-mono text-[11px] text-text-faint">
                   {items[0]?.createdAt ? relativeTime(items[0].createdAt) : ''}
                 </span>
               </div>
 
-              <div
-                style={{ display: 'flex', flexDirection: 'column', gap: 14 }}
-              >
+              <div className="flex flex-col gap-3.5">
                 {items.map((item) => {
                   const snapshot = item.projectSnapshot
                   const owner = snapshot.fullName.split('/')[0] ?? ''
                   const repo = snapshot.name
                   const projectId = String(item.projectId)
-                  const actorUserId = String(item.actorId)
+                  const dmTargetUserId = getHomeCardDmTargetUserId({
+                    actorUserId: String(item.actorId),
+                    ownerUserId: String(snapshot.ownerId),
+                    viewerUserId: profile?.viewer.id
+                      ? String(profile.viewer.id)
+                      : null,
+                  })
                   const liked =
                     likedOverrides[projectId] ?? likedProjectIds.has(projectId)
 
@@ -202,12 +185,12 @@ function HomePage() {
                         } as never)
                       }
                       onDM={
-                        profile?.viewer.id !== actorUserId
-                          ? () => void openConversation(actorUserId)
+                        dmTargetUserId
+                          ? () => void openConversation(dmTargetUserId)
                           : undefined
                       }
                       likePending={pendingLikes.has(projectId)}
-                      dmPending={pendingUserId === actorUserId}
+                      dmPending={pendingUserId === dmTargetUserId}
                     />
                   )
                 })}
