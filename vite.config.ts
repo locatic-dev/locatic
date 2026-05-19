@@ -92,23 +92,9 @@ const config = defineConfig({
   environments: {
     client: {
       build: {
-        rolldownOptions: {
-          preserveEntrySignatures: 'allow-extension',
+        rollupOptions: {
           output: {
-            strictExecutionOrder: true,
-            codeSplitting: {
-              includeDependenciesRecursively: false,
-              groups: packageChunkGroups.map((group) => ({
-                name: group.name,
-                priority: group.priority,
-                test: (id: string) => {
-                  const packageName = getPackageName(id)
-                  return packageName
-                    ? matchesPackageGroup(packageName, group.packages)
-                    : false
-                },
-              })),
-            },
+            manualChunks,
           },
         },
       },
