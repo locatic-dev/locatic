@@ -1,12 +1,25 @@
 import { convexQuery } from '@convex-dev/react-query'
 
 import { api } from '../../../convex/_generated/api'
+import type { Id } from '../../../convex/_generated/dataModel'
 
 export const viewerQueryOptions = () =>
   convexQuery(api.users.viewerBootstrap, {})
 
 export const privateProfileQueryOptions = () =>
   convexQuery(api.users.privateProfile, {})
+
+export const viewerSummaryQueryOptions = () =>
+  convexQuery(api.users.viewerSummary, {})
+
+export const viewerLikedProjectIdsQueryOptions = () =>
+  convexQuery(api.users.viewerLikedProjectIds, {})
+
+export const viewerExplorePrefsQueryOptions = () =>
+  convexQuery(api.users.viewerExplorePrefs, {})
+
+export const viewerInboxSummaryQueryOptions = () =>
+  convexQuery(api.users.viewerInboxSummary, {})
 
 export const publicProfileQueryOptions = (username: string) =>
   convexQuery(api.users.publicProfile, { username })
@@ -16,6 +29,14 @@ export const homeFeedQueryOptions = (cursor?: number, limit = 20) =>
 
 export const exploreFeedQueryOptions = (limit = 20) =>
   convexQuery(api.explore.list, { limit })
+
+export const nearbyBuildersQueryOptions = () =>
+  convexQuery(api.explore.listNearbyBuilders, {})
+
+export const builderSearchQueryOptions = (
+  q: string,
+  cityIds: Array<Id<'cities'>> = [],
+) => convexQuery(api.explore.searchBuilders, { q, cityIds })
 
 export const citiesSearchQueryOptions = (query: string, limit = 10) =>
   convexQuery(api.cities.search, { query, limit })
@@ -62,8 +83,9 @@ export const notificationsUnreadCountQueryOptions = () =>
 export const conversationsQueryOptions = () =>
   convexQuery(api.conversations.list, {})
 
-export const conversationDetailQueryOptions = (conversationId: any) =>
-  convexQuery(api.conversations.get, { conversationId })
+export const conversationDetailQueryOptions = (
+  conversationId: Id<'conversations'>,
+) => convexQuery(api.conversations.get, { conversationId })
 
-export const followingQueryOptions = (userId: any) =>
+export const followingQueryOptions = (userId: Id<'users'>) =>
   convexQuery(api.follows.listFollowing, { userId })

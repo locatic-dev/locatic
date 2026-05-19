@@ -101,6 +101,11 @@ export default defineSchema({
       stackPrefs: v.array(v.string()),
     }),
     appearInExplore: v.boolean(),
+    discoverability: v.optional(
+      v.object({
+        searchText: v.optional(v.string()),
+      }),
+    ),
     privacy: v.object({
       profileVisibility: profileVisibilityValidator,
       followGraphVisibility: tabVisibilityValidator,
@@ -119,6 +124,22 @@ export default defineSchema({
       weeklyDigest: v.boolean(),
       contributorRecognized: v.boolean(),
     }),
+    githubContributions: v.optional(
+      v.object({
+        totalContributions: v.number(),
+        weeks: v.array(
+          v.object({
+            days: v.array(
+              v.object({
+                date: v.string(),
+                count: v.number(),
+              }),
+            ),
+          }),
+        ),
+        syncedAt: v.number(),
+      }),
+    ),
     githubLastSyncedAt: optionalTimestampValidator,
     onboardingCompletedAt: optionalTimestampValidator,
     createdAt: v.number(),
@@ -130,7 +151,11 @@ export default defineSchema({
     .index('by_github_id', ['github.id'])
     .index('by_github_username', ['github.username'])
     .index('by_city_id', ['profile.cityId'])
-    .index('by_created_at', ['createdAt']),
+    .index('by_created_at', ['createdAt'])
+    .searchIndex('search_identity', {
+      searchField: 'discoverability.searchText',
+      filterFields: ['appearInExplore', 'deletedAt', 'deactivatedAt'],
+    }),
 
   projects: defineTable({
     ownerId: v.id('users'),

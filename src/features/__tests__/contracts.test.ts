@@ -1,9 +1,14 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  mapConversationList,
+  mapNotifications,
   mapPrivateProfile,
   mapProjectDetail,
   mapPublicProfile,
+  mapViewerInboxSummary,
+  mapViewerLikedProjectIds,
+  mapViewerSummary,
   mapViewer,
 } from '../contracts'
 
@@ -15,6 +20,7 @@ describe('contract mappers', () => {
         appearInExplore: true,
         exploreConfig: { cityIds: [], stackPrefs: [] },
         github: { username: 'octocat' },
+        githubContributions: null,
         notificationPrefs: {
           comments: true,
           commentReplies: true,
@@ -77,6 +83,15 @@ describe('contract mappers', () => {
         appearInExplore: false,
         exploreConfig: { cityIds: [], stackPrefs: ['TypeScript'] },
         github: { username: 'octocat' },
+        githubContributions: {
+          totalContributions: 12,
+          syncedAt: 123,
+          weeks: [
+            {
+              days: [{ count: 2, date: '2026-05-01' }],
+            },
+          ],
+        },
         notificationPrefs: {
           comments: true,
           commentReplies: true,
@@ -162,11 +177,38 @@ describe('contract mappers', () => {
     } as never)
 
     expect(privateProfile?.viewer.cityName).toBe('Bengaluru, India')
+    expect(privateProfile?.viewer.githubContributions?.totalContributions).toBe(
+      12,
+    )
     expect(publicProfile?.viewerFollowsProfile).toBe(true)
     expect(publicProfile?.profile.city).toBe('Berlin, Germany')
   })
 
+  it('maps smaller viewer payloads without collapsing them into private profile', () => {
+    const viewerSummary = mapViewerSummary({
+      viewerId: 'user_1',
+    } as never)
+    const likedProjects = mapViewerLikedProjectIds({
+      likedProjectIds: ['project_1', 'project_2'],
+      viewerId: 'user_1',
+    } as never)
+    const inboxSummary = mapViewerInboxSummary({
+      viewerId: 'user_1',
+    } as never)
+
+    expect(viewerSummary?.id).toBe('user_1')
+    expect(likedProjects?.likedProjectIds).toHaveLength(2)
+    expect(inboxSummary?.viewerId).toBe('user_1')
+  })
+
   it('returns null when project detail is absent', () => {
     expect(mapProjectDetail(null)).toBeNull()
+  })
+
+  it('preserves pending conversation and notification payloads', () => {
+    expect(mapConversationList(undefined)).toBeUndefined()
+    expect(mapNotifications(undefined)).toBeUndefined()
+    expect(mapConversationList([])).toEqual([])
+    expect(mapNotifications([])).toEqual([])
   })
 })

@@ -36,19 +36,17 @@ export function StatusPill({
 
   return (
     <span
-      className={className}
+      className={[
+        'inline-flex max-w-full items-center gap-[5px] rounded-[3px] font-mono leading-none',
+        className,
+      ]
+        .filter(Boolean)
+        .join(' ')}
       style={{
         ...baseStyle,
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 5,
-        borderRadius: 3,
-        fontFamily: 'var(--lx-font-mono)',
         color: textColor,
         background: bg,
         border: `1px solid ${border}`,
-        lineHeight: 1,
-        maxWidth: '100%',
       }}
     >
       <span

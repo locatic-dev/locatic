@@ -47,13 +47,10 @@ export function LxAvatar({
         alt={name}
         width={size}
         height={size}
-        className={className}
+        className={`shrink-0 rounded-full object-cover ${className ?? ''}`}
         style={{
           width: size,
           height: size,
-          borderRadius: '50%',
-          objectFit: 'cover',
-          flexShrink: 0,
         }}
       />
     )
@@ -61,23 +58,13 @@ export function LxAvatar({
 
   return (
     <div
-      className={className}
+      className={`inline-flex shrink-0 select-none items-center justify-center rounded-full font-mono font-semibold tracking-[-0.02em] text-[#e6edf3] ${className ?? ''}`}
       aria-label={name}
       style={{
         width: size,
         height: size,
-        borderRadius: '50%',
         background: bg,
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        color: '#e6edf3',
         fontSize: Math.max(9, size * 0.36),
-        fontWeight: 600,
-        fontFamily: 'var(--lx-font-mono)',
-        flexShrink: 0,
-        letterSpacing: '-0.02em',
-        userSelect: 'none',
       }}
     >
       {initials}

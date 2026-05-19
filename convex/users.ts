@@ -17,6 +17,7 @@ import {
   getViewerOrThrow,
   requireIdentity,
 } from './lib/auth'
+import { buildDiscoverabilitySearchText } from './lib/discoverability'
 import { buildActorSnapshot } from './lib/snapshots'
 import { createDefaultViewerProfile } from './lib/viewer'
 
@@ -35,9 +36,22 @@ function serializeViewer(
     pinnedOwnedProjectIds: viewer.pinnedOwnedProjectIds,
     onboardingCompletedAt: viewer.onboardingCompletedAt,
     appearInExplore: viewer.appearInExplore,
+    githubContributions: viewer.githubContributions ?? null,
     deactivatedAt: viewer.deactivatedAt,
     deletedAt: viewer.deletedAt,
   }
+}
+
+async function getViewerCityName(
+  ctx: QueryCtx,
+  viewer: NonNullable<Awaited<ReturnType<typeof getViewerFromAuth>>>,
+) {
+  if (!viewer.profile.cityId) {
+    return null
+  }
+
+  const city = await ctx.db.get(viewer.profile.cityId)
+  return city?.displayName ?? null
 }
 
 function resolvePublicCityLabel(
@@ -227,6 +241,67 @@ export const privateProfile = query({
   },
 })
 
+export const viewerSummary = query({
+  args: {},
+  handler: async (ctx) => {
+    const viewer = await getViewerOrThrow(ctx)
+
+    return {
+      viewerId: viewer._id,
+    }
+  },
+})
+
+export const viewerLikedProjectIds = query({
+  args: {},
+  handler: async (ctx) => {
+    const viewer = await getViewerOrThrow(ctx)
+    const likedReactions = await ctx.db
+      .query('reactions')
+      .withIndex('by_user_target_type', (query) =>
+        query
+          .eq('userId', viewer._id)
+          .eq('targetType', 'project')
+          .eq('reactionType', 'like'),
+      )
+      .collect()
+
+    return {
+      viewerId: viewer._id,
+      likedProjectIds: likedReactions.flatMap((reaction) => {
+        const projectId = ctx.db.normalizeId('projects', reaction.targetId)
+        return projectId ? [projectId] : []
+      }),
+    }
+  },
+})
+
+export const viewerExplorePrefs = query({
+  args: {},
+  handler: async (ctx) => {
+    const viewer = await getViewerOrThrow(ctx)
+
+    return {
+      viewerId: viewer._id,
+      appearInExplore: viewer.appearInExplore,
+      cityId: viewer.profile.cityId,
+      cityName: await getViewerCityName(ctx, viewer),
+      exploreConfig: viewer.exploreConfig,
+    }
+  },
+})
+
+export const viewerInboxSummary = query({
+  args: {},
+  handler: async (ctx) => {
+    const viewer = await getViewerOrThrow(ctx)
+
+    return {
+      viewerId: viewer._id,
+    }
+  },
+})
+
 export const publicProfile = query({
   args: {
     username: v.string(),
@@ -298,10 +373,18 @@ export const updateProfile = mutation({
       profile: {
         ...viewer.profile,
         displayName: args.displayName,
+        fullName: args.displayName,
         bio: args.bio,
         cityId: args.cityId,
         buildStatus: args.buildStatus,
         socialLinks: args.socialLinks,
+      },
+      discoverability: {
+        searchText: buildDiscoverabilitySearchText(
+          viewer.github.username,
+          args.displayName,
+          args.displayName,
+        ),
       },
       updatedAt: Date.now(),
     })
@@ -438,10 +521,18 @@ export const completeOnboarding = mutation({
       profile: {
         ...viewer.profile,
         displayName: args.displayName,
+        fullName: args.displayName,
         bio: args.bio,
         cityId: args.cityId,
         buildStatus: args.buildStatus,
         socialLinks: args.socialLinks,
+      },
+      discoverability: {
+        searchText: buildDiscoverabilitySearchText(
+          viewer.github.username,
+          args.displayName,
+          args.displayName,
+        ),
       },
       pinnedOwnedProjectIds: args.pinnedOwnedProjectIds,
       exploreConfig: {
@@ -809,6 +900,9 @@ export const scrubDeletedAccount = internalMutation({
           website: null,
         },
       },
+      discoverability: {
+        searchText: '',
+      },
       stats: {
         ...user.stats,
         commentsCount: 0,
@@ -867,6 +961,13 @@ export const upsertFromClerkWebhook = internalMutation({
           ...existingViewer.profile.socialLinks,
           github: args.githubUrl,
         },
+      },
+      discoverability: {
+        searchText: buildDiscoverabilitySearchText(
+          args.githubUsername,
+          args.displayName,
+          args.displayName,
+        ),
       },
       updatedAt: now,
     })
@@ -934,6 +1035,19 @@ export const ensureViewerFromIdentity = internalMutation({
   handler: async (ctx, args) => {
     const existingViewer = await getViewerByClerkId(ctx, args.clerkId)
     if (existingViewer) {
+      const nextSearchText = buildDiscoverabilitySearchText(
+        existingViewer.github.username,
+        existingViewer.profile.displayName,
+        existingViewer.profile.fullName ?? existingViewer.profile.displayName,
+      )
+      if (existingViewer.discoverability?.searchText !== nextSearchText) {
+        await ctx.db.patch(existingViewer._id, {
+          discoverability: {
+            searchText: nextSearchText,
+          },
+          updatedAt: Date.now(),
+        })
+      }
       return existingViewer
     }
 
@@ -959,6 +1073,36 @@ export const ensureViewerFromIdentity = internalMutation({
   },
 })
 
+export const backfillDiscoverability = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const users = await ctx.db.query('users').collect()
+    let updatedCount = 0
+
+    for (const user of users) {
+      const nextSearchText = buildDiscoverabilitySearchText(
+        user.github.username,
+        user.profile.displayName,
+        user.profile.fullName ?? user.profile.displayName,
+      )
+
+      if (user.discoverability?.searchText === nextSearchText) {
+        continue
+      }
+
+      await ctx.db.patch(user._id, {
+        discoverability: {
+          searchText: nextSearchText,
+        },
+        updatedAt: Date.now(),
+      })
+      updatedCount++
+    }
+
+    return { updatedCount }
+  },
+})
+
 export const actorSnapshotById = internalQuery({
   args: {
     userId: v.id('users'),
@@ -979,5 +1123,26 @@ export const userById = internalQuery({
   },
   handler: async (ctx, args) => {
     return await ctx.db.get(args.userId)
+  },
+})
+
+export const patchContributions = internalMutation({
+  args: {
+    userId: v.id('users'),
+    contributions: v.object({
+      totalContributions: v.number(),
+      weeks: v.array(
+        v.object({
+          days: v.array(v.object({ date: v.string(), count: v.number() })),
+        }),
+      ),
+      syncedAt: v.number(),
+    }),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.userId, {
+      githubContributions: args.contributions,
+      updatedAt: Date.now(),
+    })
   },
 })

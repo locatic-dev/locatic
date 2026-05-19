@@ -1,72 +1,61 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { useQuery } from '@tanstack/react-query'
+import { useSuspenseQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import type { Doc } from '../../../convex/_generated/dataModel'
 import { homeFeedQueryOptions } from '@/features/home/queries'
-import { privateProfileQueryOptions } from '@/features/profile/queries'
-import { followingQueryOptions } from '@/features/follows/queries'
-import {
-  ProjectCard,
-  ProjectCardSkeleton,
-  type ProjectCardData,
-} from '@/components/ui/project-card'
+import { viewerLikedProjectIdsQueryOptions } from '@/features/viewer/queries'
+import { ProjectCard, type ProjectCardData } from '@/components/ui/project-card'
 import { EmptyState } from '@/components/ui/empty-state'
 import { PageHeader } from '@/components/app-shell/page-header'
 import { relativeTime } from '@/lib/time'
 import { useLikeProject, useUnlikeProject } from '@/features/projects/mutations'
-import { useFollowUser, useUnfollowUser } from '@/features/follows/mutations'
+import { useOpenConversation } from '@/features/inbox/use-open-conversation'
+import { getHomeCardDmTargetUserId } from '@/features/home/project-card-targets'
 import {
-  mapPrivateProfile,
-  type PrivateProfilePayload,
+  mapViewerLikedProjectIds,
+  type ViewerLikedProjectIdsPayload,
 } from '@/features/contracts'
+import { FeedRoutePending } from '@/components/app-shell/route-pending'
 
 export const Route = createFileRoute('/_app/home')({
+  loader: ({ context }) =>
+    Promise.all([
+      context.queryClient.ensureQueryData(homeFeedQueryOptions()),
+      context.queryClient.ensureQueryData(viewerLikedProjectIdsQueryOptions()),
+    ]),
+  pendingComponent: FeedRoutePending,
+  pendingMs: 250,
   component: HomePage,
 })
 
 function HomePage() {
   const navigate = useNavigate()
-  const feedQuery = useQuery(homeFeedQueryOptions())
-  const profileQuery = useQuery(privateProfileQueryOptions())
-  const profile = mapPrivateProfile(
-    profileQuery.data as PrivateProfilePayload | undefined,
+  const { data: feedData } = useSuspenseQuery(homeFeedQueryOptions())
+  const { data: viewerStateData } = useSuspenseQuery(
+    viewerLikedProjectIdsQueryOptions(),
   )
-  const viewerId = profile?.viewer.id
-  const followingQuery = useQuery({
-    ...followingQueryOptions(viewerId ?? ('missing' as never)),
-    enabled: Boolean(viewerId),
-  })
+  const viewerState = mapViewerLikedProjectIds(
+    viewerStateData as ViewerLikedProjectIdsPayload | undefined,
+  )
 
   const likeProject = useLikeProject()
   const unlikeProject = useUnlikeProject()
-  const followUser = useFollowUser()
-  const unfollowUser = useUnfollowUser()
+  const { openConversation, pendingUserId } = useOpenConversation()
 
   const [pendingLikes, setPendingLikes] = useState<Set<string>>(new Set())
-  const [pendingFollows, setPendingFollows] = useState<Set<string>>(new Set())
   const [likedOverrides, setLikedOverrides] = useState<Record<string, boolean>>(
     {},
   )
-  const [followOverrides, setFollowOverrides] = useState<
-    Record<string, boolean>
-  >({})
 
   const likedProjectIds = new Set(
-    profile?.likedProjects.map((likedProject) =>
-      String(likedProject.projectId),
-    ) ?? [],
+    viewerState?.likedProjectIds.map(String) ?? [],
   )
-  const followedUserIds = new Set(
-    ((followingQuery.data as Array<Doc<'follows'>> | undefined) ?? []).map(
-      (follow) => String(follow.followingId),
-    ),
-  )
-
-  const feedData = feedQuery.data as
-    | { items: Array<Doc<'home_feed_items'>>; nextCursor: number | null }
-    | undefined
-  const items = feedData?.items ?? []
-  const isLoading = feedQuery.isLoading || profileQuery.isLoading
+  const items = (
+    feedData as {
+      items: Array<Doc<'home_feed_items'>>
+      nextCursor: number | null
+    }
+  ).items
 
   const handleLike = async (projectId: string, currentlyLiked: boolean) => {
     if (pendingLikes.has(projectId)) return
@@ -97,81 +86,13 @@ function HomePage() {
     }
   }
 
-  const handleFollow = async (userId: string, currentlyFollowed: boolean) => {
-    if (pendingFollows.has(userId)) return
-    setPendingFollows((current) => new Set(current).add(userId))
-    setFollowOverrides((current) => ({
-      ...current,
-      [userId]: !currentlyFollowed,
-    }))
-
-    try {
-      if (currentlyFollowed) {
-        await unfollowUser({ targetUserId: userId as never })
-      } else {
-        await followUser({ targetUserId: userId as never })
-      }
-    } catch (error) {
-      console.error('Follow failed', error)
-      setFollowOverrides((current) => ({
-        ...current,
-        [userId]: currentlyFollowed,
-      }))
-    } finally {
-      setPendingFollows((current) => {
-        const next = new Set(current)
-        next.delete(userId)
-        return next
-      })
-    }
-  }
-
   return (
     <div className="lx-page-shell">
-      <PageHeader
-        title="home"
-        actions={
-          <button
-            className="lx-touch-target"
-            style={{
-              border: '1px solid var(--lx-border)',
-              background: 'transparent',
-              padding: '6px 12px',
-              borderRadius: 4,
-              color: 'var(--lx-text)',
-              fontFamily: 'var(--lx-font-mono)',
-              fontSize: 11.5,
-              cursor: 'pointer',
-            }}
-            type="button"
-          >
-            + share project
-          </button>
-        }
-      />
+      <PageHeader title="home" />
 
       <div className="lx-page-scroll">
         <div className="lx-page-width-feed">
-          {isLoading && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              {[1, 2, 3].map((skeletonId) => (
-                <ProjectCardSkeleton key={skeletonId} />
-              ))}
-            </div>
-          )}
-
-          {feedQuery.isError && (
-            <EmptyState
-              title="could not load your feed"
-              description="something went wrong fetching your feed. try again."
-              action={{
-                label: 'retry',
-                onClick: () => void feedQuery.refetch(),
-              }}
-            />
-          )}
-
-          {!isLoading && !feedQuery.isError && items.length === 0 && (
+          {items.length === 0 && (
             <EmptyState
               title="you're not following anyone yet."
               description="your feed shows projects from people you follow. start with explore to find builders nearby."
@@ -186,52 +107,32 @@ function HomePage() {
             />
           )}
 
-          {!isLoading && items.length > 0 && (
+          {items.length > 0 && (
             <>
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  justifyContent: 'space-between',
-                  marginBottom: 16,
-                  gap: 12,
-                  flexWrap: 'wrap',
-                }}
-              >
-                <span
-                  style={{
-                    fontFamily: 'var(--lx-font-mono)',
-                    fontSize: 11.5,
-                    color: 'var(--lx-text-3)',
-                    textTransform: 'lowercase',
-                  }}
-                >
+              <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+                <span className="font-mono text-[11.5px] lowercase text-text-faint">
                   {'// from people you follow'}
                 </span>
-                <span
-                  style={{
-                    fontFamily: 'var(--lx-font-mono)',
-                    fontSize: 11,
-                    color: 'var(--lx-text-3)',
-                  }}
-                >
+                <span className="font-mono text-[11px] text-text-faint">
                   {items[0]?.createdAt ? relativeTime(items[0].createdAt) : ''}
                 </span>
               </div>
 
-              <div
-                style={{ display: 'flex', flexDirection: 'column', gap: 14 }}
-              >
+              <div className="flex flex-col gap-3.5">
                 {items.map((item) => {
                   const snapshot = item.projectSnapshot
-                  const actorId = String(item.actorId)
                   const owner = snapshot.fullName.split('/')[0] ?? ''
                   const repo = snapshot.name
                   const projectId = String(item.projectId)
+                  const dmTargetUserId = getHomeCardDmTargetUserId({
+                    actorUserId: String(item.actorId),
+                    ownerUserId: String(snapshot.ownerId),
+                    viewerUserId: viewerState?.viewerId
+                      ? String(viewerState.viewerId)
+                      : null,
+                  })
                   const liked =
                     likedOverrides[projectId] ?? likedProjectIds.has(projectId)
-                  const followed =
-                    followOverrides[actorId] ?? followedUserIds.has(actorId)
 
                   const cardData: ProjectCardData = {
                     id: projectId,
@@ -249,7 +150,6 @@ function HomePage() {
                     authorAvatarUrl: snapshot.ownerAvatarUrl,
                     city: snapshot.cityName,
                     liked,
-                    followed,
                   }
 
                   return (
@@ -257,15 +157,25 @@ function HomePage() {
                       key={String(item._id)}
                       project={cardData}
                       onLike={() => void handleLike(projectId, liked)}
-                      onFollow={() => void handleFollow(actorId, followed)}
+                      onAuthorClick={() =>
+                        void navigate({
+                          to: '/u/$username',
+                          params: { username: owner } as never,
+                        } as never)
+                      }
                       onCardClick={() =>
                         void navigate({
                           to: '/project/$owner/$repo',
                           params: { owner, repo } as never,
                         } as never)
                       }
+                      onDM={
+                        dmTargetUserId
+                          ? () => void openConversation(dmTargetUserId)
+                          : undefined
+                      }
                       likePending={pendingLikes.has(projectId)}
-                      followPending={pendingFollows.has(actorId)}
+                      dmPending={pendingUserId === dmTargetUserId}
                     />
                   )
                 })}

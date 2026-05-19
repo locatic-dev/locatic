@@ -1,1 +1,5 @@
-export { exploreFeedQueryOptions } from '@/integrations/convex/query-options'
+export {
+  exploreFeedQueryOptions,
+  nearbyBuildersQueryOptions,
+  builderSearchQueryOptions,
+} from '@/integrations/convex/query-options'

@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate, useSearch } from '@tanstack/react-router'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import type { Doc } from '../../../convex/_generated/dataModel'
 import { privateProfileQueryOptions } from '@/features/profile/queries'
@@ -19,6 +19,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 import { BrandIcon } from '@/components/ui/brand-icon'
+import { FormRoutePending } from '@/components/app-shell/route-pending'
 import { CheckCircle2 } from '@/lib/icons'
 import {
   BUILD_STATUS,
@@ -48,6 +49,10 @@ export const Route = createFileRoute('/_app/settings')({
       | 'connected'
       | 'danger',
   }),
+  loader: ({ context }) =>
+    context.queryClient.ensureQueryData(privateProfileQueryOptions()),
+  pendingComponent: FormRoutePending,
+  pendingMs: 250,
   component: SettingsPage,
 })
 
@@ -69,10 +74,11 @@ const settingsRowClassName =
 function SettingsPage() {
   const { tab } = useSearch({ from: '/_app/settings' })
   const navigate = useNavigate()
-  const profileQuery = useQuery(privateProfileQueryOptions())
-  const profile = mapPrivateProfile(
-    profileQuery.data as PrivateProfilePayload | undefined,
-  )
+  const { data } = useSuspenseQuery(privateProfileQueryOptions())
+  const profile = mapPrivateProfile(data as PrivateProfilePayload | undefined)
+  if (!profile) {
+    throw new Error('Settings data was not available')
+  }
 
   const [citySearch, setCitySearch] = useState('')
   const popularCitiesQuery = useQuery(popularCitiesQueryOptions())
@@ -100,8 +106,6 @@ function SettingsPage() {
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    if (!profile) return
-
     setDisplayName(profile.viewer.displayName)
     setBio(profile.viewer.bio)
     setBuildStatus(profile.viewer.buildStatus)
@@ -114,10 +118,6 @@ function SettingsPage() {
     setBluesky(profile.viewer.socialLinks.bluesky ?? '')
     setWebsite(profile.viewer.socialLinks.website ?? '')
   }, [profile])
-
-  if (!profile) {
-    return <div className="p-8 text-text-faint">loading…</div>
-  }
 
   const cityResults =
     citySearch.trim().length > 0
@@ -153,14 +153,11 @@ function SettingsPage() {
 
   return (
     <div className="lx-page-shell">
-      <div className="flex min-h-14 shrink-0 items-center border-b border-line px-[var(--lx-gutter)]">
-        <h1 className="m-0 font-mono text-sm font-semibold text-text">
+      <div className="shrink-0 border-b border-line px-(--lx-gutter) pt-5">
+        <h1 className="mb-4 font-mono text-sm font-semibold text-text">
           settings
         </h1>
-      </div>
-
-      <div className="flex min-h-0 flex-1 flex-col">
-        <nav className="lx-inline-tabs lg:block" style={{ width: '100%' }}>
+        <nav className="flex gap-1 overflow-x-auto">
           {TABS.map((tabItem) => (
             <button
               key={tabItem.id}
@@ -170,10 +167,10 @@ function SettingsPage() {
                   search: { tab: tabItem.id } as never,
                 } as never)
               }
-              className={`min-h-11 w-full rounded-full px-3.5 py-2.5 text-left font-mono text-[12.5px] whitespace-nowrap ${
+              className={`mb-px whitespace-nowrap border-b-2 px-1 pb-2.5 font-mono text-[12px] transition-colors ${
                 tab === tabItem.id
-                  ? 'bg-surface-alt font-semibold text-text'
-                  : 'text-text-muted'
+                  ? 'border-text font-semibold text-text'
+                  : 'border-transparent text-text-muted hover:text-text'
               }`}
               type="button"
             >
@@ -181,17 +178,13 @@ function SettingsPage() {
             </button>
           ))}
         </nav>
+      </div>
 
-        <div className="lx-page-scroll" style={{ flex: 1 }}>
+      <div className="flex min-h-0 flex-1 flex-col">
+        <div className="lx-page-scroll flex-1">
           <div className="lx-page-width-form">
             {tab === 'account' && (
-              <div
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 28,
-                }}
-              >
+              <div className="flex flex-col gap-7">
                 <div>
                   <div className={sectionTitleClassName}>profile</div>
                   <div className="flex flex-col gap-4">
@@ -239,8 +232,8 @@ function SettingsPage() {
                               onClick={() => setBuildStatus(statusId)}
                               className={`rounded border px-3.5 py-3 text-left ${
                                 selected
-                                  ? 'border-[var(--lx-accent)] bg-[var(--lx-accent-quiet)]'
-                                  : 'border-[var(--lx-border)] bg-[var(--lx-surface)]'
+                                  ? 'border-brand bg-brand-quiet'
+                                  : 'border-line bg-surface'
                               }`}
                               type="button"
                             >
@@ -334,14 +327,9 @@ function SettingsPage() {
                     <Button
                       onClick={() => void handleSaveAccount()}
                       disabled={saving || !displayName.trim()}
-                      style={{
-                        background: 'var(--lx-accent)',
-                        color: '#0d1117',
-                        border: 'none',
-                        fontFamily: 'var(--lx-font-mono)',
-                        fontSize: 12.5,
-                        fontWeight: 600,
-                      }}
+                      variant="brand"
+                      size="meta"
+                      className="font-mono"
                     >
                       {saving ? 'saving…' : 'save changes'}
                     </Button>
@@ -356,7 +344,7 @@ function SettingsPage() {
             )}
 
             {tab === 'privacy' && (
-              <div className="flex max-w-[560px] flex-col gap-7">
+              <div className="flex max-w-140 flex-col gap-7">
                 <div>
                   <div className={sectionTitleClassName}>visibility</div>
                   {[
@@ -429,7 +417,7 @@ function SettingsPage() {
             )}
 
             {tab === 'notifications' && (
-              <div className="max-w-[560px]">
+              <div className="max-w-140">
                 <div className={sectionTitleClassName}>
                   notification preferences
                 </div>
@@ -474,9 +462,9 @@ function SettingsPage() {
             )}
 
             {tab === 'connected' && (
-              <div className="flex max-w-[560px] flex-col gap-4">
+              <div className="flex max-w-140 flex-col gap-4">
                 <div className={sectionTitleClassName}>connected accounts</div>
-                <div className="flex items-center justify-between rounded-card border border-line bg-surface px-[18px] py-4 shadow-card">
+                <div className="flex items-center justify-between rounded-card border border-line bg-surface px-4.5 py-4 shadow-card">
                   <div className="flex items-center gap-3">
                     <BrandIcon name="github" size={18} />
                     <div>
@@ -496,47 +484,18 @@ function SettingsPage() {
             )}
 
             {tab === 'danger' && (
-              <div
-                style={{
-                  maxWidth: 560,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 20,
-                }}
-              >
-                <div
-                  style={{
-                    padding: '20px',
-                    border: '1px solid var(--lx-border)',
-                    borderRadius: 6,
-                    background: 'var(--lx-surface)',
-                  }}
-                >
-                  <div
-                    style={{
-                      fontFamily: 'var(--lx-font-mono)',
-                      fontSize: 13,
-                      fontWeight: 600,
-                      color: 'var(--lx-text)',
-                      marginBottom: 8,
-                    }}
-                  >
+              <div className="flex max-w-140 flex-col gap-5">
+                <div className="rounded-[6px] border border-line bg-surface p-5">
+                  <div className="mb-2 font-mono text-[13px] font-semibold text-text">
                     deactivate account
                   </div>
-                  <p
-                    style={{
-                      margin: '0 0 14px',
-                      fontFamily: 'var(--lx-font-sans)',
-                      fontSize: 13,
-                      color: 'var(--lx-text-2)',
-                      lineHeight: 1.5,
-                    }}
-                  >
+                  <p className="mb-3.5 mt-0 font-sans text-[13px] leading-normal text-text-muted">
                     hides your profile from Explore and public surfaces until
                     you reactivate.
                   </p>
                   <Button
-                    variant="outline"
+                    variant="monoOutline"
+                    size="meta"
                     onClick={async () => {
                       if (
                         window.confirm(
@@ -550,49 +509,23 @@ function SettingsPage() {
                         }
                       }
                     }}
-                    style={{
-                      fontFamily: 'var(--lx-font-mono)',
-                      fontSize: 12.5,
-                      borderColor: 'var(--lx-border-strong)',
-                      color: 'var(--lx-text-2)',
-                    }}
+                    className="font-mono"
                   >
                     deactivate account
                   </Button>
                 </div>
 
-                <div
-                  style={{
-                    padding: '20px',
-                    border: '1px solid oklch(62% 0.22 25 / 0.4)',
-                    borderRadius: 6,
-                    background: 'oklch(62% 0.22 25 / 0.04)',
-                  }}
-                >
-                  <div
-                    style={{
-                      fontFamily: 'var(--lx-font-mono)',
-                      fontSize: 13,
-                      fontWeight: 600,
-                      color: 'var(--lx-danger)',
-                      marginBottom: 8,
-                    }}
-                  >
+                <div className="rounded-[6px] border border-danger/40 bg-danger/4 p-5">
+                  <div className="mb-2 font-mono text-[13px] font-semibold text-danger">
                     delete account
                   </div>
-                  <p
-                    style={{
-                      margin: '0 0 14px',
-                      fontFamily: 'var(--lx-font-sans)',
-                      fontSize: 13,
-                      color: 'var(--lx-text-2)',
-                      lineHeight: 1.5,
-                    }}
-                  >
+                  <p className="mb-3.5 mt-0 font-sans text-[13px] leading-normal text-text-muted">
                     permanently removes all your Locatic data and unstars all
                     repos starred via Locatic. this cannot be undone.
                   </p>
                   <Button
+                    variant="destructive"
+                    size="meta"
                     onClick={async () => {
                       const confirmed = window.prompt(
                         'Type DELETE to confirm permanent account deletion:',
@@ -605,14 +538,7 @@ function SettingsPage() {
                         }
                       }
                     }}
-                    style={{
-                      background: 'var(--lx-danger)',
-                      color: 'oklch(93% 0.005 230)',
-                      border: 'none',
-                      fontFamily: 'var(--lx-font-mono)',
-                      fontSize: 12.5,
-                      fontWeight: 600,
-                    }}
+                    className="font-mono"
                   >
                     delete account permanently
                   </Button>
@@ -622,23 +548,6 @@ function SettingsPage() {
           </div>
         </div>
       </div>
-      <style>{`
-        @media (min-width: 1024px) {
-          .lg\\:block {
-            width: 220px !important;
-            border-bottom: none !important;
-            border-right: 1px solid var(--lx-border);
-            padding: 16px 0 !important;
-            overflow: visible !important;
-          }
-        }
-
-        @media (min-width: 640px) {
-          div[style*='grid-template-columns: minmax(0, 1fr);'] {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-          }
-        }
-      `}</style>
     </div>
   )
 }

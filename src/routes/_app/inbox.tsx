@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate, useSearch } from '@tanstack/react-router'
-import { useQuery } from '@tanstack/react-query'
+import { useSuspenseQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
+import type { Id } from '../../../convex/_generated/dataModel'
 import {
   conversationDetailQueryOptions,
   conversationsQueryOptions,
@@ -9,7 +10,6 @@ import {
   useMarkConversationRead,
   useSendMessage,
 } from '@/features/inbox/mutations'
-import { privateProfileQueryOptions } from '@/features/profile/queries'
 import { LxAvatar } from '@/components/ui/lx-avatar'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -18,11 +18,13 @@ import { Inbox } from '@/lib/icons'
 import {
   mapConversationDetail,
   mapConversationList,
-  mapPrivateProfile,
+  mapViewerInboxSummary,
   type ConversationDetailPayload,
   type EnrichedConversation,
-  type PrivateProfilePayload,
+  type ViewerInboxSummaryPayload,
 } from '@/features/contracts'
+import { viewerInboxSummaryQueryOptions } from '@/features/viewer/queries'
+import { InboxRoutePending } from '@/components/app-shell/route-pending'
 
 export const Route = createFileRoute('/_app/inbox')({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -31,32 +33,44 @@ export const Route = createFileRoute('/_app/inbox')({
       | 'requests',
     conversation: (search.conversation as string) ?? null,
   }),
+  loaderDeps: ({ search }) => ({
+    conversationId: search.conversation,
+  }),
+  loader: async ({ context, deps }) => {
+    await Promise.all([
+      context.queryClient.ensureQueryData(conversationsQueryOptions()),
+      context.queryClient.ensureQueryData(viewerInboxSummaryQueryOptions()),
+    ])
+
+    if (deps.conversationId) {
+      await context.queryClient.ensureQueryData(
+        conversationDetailQueryOptions(
+          deps.conversationId as Id<'conversations'>,
+        ),
+      )
+    }
+  },
+  pendingComponent: InboxRoutePending,
+  pendingMs: 250,
   component: InboxPage,
 })
 
 function InboxPage() {
   const { tab, conversation: selectedId } = useSearch({ from: '/_app/inbox' })
   const navigate = useNavigate()
-  const profileQuery = useQuery(privateProfileQueryOptions())
-  const profile = mapPrivateProfile(
-    profileQuery.data as PrivateProfilePayload | undefined,
+  const { data: viewerData } = useSuspenseQuery(
+    viewerInboxSummaryQueryOptions(),
   )
-  const viewerId = profile?.viewer.id
-
-  const convsQuery = useQuery(conversationsQueryOptions())
-  const detailQuery = useQuery({
-    ...conversationDetailQueryOptions(selectedId as never),
-    enabled: Boolean(selectedId),
-  })
-  const sendMessage = useSendMessage()
-  const markConversationRead = useMarkConversationRead()
-
-  const [newMessage, setNewMessage] = useState('')
-  const [sending, setSending] = useState(false)
-
-  const allConversations = mapConversationList(
-    convsQuery.data as Array<EnrichedConversation> | undefined,
+  const { data: conversationsData } = useSuspenseQuery(
+    conversationsQueryOptions(),
   )
+
+  const viewer = mapViewerInboxSummary(
+    viewerData as ViewerInboxSummaryPayload | undefined,
+  )
+  const viewerId = viewer?.viewerId ? String(viewer.viewerId) : null
+  const allConversations =
+    mapConversationList(conversationsData as Array<EnrichedConversation>) ?? []
   const conversations = allConversations.filter((conversation) =>
     tab === 'requests' ? conversation.isRequest : !conversation.isRequest,
   )
@@ -64,38 +78,18 @@ function InboxPage() {
     conversations.find(
       (conversation) => String(conversation._id) === selectedId,
     ) ?? null
-  const conversationDetail = mapConversationDetail(
-    detailQuery.data as ConversationDetailPayload | undefined,
-  )
-  const messages = conversationDetail?.messages ?? []
+  const markConversationRead = useMarkConversationRead()
 
   useEffect(() => {
     if (!selectedConversation || !viewerId) return
 
-    const unreadCount = selectedConversation.unreadCounts[String(viewerId)] ?? 0
+    const unreadCount = selectedConversation.unreadCounts[viewerId] ?? 0
     if (unreadCount <= 0) return
 
     void markConversationRead({
       conversationId: selectedConversation._id,
     })
   }, [markConversationRead, selectedConversation, viewerId])
-
-  const handleSend = async () => {
-    if (!newMessage.trim() || sending || !selectedConversation) return
-
-    setSending(true)
-    try {
-      await sendMessage({
-        conversationId: selectedConversation._id,
-        content: newMessage.trim(),
-      })
-      setNewMessage('')
-    } catch (error) {
-      console.error('Send failed', error)
-    } finally {
-      setSending(false)
-    }
-  }
 
   const tabItems = [
     {
@@ -113,39 +107,14 @@ function InboxPage() {
   ] as const
 
   return (
-    <div className="lx-page-shell">
-      <div
-        style={{ borderBottom: '1px solid var(--lx-border)', flexShrink: 0 }}
-      >
-        <div
-          style={{
-            minHeight: 56,
-            padding: '0 var(--lx-gutter)',
-            display: 'flex',
-            alignItems: 'center',
-          }}
-        >
-          <h1
-            style={{
-              margin: 0,
-              fontFamily: 'var(--lx-font-mono)',
-              fontSize: 14,
-              fontWeight: 600,
-              color: 'var(--lx-text)',
-            }}
-          >
+    <div className="lx-page-shell min-h-0 overflow-hidden">
+      <div className="shrink-0 border-b border-line">
+        <div className="flex min-h-14 items-center px-[var(--lx-gutter)]">
+          <h1 className="m-0 font-mono text-sm font-semibold text-text">
             inbox
           </h1>
         </div>
-        <div
-          className="lx-inline-tabs"
-          style={{
-            padding: '0 var(--lx-gutter)',
-            display: 'flex',
-            gap: 0,
-            overflowX: 'auto',
-          }}
-        >
+        <div className="lx-inline-tabs gap-0 px-[var(--lx-gutter)]">
           {tabItems.map((tabItem) => (
             <button
               key={tabItem.id}
@@ -155,87 +124,42 @@ function InboxPage() {
                   search: { tab: tabItem.id } as never,
                 } as never)
               }
-              style={{
-                padding: '10px 16px',
-                position: 'relative',
-                cursor: 'pointer',
-                fontFamily: 'var(--lx-font-mono)',
-                fontSize: 12,
-                color:
-                  tab === tabItem.id ? 'var(--lx-text)' : 'var(--lx-text-3)',
-                fontWeight: tab === tabItem.id ? 600 : 400,
-                background: 'none',
-                border: 'none',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 7,
-              }}
+              className={`relative inline-flex items-center gap-[7px] px-4 py-2.5 font-mono text-[12px] transition-colors ${
+                tab === tabItem.id
+                  ? 'font-semibold text-text'
+                  : 'text-text-faint'
+              }`}
               type="button"
             >
               {tabItem.label}
               {tabItem.count > 0 && (
-                <span
-                  style={{
-                    fontSize: 10,
-                    padding: '1px 5px',
-                    borderRadius: 8,
-                    background: 'var(--lx-surface-alt)',
-                    color: 'var(--lx-text-3)',
-                    lineHeight: 1.3,
-                  }}
-                >
+                <span className="rounded-pill bg-surface-alt px-[5px] py-px font-mono text-[10px] leading-[1.3] text-text-faint">
                   {tabItem.count}
                 </span>
               )}
               {tab === tabItem.id && (
-                <div
-                  style={{
-                    position: 'absolute',
-                    bottom: -1,
-                    left: 8,
-                    right: 8,
-                    height: 2,
-                    background: 'var(--lx-accent)',
-                  }}
-                />
+                <div className="absolute right-2 -bottom-px left-2 h-0.5 bg-brand" />
               )}
             </button>
           ))}
         </div>
       </div>
 
-      <div
-        style={{
-          flex: 1,
-          display: 'flex',
-          flexDirection: 'column',
-          minHeight: 0,
-        }}
-      >
+      <div className="flex min-h-0 flex-1 flex-col">
         <div
-          style={{
-            width: '100%',
-            borderBottom: selectedConversation
-              ? 'none'
-              : '1px solid var(--lx-border)',
-            display: 'flex',
-            flexDirection: 'column',
-            flexShrink: 0,
-            minHeight: 0,
-            ...(selectedConversation ? { display: 'none' } : null),
-          }}
+          className={
+            selectedConversation
+              ? 'hidden'
+              : 'flex min-h-0 w-full shrink-0 flex-col border-b border-line'
+          }
         >
-          <div style={{ flex: 1, overflowY: 'auto' }}>
+          <div
+            className={
+              conversations.length > 0 ? 'flex-1 overflow-y-auto' : undefined
+            }
+          >
             {conversations.length === 0 && (
-              <div
-                style={{
-                  padding: '32px 20px',
-                  textAlign: 'center',
-                  fontFamily: 'var(--lx-font-mono)',
-                  fontSize: 12,
-                  color: 'var(--lx-text-3)',
-                }}
-              >
+              <div className="px-5 py-8 text-center font-mono text-xs text-text-faint">
                 {tab === 'requests'
                   ? 'no message requests.'
                   : 'no conversations yet.'}
@@ -244,8 +168,8 @@ function InboxPage() {
 
             {conversations.map((conversation) => {
               const unreadCount =
-                viewerId && conversation.unreadCounts[String(viewerId)]
-                  ? conversation.unreadCounts[String(viewerId)]
+                viewerId && conversation.unreadCounts[viewerId]
+                  ? conversation.unreadCounts[viewerId]
                   : 0
               const isSelected = selectedId === String(conversation._id)
 
@@ -261,20 +185,11 @@ function InboxPage() {
                       } as never,
                     } as never)
                   }
-                  style={{
-                    width: '100%',
-                    padding: '14px 20px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 12,
-                    background: isSelected
-                      ? 'var(--lx-surface-alt)'
-                      : 'transparent',
-                    border: 'none',
-                    borderBottom: '1px solid var(--lx-border)',
-                    cursor: 'pointer',
-                    textAlign: 'left',
-                  }}
+                  className={`flex w-full items-center gap-3 border-b border-line px-5 py-3.5 text-left transition-colors ${
+                    isSelected
+                      ? 'bg-surface-alt'
+                      : 'bg-transparent hover:bg-surface-alt'
+                  }`}
                   type="button"
                 >
                   <LxAvatar
@@ -286,81 +201,26 @@ function InboxPage() {
                     avatarUrl={conversation.otherUser?.avatarUrl ?? undefined}
                     size={36}
                   />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        marginBottom: 4,
-                        gap: 8,
-                        flexWrap: 'wrap',
-                      }}
-                    >
-                      <span
-                        style={{
-                          fontFamily: 'var(--lx-font-mono)',
-                          fontSize: 12.5,
-                          fontWeight: 600,
-                          color: 'var(--lx-text)',
-                          overflowWrap: 'anywhere',
-                        }}
-                      >
+                  <div className="min-w-0 flex-1">
+                    <div className="mb-1 flex flex-wrap justify-between gap-2">
+                      <span className="font-mono text-[12.5px] font-semibold text-text [overflow-wrap:anywhere]">
                         {conversation.otherUser?.displayName ??
                           conversation.otherUser?.githubUsername ??
                           'Unknown user'}
                       </span>
-                      <span
-                        style={{
-                          fontFamily: 'var(--lx-font-mono)',
-                          fontSize: 10.5,
-                          color: 'var(--lx-text-3)',
-                          flexShrink: 0,
-                          marginLeft: 8,
-                        }}
-                      >
+                      <span className="ml-2 shrink-0 font-mono text-[10.5px] text-text-faint">
                         {relativeTime(conversation.lastMessage.sentAt)}
                       </span>
                     </div>
-                    <div
-                      style={{
-                        fontFamily: 'var(--lx-font-sans)',
-                        fontSize: 12,
-                        color: 'var(--lx-text-2)',
-                        overflowWrap: 'anywhere',
-                      }}
-                    >
+                    <div className="font-sans text-xs text-text-muted [overflow-wrap:anywhere]">
                       {conversation.lastMessage.content}
                     </div>
-                    <div
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        marginTop: 6,
-                        gap: 8,
-                      }}
-                    >
-                      <span
-                        style={{
-                          fontFamily: 'var(--lx-font-mono)',
-                          fontSize: 10.5,
-                          color: 'var(--lx-text-3)',
-                        }}
-                      >
+                    <div className="mt-1.5 flex items-center justify-between gap-2">
+                      <span className="font-mono text-[10.5px] text-text-faint">
                         {conversation.otherUser?.cityName ?? 'location hidden'}
                       </span>
                       {unreadCount > 0 && (
-                        <span
-                          style={{
-                            fontFamily: 'var(--lx-font-mono)',
-                            fontSize: 10,
-                            padding: '1px 6px',
-                            borderRadius: 999,
-                            background: 'var(--lx-accent)',
-                            color: '#0d1117',
-                            lineHeight: 1.4,
-                          }}
-                        >
+                        <span className="rounded-pill bg-brand px-1.5 py-px font-mono text-[10px] leading-[1.4] text-brand-foreground">
                           {unreadCount}
                         </span>
                       )}
@@ -372,205 +232,157 @@ function InboxPage() {
           </div>
         </div>
 
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+        <div className="flex flex-1 flex-col">
           {!selectedConversation && (
-            <div
-              style={{
-                flex: 1,
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 14,
-                color: 'var(--lx-text-3)',
-              }}
-            >
+            <div className="flex flex-1 flex-col items-center justify-center gap-3.5 text-text-faint">
               <Inbox size={36} strokeWidth={1.2} />
-              <span style={{ fontFamily: 'var(--lx-font-mono)', fontSize: 12 }}>
+              <span className="font-mono text-xs">
                 select a conversation to read messages.
               </span>
             </div>
           )}
 
-          {selectedConversation && (
-            <>
-              <div
-                style={{
-                  minHeight: 56,
-                  padding: '0 var(--lx-gutter)',
-                  borderBottom: '1px solid var(--lx-border)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 12,
-                  flexShrink: 0,
-                }}
-              >
-                <Button
-                  variant="ghost"
-                  onClick={() =>
-                    void navigate({
-                      to: '/inbox',
-                      search: { tab, conversation: null } as never,
-                    } as never)
-                  }
-                  className="md:hidden"
-                  style={{ fontFamily: 'var(--lx-font-mono)', fontSize: 12 }}
-                >
-                  back
-                </Button>
-                <LxAvatar
-                  name={
-                    selectedConversation.otherUser?.displayName ??
-                    selectedConversation.otherUser?.githubUsername ??
-                    'user'
-                  }
-                  avatarUrl={
-                    selectedConversation.otherUser?.avatarUrl ?? undefined
-                  }
-                  size={32}
-                />
-                <div>
-                  <div
-                    style={{
-                      fontFamily: 'var(--lx-font-mono)',
-                      fontSize: 12.5,
-                      color: 'var(--lx-text)',
-                      fontWeight: 600,
-                    }}
-                  >
-                    {selectedConversation.otherUser?.displayName ??
-                      selectedConversation.otherUser?.githubUsername ??
-                      'Unknown user'}
-                  </div>
-                  <div
-                    style={{
-                      fontFamily: 'var(--lx-font-mono)',
-                      fontSize: 10.5,
-                      color: 'var(--lx-text-3)',
-                    }}
-                  >
-                    {selectedConversation.otherUser?.cityName ??
-                      'location hidden'}
-                  </div>
-                </div>
-              </div>
-
-              <div
-                style={{
-                  flex: 1,
-                  overflowY: 'auto',
-                  padding: '24px var(--lx-gutter) 32px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 12,
-                }}
-              >
-                {messages.map((message) => {
-                  const isMe = viewerId === message.senderId
-                  return (
-                    <div
-                      key={String(message._id)}
-                      style={{
-                        display: 'flex',
-                        justifyContent: isMe ? 'flex-end' : 'flex-start',
-                      }}
-                    >
-                      <div
-                        style={{
-                          maxWidth: 'min(100%, 36rem)',
-                          padding: '10px 12px',
-                          borderRadius: 8,
-                          background: isMe
-                            ? 'var(--lx-accent)'
-                            : 'var(--lx-surface)',
-                          color: isMe ? '#0d1117' : 'var(--lx-text)',
-                          border: isMe ? 'none' : '1px solid var(--lx-border)',
-                        }}
-                      >
-                        <div
-                          style={{
-                            fontFamily: 'var(--lx-font-sans)',
-                            fontSize: 13.5,
-                            lineHeight: 1.5,
-                            whiteSpace: 'pre-wrap',
-                          }}
-                        >
-                          {message.content}
-                        </div>
-                        <div
-                          style={{
-                            marginTop: 6,
-                            fontFamily: 'var(--lx-font-mono)',
-                            fontSize: 10.5,
-                            color: isMe ? '#0d1117' : 'var(--lx-text-3)',
-                            opacity: isMe ? 0.8 : 1,
-                          }}
-                        >
-                          {relativeTime(message.createdAt)}
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-
-              <div
-                style={{
-                  padding: '16px var(--lx-gutter) 20px',
-                  borderTop: '1px solid var(--lx-border)',
-                  display: 'flex',
-                  gap: 12,
-                  alignItems: 'flex-end',
-                  flexShrink: 0,
-                  flexWrap: 'wrap',
-                }}
-              >
-                <Textarea
-                  value={newMessage}
-                  onChange={(event) => setNewMessage(event.target.value)}
-                  placeholder="write a message…"
-                  rows={2}
-                  style={{
-                    resize: 'none',
-                    background: 'var(--lx-surface)',
-                    borderColor: 'var(--lx-border)',
-                    color: 'var(--lx-text)',
-                    fontFamily: 'var(--lx-font-sans)',
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' && !event.shiftKey) {
-                      event.preventDefault()
-                      void handleSend()
-                    }
-                  }}
-                />
-                <Button
-                  onClick={() => void handleSend()}
-                  disabled={!newMessage.trim() || sending}
-                  className="min-h-11"
-                  style={{
-                    background: 'var(--lx-accent)',
-                    color: '#0d1117',
-                    border: 'none',
-                    fontFamily: 'var(--lx-font-mono)',
-                    fontSize: 12.5,
-                    fontWeight: 600,
-                  }}
-                >
-                  {sending ? 'sending…' : 'send'}
-                </Button>
-              </div>
-            </>
+          {selectedConversation && viewerId && (
+            <SelectedConversationPanel
+              tab={tab}
+              selectedConversation={selectedConversation}
+              viewerId={viewerId}
+            />
           )}
         </div>
       </div>
-      <style>{`
-        @media (min-width: 768px) {
-          .md\\:hidden {
-            display: none;
-          }
-        }
-      `}</style>
     </div>
+  )
+}
+
+function SelectedConversationPanel({
+  tab,
+  selectedConversation,
+  viewerId,
+}: {
+  tab: 'inbox' | 'requests'
+  selectedConversation: EnrichedConversation
+  viewerId: string
+}) {
+  const navigate = useNavigate()
+  const { data } = useSuspenseQuery(
+    conversationDetailQueryOptions(selectedConversation._id),
+  )
+  const conversationDetail = mapConversationDetail(
+    data as ConversationDetailPayload | undefined,
+  )
+  const sendMessage = useSendMessage()
+  const [newMessage, setNewMessage] = useState('')
+  const [sending, setSending] = useState(false)
+
+  const messages = conversationDetail?.messages ?? []
+
+  const handleSend = async () => {
+    if (!newMessage.trim() || sending) return
+
+    setSending(true)
+    try {
+      await sendMessage({
+        conversationId: selectedConversation._id,
+        content: newMessage.trim(),
+      })
+      setNewMessage('')
+    } catch (error) {
+      console.error('Send failed', error)
+    } finally {
+      setSending(false)
+    }
+  }
+
+  return (
+    <>
+      <div className="flex min-h-14 shrink-0 items-center gap-3 border-b border-line px-[var(--lx-gutter)]">
+        <Button
+          variant="ghost"
+          onClick={() =>
+            void navigate({
+              to: '/inbox',
+              search: { tab, conversation: null } as never,
+            } as never)
+          }
+          className="md:hidden"
+        >
+          back
+        </Button>
+        <LxAvatar
+          name={
+            selectedConversation.otherUser?.displayName ??
+            selectedConversation.otherUser?.githubUsername ??
+            'user'
+          }
+          avatarUrl={selectedConversation.otherUser?.avatarUrl ?? undefined}
+          size={32}
+        />
+        <div className="min-w-0">
+          <div className="font-mono text-[12.5px] font-semibold text-text">
+            {selectedConversation.otherUser?.displayName ??
+              selectedConversation.otherUser?.githubUsername ??
+              'Unknown user'}
+          </div>
+          <div className="font-mono text-[10.5px] text-text-faint">
+            {selectedConversation.otherUser?.cityName ?? 'location hidden'}
+          </div>
+        </div>
+      </div>
+
+      <div className="flex flex-1 flex-col gap-3 overflow-y-auto px-[var(--lx-gutter)] pt-6 pb-8">
+        {messages.map((message) => {
+          const isMe = viewerId === String(message.senderId)
+          return (
+            <div
+              key={String(message._id)}
+              className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}
+            >
+              <div
+                className={`max-w-[min(100%,36rem)] rounded-lg px-3 py-2.5 ${
+                  isMe
+                    ? 'bg-brand text-brand-foreground'
+                    : 'border border-line bg-surface text-text'
+                }`}
+              >
+                <div className="whitespace-pre-wrap font-sans text-[13.5px] leading-6">
+                  {message.content}
+                </div>
+                <div
+                  className={`mt-1.5 font-mono text-[10.5px] ${
+                    isMe ? 'text-brand-foreground/80' : 'text-text-faint'
+                  }`}
+                >
+                  {relativeTime(message.createdAt)}
+                </div>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      <div className="flex shrink-0 flex-wrap items-end gap-3 border-t border-line px-[var(--lx-gutter)] pt-4 pb-5">
+        <Textarea
+          value={newMessage}
+          onChange={(event) => setNewMessage(event.target.value)}
+          placeholder="write a message…"
+          rows={2}
+          className="resize-none border-line bg-surface font-sans text-text"
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' && !event.shiftKey) {
+              event.preventDefault()
+              void handleSend()
+            }
+          }}
+        />
+        <Button
+          onClick={() => void handleSend()}
+          disabled={!newMessage.trim() || sending}
+          className="min-h-11 border-none bg-brand font-mono text-[12.5px] font-semibold text-brand-foreground hover:bg-brand/90"
+        >
+          {sending ? 'sending…' : 'send'}
+        </Button>
+      </div>
+    </>
   )
 }
