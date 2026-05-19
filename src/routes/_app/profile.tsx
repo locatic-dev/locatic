@@ -104,7 +104,7 @@ function ProfilePage() {
 
   return (
     <div className="lx-page-shell">
-      <div className="lx-page-scroll" style={{ flex: 1 }}>
+      <div className="lx-page-scroll flex-1">
         <div className="lx-page-width-detail">
           <div className="relative border-b border-line py-8 pb-7">
             <div className="flex flex-col items-start gap-6">
@@ -127,11 +127,11 @@ function ProfilePage() {
                   )}
                 </div>
                 {profile.viewer.bio && (
-                  <p className="mb-4 max-w-[540px] font-sans text-sm leading-6 text-text-muted">
+                  <p className="mb-4 max-w-135 font-sans text-sm leading-6 text-text-muted">
                     {profile.viewer.bio}
                   </p>
                 )}
-                <div className="flex flex-wrap items-center gap-[18px] font-mono text-xs">
+                <div className="flex flex-wrap items-center gap-4.5 font-mono text-xs">
                   <span>
                     <strong className="text-text">
                       {compactNumber(profile.viewer.stats.followersCount)}
@@ -189,19 +189,15 @@ function ProfilePage() {
                 </div>
               </div>
               <Button
-                variant="outline"
+                variant="monoOutline"
+                size="meta"
                 onClick={() =>
                   void navigate({
                     to: '/settings',
                     search: {} as never,
                   } as never)
                 }
-                style={{
-                  fontFamily: 'var(--lx-font-mono)',
-                  fontSize: 12.5,
-                  flexShrink: 0,
-                }}
-                className="min-h-11"
+                className="shrink-0 font-mono"
               >
                 edit profile
               </Button>
@@ -241,7 +237,7 @@ function ProfilePage() {
                     search: { tab: tabItem.id } as never,
                   } as never)
                 }
-                className={`relative inline-flex min-w-0 items-center justify-center gap-[7px] px-3 py-3.5 text-center font-mono text-[12.5px] ${
+                className={`relative inline-flex min-w-0 items-center justify-center gap-1.75 px-3 py-3.5 text-center font-mono text-[12.5px] ${
                   tab === tabItem.id
                     ? 'font-semibold text-text'
                     : 'text-text-faint'
@@ -261,17 +257,9 @@ function ProfilePage() {
 
           <div className="pt-7">
             {tab === 'projects' && (
-              <div
-                style={{ display: 'flex', flexDirection: 'column', gap: 14 }}
-              >
+              <div className="flex flex-col gap-3.5">
                 {profile.projects.length === 0 && (
-                  <div
-                    style={{
-                      fontFamily: 'var(--lx-font-mono)',
-                      fontSize: 12,
-                      color: 'var(--lx-text-3)',
-                    }}
-                  >
+                  <div className="font-mono text-[12px] text-text-faint">
                     no projects imported yet.
                   </div>
                 )}
@@ -303,53 +291,25 @@ function ProfilePage() {
             )}
 
             {tab === 'comments' && (
-              <div
-                style={{ display: 'flex', flexDirection: 'column', gap: 16 }}
-              >
+              <div className="flex flex-col gap-4">
                 {profile.comments
                   .filter((comment) => !comment.isDeleted)
                   .map((comment) => (
                     <div
                       key={String(comment._id)}
-                      style={{
-                        border: '1px solid var(--lx-border)',
-                        borderRadius: 6,
-                        background: 'var(--lx-surface)',
-                        padding: '16px 18px',
-                      }}
+                      className="rounded-[6px] border border-line bg-surface px-4.5 py-4"
                     >
-                      <div
-                        style={{
-                          fontFamily: 'var(--lx-font-mono)',
-                          fontSize: 11,
-                          color: 'var(--lx-text-3)',
-                          marginBottom: 8,
-                        }}
-                      >
+                      <div className="mb-2 font-mono text-[11px] text-text-faint">
                         {comment.targetType} · {relativeTime(comment.createdAt)}
                       </div>
-                      <p
-                        style={{
-                          margin: 0,
-                          fontFamily: 'var(--lx-font-sans)',
-                          fontSize: 13.5,
-                          color: 'var(--lx-text)',
-                          lineHeight: 1.6,
-                        }}
-                      >
+                      <p className="m-0 font-sans text-[13.5px] leading-[1.6] text-text">
                         {comment.content}
                       </p>
                     </div>
                   ))}
                 {profile.comments.filter((comment) => !comment.isDeleted)
                   .length === 0 && (
-                  <div
-                    style={{
-                      fontFamily: 'var(--lx-font-mono)',
-                      fontSize: 12,
-                      color: 'var(--lx-text-3)',
-                    }}
-                  >
+                  <div className="font-mono text-[12px] text-text-faint">
                     no comments yet.
                   </div>
                 )}
@@ -357,17 +317,9 @@ function ProfilePage() {
             )}
 
             {tab === 'liked' && (
-              <div
-                style={{ display: 'flex', flexDirection: 'column', gap: 14 }}
-              >
+              <div className="flex flex-col gap-3.5">
                 {profile.likedProjects.length === 0 && (
-                  <div
-                    style={{
-                      fontFamily: 'var(--lx-font-mono)',
-                      fontSize: 12,
-                      color: 'var(--lx-text-3)',
-                    }}
-                  >
+                  <div className="font-mono text-[12px] text-text-faint">
                     no liked projects yet.
                   </div>
                 )}

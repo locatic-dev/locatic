@@ -35,52 +35,20 @@ export const Route = createFileRoute('/_app')({
 
 function ShellSkeleton() {
   return (
-    <div
-      style={{ display: 'flex', height: '100dvh', background: 'var(--lx-bg)' }}
-    >
-      <div
-        className="hidden md:flex"
-        style={{
-          width: 220,
-          height: '100%',
-          borderRight: '1px solid var(--lx-border)',
-          background: 'var(--lx-bg)',
-          padding: '20px',
-          flexDirection: 'column',
-          gap: 16,
-        }}
-      >
-        <div className="lx-skeleton" style={{ height: 22, width: 120 }} />
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 8,
-            marginTop: 8,
-          }}
-        >
+    <div className="flex h-dvh bg-canvas">
+      <div className="hidden h-full w-(--lx-sidebar-width) flex-col gap-4 border-r border-line bg-canvas p-5 md:flex">
+        <div className="lx-skeleton h-5.5 w-30" />
+        <div className="mt-2 flex flex-col gap-2">
           {[1, 2, 3, 4, 5].map((i) => (
-            <div
-              key={i}
-              className="lx-skeleton"
-              style={{ height: 32, borderRadius: 4 }}
-            />
+            <div key={i} className="lx-skeleton h-8 rounded-lg" />
           ))}
         </div>
       </div>
-      <div
-        style={{
-          flex: 1,
-          padding: '24px 32px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 16,
-        }}
-      >
-        <div className="lx-skeleton" style={{ height: 40, width: '40%' }} />
-        <div className="lx-skeleton" style={{ height: 120, borderRadius: 6 }} />
-        <div className="lx-skeleton" style={{ height: 120, borderRadius: 6 }} />
-        <div className="lx-skeleton" style={{ height: 120, borderRadius: 6 }} />
+      <div className="flex flex-1 flex-col gap-4 px-6 py-6 md:px-8">
+        <div className="lx-skeleton h-10 w-2/5" />
+        <div className="lx-skeleton h-30 rounded-[6px]" />
+        <div className="lx-skeleton h-30 rounded-[6px]" />
+        <div className="lx-skeleton h-30 rounded-[6px]" />
       </div>
     </div>
   )

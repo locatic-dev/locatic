@@ -55,7 +55,7 @@ routes/
 - DO NOT bypass the `_app/` layout for protected routes
 - DO NOT add global providers outside `__root.tsx`
 - DO NOT create per-route auth server functions — use centralized `context.auth` from root
-- DO NOT use fixed px spacing in routes — use `.page-shell` + CSS tokens
+- DO NOT use fixed px spacing in routes — use `.page-shell` plus shared layout tokens like `--lx-gutter`
 - DO NOT create route-specific scroll handling — content scrolls within page-shell
 - DO NOT use inline `style={{}}` for layout — use Tailwind utility classes
-- DO NOT use direct `var(--lx-*)` — use semantic Tailwind tokens (`bg-surface`, `text-text-muted`, etc.)
+- DO NOT use direct `var(--lx-*)` — use semantic Tailwind tokens (`bg-surface`, `text-text-muted`, etc.) unless the value is runtime-only

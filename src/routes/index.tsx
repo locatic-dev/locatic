@@ -24,71 +24,22 @@ export const Route = createFileRoute('/')({
 
 function LandingPage() {
   return (
-    <div
-      className="overflow-x-clip"
-      style={{
-        minHeight: '100dvh',
-        background: 'var(--lx-bg)',
-        color: 'var(--lx-text)',
-        position: 'relative',
-      }}
-    >
+    <div className="relative min-h-dvh overflow-x-clip bg-canvas text-text">
       {/* Nav */}
-      <header
-        style={{
-          minHeight: 64,
-          padding: '16px var(--lx-gutter)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 16,
-          flexWrap: 'wrap',
-          position: 'relative',
-          zIndex: 2,
-          borderBottom: '1px solid var(--lx-border)',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      <header className="relative z-2 flex min-h-16 flex-wrap items-center justify-between gap-4 border-b border-line px-(--lx-gutter) py-4">
+        <div className="flex items-center gap-2.5">
           <Logo size={24} />
-          <span
-            style={{
-              fontFamily: 'var(--lx-font-mono)',
-              fontSize: 16,
-              fontWeight: 700,
-              letterSpacing: '-0.02em',
-            }}
-          >
+          <span className="font-mono text-base font-bold tracking-[-0.02em]">
             locatic
           </span>
-          <span
-            style={{
-              fontFamily: 'var(--lx-font-mono)',
-              fontSize: 10.5,
-              color: 'var(--lx-text-3)',
-              marginLeft: 4,
-              padding: '2px 6px',
-              border: '1px solid var(--lx-border)',
-              borderRadius: 3,
-              lineHeight: 1,
-            }}
-          >
+          <span className="ml-1 rounded-[3px] border border-line px-1.5 py-0.5 font-mono text-[10.5px] leading-none text-text-faint">
             v0.1 · beta
           </span>
         </div>
-        <nav
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 12,
-            flexWrap: 'wrap',
-            fontFamily: 'var(--lx-font-mono)',
-            fontSize: 12.5,
-            color: 'var(--lx-text-2)',
-          }}
-        >
+        <nav className="flex flex-wrap items-center gap-3 font-mono text-[12.5px] text-text-muted">
           <a
             href="https://github.com"
-            style={{ color: 'inherit', textDecoration: 'none' }}
+            className="text-inherit no-underline transition-colors hover:text-text"
             target="_blank"
             rel="noopener noreferrer"
           >
@@ -96,17 +47,7 @@ function LandingPage() {
           </a>
           <Link
             to="/sign-in"
-            style={{
-              border: '1px solid var(--lx-border)',
-              background: 'var(--lx-surface)',
-              color: 'var(--lx-text)',
-              padding: '7px 14px',
-              borderRadius: 4,
-              cursor: 'pointer',
-              fontFamily: 'var(--lx-font-mono)',
-              fontSize: 12.5,
-              textDecoration: 'none',
-            }}
+            className="inline-flex min-h-11 items-center rounded-control border border-line bg-surface px-3.5 py-2 font-mono text-[12.5px] text-text no-underline transition-colors hover:border-line-strong hover:bg-surface-alt"
           >
             sign in
           </Link>
@@ -115,16 +56,8 @@ function LandingPage() {
 
       {/* Dot map background */}
       <div
+        className="pointer-events-none absolute top-16 inset-x-0 flex h-130 justify-center opacity-60"
         style={{
-          position: 'absolute',
-          top: 64,
-          left: 0,
-          right: 0,
-          height: 520,
-          display: 'flex',
-          justifyContent: 'center',
-          opacity: 0.6,
-          pointerEvents: 'none',
           maskImage:
             'radial-gradient(ellipse at center, black 40%, transparent 75%)',
           WebkitMaskImage:
@@ -137,83 +70,34 @@ function LandingPage() {
       {/* Hero */}
       <section className="relative z-1 mx-auto grid max-w-(--lx-public-max) grid-cols-1 items-center gap-8 px-(--lx-gutter) pt-12 md:grid-cols-[1fr_420px] md:gap-12 md:pt-20">
         <div>
-          <h1
-            style={{
-              margin: 0,
-              fontFamily: 'var(--lx-font-mono)',
-              fontSize: 'clamp(56px, 7vw, 88px)',
-              fontWeight: 700,
-              lineHeight: 0.96,
-              letterSpacing: '-0.045em',
-              color: 'var(--lx-text)',
-            }}
-          >
+          <h1 className="m-0 font-mono text-[clamp(56px,7vw,88px)] leading-[0.96] font-bold tracking-[-0.045em] text-text">
             GitHub
             <br />
-            with a <span style={{ color: 'var(--lx-accent)' }}>map.</span>
+            with a <span className="text-brand">map.</span>
           </h1>
 
-          <p
-            style={{
-              margin: '28px 0 0',
-              maxWidth: 460,
-              fontFamily: 'var(--lx-font-sans)',
-              fontSize: 17,
-              lineHeight: 1.55,
-              color: 'var(--lx-text-2)',
-            }}
-          >
+          <p className="mt-7 max-w-115 font-sans text-[17px] leading-[1.55] text-text-muted">
             Discover what developers in your city are building. Like their
             projects. Star their repos. Follow the builders.
           </p>
 
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 12,
-              marginTop: 36,
-              flexWrap: 'wrap',
-            }}
-          >
+          <div className="mt-9 flex flex-wrap items-center gap-3">
             <Link
               to="/sign-in"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 10,
-                padding: '14px 22px',
-                background: 'var(--lx-accent)',
-                color: '#0d1117',
-                border: 'none',
-                borderRadius: 5,
-                cursor: 'pointer',
-                fontFamily: 'var(--lx-font-mono)',
-                fontSize: 13.5,
-                fontWeight: 600,
-                textDecoration: 'none',
-                minHeight: 44,
-              }}
+              className="inline-flex min-h-11 items-center gap-2.5 rounded-[5px] border border-transparent bg-brand px-5.5 py-3.5 font-mono text-[13.5px] font-semibold text-brand-foreground no-underline shadow-card transition-colors hover:bg-brand/90 active:scale-[0.98]"
             >
               <BrandIcon name="github" size={16} />
               Sign in with GitHub
             </Link>
             <Link
               to="/sign-in"
-              className="inline-flex min-h-11 items-center gap-2 rounded-card border border-line bg-transparent px-4.5 py-3.5 font-mono text-[13.5px] text-text-muted no-underline"
+              className="inline-flex min-h-11 items-center gap-2 rounded-card border border-line bg-transparent px-4.5 py-3.5 font-mono text-[13.5px] text-text-muted no-underline transition-colors hover:border-line-strong hover:bg-surface hover:text-text active:scale-[0.98]"
             >
               browse the feed <ArrowRight size={14} />
             </Link>
           </div>
 
-          <div
-            style={{
-              marginTop: 20,
-              fontFamily: 'var(--lx-font-mono)',
-              fontSize: 11.5,
-              color: 'var(--lx-text-3)',
-            }}
-          >
+          <div className="mt-5 font-mono text-[11.5px] text-text-faint">
             free · no spam · only public repo scope required
           </div>
 
@@ -232,104 +116,28 @@ function LandingPage() {
 
         {/* Preview card float — hidden on mobile */}
         <div className="relative hidden h-80 md:block">
-          <div
-            style={{
-              position: 'absolute',
-              top: 20,
-              left: 20,
-              right: -12,
-              height: 180,
-              borderRadius: 6,
-              background: 'var(--lx-surface)',
-              border: '1px solid var(--lx-border)',
-              opacity: 0.4,
-              transform: 'rotate(2.5deg)',
-            }}
-          />
-          <div
-            style={{
-              position: 'absolute',
-              top: 36,
-              left: 0,
-              right: 0,
-              transform: 'rotate(-1.5deg)',
-              boxShadow: '0 24px 60px rgba(0,0,0,0.5)',
-              borderRadius: 6,
-              background: 'var(--lx-surface)',
-              border: '1px solid var(--lx-border)',
-              padding: '18px 20px',
-            }}
-          >
-            <div
-              style={{
-                fontFamily: 'var(--lx-font-mono)',
-                fontSize: 14.5,
-                fontWeight: 600,
-                marginBottom: 6,
-              }}
-            >
-              <span style={{ color: 'var(--lx-text-3)', fontWeight: 400 }}>
-                sonia/
-              </span>
+          <div className="absolute top-5 left-5 right-3 h-45 rotate-[2.5deg] rounded-[6px] border border-line bg-surface opacity-40" />
+          <div className="absolute top-9 inset-x-0 rotate-[-1.5deg] rounded-[6px] border border-line bg-surface px-5 py-4.5 shadow-[0_24px_60px_rgba(0,0,0,0.5)]">
+            <div className="mb-1.5 font-mono text-[14.5px] font-semibold">
+              <span className="font-normal text-text-faint">sonia/</span>
               wisp.tsx
             </div>
-            <p
-              style={{
-                margin: '0 0 12px',
-                fontFamily: 'var(--lx-font-sans)',
-                fontSize: 13,
-                color: 'var(--lx-text-2)',
-                lineHeight: 1.5,
-              }}
-            >
+            <p className="mb-3 mt-0 font-sans text-[13px] leading-normal text-text-muted">
               Tiny React state primitive — signals without the ceremony.
             </p>
-            <div
-              style={{
-                display: 'flex',
-                gap: 16,
-                fontFamily: 'var(--lx-font-mono)',
-                fontSize: 11.5,
-                color: 'var(--lx-text-3)',
-              }}
-            >
-              <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <div className="flex gap-4 font-mono text-[11.5px] text-text-faint">
+              <span className="flex items-center gap-1">
                 <Star size={11} strokeWidth={1.4} /> 8.1k
               </span>
-              <span
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 4,
-                  color: 'var(--lx-accent)',
-                }}
-              >
+              <span className="flex items-center gap-1 text-brand">
                 <Heart size={11} fill="currentColor" strokeWidth={1.4} /> 612
               </span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span className="flex items-center gap-1">
                 <MessageSquare size={11} strokeWidth={1.4} /> 48
               </span>
             </div>
           </div>
-          <div
-            style={{
-              position: 'absolute',
-              top: 8,
-              right: 24,
-              background: 'var(--lx-surface)',
-              border: '1px solid var(--lx-border)',
-              borderRadius: 4,
-              padding: '6px 10px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              fontFamily: 'var(--lx-font-mono)',
-              fontSize: 11,
-              color: 'var(--lx-accent)',
-              transform: 'rotate(4deg)',
-              boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
-            }}
-          >
+          <div className="absolute top-2 right-6 flex rotate-[4deg] items-center gap-2 rounded-control border border-line bg-surface px-2.5 py-1.5 font-mono text-[11px] text-brand shadow-[0_8px_24px_rgba(0,0,0,0.4)]">
             <Heart size={11} fill="currentColor" /> +12
           </div>
         </div>
@@ -367,53 +175,16 @@ function LandingPage() {
               i > 0 && 'border-t border-line md:border-l md:border-t-0',
             )}
           >
-            <div
-              style={{
-                fontFamily: 'var(--lx-font-mono)',
-                fontSize: 11,
-                color: 'var(--lx-text-3)',
-                marginBottom: 14,
-              }}
-            >
+            <div className="mb-3.5 font-mono text-[11px] text-text-faint">
               {f.num}
             </div>
-            <div
-              style={{
-                width: 36,
-                height: 36,
-                borderRadius: 4,
-                border: '1px solid var(--lx-border)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: 'var(--lx-accent)',
-                marginBottom: 14,
-              }}
-            >
+            <div className="mb-3.5 flex h-9 w-9 items-center justify-center rounded-control border border-line text-brand">
               <f.Icon size={18} strokeWidth={1.4} />
             </div>
-            <h3
-              style={{
-                margin: '0 0 8px',
-                fontFamily: 'var(--lx-font-mono)',
-                fontSize: 18,
-                fontWeight: 600,
-                color: 'var(--lx-text)',
-                letterSpacing: '-0.01em',
-              }}
-            >
+            <h3 className="mb-2 mt-0 font-mono text-lg font-semibold tracking-[-0.01em] text-text">
               {f.title}
             </h3>
-            <p
-              style={{
-                margin: 0,
-                fontFamily: 'var(--lx-font-sans)',
-                fontSize: 14,
-                color: 'var(--lx-text-2)',
-                lineHeight: 1.55,
-                maxWidth: 280,
-              }}
-            >
+            <p className="m-0 max-w-70 font-sans text-sm leading-[1.55] text-text-muted">
               {f.desc}
             </p>
           </div>
@@ -421,17 +192,9 @@ function LandingPage() {
       </section>
 
       {/* Footer */}
-      <footer
-        style={{
-          padding: '28px var(--lx-gutter)',
-          textAlign: 'center',
-          fontFamily: 'var(--lx-font-mono)',
-          fontSize: 11.5,
-          color: 'var(--lx-text-3)',
-        }}
-      >
+      <footer className="px-(--lx-gutter) py-7 text-center font-mono text-[11.5px] text-text-faint">
         <div>built with love for developers.</div>
-        <div style={{ marginTop: 8, opacity: 0.7 }}>
+        <div className="mt-2 opacity-70">
           locatic · {new Date().getFullYear()} · made in 7 cities
         </div>
       </footer>

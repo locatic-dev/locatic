@@ -202,28 +202,8 @@ function ProjectDetailPage() {
   ]
 
   return (
-    <div
-      className="lx-page-shell"
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        background: 'var(--lx-bg)',
-      }}
-    >
-      <div
-        style={{
-          minHeight: 52,
-          borderBottom: '1px solid var(--lx-border)',
-          padding: '12px var(--lx-gutter)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 12,
-          flexWrap: 'wrap',
-          flexShrink: 0,
-          background: 'var(--lx-bg)',
-        }}
-      >
+    <div className="lx-page-shell flex flex-col bg-canvas">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-line bg-canvas px-[var(--lx-gutter)] py-3">
         <button
           onClick={() => {
             if (canGoBack) {
@@ -238,13 +218,14 @@ function ProjectDetailPage() {
           <ArrowLeft size={14} /> back
         </button>
 
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <div className="flex flex-wrap gap-2">
           {!isOwnProject && (
             <Button
-              variant="outline"
+              variant="monoOutline"
+              size="meta"
               onClick={() => void openConversation(String(detail.owner.userId))}
               disabled={pendingUserId === String(detail.owner.userId)}
-              style={{ fontFamily: 'var(--lx-font-mono)', fontSize: 12 }}
+              className="font-mono"
             >
               {pendingUserId === String(detail.owner.userId)
                 ? 'opening…'
@@ -252,18 +233,11 @@ function ProjectDetailPage() {
             </Button>
           )}
           <Button
+            variant={liked ? 'brand' : 'monoOutline'}
+            size="meta"
             onClick={() => void handleLike()}
             disabled={likePending || !isSignedIn}
-            style={{
-              background: liked ? 'var(--lx-accent)' : 'var(--lx-surface)',
-              color: liked ? '#0d1117' : 'var(--lx-text)',
-              border: '1px solid var(--lx-border)',
-              fontFamily: 'var(--lx-font-mono)',
-              fontSize: 12,
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-            }}
+            className="font-mono"
           >
             <Heart
               size={13}
@@ -273,23 +247,19 @@ function ProjectDetailPage() {
             {liked ? 'liked' : 'like'}
           </Button>
           <Button
-            variant="outline"
+            variant="monoOutline"
+            size="meta"
             onClick={() => void handleFollow()}
             disabled={followPending || !isSignedIn}
-            style={{ fontFamily: 'var(--lx-font-mono)', fontSize: 12 }}
+            className="font-mono"
           >
             {followPending ? 'working…' : followed ? 'following' : 'follow'}
           </Button>
           <Button
-            variant="outline"
+            variant="monoOutline"
+            size="meta"
             asChild
-            style={{
-              fontFamily: 'var(--lx-font-mono)',
-              fontSize: 12,
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-            }}
+            className="font-mono"
           >
             <a href={githubHref} target="_blank" rel="noopener noreferrer">
               <ExternalLink size={12} /> github
@@ -298,120 +268,44 @@ function ProjectDetailPage() {
         </div>
       </div>
 
-      <div className="lx-page-scroll" style={{ flex: 1 }}>
-        <div
-          className="lx-page-width-detail"
-          style={{
-            padding: '8px 0 0',
-          }}
-        >
-          <div
-            style={{
-              fontFamily: 'var(--lx-font-mono)',
-              fontSize: 11.5,
-              color: 'var(--lx-text-3)',
-              marginBottom: 16,
-            }}
-          >
-            <span style={{ color: 'var(--lx-text-2)' }}>{owner}</span>
-            <span style={{ margin: '0 6px' }}>/</span>
+      <div className="lx-page-scroll flex-1">
+        <div className="lx-page-width-detail pt-2">
+          <div className="mb-4 font-mono text-[11.5px] text-text-faint">
+            <span className="text-text-muted">{owner}</span>
+            <span className="mx-1.5">/</span>
             {repo}
           </div>
 
-          <h1
-            style={{
-              margin: '0 0 12px',
-              fontFamily: 'var(--lx-font-mono)',
-              fontSize: 'clamp(28px, 4vw, 40px)',
-              fontWeight: 700,
-              letterSpacing: '-0.025em',
-              color: 'var(--lx-text)',
-            }}
-          >
-            <span style={{ color: 'var(--lx-text-3)', fontWeight: 400 }}>
-              {owner}/
-            </span>
+          <h1 className="mb-3 font-mono text-[clamp(28px,4vw,40px)] font-bold tracking-[-0.025em] text-text">
+            <span className="font-normal text-text-faint">{owner}/</span>
             {repo}
           </h1>
 
-          <p
-            style={{
-              margin: '0 0 24px',
-              fontFamily: 'var(--lx-font-sans)',
-              fontSize: 16,
-              color: 'var(--lx-text-2)',
-              lineHeight: 1.55,
-              maxWidth: 680,
-            }}
-          >
+          <p className="mb-6 max-w-[680px] font-sans text-base leading-[1.55] text-text-muted">
             {description}
           </p>
 
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 24,
-              paddingBottom: 24,
-              borderBottom: '1px solid var(--lx-border)',
-              marginBottom: 28,
-              flexWrap: 'wrap',
-            }}
-          >
+          <div className="mb-7 flex flex-wrap items-center gap-6 border-b border-line pb-6">
             {stats.map((stat) => (
               <div key={stat.label}>
-                <div
-                  style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}
-                >
+                <div className="flex items-baseline gap-1.5">
                   <stat.icon
                     size={14}
                     strokeWidth={1.4}
                     fill={stat.fill ? 'currentColor' : 'none'}
-                    style={{
-                      color: stat.accent
-                        ? 'var(--lx-accent)'
-                        : 'var(--lx-text-2)',
-                    }}
+                    className={stat.accent ? 'text-brand' : 'text-text-muted'}
                   />
-                  <span
-                    style={{
-                      fontFamily: 'var(--lx-font-mono)',
-                      fontSize: 22,
-                      fontWeight: 600,
-                      color: 'var(--lx-text)',
-                      letterSpacing: '-0.02em',
-                      fontVariantNumeric: 'tabular-nums',
-                    }}
-                  >
+                  <span className="font-mono text-[22px] font-semibold tracking-[-0.02em] text-text [font-variant-numeric:tabular-nums]">
                     {stat.value}
                   </span>
                 </div>
-                <div
-                  style={{
-                    fontFamily: 'var(--lx-font-mono)',
-                    fontSize: 10.5,
-                    color: 'var(--lx-text-3)',
-                    marginTop: 2,
-                    textTransform: 'lowercase',
-                  }}
-                >
+                <div className="mt-0.5 font-mono text-[10.5px] lowercase text-text-faint">
                   {stat.label}
                 </div>
               </div>
             ))}
 
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10,
-                fontFamily: 'var(--lx-font-mono)',
-                fontSize: 11.5,
-                color: 'var(--lx-text-3)',
-                flexWrap: 'wrap',
-                width: '100%',
-              }}
-            >
+            <div className="flex w-full flex-wrap items-center gap-2.5 font-mono text-[11.5px] text-text-faint">
               {detail.project.github.primaryLanguage && (
                 <LangDot
                   lang={detail.project.github.primaryLanguage}
@@ -424,71 +318,27 @@ function ProjectDetailPage() {
             </div>
           </div>
 
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'minmax(0, 1fr)',
-              gap: 32,
-            }}
-          >
+          <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_280px]">
             <div>
-              <div
-                style={{
-                  border: '1px solid var(--lx-border)',
-                  borderRadius: 6,
-                  background: 'var(--lx-surface)',
-                  overflow: 'hidden',
-                  marginBottom: 32,
-                }}
-              >
-                <div
-                  style={{
-                    padding: '10px 16px',
-                    borderBottom: '1px solid var(--lx-border)',
-                    background: 'var(--lx-surface-alt)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    fontFamily: 'var(--lx-font-mono)',
-                    fontSize: 11.5,
-                  }}
-                >
-                  <span style={{ color: 'var(--lx-text-2)' }}>README.md</span>
+              <div className="mb-8 overflow-hidden rounded-[6px] border border-line bg-surface">
+                <div className="flex items-center justify-between border-b border-line bg-surface-alt px-4 py-2.5 font-mono text-[11.5px]">
+                  <span className="text-text-muted">README.md</span>
                   <a
                     href={`${githubHref}#readme`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    style={{
-                      color: 'var(--lx-text-3)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 4,
-                    }}
+                    className="flex items-center gap-1 text-text-faint no-underline"
                   >
                     <ExternalLink size={11} /> view on github
                   </a>
                 </div>
-                <div
-                  style={{
-                    padding: '24px 28px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 14,
-                  }}
-                >
+                <div className="flex flex-col gap-3.5 px-7 py-6">
                   {readmePreview.split('\n\n').map((block, index) => {
                     if (block.startsWith('# ')) {
                       return (
                         <h1
                           key={index}
-                          style={{
-                            margin: 0,
-                            fontFamily: 'var(--lx-font-mono)',
-                            fontSize: 22,
-                            fontWeight: 700,
-                            color: 'var(--lx-text)',
-                            letterSpacing: '-0.02em',
-                          }}
+                          className="m-0 font-mono text-[22px] font-bold tracking-[-0.02em] text-text"
                         >
                           {block.slice(2)}
                         </h1>
@@ -499,15 +349,7 @@ function ProjectDetailPage() {
                       return (
                         <h2
                           key={index}
-                          style={{
-                            margin: '8px 0 0',
-                            fontFamily: 'var(--lx-font-mono)',
-                            fontSize: 14,
-                            fontWeight: 600,
-                            color: 'var(--lx-text-2)',
-                            paddingBottom: 6,
-                            borderBottom: '1px solid var(--lx-border)',
-                          }}
+                          className="mt-2 border-b border-line pb-1.5 font-mono text-sm font-semibold text-text-muted"
                         >
                           {block.slice(3)}
                         </h2>
@@ -518,19 +360,7 @@ function ProjectDetailPage() {
                       return (
                         <pre
                           key={index}
-                          style={{
-                            margin: 0,
-                            padding: '12px 14px',
-                            background: 'var(--lx-bg)',
-                            borderRadius: 4,
-                            border: '1px solid var(--lx-border)',
-                            fontFamily: 'var(--lx-font-mono)',
-                            fontSize: 12.5,
-                            color: 'var(--lx-text)',
-                            lineHeight: 1.6,
-                            whiteSpace: 'pre-wrap',
-                            overflowX: 'auto',
-                          }}
+                          className="m-0 overflow-x-auto whitespace-pre-wrap rounded bg-canvas px-3.5 py-3 font-mono text-[12.5px] leading-[1.6] text-text"
                         >
                           {block.replace(/`/g, '')}
                         </pre>
@@ -540,13 +370,7 @@ function ProjectDetailPage() {
                     return (
                       <p
                         key={index}
-                        style={{
-                          margin: 0,
-                          fontFamily: 'var(--lx-font-sans)',
-                          fontSize: 14,
-                          color: 'var(--lx-text-2)',
-                          lineHeight: 1.65,
-                        }}
+                        className="m-0 font-sans text-sm leading-[1.65] text-text-muted"
                       >
                         {block}
                       </p>
@@ -556,80 +380,32 @@ function ProjectDetailPage() {
               </div>
 
               <div>
-                <div
-                  style={{
-                    fontFamily: 'var(--lx-font-mono)',
-                    fontSize: 11,
-                    color: 'var(--lx-text-3)',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.06em',
-                    marginBottom: 14,
-                  }}
-                >
+                <div className="mb-3.5 font-mono text-[11px] uppercase tracking-[0.06em] text-text-faint">
                   // comments · {detail.project.locatic.commentsCount}
                 </div>
 
                 {isSignedIn ? (
-                  <div
-                    style={{
-                      display: 'flex',
-                      gap: 12,
-                      padding: '12px 14px',
-                      border: '1px solid var(--lx-border)',
-                      borderRadius: 6,
-                      background: 'var(--lx-surface)',
-                      marginBottom: 16,
-                      flexWrap: 'wrap',
-                    }}
-                  >
+                  <div className="mb-4 flex flex-wrap gap-3 rounded-[6px] border border-line bg-surface px-[14px] py-3">
                     <Textarea
                       value={comment}
                       onChange={(event) => setComment(event.target.value)}
                       placeholder="say something thoughtful…"
                       rows={2}
-                      style={{
-                        flex: 1,
-                        border: 'none',
-                        background: 'transparent',
-                        outline: 'none',
-                        fontFamily: 'var(--lx-font-sans)',
-                        fontSize: 13.5,
-                        color: 'var(--lx-text)',
-                        resize: 'none',
-                        padding: 0,
-                      }}
+                      className="min-h-[72px] flex-1 resize-none border-0 bg-transparent px-0 py-0 font-sans text-[13.5px] text-text shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
                     />
                     <Button
+                      variant="brand"
+                      size="meta"
                       onClick={() => void handlePostComment()}
                       disabled={!comment.trim() || postingComment}
-                      style={{
-                        background: 'var(--lx-accent)',
-                        color: '#0d1117',
-                        border: 'none',
-                        fontFamily: 'var(--lx-font-mono)',
-                        fontSize: 11.5,
-                        fontWeight: 600,
-                        alignSelf: 'flex-end',
-                      }}
-                      className="min-h-11"
+                      className="self-end font-mono font-semibold"
                     >
                       {postingComment ? '…' : 'post'}
                     </Button>
                   </div>
                 ) : (
-                  <div
-                    style={{
-                      padding: '12px 14px',
-                      border: '1px solid var(--lx-border)',
-                      borderRadius: 6,
-                      background: 'var(--lx-surface)',
-                      marginBottom: 16,
-                      fontFamily: 'var(--lx-font-mono)',
-                      fontSize: 12.5,
-                      color: 'var(--lx-text-3)',
-                    }}
-                  >
-                    <a href="/sign-in" style={{ color: 'var(--lx-accent)' }}>
+                  <div className="mb-4 rounded-[6px] border border-line bg-surface px-[14px] py-3 font-mono text-[12.5px] text-text-faint">
+                    <a href="/sign-in" className="text-brand no-underline">
                       sign in
                     </a>{' '}
                     to leave a comment.
@@ -637,50 +413,23 @@ function ProjectDetailPage() {
                 )}
 
                 {comments.length === 0 ? (
-                  <div
-                    style={{
-                      padding: '16px 0',
-                      fontFamily: 'var(--lx-font-sans)',
-                      fontSize: 14,
-                      color: 'var(--lx-text-2)',
-                    }}
-                  >
+                  <div className="py-4 font-sans text-sm text-text-muted">
                     no comments yet.
                   </div>
                 ) : (
                   comments.map((commentItem) => (
                     <div
                       key={String(commentItem._id)}
-                      style={{
-                        display: 'flex',
-                        gap: 12,
-                        padding: '14px 0',
-                        borderTop: '1px solid var(--lx-border)',
-                      }}
+                      className="flex gap-3 border-t border-line py-[14px]"
                     >
                       <LxAvatar
                         name={commentItem.authorSnapshot.displayName}
                         avatarUrl={commentItem.authorSnapshot.avatarUrl}
                         size={32}
                       />
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 10,
-                            marginBottom: 6,
-                            flexWrap: 'wrap',
-                          }}
-                        >
-                          <span
-                            style={{
-                              fontFamily: 'var(--lx-font-mono)',
-                              fontSize: 12.5,
-                              fontWeight: 600,
-                              color: 'var(--lx-text)',
-                            }}
-                          >
+                      <div className="min-w-0 flex-1">
+                        <div className="mb-1.5 flex flex-wrap items-center gap-2.5">
+                          <span className="font-mono text-[12.5px] font-semibold text-text">
                             {commentItem.authorSnapshot.displayName}
                           </span>
                           {commentItem.authorSnapshot.cityName && (
@@ -688,37 +437,14 @@ function ProjectDetailPage() {
                               city={commentItem.authorSnapshot.cityName}
                             />
                           )}
-                          <span
-                            style={{
-                              fontFamily: 'var(--lx-font-mono)',
-                              fontSize: 11,
-                              color: 'var(--lx-text-3)',
-                            }}
-                          >
+                          <span className="font-mono text-[11px] text-text-faint">
                             {relativeTime(commentItem.createdAt)}
                           </span>
                         </div>
-                        <p
-                          style={{
-                            margin: 0,
-                            fontFamily: 'var(--lx-font-sans)',
-                            fontSize: 13.5,
-                            color: 'var(--lx-text)',
-                            lineHeight: 1.6,
-                          }}
-                        >
+                        <p className="m-0 font-sans text-[13.5px] leading-[1.6] text-text">
                           {commentItem.content}
                         </p>
-                        <div
-                          style={{
-                            marginTop: 8,
-                            display: 'flex',
-                            gap: 12,
-                            fontFamily: 'var(--lx-font-mono)',
-                            fontSize: 11,
-                            color: 'var(--lx-text-3)',
-                          }}
-                        >
+                        <div className="mt-2 flex gap-3 font-mono text-[11px] text-text-faint">
                           <span>{commentItem.likesCount} likes</span>
                           <span>{commentItem.replyCount} replies</span>
                         </div>
@@ -729,17 +455,8 @@ function ProjectDetailPage() {
               </div>
             </div>
 
-            <aside
-              style={{ display: 'flex', flexDirection: 'column', gap: 20 }}
-            >
-              <div
-                style={{
-                  padding: 18,
-                  borderRadius: 6,
-                  border: '1px solid var(--lx-border)',
-                  background: 'var(--lx-surface)',
-                }}
-              >
+            <aside className="flex flex-col gap-5">
+              <div className="rounded-[6px] border border-line bg-surface p-[18px]">
                 <button
                   type="button"
                   onClick={() =>
@@ -750,74 +467,35 @@ function ProjectDetailPage() {
                       } as never,
                     } as never)
                   }
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 12,
-                    marginBottom: 14,
-                    width: '100%',
-                    background: 'transparent',
-                    border: 'none',
-                    padding: 0,
-                    cursor: 'pointer',
-                    textAlign: 'left',
-                  }}
+                  className="mb-3.5 flex w-full items-center gap-3 border-0 bg-transparent p-0 text-left"
                 >
                   <LxAvatar
                     name={detail.owner.displayName}
                     avatarUrl={detail.owner.avatarUrl}
                     size={48}
                   />
-                  <div style={{ minWidth: 0, flex: 1 }}>
-                    <div
-                      style={{
-                        fontFamily: 'var(--lx-font-mono)',
-                        fontSize: 14,
-                        fontWeight: 600,
-                        color: 'var(--lx-text)',
-                      }}
-                    >
+                  <div className="min-w-0 flex-1">
+                    <div className="font-mono text-sm font-semibold text-text">
                       {detail.owner.displayName}
                     </div>
-                    <div
-                      style={{
-                        fontFamily: 'var(--lx-font-mono)',
-                        fontSize: 11.5,
-                        color: 'var(--lx-text-3)',
-                      }}
-                    >
+                    <div className="font-mono text-[11.5px] text-text-faint">
                       @{detail.owner.githubUsername}
                     </div>
                   </div>
                 </button>
 
-                <div
-                  style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 10,
-                    marginBottom: 14,
-                  }}
-                >
+                <div className="mb-3.5 flex flex-col gap-2.5">
                   <StatusPill status={detail.owner.buildStatus} size="md" />
                   {detail.owner.city && <CityPill city={detail.owner.city} />}
                 </div>
 
-                <div
-                  style={{
-                    display: 'flex',
-                    gap: 10,
-                    flexWrap: 'wrap',
-                    fontFamily: 'var(--lx-font-mono)',
-                    fontSize: 11.5,
-                  }}
-                >
+                <div className="flex flex-wrap gap-2.5 font-mono text-[11.5px]">
                   {ownerGithubHref && (
                     <a
                       href={ownerGithubHref}
                       target="_blank"
                       rel="noopener noreferrer"
-                      style={{ color: 'var(--lx-text-2)' }}
+                      className="text-text-muted no-underline"
                     >
                       github
                     </a>
@@ -827,7 +505,7 @@ function ProjectDetailPage() {
                       href={ownerXHref}
                       target="_blank"
                       rel="noopener noreferrer"
-                      style={{ color: 'var(--lx-text-2)' }}
+                      className="text-text-muted no-underline"
                     >
                       x
                     </a>
@@ -837,7 +515,7 @@ function ProjectDetailPage() {
                       href={ownerLinkedinHref}
                       target="_blank"
                       rel="noopener noreferrer"
-                      style={{ color: 'var(--lx-text-2)' }}
+                      className="text-text-muted no-underline"
                     >
                       linkedin
                     </a>
@@ -847,7 +525,7 @@ function ProjectDetailPage() {
                       href={ownerWebsiteHref}
                       target="_blank"
                       rel="noopener noreferrer"
-                      style={{ color: 'var(--lx-text-2)' }}
+                      className="text-text-muted no-underline"
                     >
                       site
                     </a>
@@ -855,67 +533,26 @@ function ProjectDetailPage() {
                 </div>
               </div>
 
-              <div
-                style={{
-                  padding: 18,
-                  borderRadius: 6,
-                  border: '1px solid var(--lx-border)',
-                  background: 'var(--lx-surface)',
-                }}
-              >
-                <div
-                  style={{
-                    fontFamily: 'var(--lx-font-mono)',
-                    fontSize: 11,
-                    color: 'var(--lx-text-3)',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.06em',
-                    marginBottom: 12,
-                  }}
-                >
+              <div className="rounded-[6px] border border-line bg-surface p-[18px]">
+                <div className="mb-3 font-mono text-[11px] uppercase tracking-[0.06em] text-text-faint">
                   recent updates
                 </div>
 
                 {detail.updates.length === 0 ? (
-                  <div
-                    style={{
-                      fontFamily: 'var(--lx-font-sans)',
-                      fontSize: 13,
-                      color: 'var(--lx-text-2)',
-                    }}
-                  >
+                  <div className="font-sans text-[13px] text-text-muted">
                     no updates yet.
                   </div>
                 ) : (
                   detail.updates.slice(0, 4).map((update) => (
                     <div
                       key={String(update._id)}
-                      style={{
-                        paddingTop: 12,
-                        marginTop: 12,
-                        borderTop: '1px solid var(--lx-border)',
-                      }}
+                      className="mt-3 border-t border-line pt-3"
                     >
-                      <div
-                        style={{
-                          fontFamily: 'var(--lx-font-mono)',
-                          fontSize: 12,
-                          color: 'var(--lx-text)',
-                          fontWeight: 600,
-                          marginBottom: 4,
-                        }}
-                      >
+                      <div className="mb-1 font-mono text-xs font-semibold text-text">
                         {update.versionTag ? `${update.versionTag} · ` : ''}
                         {update.title}
                       </div>
-                      <div
-                        style={{
-                          fontFamily: 'var(--lx-font-sans)',
-                          fontSize: 12.5,
-                          color: 'var(--lx-text-2)',
-                          lineHeight: 1.5,
-                        }}
-                      >
+                      <div className="font-sans text-[12.5px] leading-[1.5] text-text-muted">
                         {update.description}
                       </div>
                     </div>

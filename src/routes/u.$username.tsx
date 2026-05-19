@@ -229,110 +229,52 @@ function PublicProfilePage() {
       </header>
 
       <div className="lx-page-width-detail py-8 pb-20">
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'flex-start',
-            gap: 24,
-            marginBottom: 32,
-            flexDirection: 'column',
-          }}
-        >
+        <div className="mb-8 flex flex-col items-start gap-6">
           <LxAvatar
             name={profile.profile.displayName}
             avatarUrl={profile.profile.avatarUrl}
             size={88}
           />
 
-          <div style={{ flex: 1 }}>
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 12,
-                marginBottom: 8,
-                flexWrap: 'wrap',
-              }}
-            >
-              <h1
-                style={{
-                  margin: 0,
-                  fontFamily: 'var(--lx-font-mono)',
-                  fontSize: 28,
-                  fontWeight: 700,
-                  letterSpacing: '-0.02em',
-                  color: 'var(--lx-text)',
-                }}
-              >
+          <div className="flex-1">
+            <div className="mb-2 flex flex-wrap items-center gap-3">
+              <h1 className="m-0 font-mono text-[28px] font-bold tracking-[-0.02em] text-text">
                 {profile.profile.displayName}
               </h1>
               <StatusPill status={profile.profile.buildStatus} size="md" />
             </div>
 
-            <div
-              style={{
-                fontFamily: 'var(--lx-font-mono)',
-                fontSize: 13,
-                color: 'var(--lx-text-3)',
-                marginBottom: 12,
-              }}
-            >
+            <div className="mb-3 font-mono text-[13px] text-text-faint">
               @{profile.githubUsername}
               {profile.profile.city && <span> · {profile.profile.city}</span>}
             </div>
 
             {profile.profile.bio && (
-              <p
-                style={{
-                  margin: '0 0 16px',
-                  maxWidth: 520,
-                  fontFamily: 'var(--lx-font-sans)',
-                  fontSize: 14,
-                  color: 'var(--lx-text-2)',
-                  lineHeight: 1.6,
-                }}
-              >
+              <p className="mb-4 max-w-[520px] font-sans text-sm leading-6 text-text-muted">
                 {profile.profile.bio}
               </p>
             )}
 
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 16,
-                fontFamily: 'var(--lx-font-mono)',
-                fontSize: 12,
-                flexWrap: 'wrap',
-              }}
-            >
+            <div className="flex flex-wrap items-center gap-4 font-mono text-xs">
               <span>
-                <strong style={{ color: 'var(--lx-text)' }}>
+                <strong className="text-text">
                   {compactNumber(profile.stats.followersCount)}
                 </strong>{' '}
-                <span style={{ color: 'var(--lx-text-3)' }}>followers</span>
+                <span className="text-text-faint">followers</span>
               </span>
               <span>
-                <strong style={{ color: 'var(--lx-text)' }}>
+                <strong className="text-text">
                   {compactNumber(profile.stats.followingCount)}
                 </strong>{' '}
-                <span style={{ color: 'var(--lx-text-3)' }}>following</span>
+                <span className="text-text-faint">following</span>
               </span>
-              <span
-                style={{
-                  display: 'inline-flex',
-                  gap: 10,
-                  marginLeft: 6,
-                  color: 'var(--lx-text-3)',
-                  alignItems: 'center',
-                }}
-              >
+              <span className="ml-1.5 inline-flex items-center gap-2.5 text-text-faint">
                 {githubHref && (
                   <a
                     href={githubHref}
                     target="_blank"
                     rel="noopener noreferrer"
-                    style={{ color: 'inherit' }}
+                    className="text-inherit"
                   >
                     <BrandIcon name="github" size={14} />
                   </a>
@@ -342,7 +284,7 @@ function PublicProfilePage() {
                     href={xHref}
                     target="_blank"
                     rel="noopener noreferrer"
-                    style={{ color: 'inherit' }}
+                    className="text-inherit"
                   >
                     <BrandIcon name="twitter" size={14} />
                   </a>
@@ -352,7 +294,7 @@ function PublicProfilePage() {
                     href={linkedinHref}
                     target="_blank"
                     rel="noopener noreferrer"
-                    style={{ color: 'inherit' }}
+                    className="text-inherit"
                   >
                     <BrandIcon name="linkedin" size={14} />
                   </a>
@@ -362,11 +304,7 @@ function PublicProfilePage() {
                     href={blueskyHref}
                     target="_blank"
                     rel="noopener noreferrer"
-                    style={{
-                      color: 'inherit',
-                      textDecoration: 'none',
-                      fontSize: 11,
-                    }}
+                    className="text-[11px] text-inherit no-underline"
                   >
                     bsky
                   </a>
@@ -376,11 +314,7 @@ function PublicProfilePage() {
                     href={websiteHref}
                     target="_blank"
                     rel="noopener noreferrer"
-                    style={{
-                      color: 'inherit',
-                      textDecoration: 'none',
-                      fontSize: 11,
-                    }}
+                    className="text-[11px] text-inherit no-underline"
                   >
                     site
                   </a>
@@ -390,35 +324,16 @@ function PublicProfilePage() {
           </div>
         </div>
 
-        <div style={{ marginBottom: 32 }}>
-          <div
-            style={{
-              fontFamily: 'var(--lx-font-mono)',
-              fontSize: 10.5,
-              color: 'var(--lx-text-3)',
-              marginBottom: 10,
-              textTransform: 'uppercase',
-              letterSpacing: '0.06em',
-            }}
-          >
+        <div className="mb-8">
+          <div className="mb-2.5 font-mono text-[10.5px] uppercase tracking-[0.06em] text-text-faint">
             contributions this year
           </div>
-          <div style={{ overflowX: 'auto' }}>
+          <div className="overflow-x-auto">
             <ContributionGraph />
           </div>
         </div>
 
-        <div
-          className="lx-inline-tabs"
-          style={{
-            display: 'flex',
-            gap: 10,
-            flexWrap: 'wrap',
-            marginBottom: 22,
-            borderBottom: '1px solid var(--lx-border)',
-            overflowX: 'auto',
-          }}
-        >
+        <div className="lx-inline-tabs mb-[22px] flex flex-wrap gap-2.5 overflow-x-auto border-b border-line">
           {tabs.map((tabItem) => (
             <button
               key={tabItem.id}
@@ -429,41 +344,23 @@ function PublicProfilePage() {
                   search: { tab: tabItem.id } as never,
                 } as never)
               }
-              style={{
-                border: 'none',
-                borderBottom:
-                  tab === tabItem.id
-                    ? '1px solid var(--lx-accent)'
-                    : '1px solid transparent',
-                background: 'transparent',
-                color:
-                  tab === tabItem.id ? 'var(--lx-text)' : 'var(--lx-text-3)',
-                padding: '0 0 10px',
-                cursor: 'pointer',
-                fontFamily: 'var(--lx-font-mono)',
-                fontSize: 12,
-                display: 'inline-flex',
-                gap: 6,
-              }}
+              className={`inline-flex gap-1.5 border-0 border-b bg-transparent pb-2.5 font-mono text-xs ${
+                tab === tabItem.id
+                  ? 'border-brand text-text'
+                  : 'border-transparent text-text-faint'
+              }`}
               type="button"
             >
               <span>{tabItem.label}</span>
-              <span style={{ color: 'var(--lx-text-3)' }}>{tabItem.count}</span>
+              <span className="text-text-faint">{tabItem.count}</span>
             </button>
           ))}
         </div>
 
         {tab === 'projects' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div className="flex flex-col gap-3.5">
             {profile.projects.length === 0 ? (
-              <div
-                style={{
-                  padding: '18px 0',
-                  fontFamily: 'var(--lx-font-sans)',
-                  fontSize: 14,
-                  color: 'var(--lx-text-2)',
-                }}
-              >
+              <div className="py-[18px] font-sans text-sm text-text-muted">
                 no public projects yet.
               </div>
             ) : (
@@ -496,78 +393,30 @@ function PublicProfilePage() {
         )}
 
         {tab === 'comments' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div className="flex flex-col gap-3.5">
             {profile.privacy.commentHistoryVisibility !== 'public' ? (
-              <div
-                style={{
-                  padding: '18px 0',
-                  fontFamily: 'var(--lx-font-sans)',
-                  fontSize: 14,
-                  color: 'var(--lx-text-2)',
-                }}
-              >
+              <div className="py-[18px] font-sans text-sm text-text-muted">
                 comment history is private on this profile.
               </div>
             ) : sortedComments.length === 0 ? (
-              <div
-                style={{
-                  padding: '18px 0',
-                  fontFamily: 'var(--lx-font-sans)',
-                  fontSize: 14,
-                  color: 'var(--lx-text-2)',
-                }}
-              >
+              <div className="py-[18px] font-sans text-sm text-text-muted">
                 no public comments yet.
               </div>
             ) : (
               sortedComments.map((comment) => (
                 <div
                   key={String(comment._id)}
-                  style={{
-                    padding: '16px 18px',
-                    border: '1px solid var(--lx-border)',
-                    borderRadius: 6,
-                    background: 'var(--lx-surface)',
-                  }}
+                  className="rounded-[6px] border border-line bg-surface px-[18px] py-4"
                 >
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      gap: 10,
-                      marginBottom: 8,
-                      flexWrap: 'wrap',
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontFamily: 'var(--lx-font-mono)',
-                        fontSize: 11.5,
-                        color: 'var(--lx-text-3)',
-                      }}
-                    >
+                  <div className="mb-2 flex flex-wrap items-center justify-between gap-2.5">
+                    <span className="font-mono text-[11.5px] text-text-faint">
                       {comment.targetType} comment
                     </span>
-                    <span
-                      style={{
-                        fontFamily: 'var(--lx-font-mono)',
-                        fontSize: 11,
-                        color: 'var(--lx-text-3)',
-                      }}
-                    >
+                    <span className="font-mono text-[11px] text-text-faint">
                       {relativeTime(comment.createdAt)}
                     </span>
                   </div>
-                  <p
-                    style={{
-                      margin: 0,
-                      fontFamily: 'var(--lx-font-sans)',
-                      fontSize: 13.5,
-                      color: 'var(--lx-text)',
-                      lineHeight: 1.6,
-                    }}
-                  >
+                  <p className="m-0 font-sans text-[13.5px] leading-[1.6] text-text">
                     {comment.content}
                   </p>
                 </div>
@@ -577,27 +426,13 @@ function PublicProfilePage() {
         )}
 
         {tab === 'liked' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div className="flex flex-col gap-3">
             {profile.privacy.likedProjectsVisibility !== 'public' ? (
-              <div
-                style={{
-                  padding: '18px 0',
-                  fontFamily: 'var(--lx-font-sans)',
-                  fontSize: 14,
-                  color: 'var(--lx-text-2)',
-                }}
-              >
+              <div className="py-[18px] font-sans text-sm text-text-muted">
                 liked projects are private on this profile.
               </div>
             ) : profile.likedProjects.length === 0 ? (
-              <div
-                style={{
-                  padding: '18px 0',
-                  fontFamily: 'var(--lx-font-sans)',
-                  fontSize: 14,
-                  color: 'var(--lx-text-2)',
-                }}
-              >
+              <div className="py-[18px] font-sans text-sm text-text-muted">
                 no public likes yet.
               </div>
             ) : (
@@ -615,34 +450,13 @@ function PublicProfilePage() {
                         } as never,
                       } as never)
                     }
-                    style={{
-                      padding: '14px 16px',
-                      border: '1px solid var(--lx-border)',
-                      borderRadius: 6,
-                      background: 'var(--lx-surface)',
-                      textAlign: 'left',
-                      cursor: 'pointer',
-                    }}
+                    className="rounded-[6px] border border-line bg-surface px-4 py-[14px] text-left"
                     type="button"
                   >
-                    <div
-                      style={{
-                        fontFamily: 'var(--lx-font-mono)',
-                        fontSize: 13,
-                        color: 'var(--lx-text)',
-                        fontWeight: 600,
-                        marginBottom: 4,
-                      }}
-                    >
+                    <div className="mb-1 font-mono text-[13px] font-semibold text-text">
                       {project.fullName}
                     </div>
-                    <div
-                      style={{
-                        fontFamily: 'var(--lx-font-mono)',
-                        fontSize: 11,
-                        color: 'var(--lx-text-3)',
-                      }}
-                    >
+                    <div className="font-mono text-[11px] text-text-faint">
                       liked {relativeTime(project.likedAt)}
                     </div>
                   </button>

@@ -129,7 +129,7 @@ function NotificationsPage() {
         )}
       </div>
 
-      <div className="lx-page-scroll" style={{ flex: 1 }}>
+      <div className="lx-page-scroll flex-1">
         <div className="lx-page-width-feed">
           {notifications.length === 0 && (
             <div className="flex flex-col items-center justify-center gap-3 px-8 py-16 text-text-faint">

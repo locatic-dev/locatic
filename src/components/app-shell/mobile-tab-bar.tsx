@@ -55,21 +55,7 @@ export function MobileTabBar({
   return (
     <nav
       aria-label="Main navigation"
-      className="pb-safe"
-      style={{
-        position: 'fixed',
-        bottom: 0,
-        left: 0,
-        right: 0,
-        minHeight: 'var(--lx-mobile-tab-height)',
-        background: 'var(--lx-bg)',
-        borderTop: '1px solid var(--lx-border)',
-        display: 'flex',
-        alignItems: 'flex-start',
-        justifyContent: 'space-around',
-        padding: '8px 8px calc(env(safe-area-inset-bottom) + 4px)',
-        zIndex: 50,
-      }}
+      className="fixed inset-x-0 bottom-0 z-50 flex min-h-(--lx-mobile-tab-height) items-start justify-around border-t border-line bg-canvas px-2 pt-2 pb-[calc(env(safe-area-inset-bottom)+4px)]"
     >
       {tabs.map((item) => {
         const isActive =
@@ -80,63 +66,35 @@ export function MobileTabBar({
             to={item.href}
             aria-current={isActive ? 'page' : undefined}
             aria-label={item.label}
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: 4,
-              padding: '6px 12px',
-              position: 'relative',
-              flex: 1,
-              textDecoration: 'none',
-              minHeight: 44,
-              justifyContent: 'center',
-            }}
+            className="relative flex min-h-11 flex-1 flex-col items-center justify-center gap-1 px-3 py-1.5 no-underline"
           >
             {isActive && (
               <div
-                style={{
-                  position: 'absolute',
-                  top: -8,
-                  left: '50%',
-                  transform: 'translateX(-50%)',
-                  width: 24,
-                  height: 2,
-                  background: 'var(--lx-accent)',
-                  borderRadius: 1,
-                }}
+                className="absolute -top-2 left-1/2 h-0.5 w-6 -translate-x-1/2 rounded-pill bg-brand"
                 aria-hidden
               />
             )}
             <span
-              style={{
-                position: 'relative',
-                color: isActive ? 'var(--lx-accent)' : 'var(--lx-text-3)',
-                display: 'flex',
-              }}
+              className={
+                isActive
+                  ? 'relative flex text-brand'
+                  : 'relative flex text-text-faint'
+              }
             >
               {item.icon}
               {item.badge != null && item.badge > 0 && (
                 <span
-                  style={{
-                    position: 'absolute',
-                    top: -4,
-                    right: -6,
-                    width: 8,
-                    height: 8,
-                    borderRadius: '50%',
-                    background: 'var(--lx-accent)',
-                  }}
+                  className="absolute -top-1 -right-1.5 h-2 w-2 rounded-full bg-brand"
                   aria-hidden
                 />
               )}
             </span>
             <span
-              style={{
-                fontFamily: 'var(--lx-font-mono)',
-                fontSize: 9.5,
-                color: isActive ? 'var(--lx-text)' : 'var(--lx-text-3)',
-              }}
+              className={
+                isActive
+                  ? 'font-mono text-[9.5px] text-text'
+                  : 'font-mono text-[9.5px] text-text-faint'
+              }
             >
               {item.label}
             </span>

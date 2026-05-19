@@ -153,7 +153,7 @@ function SettingsPage() {
 
   return (
     <div className="lx-page-shell">
-      <div className="shrink-0 border-b border-line px-[var(--lx-gutter)] pt-5">
+      <div className="shrink-0 border-b border-line px-(--lx-gutter) pt-5">
         <h1 className="mb-4 font-mono text-sm font-semibold text-text">
           settings
         </h1>
@@ -167,7 +167,7 @@ function SettingsPage() {
                   search: { tab: tabItem.id } as never,
                 } as never)
               }
-              className={`mb-[-1px] whitespace-nowrap border-b-2 px-1 pb-2.5 font-mono text-[12px] transition-colors ${
+              className={`mb-px whitespace-nowrap border-b-2 px-1 pb-2.5 font-mono text-[12px] transition-colors ${
                 tab === tabItem.id
                   ? 'border-text font-semibold text-text'
                   : 'border-transparent text-text-muted hover:text-text'
@@ -232,8 +232,8 @@ function SettingsPage() {
                               onClick={() => setBuildStatus(statusId)}
                               className={`rounded border px-3.5 py-3 text-left ${
                                 selected
-                                  ? 'border-[var(--lx-accent)] bg-[var(--lx-accent-quiet)]'
-                                  : 'border-[var(--lx-border)] bg-[var(--lx-surface)]'
+                                  ? 'border-brand bg-brand-quiet'
+                                  : 'border-line bg-surface'
                               }`}
                               type="button"
                             >
@@ -327,14 +327,9 @@ function SettingsPage() {
                     <Button
                       onClick={() => void handleSaveAccount()}
                       disabled={saving || !displayName.trim()}
-                      style={{
-                        background: 'var(--lx-accent)',
-                        color: '#0d1117',
-                        border: 'none',
-                        fontFamily: 'var(--lx-font-mono)',
-                        fontSize: 12.5,
-                        fontWeight: 600,
-                      }}
+                      variant="brand"
+                      size="meta"
+                      className="font-mono"
                     >
                       {saving ? 'saving…' : 'save changes'}
                     </Button>
@@ -349,7 +344,7 @@ function SettingsPage() {
             )}
 
             {tab === 'privacy' && (
-              <div className="flex max-w-[560px] flex-col gap-7">
+              <div className="flex max-w-140 flex-col gap-7">
                 <div>
                   <div className={sectionTitleClassName}>visibility</div>
                   {[
@@ -422,7 +417,7 @@ function SettingsPage() {
             )}
 
             {tab === 'notifications' && (
-              <div className="max-w-[560px]">
+              <div className="max-w-140">
                 <div className={sectionTitleClassName}>
                   notification preferences
                 </div>
@@ -467,9 +462,9 @@ function SettingsPage() {
             )}
 
             {tab === 'connected' && (
-              <div className="flex max-w-[560px] flex-col gap-4">
+              <div className="flex max-w-140 flex-col gap-4">
                 <div className={sectionTitleClassName}>connected accounts</div>
-                <div className="flex items-center justify-between rounded-card border border-line bg-surface px-[18px] py-4 shadow-card">
+                <div className="flex items-center justify-between rounded-card border border-line bg-surface px-4.5 py-4 shadow-card">
                   <div className="flex items-center gap-3">
                     <BrandIcon name="github" size={18} />
                     <div>
@@ -489,47 +484,18 @@ function SettingsPage() {
             )}
 
             {tab === 'danger' && (
-              <div
-                style={{
-                  maxWidth: 560,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 20,
-                }}
-              >
-                <div
-                  style={{
-                    padding: '20px',
-                    border: '1px solid var(--lx-border)',
-                    borderRadius: 6,
-                    background: 'var(--lx-surface)',
-                  }}
-                >
-                  <div
-                    style={{
-                      fontFamily: 'var(--lx-font-mono)',
-                      fontSize: 13,
-                      fontWeight: 600,
-                      color: 'var(--lx-text)',
-                      marginBottom: 8,
-                    }}
-                  >
+              <div className="flex max-w-140 flex-col gap-5">
+                <div className="rounded-[6px] border border-line bg-surface p-5">
+                  <div className="mb-2 font-mono text-[13px] font-semibold text-text">
                     deactivate account
                   </div>
-                  <p
-                    style={{
-                      margin: '0 0 14px',
-                      fontFamily: 'var(--lx-font-sans)',
-                      fontSize: 13,
-                      color: 'var(--lx-text-2)',
-                      lineHeight: 1.5,
-                    }}
-                  >
+                  <p className="mb-3.5 mt-0 font-sans text-[13px] leading-normal text-text-muted">
                     hides your profile from Explore and public surfaces until
                     you reactivate.
                   </p>
                   <Button
-                    variant="outline"
+                    variant="monoOutline"
+                    size="meta"
                     onClick={async () => {
                       if (
                         window.confirm(
@@ -543,49 +509,23 @@ function SettingsPage() {
                         }
                       }
                     }}
-                    style={{
-                      fontFamily: 'var(--lx-font-mono)',
-                      fontSize: 12.5,
-                      borderColor: 'var(--lx-border-strong)',
-                      color: 'var(--lx-text-2)',
-                    }}
+                    className="font-mono"
                   >
                     deactivate account
                   </Button>
                 </div>
 
-                <div
-                  style={{
-                    padding: '20px',
-                    border: '1px solid oklch(62% 0.22 25 / 0.4)',
-                    borderRadius: 6,
-                    background: 'oklch(62% 0.22 25 / 0.04)',
-                  }}
-                >
-                  <div
-                    style={{
-                      fontFamily: 'var(--lx-font-mono)',
-                      fontSize: 13,
-                      fontWeight: 600,
-                      color: 'var(--lx-danger)',
-                      marginBottom: 8,
-                    }}
-                  >
+                <div className="rounded-[6px] border border-danger/40 bg-danger/4 p-5">
+                  <div className="mb-2 font-mono text-[13px] font-semibold text-danger">
                     delete account
                   </div>
-                  <p
-                    style={{
-                      margin: '0 0 14px',
-                      fontFamily: 'var(--lx-font-sans)',
-                      fontSize: 13,
-                      color: 'var(--lx-text-2)',
-                      lineHeight: 1.5,
-                    }}
-                  >
+                  <p className="mb-3.5 mt-0 font-sans text-[13px] leading-normal text-text-muted">
                     permanently removes all your Locatic data and unstars all
                     repos starred via Locatic. this cannot be undone.
                   </p>
                   <Button
+                    variant="destructive"
+                    size="meta"
                     onClick={async () => {
                       const confirmed = window.prompt(
                         'Type DELETE to confirm permanent account deletion:',
@@ -598,14 +538,7 @@ function SettingsPage() {
                         }
                       }
                     }}
-                    style={{
-                      background: 'var(--lx-danger)',
-                      color: 'oklch(93% 0.005 230)',
-                      border: 'none',
-                      fontFamily: 'var(--lx-font-mono)',
-                      fontSize: 12.5,
-                      fontWeight: 600,
-                    }}
+                    className="font-mono"
                   >
                     delete account permanently
                   </Button>
@@ -615,23 +548,6 @@ function SettingsPage() {
           </div>
         </div>
       </div>
-      <style>{`
-        @media (min-width: 1024px) {
-          .lg\\:block {
-            width: 220px !important;
-            border-bottom: none !important;
-            border-right: 1px solid var(--lx-border);
-            padding: 16px 0 !important;
-            overflow: visible !important;
-          }
-        }
-
-        @media (min-width: 640px) {
-          div[style*='grid-template-columns: minmax(0, 1fr);'] {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-          }
-        }
-      `}</style>
     </div>
   )
 }
