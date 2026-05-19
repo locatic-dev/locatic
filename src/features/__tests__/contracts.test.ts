@@ -1,9 +1,14 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  mapConversationList,
+  mapNotifications,
   mapPrivateProfile,
   mapProjectDetail,
   mapPublicProfile,
+  mapViewerInboxSummary,
+  mapViewerLikedProjectIds,
+  mapViewerSummary,
   mapViewer,
 } from '../contracts'
 
@@ -179,7 +184,31 @@ describe('contract mappers', () => {
     expect(publicProfile?.profile.city).toBe('Berlin, Germany')
   })
 
+  it('maps smaller viewer payloads without collapsing them into private profile', () => {
+    const viewerSummary = mapViewerSummary({
+      viewerId: 'user_1',
+    } as never)
+    const likedProjects = mapViewerLikedProjectIds({
+      likedProjectIds: ['project_1', 'project_2'],
+      viewerId: 'user_1',
+    } as never)
+    const inboxSummary = mapViewerInboxSummary({
+      viewerId: 'user_1',
+    } as never)
+
+    expect(viewerSummary?.id).toBe('user_1')
+    expect(likedProjects?.likedProjectIds).toHaveLength(2)
+    expect(inboxSummary?.viewerId).toBe('user_1')
+  })
+
   it('returns null when project detail is absent', () => {
     expect(mapProjectDetail(null)).toBeNull()
+  })
+
+  it('preserves pending conversation and notification payloads', () => {
+    expect(mapConversationList(undefined)).toBeUndefined()
+    expect(mapNotifications(undefined)).toBeUndefined()
+    expect(mapConversationList([])).toEqual([])
+    expect(mapNotifications([])).toEqual([])
   })
 })

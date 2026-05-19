@@ -92,6 +92,7 @@ export function SidebarNav({
               {isActive && <div className="lx-nav-active-bar" />}
               <Link
                 to={item.href}
+                preload={false}
                 aria-current={isActive ? 'page' : undefined}
                 className={[
                   'flex items-center gap-3 px-5 py-2 font-mono text-[13px] no-underline transition-colors',
@@ -126,6 +127,7 @@ export function SidebarNav({
             {/* Avatar + name — navigates to profile */}
             <Link
               to="/profile"
+              preload={false}
               className="flex min-w-0 flex-1 items-center gap-2.5 text-inherit no-underline"
             >
               <LxAvatar
@@ -169,12 +171,20 @@ function AccountMenu() {
       </DropdownMenuTrigger>
       <DropdownMenuContent side="right" align="end" sideOffset={8}>
         <DropdownMenuItem asChild>
-          <Link to="/profile" className="text-inherit no-underline">
+          <Link
+            to="/profile"
+            preload={false}
+            className="text-inherit no-underline"
+          >
             View profile
           </Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
-          <Link to="/settings" className="text-inherit no-underline">
+          <Link
+            to="/settings"
+            preload={false}
+            className="text-inherit no-underline"
+          >
             Settings
           </Link>
         </DropdownMenuItem>

@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useQuery } from '@tanstack/react-query'
+import { useSuspenseQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { notificationsQueryOptions } from '@/features/notifications/queries'
 import {
@@ -12,8 +12,13 @@ import { relativeTime } from '@/lib/time'
 import { Bell, Heart, MessageSquare, UserPlus } from '@/lib/icons'
 import { mapNotifications } from '@/features/contracts'
 import type { Doc } from '../../../convex/_generated/dataModel'
+import { FeedRoutePending } from '@/components/app-shell/route-pending'
 
 export const Route = createFileRoute('/_app/notifications')({
+  loader: ({ context }) =>
+    context.queryClient.ensureQueryData(notificationsQueryOptions()),
+  pendingComponent: FeedRoutePending,
+  pendingMs: 250,
   component: NotificationsPage,
 })
 
@@ -51,16 +56,15 @@ function notifText(notification: Doc<'notifications'>) {
 }
 
 function NotificationsPage() {
-  const notifQuery = useQuery(notificationsQueryOptions())
+  const { data } = useSuspenseQuery(notificationsQueryOptions())
   const markRead = useMarkNotificationRead()
   const markAllRead = useMarkAllNotificationsRead()
   const [localReadIds, setLocalReadIds] = useState<Set<string>>(new Set())
   const [markingAll, setMarkingAll] = useState(false)
   const [pendingReadIds, setPendingReadIds] = useState<Set<string>>(new Set())
 
-  const notifications = mapNotifications(
-    notifQuery.data as Array<Doc<'notifications'>> | undefined,
-  )
+  const notifications =
+    mapNotifications(data as Array<Doc<'notifications'>> | undefined) ?? []
   const unreadCount = notifications.filter(
     (notification) =>
       !notification.isRead && !localReadIds.has(String(notification._id)),

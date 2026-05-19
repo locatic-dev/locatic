@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate, useSearch } from '@tanstack/react-router'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import type { Doc } from '../../../convex/_generated/dataModel'
 import { privateProfileQueryOptions } from '@/features/profile/queries'
@@ -19,6 +19,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 import { BrandIcon } from '@/components/ui/brand-icon'
+import { FormRoutePending } from '@/components/app-shell/route-pending'
 import { CheckCircle2 } from '@/lib/icons'
 import {
   BUILD_STATUS,
@@ -48,6 +49,10 @@ export const Route = createFileRoute('/_app/settings')({
       | 'connected'
       | 'danger',
   }),
+  loader: ({ context }) =>
+    context.queryClient.ensureQueryData(privateProfileQueryOptions()),
+  pendingComponent: FormRoutePending,
+  pendingMs: 250,
   component: SettingsPage,
 })
 
@@ -69,10 +74,11 @@ const settingsRowClassName =
 function SettingsPage() {
   const { tab } = useSearch({ from: '/_app/settings' })
   const navigate = useNavigate()
-  const profileQuery = useQuery(privateProfileQueryOptions())
-  const profile = mapPrivateProfile(
-    profileQuery.data as PrivateProfilePayload | undefined,
-  )
+  const { data } = useSuspenseQuery(privateProfileQueryOptions())
+  const profile = mapPrivateProfile(data as PrivateProfilePayload | undefined)
+  if (!profile) {
+    throw new Error('Settings data was not available')
+  }
 
   const [citySearch, setCitySearch] = useState('')
   const popularCitiesQuery = useQuery(popularCitiesQueryOptions())
@@ -100,8 +106,6 @@ function SettingsPage() {
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    if (!profile) return
-
     setDisplayName(profile.viewer.displayName)
     setBio(profile.viewer.bio)
     setBuildStatus(profile.viewer.buildStatus)
@@ -114,10 +118,6 @@ function SettingsPage() {
     setBluesky(profile.viewer.socialLinks.bluesky ?? '')
     setWebsite(profile.viewer.socialLinks.website ?? '')
   }, [profile])
-
-  if (!profile) {
-    return <div className="p-8 text-text-faint">loading…</div>
-  }
 
   const cityResults =
     citySearch.trim().length > 0
