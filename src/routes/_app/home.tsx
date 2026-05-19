@@ -1,14 +1,10 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { useQuery } from '@tanstack/react-query'
+import { useSuspenseQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import type { Doc } from '../../../convex/_generated/dataModel'
 import { homeFeedQueryOptions } from '@/features/home/queries'
-import { privateProfileQueryOptions } from '@/features/profile/queries'
-import {
-  ProjectCard,
-  ProjectCardSkeleton,
-  type ProjectCardData,
-} from '@/components/ui/project-card'
+import { viewerLikedProjectIdsQueryOptions } from '@/features/viewer/queries'
+import { ProjectCard, type ProjectCardData } from '@/components/ui/project-card'
 import { EmptyState } from '@/components/ui/empty-state'
 import { PageHeader } from '@/components/app-shell/page-header'
 import { relativeTime } from '@/lib/time'
@@ -16,20 +12,30 @@ import { useLikeProject, useUnlikeProject } from '@/features/projects/mutations'
 import { useOpenConversation } from '@/features/inbox/use-open-conversation'
 import { getHomeCardDmTargetUserId } from '@/features/home/project-card-targets'
 import {
-  mapPrivateProfile,
-  type PrivateProfilePayload,
+  mapViewerLikedProjectIds,
+  type ViewerLikedProjectIdsPayload,
 } from '@/features/contracts'
+import { FeedRoutePending } from '@/components/app-shell/route-pending'
 
 export const Route = createFileRoute('/_app/home')({
+  loader: ({ context }) =>
+    Promise.all([
+      context.queryClient.ensureQueryData(homeFeedQueryOptions()),
+      context.queryClient.ensureQueryData(viewerLikedProjectIdsQueryOptions()),
+    ]),
+  pendingComponent: FeedRoutePending,
+  pendingMs: 250,
   component: HomePage,
 })
 
 function HomePage() {
   const navigate = useNavigate()
-  const feedQuery = useQuery(homeFeedQueryOptions())
-  const profileQuery = useQuery(privateProfileQueryOptions())
-  const profile = mapPrivateProfile(
-    profileQuery.data as PrivateProfilePayload | undefined,
+  const { data: feedData } = useSuspenseQuery(homeFeedQueryOptions())
+  const { data: viewerStateData } = useSuspenseQuery(
+    viewerLikedProjectIdsQueryOptions(),
+  )
+  const viewerState = mapViewerLikedProjectIds(
+    viewerStateData as ViewerLikedProjectIdsPayload | undefined,
   )
 
   const likeProject = useLikeProject()
@@ -42,16 +48,14 @@ function HomePage() {
   )
 
   const likedProjectIds = new Set(
-    profile?.likedProjects.map((likedProject) =>
-      String(likedProject.projectId),
-    ) ?? [],
+    viewerState?.likedProjectIds.map(String) ?? [],
   )
-
-  const feedData = feedQuery.data as
-    | { items: Array<Doc<'home_feed_items'>>; nextCursor: number | null }
-    | undefined
-  const items = feedData?.items ?? []
-  const isLoading = feedQuery.isLoading || profileQuery.isLoading
+  const items = (
+    feedData as {
+      items: Array<Doc<'home_feed_items'>>
+      nextCursor: number | null
+    }
+  ).items
 
   const handleLike = async (projectId: string, currentlyLiked: boolean) => {
     if (pendingLikes.has(projectId)) return
@@ -88,26 +92,7 @@ function HomePage() {
 
       <div className="lx-page-scroll">
         <div className="lx-page-width-feed">
-          {isLoading && (
-            <div className="flex flex-col gap-3.5">
-              {[1, 2, 3].map((skeletonId) => (
-                <ProjectCardSkeleton key={skeletonId} />
-              ))}
-            </div>
-          )}
-
-          {feedQuery.isError && (
-            <EmptyState
-              title="could not load your feed"
-              description="something went wrong fetching your feed. try again."
-              action={{
-                label: 'retry',
-                onClick: () => void feedQuery.refetch(),
-              }}
-            />
-          )}
-
-          {!isLoading && !feedQuery.isError && items.length === 0 && (
+          {items.length === 0 && (
             <EmptyState
               title="you're not following anyone yet."
               description="your feed shows projects from people you follow. start with explore to find builders nearby."
@@ -122,7 +107,7 @@ function HomePage() {
             />
           )}
 
-          {!isLoading && items.length > 0 && (
+          {items.length > 0 && (
             <>
               <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
                 <span className="font-mono text-[11.5px] lowercase text-text-faint">
@@ -142,8 +127,8 @@ function HomePage() {
                   const dmTargetUserId = getHomeCardDmTargetUserId({
                     actorUserId: String(item.actorId),
                     ownerUserId: String(snapshot.ownerId),
-                    viewerUserId: profile?.viewer.id
-                      ? String(profile.viewer.id)
+                    viewerUserId: viewerState?.viewerId
+                      ? String(viewerState.viewerId)
                       : null,
                   })
                   const liked =

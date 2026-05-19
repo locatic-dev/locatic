@@ -64,6 +64,7 @@ export function MobileTabBar({
           <Link
             key={item.id}
             to={item.href}
+            preload={false}
             aria-current={isActive ? 'page' : undefined}
             aria-label={item.label}
             className="relative flex min-h-11 flex-1 flex-col items-center justify-center gap-1 px-3 py-1.5 no-underline"

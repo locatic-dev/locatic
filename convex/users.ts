@@ -42,6 +42,18 @@ function serializeViewer(
   }
 }
 
+async function getViewerCityName(
+  ctx: QueryCtx,
+  viewer: NonNullable<Awaited<ReturnType<typeof getViewerFromAuth>>>,
+) {
+  if (!viewer.profile.cityId) {
+    return null
+  }
+
+  const city = await ctx.db.get(viewer.profile.cityId)
+  return city?.displayName ?? null
+}
+
 function resolvePublicCityLabel(
   viewer: NonNullable<Awaited<ReturnType<typeof getViewerFromAuth>>>,
   cityName: string | null,
@@ -225,6 +237,67 @@ export const privateProfile = query({
           project: NonNullable<typeof likedProject.project>
         } => Boolean(likedProject.projectId && likedProject.project),
       ),
+    }
+  },
+})
+
+export const viewerSummary = query({
+  args: {},
+  handler: async (ctx) => {
+    const viewer = await getViewerOrThrow(ctx)
+
+    return {
+      viewerId: viewer._id,
+    }
+  },
+})
+
+export const viewerLikedProjectIds = query({
+  args: {},
+  handler: async (ctx) => {
+    const viewer = await getViewerOrThrow(ctx)
+    const likedReactions = await ctx.db
+      .query('reactions')
+      .withIndex('by_user_target_type', (query) =>
+        query
+          .eq('userId', viewer._id)
+          .eq('targetType', 'project')
+          .eq('reactionType', 'like'),
+      )
+      .collect()
+
+    return {
+      viewerId: viewer._id,
+      likedProjectIds: likedReactions.flatMap((reaction) => {
+        const projectId = ctx.db.normalizeId('projects', reaction.targetId)
+        return projectId ? [projectId] : []
+      }),
+    }
+  },
+})
+
+export const viewerExplorePrefs = query({
+  args: {},
+  handler: async (ctx) => {
+    const viewer = await getViewerOrThrow(ctx)
+
+    return {
+      viewerId: viewer._id,
+      appearInExplore: viewer.appearInExplore,
+      cityId: viewer.profile.cityId,
+      cityName: await getViewerCityName(ctx, viewer),
+      exploreConfig: viewer.exploreConfig,
+    }
+  },
+})
+
+export const viewerInboxSummary = query({
+  args: {},
+  handler: async (ctx) => {
+    const viewer = await getViewerOrThrow(ctx)
+
+    return {
+      viewerId: viewer._id,
     }
   },
 })

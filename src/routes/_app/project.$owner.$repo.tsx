@@ -1,5 +1,9 @@
 import { useAuth } from '@clerk/tanstack-react-start'
-import { useQuery } from '@tanstack/react-query'
+import {
+  useQuery,
+  useQueryClient,
+  useSuspenseQuery,
+} from '@tanstack/react-query'
 import {
   createFileRoute,
   useCanGoBack,
@@ -7,7 +11,6 @@ import {
 } from '@tanstack/react-router'
 import { useState } from 'react'
 import { projectDetailQueryOptions } from '@/features/projects/queries'
-import { privateProfileQueryOptions } from '@/features/profile/queries'
 import { LxAvatar } from '@/components/ui/lx-avatar'
 import { LangDot } from '@/components/ui/lang-dot'
 import { StatusPill } from '@/components/ui/status-pill'
@@ -30,19 +33,25 @@ import {
 } from '@/features/projects/mutations'
 import { useFollowUser, useUnfollowUser } from '@/features/follows/mutations'
 import {
-  mapPrivateProfile,
   mapProjectDetail,
-  type PrivateProfilePayload,
+  mapViewerSummary,
   type ProjectDetailPayload,
+  type ViewerSummaryPayload,
 } from '@/features/contracts'
 import { socialLinkHref } from '@/lib/social-links'
 import { useOpenConversation } from '@/features/inbox/use-open-conversation'
+import { viewerSummaryQueryOptions } from '@/features/viewer/queries'
 
 export const Route = createFileRoute('/_app/project/$owner/$repo')({
-  loader: ({ context, params }) =>
-    context.queryClient.ensureQueryData(
+  loader: async ({ context, params }) => {
+    await context.queryClient.ensureQueryData(
       projectDetailQueryOptions(`${params.owner}/${params.repo}`),
-    ),
+    )
+
+    if (context.auth.isAuthenticated) {
+      await context.queryClient.ensureQueryData(viewerSummaryQueryOptions())
+    }
+  },
   component: ProjectDetailPage,
 })
 
@@ -51,6 +60,7 @@ function ProjectDetailPage() {
   const router = useRouter()
   const canGoBack = useCanGoBack()
   const { isSignedIn } = useAuth()
+  const queryClient = useQueryClient()
   const likeProject = useLikeProject()
   const unlikeProject = useUnlikeProject()
   const addComment = useAddComment()
@@ -59,13 +69,16 @@ function ProjectDetailPage() {
   const { openConversation, pendingUserId } = useOpenConversation()
 
   const fullName = `${owner}/${repo}`
-  const projectQuery = useQuery(projectDetailQueryOptions(fullName))
-  const profileQuery = useQuery(privateProfileQueryOptions())
-  const profile = mapPrivateProfile(
-    profileQuery.data as PrivateProfilePayload | undefined,
+  const { data } = useSuspenseQuery(projectDetailQueryOptions(fullName))
+  const viewerSummaryQuery = useQuery({
+    ...viewerSummaryQueryOptions(),
+    enabled: isSignedIn,
+  })
+  const viewer = mapViewerSummary(
+    viewerSummaryQuery.data as ViewerSummaryPayload | undefined,
   )
   const detail = mapProjectDetail(
-    projectQuery.data as ProjectDetailPayload | null | undefined,
+    data as ProjectDetailPayload | null | undefined,
   )
 
   const [comment, setComment] = useState('')
@@ -74,10 +87,6 @@ function ProjectDetailPage() {
   const [followPending, setFollowPending] = useState(false)
   const [likedOverride, setLikedOverride] = useState<boolean | null>(null)
   const [followedOverride, setFollowedOverride] = useState<boolean | null>(null)
-
-  if (!detail && projectQuery.isLoading) {
-    return <div className="p-8 text-text-faint">loading project…</div>
-  }
 
   if (!detail) {
     return <div className="p-8 text-text-muted">project not found.</div>
@@ -97,7 +106,7 @@ function ProjectDetailPage() {
     detail.project.github.readmePreview ||
     description ||
     `# ${detail.project.github.name}`
-  const isOwnProject = profile?.viewer.id === String(detail.owner.userId)
+  const isOwnProject = viewer?.id === String(detail.owner.userId)
   const githubHref = `https://github.com/${detail.project.github.fullName}`
   const ownerGithubHref = socialLinkHref('github', detail.owner.githubUsername)
   const ownerXHref = socialLinkHref('x', detail.owner.socialLinks.x)
@@ -169,7 +178,9 @@ function ProjectDetailPage() {
         targetType: 'project',
       })
       setComment('')
-      await projectQuery.refetch()
+      await queryClient.invalidateQueries({
+        queryKey: projectDetailQueryOptions(fullName).queryKey,
+      })
     } catch (error) {
       console.error(error)
     } finally {

@@ -9,6 +9,18 @@ export const viewerQueryOptions = () =>
 export const privateProfileQueryOptions = () =>
   convexQuery(api.users.privateProfile, {})
 
+export const viewerSummaryQueryOptions = () =>
+  convexQuery(api.users.viewerSummary, {})
+
+export const viewerLikedProjectIdsQueryOptions = () =>
+  convexQuery(api.users.viewerLikedProjectIds, {})
+
+export const viewerExplorePrefsQueryOptions = () =>
+  convexQuery(api.users.viewerExplorePrefs, {})
+
+export const viewerInboxSummaryQueryOptions = () =>
+  convexQuery(api.users.viewerInboxSummary, {})
+
 export const publicProfileQueryOptions = (username: string) =>
   convexQuery(api.users.publicProfile, { username })
 

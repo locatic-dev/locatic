@@ -401,6 +401,8 @@ function OnboardingPage() {
             <div className="flex items-center gap-2.5 border-b border-line bg-surface-alt px-3.5 py-2.5">
               <Search size={13} strokeWidth={1.4} className="text-text-faint" />
               <input
+                id="repo-filter"
+                name="repoFilter"
                 value={repoFilter}
                 onChange={(event) => setRepoFilter(event.target.value)}
                 placeholder="filter repos…"

@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate, useSearch } from '@tanstack/react-router'
-import { useQuery } from '@tanstack/react-query'
+import { useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { useAction } from 'convex/react'
 import { api } from '../../../convex/_generated/api'
@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button'
 import { compactNumber } from '@/lib/format'
 import { relativeTime } from '@/lib/time'
 import { ProjectCard, type ProjectCardData } from '@/components/ui/project-card'
+import { FormRoutePending } from '@/components/app-shell/route-pending'
 import {
   mapPrivateProfile,
   type PrivateProfilePayload,
@@ -23,6 +24,10 @@ export const Route = createFileRoute('/_app/profile')({
   validateSearch: (search: Record<string, unknown>) => ({
     tab: (search.tab as 'projects' | 'comments' | 'liked') ?? 'projects',
   }),
+  loader: ({ context }) =>
+    context.queryClient.ensureQueryData(privateProfileQueryOptions()),
+  pendingComponent: FormRoutePending,
+  pendingMs: 250,
   component: ProfilePage,
 })
 
@@ -49,29 +54,30 @@ function projectCardData(project: Doc<'projects'>): ProjectCardData {
 function ProfilePage() {
   const { tab } = useSearch({ from: '/_app/profile' })
   const navigate = useNavigate()
-  const profileQuery = useQuery(privateProfileQueryOptions())
-  const profile = mapPrivateProfile(
-    profileQuery.data as PrivateProfilePayload | undefined,
-  )
+  const queryClient = useQueryClient()
+  const { data } = useSuspenseQuery(privateProfileQueryOptions())
+  const profile = mapPrivateProfile(data as PrivateProfilePayload | undefined)
+  if (!profile) {
+    throw new Error('Profile data was not available')
+  }
   const syncContributions = useAction(api.github_actions.syncContributions)
   const [isSyncing, setIsSyncing] = useState(false)
 
   useEffect(() => {
-    if (!profile) return
     const syncedAt = profile.viewer.githubContributions?.syncedAt
     const isStale = !syncedAt || Date.now() - syncedAt > 6 * 60 * 60 * 1000
     if (isStale) {
       setIsSyncing(true)
       void syncContributions({})
-        .then(() => profileQuery.refetch())
+        .then(() =>
+          queryClient.invalidateQueries({
+            queryKey: privateProfileQueryOptions().queryKey,
+          }),
+        )
         .catch(console.error)
         .finally(() => setIsSyncing(false))
     }
-  }, [profile, syncContributions])
-
-  if (!profile) {
-    return <div className="p-8 text-text-faint">loading…</div>
-  }
+  }, [profile, queryClient, syncContributions])
 
   const githubHref = socialLinkHref('github', profile.viewer.githubUsername)
   const xHref = socialLinkHref('x', profile.viewer.socialLinks.x)

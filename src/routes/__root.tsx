@@ -13,6 +13,7 @@ import ConvexProvider from '../integrations/convex/provider'
 import { Logo } from '@/components/ui/logo'
 import { DotMap } from '@/components/ui/dot-map'
 import { ArrowLeft } from '@/lib/icons'
+import { createClientRouteAuthStateGetter } from '@/lib/auth-routing'
 import appCss from '../styles.css?url'
 import type { QueryClient } from '@tanstack/react-query'
 import type { ConvexQueryClient } from '@convex-dev/react-query'
@@ -43,12 +44,26 @@ const fetchClerkAuth = createServerFn({ method: 'GET' }).handler(async () => {
   }
 })
 
+const getClientRouteAuthState = createClientRouteAuthStateGetter(() =>
+  fetchClerkAuth(),
+)
+
+async function getRouteAuthState() {
+  if (typeof window === 'undefined') {
+    return fetchClerkAuth()
+  }
+
+  return getClientRouteAuthState()
+}
+
 export const Route = createRootRouteWithContext<MyRouterContext>()({
   beforeLoad: async (ctx) => {
-    const authState = await fetchClerkAuth()
+    const authState = await getRouteAuthState()
 
     if (authState.token) {
       ctx.context.convexQueryClient.serverHttpClient?.setAuth(authState.token)
+    } else {
+      ctx.context.convexQueryClient.serverHttpClient?.clearAuth()
     }
 
     return {

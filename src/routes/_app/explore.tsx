@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import type { Doc, Id } from '../../../convex/_generated/dataModel'
 import {
@@ -7,18 +7,13 @@ import {
   exploreFeedQueryOptions,
   nearbyBuildersQueryOptions,
 } from '@/features/explore/queries'
-import { privateProfileQueryOptions } from '@/features/profile/queries'
 import { followingQueryOptions } from '@/features/follows/queries'
 import {
   citiesByIdsQueryOptions,
   citiesSearchQueryOptions,
   popularCitiesQueryOptions,
 } from '@/features/cities/queries'
-import {
-  ProjectCard,
-  ProjectCardSkeleton,
-  type ProjectCardData,
-} from '@/components/ui/project-card'
+import { ProjectCard, type ProjectCardData } from '@/components/ui/project-card'
 import { Input } from '@/components/ui/input'
 import { CityPill } from '@/components/ui/city-pill'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -28,15 +23,50 @@ import { useLikeProject, useUnlikeProject } from '@/features/projects/mutations'
 import { useFollowUser, useUnfollowUser } from '@/features/follows/mutations'
 import { Plus } from '@/lib/icons'
 import {
-  mapPrivateProfile,
-  type PrivateProfilePayload,
+  mapViewerExplorePrefs,
+  mapViewerLikedProjectIds,
+  type ViewerExplorePrefsPayload,
+  type ViewerLikedProjectIdsPayload,
 } from '@/features/contracts'
 import { useUpdateExploreConfig } from '@/features/settings/mutations'
 import { useDismissExploreProject } from '@/features/explore/mutations'
 import { useOpenConversation } from '@/features/inbox/use-open-conversation'
 import { disabledQuery } from '@/lib/query'
+import { FeedRoutePending } from '@/components/app-shell/route-pending'
+import {
+  viewerExplorePrefsQueryOptions,
+  viewerLikedProjectIdsQueryOptions,
+} from '@/features/viewer/queries'
 
 export const Route = createFileRoute('/_app/explore')({
+  loader: async ({ context }) => {
+    const [explorePrefs] = await Promise.all([
+      context.queryClient.ensureQueryData(viewerExplorePrefsQueryOptions()),
+      context.queryClient.ensureQueryData(exploreFeedQueryOptions()),
+      context.queryClient.ensureQueryData(nearbyBuildersQueryOptions()),
+      context.queryClient.ensureQueryData(viewerLikedProjectIdsQueryOptions()),
+    ])
+
+    const selectedCityIds =
+      explorePrefs.exploreConfig.cityIds.length > 0
+        ? explorePrefs.exploreConfig.cityIds
+        : explorePrefs.cityId
+          ? [explorePrefs.cityId]
+          : []
+
+    await Promise.all([
+      context.queryClient.ensureQueryData(
+        followingQueryOptions(explorePrefs.viewerId),
+      ),
+      selectedCityIds.length > 0
+        ? context.queryClient.ensureQueryData(
+            citiesByIdsQueryOptions(selectedCityIds),
+          )
+        : Promise.resolve(),
+    ])
+  },
+  pendingComponent: FeedRoutePending,
+  pendingMs: 250,
   component: ExplorePage,
 })
 
@@ -46,17 +76,25 @@ function ExplorePage() {
     left.every((cityId, index) => cityId === right[index])
 
   const navigate = useNavigate()
-  const feedQuery = useQuery(exploreFeedQueryOptions())
-  const nearbyBuildersQuery = useQuery(nearbyBuildersQueryOptions())
-  const profileQuery = useQuery(privateProfileQueryOptions())
-  const profile = mapPrivateProfile(
-    profileQuery.data as PrivateProfilePayload | undefined,
+  const { data: feedData } = useSuspenseQuery(exploreFeedQueryOptions())
+  const { data: nearbyBuildersData } = useSuspenseQuery(
+    nearbyBuildersQueryOptions(),
   )
-  const viewerId = profile?.viewer.id
-  const followingQuery = useQuery(
-    viewerId
-      ? followingQueryOptions(viewerId)
-      : disabledQuery(followingQueryOptions('users_idle' as Id<'users'>)),
+  const { data: explorePrefsData } = useSuspenseQuery(
+    viewerExplorePrefsQueryOptions(),
+  )
+  const { data: viewerStateData } = useSuspenseQuery(
+    viewerLikedProjectIdsQueryOptions(),
+  )
+  const explorePrefs = mapViewerExplorePrefs(
+    explorePrefsData as ViewerExplorePrefsPayload | undefined,
+  )
+  const viewerState = mapViewerLikedProjectIds(
+    viewerStateData as ViewerLikedProjectIdsPayload | undefined,
+  )
+  const viewerId = explorePrefs?.viewerId
+  const { data: followingData } = useSuspenseQuery(
+    followingQueryOptions(viewerId as Id<'users'>),
   )
 
   const likeProject = useLikeProject()
@@ -90,10 +128,10 @@ function ExplorePage() {
   const queuedCityIdsRef = useRef<string[] | null>(null)
   const lastPersistedCityIdsRef = useRef<string[]>([])
 
-  const initialCityIds = profile?.viewer.exploreConfig.cityIds.length
-    ? profile.viewer.exploreConfig.cityIds.map(String)
-    : profile?.viewer.cityId
-      ? [String(profile.viewer.cityId)]
+  const initialCityIds = explorePrefs?.exploreConfig.cityIds.length
+    ? explorePrefs.exploreConfig.cityIds.map(String)
+    : explorePrefs?.cityId
+      ? [String(explorePrefs.cityId)]
       : []
 
   useEffect(() => {
@@ -105,15 +143,15 @@ function ExplorePage() {
         return current
       }
 
-      if (initialCityIds.length === 1 && profile?.viewer.cityName) {
-        return { [initialCityIds[0] ?? '']: profile.viewer.cityName }
+      if (initialCityIds.length === 1 && explorePrefs?.cityName) {
+        return { [initialCityIds[0] ?? '']: explorePrefs.cityName }
       }
 
       return current
     })
     lastPersistedCityIdsRef.current = initialCityIds
     setDidHydrateCities(true)
-  }, [didHydrateCities, initialCityIds, profile?.viewer.cityName])
+  }, [didHydrateCities, explorePrefs?.cityName, initialCityIds])
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
@@ -124,7 +162,7 @@ function ExplorePage() {
   }, [builderQuery])
 
   const builderSearchQuery = useQuery(
-    viewerId && debouncedBuilderQuery.trim().length > 0
+    debouncedBuilderQuery.trim().length > 0
       ? builderSearchQueryOptions(
           debouncedBuilderQuery,
           selectedCityIds as Array<Id<'cities'>>,
@@ -143,25 +181,27 @@ function ExplorePage() {
   })
 
   const likedProjectIds = new Set(
-    profile?.likedProjects.map((likedProject) =>
-      String(likedProject.projectId),
-    ) ?? [],
+    viewerState?.likedProjectIds.map(String) ?? [],
   )
   const followedUserIds = new Set(
-    ((followingQuery.data as Array<Doc<'follows'>> | undefined) ?? []).map(
-      (follow) => String(follow.followingId),
+    ((followingData as Array<Doc<'follows'>> | undefined) ?? []).map((follow) =>
+      String(follow.followingId),
     ),
   )
 
-  const feedData = feedQuery.data as
-    | {
-        projects: Array<Doc<'projects'>>
-        fallback: Array<Doc<'projects'>>
-      }
-    | undefined
-  const allItems = feedData?.projects ?? []
+  const allItems = (
+    feedData as {
+      projects: Array<Doc<'projects'>>
+      fallback: Array<Doc<'projects'>>
+    }
+  ).projects
   const items = allItems.filter((item) => !dismissedIds.has(String(item._id)))
-  const fallbackItems = feedData?.fallback ?? []
+  const fallbackItems = (
+    feedData as {
+      projects: Array<Doc<'projects'>>
+      fallback: Array<Doc<'projects'>>
+    }
+  ).fallback
   const selectedCities =
     (selectedCitiesQuery.data as Array<Doc<'cities'>> | undefined) ?? []
   useEffect(() => {
@@ -186,7 +226,6 @@ function ExplorePage() {
   const suggestedCities = cityResults
     .filter((city) => !selectedCityIds.includes(String(city._id)))
     .slice(0, 6)
-  const isLoading = feedQuery.isLoading || profileQuery.isLoading
   const hasSelectedCities = selectedCityIds.length > 0
   const selectedCityChips = selectedCityIds.map((cityId) => ({
     id: cityId,
@@ -204,7 +243,7 @@ function ExplorePage() {
         }>
       | undefined) ?? []
   const nearbyBuilders =
-    (nearbyBuildersQuery.data as
+    (nearbyBuildersData as
       | Array<{
           userId: string
           displayName: string
@@ -217,12 +256,12 @@ function ExplorePage() {
   const isBuilderSearchActive = debouncedBuilderQuery.length > 0
 
   const persistExploreConfig = async (nextCityIds: string[]) => {
-    if (!profile) return
+    if (!explorePrefs) return
 
     await updateExploreConfig({
       cityIds: nextCityIds as never[],
-      stackPrefs: profile.viewer.exploreConfig.stackPrefs,
-      appearInExplore: profile.viewer.appearInExplore,
+      stackPrefs: explorePrefs.exploreConfig.stackPrefs,
+      appearInExplore: explorePrefs.appearInExplore,
     })
   }
 
@@ -489,28 +528,7 @@ function ExplorePage() {
 
         <div className="lx-page-scroll">
           <div className="lx-page-width-feed">
-            {isLoading && (
-              <div className="flex flex-col gap-3.5">
-                {[1, 2, 3].map((skeletonId) => (
-                  <ProjectCardSkeleton key={skeletonId} />
-                ))}
-              </div>
-            )}
-
-            {feedQuery.isError && (
-              <EmptyState
-                title="could not load explore right now"
-                description="something went wrong building your discovery feed. try again in a moment."
-                action={{
-                  label: 'retry',
-                  onClick: () => void feedQuery.refetch(),
-                }}
-              />
-            )}
-
-            {!isLoading &&
-              !isBuilderSearchActive &&
-              !feedQuery.isError &&
+            {!isBuilderSearchActive &&
               items.length === 0 &&
               fallbackItems.length === 0 && (
                 <div className="py-10">
@@ -529,9 +547,7 @@ function ExplorePage() {
                 </div>
               )}
 
-            {!isLoading &&
-              !isBuilderSearchActive &&
-              !feedQuery.isError &&
+            {!isBuilderSearchActive &&
               items.length === 0 &&
               fallbackItems.length > 0 && (
                 <div className="py-10">
@@ -601,60 +617,55 @@ function ExplorePage() {
                 </div>
               )}
 
-            {!isLoading &&
-              isBuilderSearchActive &&
-              builderSearchQuery.isLoading && (
-                <div className="py-5 text-center font-mono text-[12.5px] text-text-faint">
-                  searching builders…
-                </div>
-              )}
+            {isBuilderSearchActive && builderSearchQuery.isLoading && (
+              <div className="py-5 text-center font-mono text-[12.5px] text-text-faint">
+                searching builders…
+              </div>
+            )}
 
-            {!isLoading &&
-              isBuilderSearchActive &&
-              builderResults.length > 0 && (
-                <div className="mb-8">
-                  <div className="mb-3 font-mono text-[10.5px] uppercase tracking-[0.06em] text-text-faint">
-                    matching builders
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    {builderResults.map((builder) => (
-                      <NearbyBuilderRow
-                        key={builder.userId}
-                        builder={builder}
-                        onOpenProfile={() =>
-                          void navigate({
-                            to: '/u/$username',
-                            params: {
-                              username: builder.githubUsername,
-                            } as never,
-                          } as never)
-                        }
-                        onFollow={() =>
-                          void handleFollow(
-                            builder.userId,
-                            followedUserIds.has(builder.userId),
-                          )
-                        }
-                        followed={
-                          followOverrides[builder.userId] ??
-                          followedUserIds.has(builder.userId)
-                        }
-                        followPending={pendingFollows.has(builder.userId)}
-                        onMessage={
-                          viewerId && builder.userId !== viewerId
-                            ? () => void openConversation(builder.userId)
-                            : undefined
-                        }
-                        messagePending={pendingUserId === builder.userId}
-                        isSelf={builder.userId === viewerId}
-                      />
-                    ))}
-                  </div>
+            {isBuilderSearchActive && builderResults.length > 0 && (
+              <div className="mb-8">
+                <div className="mb-3 font-mono text-[10.5px] uppercase tracking-[0.06em] text-text-faint">
+                  matching builders
                 </div>
-              )}
+                <div className="flex flex-col gap-2">
+                  {builderResults.map((builder) => (
+                    <NearbyBuilderRow
+                      key={builder.userId}
+                      builder={builder}
+                      onOpenProfile={() =>
+                        void navigate({
+                          to: '/u/$username',
+                          params: {
+                            username: builder.githubUsername,
+                          } as never,
+                        } as never)
+                      }
+                      onFollow={() =>
+                        void handleFollow(
+                          builder.userId,
+                          followedUserIds.has(builder.userId),
+                        )
+                      }
+                      followed={
+                        followOverrides[builder.userId] ??
+                        followedUserIds.has(builder.userId)
+                      }
+                      followPending={pendingFollows.has(builder.userId)}
+                      onMessage={
+                        viewerId && builder.userId !== viewerId
+                          ? () => void openConversation(builder.userId)
+                          : undefined
+                      }
+                      messagePending={pendingUserId === builder.userId}
+                      isSelf={builder.userId === viewerId}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
 
-            {!isLoading &&
-              isBuilderSearchActive &&
+            {isBuilderSearchActive &&
               builderResults.length === 0 &&
               !builderSearchQuery.isLoading && (
                 <div className="py-5 text-center font-mono text-[12.5px] text-text-faint">
@@ -662,51 +673,49 @@ function ExplorePage() {
                 </div>
               )}
 
-            {!isLoading &&
-              !isBuilderSearchActive &&
-              nearbyBuilders.length > 0 && (
-                <div className="mb-8">
-                  <div className="mb-3 font-mono text-[10.5px] uppercase tracking-[0.06em] text-text-faint">
-                    nearby builders
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    {nearbyBuilders.map((builder) => (
-                      <NearbyBuilderRow
-                        key={builder.userId}
-                        builder={builder}
-                        onOpenProfile={() =>
-                          void navigate({
-                            to: '/u/$username',
-                            params: {
-                              username: builder.githubUsername,
-                            } as never,
-                          } as never)
-                        }
-                        onFollow={() =>
-                          void handleFollow(
-                            builder.userId,
-                            followedUserIds.has(builder.userId),
-                          )
-                        }
-                        followed={
-                          followOverrides[builder.userId] ??
-                          followedUserIds.has(builder.userId)
-                        }
-                        followPending={pendingFollows.has(builder.userId)}
-                        onMessage={
-                          viewerId && builder.userId !== viewerId
-                            ? () => void openConversation(builder.userId)
-                            : undefined
-                        }
-                        messagePending={pendingUserId === builder.userId}
-                        isSelf={builder.userId === viewerId}
-                      />
-                    ))}
-                  </div>
+            {!isBuilderSearchActive && nearbyBuilders.length > 0 && (
+              <div className="mb-8">
+                <div className="mb-3 font-mono text-[10.5px] uppercase tracking-[0.06em] text-text-faint">
+                  nearby builders
                 </div>
-              )}
+                <div className="flex flex-col gap-2">
+                  {nearbyBuilders.map((builder) => (
+                    <NearbyBuilderRow
+                      key={builder.userId}
+                      builder={builder}
+                      onOpenProfile={() =>
+                        void navigate({
+                          to: '/u/$username',
+                          params: {
+                            username: builder.githubUsername,
+                          } as never,
+                        } as never)
+                      }
+                      onFollow={() =>
+                        void handleFollow(
+                          builder.userId,
+                          followedUserIds.has(builder.userId),
+                        )
+                      }
+                      followed={
+                        followOverrides[builder.userId] ??
+                        followedUserIds.has(builder.userId)
+                      }
+                      followPending={pendingFollows.has(builder.userId)}
+                      onMessage={
+                        viewerId && builder.userId !== viewerId
+                          ? () => void openConversation(builder.userId)
+                          : undefined
+                      }
+                      messagePending={pendingUserId === builder.userId}
+                      isSelf={builder.userId === viewerId}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
 
-            {!isLoading && !isBuilderSearchActive && items.length > 0 && (
+            {!isBuilderSearchActive && items.length > 0 && (
               <div className="flex flex-col gap-3.5">
                 {items.map((item, index) => {
                   const owner = item.github.fullName.split('/')[0] ?? ''

@@ -33,6 +33,27 @@ export type PrivateProfilePayload = {
   }>
 }
 
+export type ViewerSummaryPayload = {
+  viewerId: Id<'users'>
+}
+
+export type ViewerLikedProjectIdsPayload = {
+  viewerId: Id<'users'>
+  likedProjectIds: Array<Id<'projects'>>
+}
+
+export type ViewerExplorePrefsPayload = {
+  viewerId: Id<'users'>
+  appearInExplore: boolean
+  cityId: Id<'cities'> | null
+  cityName: string | null
+  exploreConfig: Doc<'users'>['exploreConfig']
+}
+
+export type ViewerInboxSummaryPayload = {
+  viewerId: Id<'users'>
+}
+
 export type PublicProfilePayload = {
   userId: Id<'users'>
   viewerFollowsProfile: boolean
@@ -157,6 +178,38 @@ export function mapPrivateProfile(payload: PrivateProfilePayload | undefined) {
   }
 }
 
+export function mapViewerSummary(payload: ViewerSummaryPayload | undefined) {
+  if (!payload) return null
+
+  return {
+    id: payload.viewerId,
+  }
+}
+
+export function mapViewerLikedProjectIds(
+  payload: ViewerLikedProjectIdsPayload | undefined,
+) {
+  if (!payload) return null
+
+  return payload
+}
+
+export function mapViewerExplorePrefs(
+  payload: ViewerExplorePrefsPayload | undefined,
+) {
+  if (!payload) return null
+
+  return payload
+}
+
+export function mapViewerInboxSummary(
+  payload: ViewerInboxSummaryPayload | undefined,
+) {
+  if (!payload) return null
+
+  return payload
+}
+
 export function mapPublicProfile(
   payload: PublicProfilePayload | null | undefined,
 ) {
@@ -193,7 +246,7 @@ export function mapProjectDetail(
 export function mapConversationList(
   payload: Array<EnrichedConversation> | undefined,
 ) {
-  return payload ?? []
+  return payload
 }
 
 export function mapConversationDetail(
@@ -205,5 +258,5 @@ export function mapConversationDetail(
 export function mapNotifications(
   payload: Array<Doc<'notifications'>> | undefined,
 ) {
-  return payload ?? []
+  return payload
 }
