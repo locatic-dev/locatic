@@ -40,10 +40,10 @@ components/
 - Components accept props, no internal state for data fetching
 - All UI primitives must work at 320px viewport — test content wrapping, overflow
 - Touch targets: min 44px height/width for interactive elements
-- Use CSS custom properties (`--space-*`) for spacing — no fixed px
+- Use shared layout tokens from `src/styles.css` for spacing and shell widths — no fixed px
 - Dialog, Card, EmptyState: allow content wrapping (`break-words`, `overflow-wrap`)
 - Semantic Tailwind tokens: `bg-surface`, `text-text-muted`, `rounded-card`, `shadow-card` — use instead of `var(--lx-*)`
-- Inline `style={{}}` banned for static layout — Tailwind utility classes only
+- Inline `style={{}}` banned for static layout — Tailwind utility classes only, except for explicit runtime-only values
 
 ## ANTI-PATTERNS
 

@@ -1,5 +1,8 @@
 import { createFileRoute, useNavigate, useSearch } from '@tanstack/react-router'
-import { useQuery } from '@tanstack/react-query'
+import { useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
+import { useEffect, useState } from 'react'
+import { useAction } from 'convex/react'
+import { api } from '../../../convex/_generated/api'
 import type { Doc } from '../../../convex/_generated/dataModel'
 import { privateProfileQueryOptions } from '@/features/profile/queries'
 import { LxAvatar } from '@/components/ui/lx-avatar'
@@ -10,6 +13,7 @@ import { Button } from '@/components/ui/button'
 import { compactNumber } from '@/lib/format'
 import { relativeTime } from '@/lib/time'
 import { ProjectCard, type ProjectCardData } from '@/components/ui/project-card'
+import { FormRoutePending } from '@/components/app-shell/route-pending'
 import {
   mapPrivateProfile,
   type PrivateProfilePayload,
@@ -20,6 +24,10 @@ export const Route = createFileRoute('/_app/profile')({
   validateSearch: (search: Record<string, unknown>) => ({
     tab: (search.tab as 'projects' | 'comments' | 'liked') ?? 'projects',
   }),
+  loader: ({ context }) =>
+    context.queryClient.ensureQueryData(privateProfileQueryOptions()),
+  pendingComponent: FormRoutePending,
+  pendingMs: 250,
   component: ProfilePage,
 })
 
@@ -46,14 +54,30 @@ function projectCardData(project: Doc<'projects'>): ProjectCardData {
 function ProfilePage() {
   const { tab } = useSearch({ from: '/_app/profile' })
   const navigate = useNavigate()
-  const profileQuery = useQuery(privateProfileQueryOptions())
-  const profile = mapPrivateProfile(
-    profileQuery.data as PrivateProfilePayload | undefined,
-  )
-
+  const queryClient = useQueryClient()
+  const { data } = useSuspenseQuery(privateProfileQueryOptions())
+  const profile = mapPrivateProfile(data as PrivateProfilePayload | undefined)
   if (!profile) {
-    return <div className="p-8 text-text-faint">loading…</div>
+    throw new Error('Profile data was not available')
   }
+  const syncContributions = useAction(api.github_actions.syncContributions)
+  const [isSyncing, setIsSyncing] = useState(false)
+
+  useEffect(() => {
+    const syncedAt = profile.viewer.githubContributions?.syncedAt
+    const isStale = !syncedAt || Date.now() - syncedAt > 6 * 60 * 60 * 1000
+    if (isStale) {
+      setIsSyncing(true)
+      void syncContributions({})
+        .then(() =>
+          queryClient.invalidateQueries({
+            queryKey: privateProfileQueryOptions().queryKey,
+          }),
+        )
+        .catch(console.error)
+        .finally(() => setIsSyncing(false))
+    }
+  }, [profile, queryClient, syncContributions])
 
   const githubHref = socialLinkHref('github', profile.viewer.githubUsername)
   const xHref = socialLinkHref('x', profile.viewer.socialLinks.x)
@@ -86,7 +110,7 @@ function ProfilePage() {
 
   return (
     <div className="lx-page-shell">
-      <div className="lx-page-scroll" style={{ flex: 1 }}>
+      <div className="lx-page-scroll flex-1">
         <div className="lx-page-width-detail">
           <div className="relative border-b border-line py-8 pb-7">
             <div className="flex flex-col items-start gap-6">
@@ -109,11 +133,11 @@ function ProfilePage() {
                   )}
                 </div>
                 {profile.viewer.bio && (
-                  <p className="mb-4 max-w-[540px] font-sans text-sm leading-6 text-text-muted">
+                  <p className="mb-4 max-w-135 font-sans text-sm leading-6 text-text-muted">
                     {profile.viewer.bio}
                   </p>
                 )}
-                <div className="flex flex-wrap items-center gap-[18px] font-mono text-xs">
+                <div className="flex flex-wrap items-center gap-4.5 font-mono text-xs">
                   <span>
                     <strong className="text-text">
                       {compactNumber(profile.viewer.stats.followersCount)}
@@ -171,19 +195,15 @@ function ProfilePage() {
                 </div>
               </div>
               <Button
-                variant="outline"
+                variant="monoOutline"
+                size="meta"
                 onClick={() =>
                   void navigate({
                     to: '/settings',
                     search: {} as never,
                   } as never)
                 }
-                style={{
-                  fontFamily: 'var(--lx-font-mono)',
-                  fontSize: 12.5,
-                  flexShrink: 0,
-                }}
-                className="min-h-11"
+                className="shrink-0 font-mono"
               >
                 edit profile
               </Button>
@@ -191,15 +211,29 @@ function ProfilePage() {
 
             <div className="mt-7">
               <div className="mb-2.5 font-mono text-[10.5px] uppercase tracking-[0.06em] text-text-faint">
-                contributions this year
+                {profile.viewer.githubContributions?.totalContributions != null
+                  ? `${profile.viewer.githubContributions.totalContributions.toLocaleString()} contributions this year`
+                  : 'contributions this year'}
               </div>
               <div className="overflow-x-auto">
-                <ContributionGraph />
+                <ContributionGraph
+                  weeks={profile.viewer.githubContributions?.weeks ?? undefined}
+                  totalContributions={
+                    profile.viewer.githubContributions?.totalContributions ??
+                    undefined
+                  }
+                  loading={isSyncing && !profile.viewer.githubContributions}
+                  unavailable={
+                    !isSyncing &&
+                    (!profile.viewer.githubContributions?.weeks ||
+                      profile.viewer.githubContributions.weeks.length === 0)
+                  }
+                />
               </div>
             </div>
           </div>
 
-          <div className="flex items-center overflow-x-auto border-b border-line px-0">
+          <div className="grid grid-cols-3 items-center border-b border-line px-0">
             {tabs.map((tabItem) => (
               <button
                 key={tabItem.id}
@@ -209,7 +243,7 @@ function ProfilePage() {
                     search: { tab: tabItem.id } as never,
                   } as never)
                 }
-                className={`relative inline-flex items-center gap-[7px] px-4 py-3.5 font-mono text-[12.5px] ${
+                className={`relative inline-flex min-w-0 items-center justify-center gap-1.75 px-3 py-3.5 text-center font-mono text-[12.5px] ${
                   tab === tabItem.id
                     ? 'font-semibold text-text'
                     : 'text-text-faint'
@@ -229,17 +263,9 @@ function ProfilePage() {
 
           <div className="pt-7">
             {tab === 'projects' && (
-              <div
-                style={{ display: 'flex', flexDirection: 'column', gap: 14 }}
-              >
+              <div className="flex flex-col gap-3.5">
                 {profile.projects.length === 0 && (
-                  <div
-                    style={{
-                      fontFamily: 'var(--lx-font-mono)',
-                      fontSize: 12,
-                      color: 'var(--lx-text-3)',
-                    }}
-                  >
+                  <div className="font-mono text-[12px] text-text-faint">
                     no projects imported yet.
                   </div>
                 )}
@@ -252,6 +278,12 @@ function ProfilePage() {
                       key={String(project._id)}
                       project={projectCardData(project)}
                       showActions={false}
+                      onAuthorClick={() =>
+                        void navigate({
+                          to: '/u/$username',
+                          params: { username: owner } as never,
+                        } as never)
+                      }
                       onCardClick={() =>
                         void navigate({
                           to: '/project/$owner/$repo',
@@ -265,53 +297,25 @@ function ProfilePage() {
             )}
 
             {tab === 'comments' && (
-              <div
-                style={{ display: 'flex', flexDirection: 'column', gap: 16 }}
-              >
+              <div className="flex flex-col gap-4">
                 {profile.comments
                   .filter((comment) => !comment.isDeleted)
                   .map((comment) => (
                     <div
                       key={String(comment._id)}
-                      style={{
-                        border: '1px solid var(--lx-border)',
-                        borderRadius: 6,
-                        background: 'var(--lx-surface)',
-                        padding: '16px 18px',
-                      }}
+                      className="rounded-[6px] border border-line bg-surface px-4.5 py-4"
                     >
-                      <div
-                        style={{
-                          fontFamily: 'var(--lx-font-mono)',
-                          fontSize: 11,
-                          color: 'var(--lx-text-3)',
-                          marginBottom: 8,
-                        }}
-                      >
+                      <div className="mb-2 font-mono text-[11px] text-text-faint">
                         {comment.targetType} · {relativeTime(comment.createdAt)}
                       </div>
-                      <p
-                        style={{
-                          margin: 0,
-                          fontFamily: 'var(--lx-font-sans)',
-                          fontSize: 13.5,
-                          color: 'var(--lx-text)',
-                          lineHeight: 1.6,
-                        }}
-                      >
+                      <p className="m-0 font-sans text-[13.5px] leading-[1.6] text-text">
                         {comment.content}
                       </p>
                     </div>
                   ))}
                 {profile.comments.filter((comment) => !comment.isDeleted)
                   .length === 0 && (
-                  <div
-                    style={{
-                      fontFamily: 'var(--lx-font-mono)',
-                      fontSize: 12,
-                      color: 'var(--lx-text-3)',
-                    }}
-                  >
+                  <div className="font-mono text-[12px] text-text-faint">
                     no comments yet.
                   </div>
                 )}
@@ -319,17 +323,9 @@ function ProfilePage() {
             )}
 
             {tab === 'liked' && (
-              <div
-                style={{ display: 'flex', flexDirection: 'column', gap: 14 }}
-              >
+              <div className="flex flex-col gap-3.5">
                 {profile.likedProjects.length === 0 && (
-                  <div
-                    style={{
-                      fontFamily: 'var(--lx-font-mono)',
-                      fontSize: 12,
-                      color: 'var(--lx-text-3)',
-                    }}
-                  >
+                  <div className="font-mono text-[12px] text-text-faint">
                     no liked projects yet.
                   </div>
                 )}
@@ -346,6 +342,12 @@ function ProfilePage() {
                         liked: true,
                       }}
                       showActions={false}
+                      onAuthorClick={() =>
+                        void navigate({
+                          to: '/u/$username',
+                          params: { username: owner } as never,
+                        } as never)
+                      }
                       onCardClick={() =>
                         void navigate({
                           to: '/project/$owner/$repo',

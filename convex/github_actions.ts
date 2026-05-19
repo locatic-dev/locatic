@@ -6,6 +6,7 @@ import { ConvexError, v } from 'convex/values'
 import { internal } from './_generated/api'
 import { action, internalAction } from './_generated/server'
 import { buildViewerSeedFromIdentity, requireIdentity } from './lib/auth'
+import { extractContributionCalendar } from './lib/github'
 
 async function getClerkClient() {
   if (!process.env.CLERK_SECRET_KEY) {
@@ -74,6 +75,53 @@ async function githubNoContentRequest(
 
   throw new ConvexError(`GitHub request failed: ${response.status}`)
 }
+
+async function githubGraphqlRequest<T>(
+  gqlQuery: string,
+  variables: Record<string, unknown>,
+  accessToken: string,
+): Promise<T> {
+  const response = await fetch('https://api.github.com/graphql', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+      'X-GitHub-Api-Version': '2022-11-28',
+    },
+    body: JSON.stringify({ query: gqlQuery, variables }),
+  })
+
+  if (!response.ok) {
+    throw new ConvexError(`GitHub GraphQL request failed: ${response.status}`)
+  }
+
+  const json = (await response.json()) as { data?: T; errors?: unknown[] }
+  if (json.errors?.length) {
+    throw new ConvexError(
+      `GitHub GraphQL errors: ${JSON.stringify(json.errors)}`,
+    )
+  }
+
+  return json.data as T
+}
+
+const CONTRIBUTION_QUERY = `
+  query ContributionGraph($login: String!) {
+    user(login: $login) {
+      contributionsCollection {
+        contributionCalendar {
+          totalContributions
+          weeks {
+            contributionDays {
+              date
+              contributionCount
+            }
+          }
+        }
+      }
+    }
+  }
+`
 
 type GithubRepository = {
   id: number
@@ -381,5 +429,55 @@ export const cleanupDeletedAccountStars = internalAction({
     }
 
     return null
+  },
+})
+
+export const syncContributions = action({
+  args: {},
+  handler: async (ctx): Promise<void> => {
+    const identity = await requireIdentity(ctx)
+    const viewer = await ctx.runMutation(
+      internal.users.ensureViewerFromIdentity,
+      { ...buildViewerSeedFromIdentity(identity) },
+    )
+    if (!viewer) throw new ConvexError('Viewer not found')
+
+    const { accessToken } = await getGithubAccessToken(identity.subject)
+
+    type GraphQLResult = {
+      user: {
+        contributionsCollection: {
+          contributionCalendar: {
+            totalContributions: number
+            weeks: Array<{
+              contributionDays: Array<{
+                date: string
+                contributionCount: number
+              }>
+            }>
+          }
+        }
+      }
+    }
+
+    const result = await githubGraphqlRequest<GraphQLResult>(
+      CONTRIBUTION_QUERY,
+      { login: viewer.github.username },
+      accessToken,
+    )
+
+    const calendar = extractContributionCalendar(result)
+    if (!calendar) {
+      return
+    }
+
+    await ctx.runMutation(internal.users.patchContributions, {
+      userId: viewer._id,
+      contributions: {
+        totalContributions: calendar.totalContributions,
+        weeks: calendar.weeks,
+        syncedAt: Date.now(),
+      },
+    })
   },
 })

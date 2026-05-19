@@ -41,8 +41,7 @@ export function LangDot({
   const color = LANG_COLORS[lang] ?? '#8b949e'
   return (
     <span
-      className={`inline-flex items-center gap-1.5 ${className ?? ''}`}
-      style={{ fontFamily: 'var(--lx-font-mono)', fontSize: 11.5 }}
+      className={`inline-flex items-center gap-1.5 font-mono text-[11.5px] ${className ?? ''}`}
     >
       <span
         style={{
@@ -55,7 +54,7 @@ export function LangDot({
         }}
         aria-hidden
       />
-      {showLabel && <span style={{ color: 'var(--lx-text-3)' }}>{lang}</span>}
+      {showLabel && <span className="text-text-faint">{lang}</span>}
     </span>
   )
 }

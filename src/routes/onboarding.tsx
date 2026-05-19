@@ -74,33 +74,27 @@ type GithubRepository = GithubRepositoryListItem & {
 }
 
 const TOTAL_STEPS = 5
+const sectionTitleClass =
+  'm-0 font-mono text-[26px] font-semibold tracking-[-0.02em] text-text'
+const sectionCopyClass = 'mt-2 font-sans text-sm leading-[1.55] text-text-muted'
+const fieldLabelClass = 'mb-1.5 block font-mono text-[11.5px] text-text-muted'
+const monoInputClass =
+  'h-11 border-line bg-canvas font-mono text-sm text-text placeholder:text-text-faint focus-visible:ring-brand/30 focus-visible:ring-offset-0'
+const bodyTextareaClass =
+  'min-h-[88px] resize-none border-line bg-canvas font-sans text-sm text-text placeholder:text-text-faint focus-visible:ring-brand/30 focus-visible:ring-offset-0'
 
 function StepDots({ current, total }: { current: number; total: number }) {
   return (
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 8,
-        fontFamily: 'var(--lx-font-mono)',
-      }}
-    >
+    <div className="flex items-center gap-2 font-mono">
       {Array.from({ length: total }).map((_, index) => (
         <div
           key={index}
-          style={{
-            width: index === current ? 24 : 6,
-            height: 6,
-            borderRadius: 3,
-            background:
-              index <= current ? 'var(--lx-accent)' : 'var(--lx-border)',
-            transition: 'all .2s',
-          }}
+          className={`h-1.5 rounded-pill transition-all duration-200 ${
+            index === current ? 'w-6' : 'w-1.5'
+          } ${index <= current ? 'bg-brand' : 'bg-line'}`}
         />
       ))}
-      <span
-        style={{ fontSize: 11.5, color: 'var(--lx-text-3)', marginLeft: 8 }}
-      >
+      <span className="ml-2 text-[11.5px] text-text-faint">
         step {current + 1} of {total}
       </span>
     </div>
@@ -115,38 +109,11 @@ function OnboardingShell({
   step: number
 }) {
   return (
-    <div
-      style={{
-        width: '100%',
-        maxWidth: 720,
-        background: 'var(--lx-surface)',
-        border: '1px solid var(--lx-border)',
-        borderRadius: 6,
-        padding: '24px',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 28,
-      }}
-    >
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'flex-start',
-          justifyContent: 'space-between',
-          gap: 16,
-          flexWrap: 'wrap',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+    <div className="flex w-full max-w-180 flex-col gap-7 rounded-[6px] border border-line bg-surface p-6">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex items-center gap-2.5">
           <Logo size={20} />
-          <span
-            style={{
-              fontFamily: 'var(--lx-font-mono)',
-              fontSize: 13,
-              fontWeight: 700,
-              color: 'var(--lx-text)',
-            }}
-          >
+          <span className="font-mono text-[13px] font-bold text-text">
             locatic
           </span>
         </div>
@@ -258,9 +225,7 @@ function OnboardingPage() {
   }, [bootstrap, selectedCityId])
 
   if (!bootstrap) {
-    return (
-      <div style={{ padding: 32, color: 'var(--lx-text-3)' }}>loading…</div>
-    )
+    return <div className="p-8 text-text-faint">loading…</div>
   }
 
   const githubUsername = bootstrap.viewer?.githubUsername ?? ''
@@ -387,52 +352,25 @@ function OnboardingPage() {
   }
 
   const navButtons = (canContinue: boolean, isLast = false) => (
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        marginTop: 'auto',
-        gap: 12,
-        flexWrap: 'wrap',
-      }}
-    >
+    <div className="mt-auto flex flex-wrap items-center justify-between gap-3">
       <button
         onClick={() => setStep((current) => Math.max(0, current - 1))}
         disabled={step === 0 || saving}
-        style={{
-          background: 'transparent',
-          border: 'none',
-          color: 'var(--lx-text-3)',
-          fontFamily: 'var(--lx-font-mono)',
-          fontSize: 12.5,
-          cursor: step === 0 || saving ? 'not-allowed' : 'pointer',
-          opacity: step === 0 || saving ? 0.4 : 1,
-          minHeight: 44,
-        }}
+        className="min-h-11 border-0 bg-transparent font-mono text-[12.5px] text-text-faint disabled:cursor-not-allowed disabled:opacity-40"
         type="button"
       >
         ← back
       </button>
       <Button
+        variant="brand"
+        size="meta"
         disabled={!canContinue || saving}
         onClick={
           isLast
             ? () => void handleFinish()
             : () => setStep((current) => current + 1)
         }
-        style={{
-          background: 'var(--lx-accent)',
-          color: '#0d1117',
-          border: 'none',
-          fontFamily: 'var(--lx-font-mono)',
-          fontSize: 13,
-          fontWeight: 600,
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 8,
-        }}
-        className="min-h-11"
+        className="gap-2 font-mono font-semibold"
       >
         {isLast ? (saving ? 'saving…' : 'finish') : 'continue'}
         {!isLast && <ArrowRight size={13} strokeWidth={2} />}
@@ -441,146 +379,55 @@ function OnboardingPage() {
   )
 
   return (
-    <div
-      style={{
-        minHeight: '100dvh',
-        background: 'var(--lx-bg)',
-        padding: '32px var(--lx-gutter)',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-      }}
-    >
+    <div className="flex min-h-dvh flex-col items-center bg-canvas px-(--lx-gutter) py-8">
       {step === 0 && (
         <OnboardingShell step={0}>
           <div>
-            <h1
-              style={{
-                margin: 0,
-                fontFamily: 'var(--lx-font-mono)',
-                fontSize: 26,
-                fontWeight: 600,
-                letterSpacing: '-0.02em',
-                color: 'var(--lx-text)',
-              }}
-            >
-              pick what to show
-            </h1>
-            <p
-              style={{
-                margin: '8px 0 0',
-                fontFamily: 'var(--lx-font-sans)',
-                fontSize: 14,
-                color: 'var(--lx-text-2)',
-                lineHeight: 1.55,
-              }}
-            >
+            <h1 className={sectionTitleClass}>pick what to show</h1>
+            <p className={sectionCopyClass}>
               import your public repos from GitHub. pin up to 3 for the top of
               your profile. you can skip this and come back later.
             </p>
           </div>
 
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              fontFamily: 'var(--lx-font-mono)',
-              fontSize: 11.5,
-              color: 'var(--lx-text-3)',
-            }}
-          >
+          <div className="flex items-center justify-between font-mono text-[11.5px] text-text-faint">
             <span>{state.selectedRepoFullNames.length} selected</span>
-            <span style={{ color: 'var(--lx-accent)' }}>
+            <span className="text-brand">
               {state.pinnedRepoFullNames.length}/3 pinned
             </span>
           </div>
 
-          <div
-            style={{
-              border: '1px solid var(--lx-border)',
-              borderRadius: 4,
-              background: 'var(--lx-bg)',
-              overflow: 'hidden',
-            }}
-          >
-            <div
-              style={{
-                padding: '10px 14px',
-                borderBottom: '1px solid var(--lx-border)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10,
-                background: 'var(--lx-surface-alt)',
-              }}
-            >
-              <Search
-                size={13}
-                strokeWidth={1.4}
-                style={{ color: 'var(--lx-text-3)' }}
-              />
+          <div className="overflow-hidden rounded border border-line bg-canvas">
+            <div className="flex items-center gap-2.5 border-b border-line bg-surface-alt px-3.5 py-2.5">
+              <Search size={13} strokeWidth={1.4} className="text-text-faint" />
               <input
+                id="repo-filter"
+                name="repoFilter"
                 value={repoFilter}
                 onChange={(event) => setRepoFilter(event.target.value)}
                 placeholder="filter repos…"
-                style={{
-                  flex: 1,
-                  border: 'none',
-                  background: 'transparent',
-                  outline: 'none',
-                  fontFamily: 'var(--lx-font-mono)',
-                  fontSize: 12,
-                  color: 'var(--lx-text)',
-                }}
+                className="flex-1 border-0 bg-transparent font-mono text-xs text-text outline-none placeholder:text-text-faint"
               />
-              <span
-                style={{
-                  fontFamily: 'var(--lx-font-mono)',
-                  fontSize: 11,
-                  color: 'var(--lx-text-3)',
-                }}
-              >
+              <span className="font-mono text-[11px] text-text-faint">
                 {repoLoading ? 'loading…' : `${availableRepos.length} public`}
               </span>
             </div>
 
-            <div style={{ maxHeight: 320, overflowY: 'auto' }}>
+            <div className="max-h-80 overflow-y-auto">
               {repoError && (
-                <div
-                  style={{
-                    padding: '18px 16px',
-                    fontFamily: 'var(--lx-font-sans)',
-                    fontSize: 13,
-                    color: 'var(--lx-text-2)',
-                    lineHeight: 1.6,
-                  }}
-                >
+                <div className="px-4 py-4.5 font-sans text-[13px] leading-[1.6] text-text-muted">
                   {repoError}
                 </div>
               )}
 
               {!repoError && repoLoading && (
-                <div
-                  style={{
-                    padding: '18px 16px',
-                    fontFamily: 'var(--lx-font-mono)',
-                    fontSize: 12,
-                    color: 'var(--lx-text-3)',
-                  }}
-                >
+                <div className="px-4 py-4.5 font-mono text-xs text-text-faint">
                   loading repositories…
                 </div>
               )}
 
               {!repoError && !repoLoading && filteredRepos.length === 0 && (
-                <div
-                  style={{
-                    padding: '18px 16px',
-                    fontFamily: 'var(--lx-font-sans)',
-                    fontSize: 13,
-                    color: 'var(--lx-text-2)',
-                  }}
-                >
+                <div className="px-4 py-4.5 font-sans text-[13px] text-text-muted">
                   no repositories matched that filter.
                 </div>
               )}
@@ -598,81 +445,27 @@ function OnboardingPage() {
                     <div
                       key={repository.fullName}
                       onClick={() => toggleRepo(repository.fullName)}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 14,
-                        padding: '12px 14px',
-                        borderTop:
-                          index > 0 ? '1px solid var(--lx-border)' : 'none',
-                        background: isSelected
-                          ? 'oklch(72% 0.17 185 / 0.04)'
-                          : 'transparent',
-                        cursor: 'pointer',
-                      }}
+                      className={`flex cursor-pointer items-center gap-3.5 px-3.5 py-3 ${
+                        index > 0 ? 'border-t border-line' : ''
+                      } ${isSelected ? 'bg-brand/5' : 'bg-transparent'}`}
                     >
                       <div
-                        style={{
-                          width: 16,
-                          height: 16,
-                          borderRadius: 3,
-                          flexShrink: 0,
-                          border: isSelected
-                            ? 'none'
-                            : '1.5px solid var(--lx-border-strong)',
-                          background: isSelected
-                            ? 'var(--lx-accent)'
-                            : 'transparent',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                        }}
+                        className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-[3px] ${
+                          isSelected
+                            ? 'bg-brand text-brand-foreground'
+                            : 'border-[1.5px] border-line-strong bg-transparent'
+                        }`}
                       >
-                        {isSelected && (
-                          <Check
-                            size={11}
-                            strokeWidth={2.4}
-                            style={{ color: '#0d1117' }}
-                          />
-                        )}
+                        {isSelected && <Check size={11} strokeWidth={2.4} />}
                       </div>
 
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 10,
-                            marginBottom: 3,
-                            flexWrap: 'wrap',
-                          }}
-                        >
-                          <span
-                            style={{
-                              fontFamily: 'var(--lx-font-mono)',
-                              fontSize: 13,
-                              fontWeight: 600,
-                              color: 'var(--lx-text)',
-                            }}
-                          >
+                      <div className="min-w-0 flex-1">
+                        <div className="mb-0.75 flex flex-wrap items-center gap-2.5">
+                          <span className="font-mono text-[13px] font-semibold text-text">
                             {repository.fullName}
                           </span>
                           {repository.primaryLanguage && (
-                            <span
-                              style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: 4,
-                                fontFamily: 'var(--lx-font-mono)',
-                                fontSize: 10.5,
-                                padding: '2px 6px',
-                                borderRadius: 2,
-                                background: 'var(--lx-surface-alt)',
-                                color: 'var(--lx-text-2)',
-                                border: '1px solid var(--lx-border)',
-                                lineHeight: 1,
-                              }}
-                            >
+                            <span className="inline-flex items-center gap-1 rounded-[2px] border border-line bg-surface-alt px-1.5 py-0.5 font-mono text-[10.5px] leading-none text-text-muted">
                               <LangDot
                                 lang={repository.primaryLanguage}
                                 size={6}
@@ -680,28 +473,12 @@ function OnboardingPage() {
                               {repository.primaryLanguage}
                             </span>
                           )}
-                          <span
-                            style={{
-                              fontFamily: 'var(--lx-font-mono)',
-                              fontSize: 11,
-                              color: 'var(--lx-text-3)',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: 3,
-                            }}
-                          >
+                          <span className="inline-flex items-center gap-0.75 font-mono text-[11px] text-text-faint">
                             <Star size={10} strokeWidth={1.4} />
                             {repository.stargazersCount.toLocaleString()}
                           </span>
                         </div>
-                        <div
-                          style={{
-                            fontFamily: 'var(--lx-font-sans)',
-                            fontSize: 12.5,
-                            color: 'var(--lx-text-2)',
-                            overflowWrap: 'anywhere',
-                          }}
-                        >
+                        <div className="font-sans text-[12.5px] text-text-muted wrap-anywhere">
                           {repository.description || 'no description provided'}
                         </div>
                       </div>
@@ -712,27 +489,11 @@ function OnboardingPage() {
                             event.stopPropagation()
                             togglePin(repository.fullName)
                           }}
-                          style={{
-                            border:
-                              '1px solid ' +
-                              (isPinned
-                                ? 'oklch(72% 0.17 185 / 0.4)'
-                                : 'var(--lx-border)'),
-                            background: isPinned
-                              ? 'oklch(72% 0.17 185 / 0.1)'
-                              : 'transparent',
-                            color: isPinned
-                              ? 'var(--lx-accent)'
-                              : 'var(--lx-text-3)',
-                            padding: '5px 10px',
-                            borderRadius: 3,
-                            cursor: 'pointer',
-                            fontFamily: 'var(--lx-font-mono)',
-                            fontSize: 10.5,
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 5,
-                          }}
+                          className={`inline-flex items-center gap-1 rounded-[3px] border px-2.5 py-1.25 font-mono text-[10.5px] ${
+                            isPinned
+                              ? 'border-brand/40 bg-brand/10 text-brand'
+                              : 'border-line bg-transparent text-text-faint'
+                          }`}
                           type="button"
                         >
                           <Pin
@@ -756,44 +517,13 @@ function OnboardingPage() {
       {step === 1 && (
         <OnboardingShell step={1}>
           <div>
-            <h1
-              style={{
-                margin: 0,
-                fontFamily: 'var(--lx-font-mono)',
-                fontSize: 26,
-                fontWeight: 600,
-                letterSpacing: '-0.02em',
-                color: 'var(--lx-text)',
-              }}
-            >
-              your profile
-            </h1>
-            <p
-              style={{
-                margin: '8px 0 0',
-                fontFamily: 'var(--lx-font-sans)',
-                fontSize: 14,
-                color: 'var(--lx-text-2)',
-                lineHeight: 1.55,
-              }}
-            >
-              how other builders will see you.
-            </p>
+            <h1 className={sectionTitleClass}>your profile</h1>
+            <p className={sectionCopyClass}>how other builders will see you.</p>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div className="flex flex-col gap-4">
             <div>
-              <label
-                style={{
-                  fontFamily: 'var(--lx-font-mono)',
-                  fontSize: 11.5,
-                  color: 'var(--lx-text-2)',
-                  display: 'block',
-                  marginBottom: 6,
-                }}
-              >
-                display name
-              </label>
+              <label className={fieldLabelClass}>display name</label>
               <Input
                 value={state.displayName}
                 onChange={(event) =>
@@ -803,47 +533,20 @@ function OnboardingPage() {
                   }))
                 }
                 placeholder="how you want to appear"
-                style={{
-                  fontFamily: 'var(--lx-font-mono)',
-                  background: 'var(--lx-bg)',
-                  borderColor: 'var(--lx-border)',
-                  color: 'var(--lx-text)',
-                }}
+                className={monoInputClass}
               />
             </div>
 
             <div>
-              <label
-                style={{
-                  fontFamily: 'var(--lx-font-mono)',
-                  fontSize: 11.5,
-                  color: 'var(--lx-text-2)',
-                  display: 'block',
-                  marginBottom: 6,
-                }}
-              >
-                city
-              </label>
+              <label className={fieldLabelClass}>city</label>
               <Input
                 value={citySearch}
                 onChange={(event) => setCitySearch(event.target.value)}
                 placeholder={selectedCityName ?? 'search for your city'}
-                style={{
-                  fontFamily: 'var(--lx-font-mono)',
-                  background: 'var(--lx-bg)',
-                  borderColor: 'var(--lx-border)',
-                  color: 'var(--lx-text)',
-                }}
+                className={monoInputClass}
               />
               {selectedCityName && (
-                <div
-                  style={{
-                    marginTop: 8,
-                    fontFamily: 'var(--lx-font-mono)',
-                    fontSize: 11,
-                    color: 'var(--lx-text-3)',
-                  }}
-                >
+                <div className="mt-2 font-mono text-[11px] text-text-faint">
                   selected: {selectedCityName}
                 </div>
               )}
@@ -857,19 +560,7 @@ function OnboardingPage() {
                       setSelectedCityName(city.displayName)
                       setCitySearch('')
                     }}
-                    style={{
-                      width: '100%',
-                      marginTop: 8,
-                      border: '1px dashed var(--lx-border)',
-                      background: 'transparent',
-                      borderRadius: 4,
-                      padding: '8px 10px',
-                      textAlign: 'left',
-                      fontFamily: 'var(--lx-font-mono)',
-                      fontSize: 11.5,
-                      color: 'var(--lx-text-2)',
-                      cursor: 'pointer',
-                    }}
+                    className="mt-2 w-full rounded border border-dashed border-line bg-transparent px-2.5 py-2 text-left font-mono text-[11.5px] text-text-muted"
                     type="button"
                   >
                     {city.displayName}
@@ -878,17 +569,9 @@ function OnboardingPage() {
             </div>
 
             <div>
-              <label
-                style={{
-                  fontFamily: 'var(--lx-font-mono)',
-                  fontSize: 11.5,
-                  color: 'var(--lx-text-2)',
-                  display: 'block',
-                  marginBottom: 6,
-                }}
-              >
+              <label className={fieldLabelClass}>
                 one-line bio{' '}
-                <span style={{ color: 'var(--lx-text-3)' }}>
+                <span className="text-text-faint">
                   ({state.bio.length}/140)
                 </span>
               </label>
@@ -902,13 +585,7 @@ function OnboardingPage() {
                 }
                 placeholder="what are you building?"
                 rows={2}
-                style={{
-                  fontFamily: 'var(--lx-font-sans)',
-                  background: 'var(--lx-bg)',
-                  borderColor: 'var(--lx-border)',
-                  color: 'var(--lx-text)',
-                  resize: 'none',
-                }}
+                className={bodyTextareaClass}
               />
             </div>
           </div>
@@ -922,41 +599,19 @@ function OnboardingPage() {
       {step === 2 && (
         <OnboardingShell step={2}>
           <div>
-            <h1
-              style={{
-                margin: 0,
-                fontFamily: 'var(--lx-font-mono)',
-                fontSize: 26,
-                fontWeight: 600,
-                letterSpacing: '-0.02em',
-                color: 'var(--lx-text)',
-              }}
-            >
-              what are you up to?
-            </h1>
-            <p
-              style={{
-                margin: '8px 0 0',
-                fontFamily: 'var(--lx-font-sans)',
-                fontSize: 14,
-                color: 'var(--lx-text-2)',
-                lineHeight: 1.55,
-              }}
-            >
+            <h1 className={sectionTitleClass}>what are you up to?</h1>
+            <p className={sectionCopyClass}>
               this shows on your profile and project cards. change it whenever.
             </p>
           </div>
 
-          <div
-            style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}
-          >
+          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
             {(
               Object.entries(BUILD_STATUS) as Array<
                 [BuildStatus, (typeof BUILD_STATUS)[BuildStatus]]
               >
             ).map(([id, meta]) => {
               const isSelected = state.buildStatus === id
-              const hue = 'hue' in meta ? meta.hue : 200
 
               return (
                 <button
@@ -964,61 +619,29 @@ function OnboardingPage() {
                   onClick={() =>
                     setState((current) => ({ ...current, buildStatus: id }))
                   }
-                  style={{
-                    padding: '14px 16px',
-                    border:
-                      '1px solid ' +
-                      (isSelected
-                        ? `hsl(${hue} 60% 50% / 0.5)`
-                        : 'var(--lx-border)'),
-                    background: isSelected
-                      ? `hsl(${hue} 60% 50% / 0.05)`
-                      : 'var(--lx-bg)',
-                    borderRadius: 4,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 8,
-                    textAlign: 'left',
-                  }}
+                  className={`flex flex-col gap-2 rounded border px-4 py-3.5 text-left ${
+                    isSelected
+                      ? 'border-brand bg-brand/5'
+                      : 'border-line bg-canvas'
+                  }`}
                   type="button"
                 >
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                    }}
-                  >
+                  <div className="flex items-center justify-between gap-3">
                     <StatusPill status={id} size="md" />
                     <div
-                      style={{
-                        width: 14,
-                        height: 14,
-                        borderRadius: '50%',
-                        flexShrink: 0,
-                        border: isSelected
-                          ? 'none'
-                          : '1.5px solid var(--lx-border-strong)',
-                        background: isSelected
-                          ? `hsl(${hue} 70% 60%)`
-                          : 'transparent',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                      }}
+                      className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full ${
+                        isSelected
+                          ? 'bg-brand'
+                          : 'border-[1.5px] border-line-strong bg-transparent'
+                      }`}
                     >
                       {isSelected && (
-                        <div
-                          style={{
-                            width: 5,
-                            height: 5,
-                            borderRadius: '50%',
-                            background: 'var(--lx-bg)',
-                          }}
-                        />
+                        <div className="h-1.25 w-1.25 rounded-full bg-canvas" />
                       )}
                     </div>
+                  </div>
+                  <div className="font-sans text-[12.5px] leading-[1.55] text-text-muted">
+                    {meta.label}
                   </div>
                 </button>
               )
@@ -1032,32 +655,13 @@ function OnboardingPage() {
       {step === 3 && (
         <OnboardingShell step={3}>
           <div>
-            <h1
-              style={{
-                margin: 0,
-                fontFamily: 'var(--lx-font-mono)',
-                fontSize: 26,
-                fontWeight: 600,
-                letterSpacing: '-0.02em',
-                color: 'var(--lx-text)',
-              }}
-            >
-              social links
-            </h1>
-            <p
-              style={{
-                margin: '8px 0 0',
-                fontFamily: 'var(--lx-font-sans)',
-                fontSize: 14,
-                color: 'var(--lx-text-2)',
-                lineHeight: 1.55,
-              }}
-            >
+            <h1 className={sectionTitleClass}>social links</h1>
+            <p className={sectionCopyClass}>
               all optional. these show on your profile.
             </p>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div className="flex flex-col gap-3.5">
             {(
               [
                 {
@@ -1083,17 +687,7 @@ function OnboardingPage() {
               ] as const
             ).map(({ key, label, placeholder }) => (
               <div key={key}>
-                <label
-                  style={{
-                    fontFamily: 'var(--lx-font-mono)',
-                    fontSize: 11.5,
-                    color: 'var(--lx-text-2)',
-                    display: 'block',
-                    marginBottom: 6,
-                  }}
-                >
-                  {label}
-                </label>
+                <label className={fieldLabelClass}>{label}</label>
                 <Input
                   value={state[key]}
                   onChange={(event) =>
@@ -1103,12 +697,7 @@ function OnboardingPage() {
                     }))
                   }
                   placeholder={placeholder}
-                  style={{
-                    fontFamily: 'var(--lx-font-mono)',
-                    background: 'var(--lx-bg)',
-                    borderColor: 'var(--lx-border)',
-                    color: 'var(--lx-text)',
-                  }}
+                  className={monoInputClass}
                 />
               </div>
             ))}
@@ -1120,60 +709,18 @@ function OnboardingPage() {
 
       {step === 4 && (
         <OnboardingShell step={4}>
-          <div style={{ textAlign: 'center', padding: '24px 0' }}>
-            <div
-              style={{
-                width: 56,
-                height: 56,
-                borderRadius: '50%',
-                background: 'oklch(72% 0.17 185 / 0.15)',
-                border: '1px solid var(--lx-accent)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                margin: '0 auto 20px',
-              }}
-            >
-              <Check size={24} style={{ color: 'var(--lx-accent)' }} />
+          <div className="py-6 text-center">
+            <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-full border border-brand bg-brand/15">
+              <Check size={24} className="text-brand" />
             </div>
-            <h1
-              style={{
-                margin: '0 0 12px',
-                fontFamily: 'var(--lx-font-mono)',
-                fontSize: 26,
-                fontWeight: 600,
-                letterSpacing: '-0.02em',
-                color: 'var(--lx-text)',
-              }}
-            >
+            <h1 className="mb-3 font-mono text-[26px] font-semibold tracking-[-0.02em] text-text">
               you&apos;re all set.
             </h1>
-            <p
-              style={{
-                margin: 0,
-                fontFamily: 'var(--lx-font-sans)',
-                fontSize: 14,
-                color: 'var(--lx-text-2)',
-                lineHeight: 1.6,
-                maxWidth: 420,
-                marginLeft: 'auto',
-                marginRight: 'auto',
-              }}
-            >
+            <p className="mx-auto max-w-105 font-sans text-sm leading-[1.6] text-text-muted">
               we&apos;ll finish importing your selected repos, save your city,
               and build your first profile view.
             </p>
-            <div
-              style={{
-                marginTop: 20,
-                display: 'inline-flex',
-                flexDirection: 'column',
-                gap: 6,
-                fontFamily: 'var(--lx-font-mono)',
-                fontSize: 11.5,
-                color: 'var(--lx-text-3)',
-              }}
-            >
+            <div className="mt-5 inline-flex flex-col gap-1.5 font-mono text-[11.5px] text-text-faint">
               <span>{state.selectedRepoFullNames.length} repos selected</span>
               <span>{state.pinnedRepoFullNames.length} repos pinned</span>
               <span>{selectedCityName ?? 'city not selected yet'}</span>

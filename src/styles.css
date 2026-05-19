@@ -8,7 +8,7 @@
   --font-mono: 'IBM Plex Mono', ui-monospace, 'Cascadia Code', monospace;
 }
 
-/* ── shadcn CSS variables (dark-first — single polished dark theme) ─────── */
+/* ── Raw theme values (dark-first — single polished dark theme) ──────────── */
 :root {
   --background: oklch(13.5% 0.007 230);
   --foreground: oklch(93% 0.005 230);
@@ -36,7 +36,7 @@
   --chart-4: oklch(68% 0.17 260);
   --chart-5: oklch(62% 0.22 25);
 
-  /* ── Locatic semantic tokens (built on top of shadcn vars) ─────────────── */
+  /* ── Locatic semantic tokens ────────────────────────────────────────────── */
   --lx-bg: var(--background);
   --lx-surface: var(--card);
   --lx-surface-alt: var(--muted);
@@ -50,8 +50,12 @@
   --lx-danger: var(--destructive);
   --lx-success: oklch(70% 0.16 145);
   --lx-warning: oklch(72% 0.18 75);
+
+  /* ── Type tokens ────────────────────────────────────────────────────────── */
   --lx-font-sans: var(--font-sans);
   --lx-font-mono: var(--font-mono);
+
+  /* ── Layout tokens: shared shell spacing, widths, safe-area math ───────── */
   --lx-gutter: clamp(16px, 4vw, 32px);
   --lx-section-gap: clamp(20px, 4vw, 40px);
   --lx-feed-max: 720px;
@@ -61,6 +65,8 @@
   --lx-sidebar-width: 220px;
   --lx-right-rail-width: 280px;
   --lx-mobile-tab-height: calc(72px + env(safe-area-inset-bottom));
+
+  /* ── Radius and elevation tokens ───────────────────────────────────────── */
   --lx-radius-control: 0.25rem;
   --lx-radius-card: 0.375rem;
   --lx-radius-pill: 999px;
@@ -110,6 +116,7 @@
   --color-text-faint: var(--lx-text-3);
   --color-brand: var(--lx-accent);
   --color-brand-quiet: var(--lx-accent-quiet);
+  --color-brand-foreground: var(--primary-foreground);
   --color-success: var(--lx-success);
   --color-warning: var(--lx-warning);
   --color-danger: var(--lx-danger);
@@ -209,7 +216,7 @@ button {
 @keyframes lx-fade-up {
   from {
     opacity: 0;
-    transform: translateY(6px);
+    transform: translateY(4px);
   }
   to {
     opacity: 1;
@@ -218,7 +225,7 @@ button {
 }
 
 .lx-fade-up {
-  animation: lx-fade-up 280ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: lx-fade-up 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -324,6 +331,10 @@ button {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+}
+
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
 .lx-inline-tabs {

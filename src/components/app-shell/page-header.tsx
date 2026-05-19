@@ -1,3 +1,4 @@
+import { cn } from '@/lib/utils'
 import type { ReactNode } from 'react'
 
 interface PageHeaderProps {
@@ -15,34 +16,23 @@ export function PageHeader({
 }: PageHeaderProps) {
   return (
     <header
-      className={`flex flex-col gap-3 border-b border-border px-[var(--lx-gutter)] py-4 sm:flex-row sm:items-center sm:justify-between ${className ?? ''}`}
-      style={{
-        flexShrink: 0,
-      }}
+      className={cn(
+        'shrink-0 border-b border-line px-(--lx-gutter) py-4',
+        'flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between',
+        className,
+      )}
     >
       <div>
         {subtitle && (
-          <div
-            style={{
-              fontFamily: 'var(--lx-font-mono)',
-              fontSize: 11,
-              color: 'var(--lx-text-3)',
-              marginBottom: 6,
-              textTransform: 'lowercase',
-            }}
-          >
+          <div className="mb-1.5 font-mono text-[11px] lowercase text-text-faint">
             {subtitle}
           </div>
         )}
         <h1
-          style={{
-            margin: 0,
-            fontFamily: 'var(--lx-font-mono)',
-            fontSize: subtitle ? 22 : 14,
-            fontWeight: 600,
-            letterSpacing: '-0.02em',
-            color: 'var(--lx-text)',
-          }}
+          className={cn(
+            'm-0 font-mono font-semibold tracking-[-0.02em] text-text',
+            subtitle ? 'text-[22px]' : 'text-sm',
+          )}
         >
           {title}
         </h1>
