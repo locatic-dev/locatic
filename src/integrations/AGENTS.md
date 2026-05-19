@@ -13,6 +13,7 @@ integrations/
 │   └── ...           # Auth helpers, hooks
 ├── convex/           # Convex backend connection
 │   ├── provider.tsx  # ConvexProvider wrapper
+│   ├── query-options.ts  # Shared TanStack Query option helpers
 │   └── ...           # Client setup, hooks
 └── tanstack-query/   # TanStack Query configuration
     └── root-provider.tsx  # QueryClient setup, getContext()
@@ -30,6 +31,7 @@ integrations/
 
 - Each integration has a provider component that wraps the app tree
 - TanStack Query provider exports `getContext()` for router integration
+- Shared query option helpers live beside the Convex provider now; use them instead of ad-hoc query config.
 - SSR auth flows through `createServerFn` in `__root.tsx`
 - No devtools integration — TanStack Query devtools removed for production
 

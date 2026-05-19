@@ -27,6 +27,8 @@ _app/
 - Safe-area padding: handled by `.page-shell` — do not add manually
 - Tailwind-first styling: semantic tokens (`bg-surface`, `text-text-muted`, `rounded-card`) replace inline style blocks
 - Profile, settings, notifications routes simplified — large inline style blocks replaced with utility classes
+- Authenticated routes now lean on suspense queries + route-pending fallbacks; keep loading UI in the shared pending component, not inline per route.
+- Intent preloading stays off for sidebar/tab routes to avoid fast-switch crashes.
 
 ## ANTI-PATTERNS
 

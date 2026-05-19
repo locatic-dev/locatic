@@ -1,6 +1,6 @@
 # PROJECT KNOWLEDGE BASE
 
-**Generated:** 2026-05-17
+**Generated:** 2026-05-19
 **Stack:** TanStack Start + Convex + Clerk + Cloudflare Workers + Tailwind v4
 
 ## OVERVIEW
@@ -21,24 +21,26 @@ Locatic — "GitHub with a map." Developer activity platform: discover projects,
 │   ├── lib/                # Shared backend utilities
 │   └── _generated/         # Auto-generated Convex types (DO NOT EDIT)
 ├── locatic-design/         # Design assets
-├── docs/                   # Documentation + plans
+├── docs/                   # Product docs, plans, screenshots
 └── public/                 # Static assets
 ```
 
 ## WHERE TO LOOK
 
-| Task                | Location                                          | Notes                                                   |
-| ------------------- | ------------------------------------------------- | ------------------------------------------------------- |
-| Add route           | `src/routes/`                                     | File-based routing, `_app/` = auth-required             |
-| Add feature         | `src/features/`                                   | Domain logic, hooks, types per feature                  |
-| Add UI component    | `src/components/ui/`                              | shadcn/ui components                                    |
-| Add Convex function | `convex/`                                         | Queries, mutations, HTTP endpoints                      |
-| Add DB table        | `convex/schema.ts`                                | Define table + validators in `convex/lib/validators.ts` |
-| Auth logic          | `src/routes/__root.tsx` + `convex/auth.config.ts` | SSR auth centralized in root, Convex JWT issuer config  |
-| API integrations    | `convex/github.ts`                                | GitHub API sync, webhooks                               |
-| App shell/layout    | `src/components/app-shell/`                       | Sidebar, header, navigation                             |
-| Vite config         | `vite.config.ts`                                  | Code splitting groups, plugins                          |
-| Start config        | `src/start.ts`                                    | CSRF middleware, Clerk middleware, request pipeline     |
+| Task                 | Location                                                                      | Notes                                                                        |
+| -------------------- | ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| Add route            | `src/routes/`                                                                 | File-based routing, `_app/` = auth-required                                  |
+| Add feature          | `src/features/`                                                               | Domain logic, hooks, types per feature                                       |
+| Add UI component     | `src/components/ui/`                                                          | shadcn/ui components                                                         |
+| Add route pending UI | `src/components/app-shell/route-pending.tsx`                                  | Shared suspense fallback for auth routes                                     |
+| Add Convex function  | `convex/`                                                                     | Queries, mutations, HTTP endpoints                                           |
+| Add DB table         | `convex/schema.ts`                                                            | Define table + validators in `convex/lib/validators.ts`                      |
+| Add product doc      | `docs/`                                                                       | PRDs, design notes, issue trackers, plans                                    |
+| Auth logic           | `src/routes/__root.tsx` + `src/lib/auth-routing.ts` + `convex/auth.config.ts` | SSR auth centralized in root, route-target helpers, Convex JWT issuer config |
+| API integrations     | `convex/github.ts`                                                            | GitHub API sync, webhooks                                                    |
+| App shell/layout     | `src/components/app-shell/`                                                   | Sidebar, header, navigation                                                  |
+| Vite config          | `vite.config.ts`                                                              | Code splitting groups, plugins                                               |
+| Start config         | `src/start.ts`                                                                | CSRF middleware, Clerk middleware, request pipeline                          |
 
 ## CONVENTIONS
 
@@ -51,6 +53,9 @@ Locatic — "GitHub with a map." Developer activity platform: discover projects,
 - Route guards: `_app/` prefix = authenticated routes
 - TanStack deps pinned to compatible versions (see package.json) — do not upgrade independently
 - Semantic Tailwind tokens preferred over inline styles or direct CSS var usage
+- Nested AGENTS.md files under `src/` and `convex/` override root guidance for their subtree.
+- Route loading is suspense-first now: shared pending UI lives in `src/components/app-shell/route-pending.tsx`.
+- Auth route targeting now flows through `src/lib/auth-routing.ts`; keep route names aligned with `_app` and sign-in/out redirects.
 
 ## ANTI-PATTERNS (THIS PROJECT)
 
@@ -65,6 +70,7 @@ Locatic — "GitHub with a map." Developer activity platform: discover projects,
 - DO NOT bypass mobile-first breakpoints — all new UI must work at 320px viewport
 - DO NOT use direct `var(--lx-*)` in components — use semantic Tailwind utilities (`bg-surface`, `text-text-muted`, `rounded-card`, `shadow-card`, etc.) unless the value is genuinely runtime-only
 - DO NOT use inline `style={{}}` for layout — prefer Tailwind utility classes
+- DO NOT write product docs outside `docs/`.
 
 ## UNIQUE STYLES
 
@@ -79,6 +85,7 @@ Locatic — "GitHub with a map." Developer activity platform: discover projects,
 - Touch-friendly targets (min 44px), content wrapping, mobile tab bar for navigation
 - Semantic Tailwind tokens: `--color-*`, `--radius-*`, `--shadow-*` registered via `@theme` in `styles.css` — use utility classes like `bg-surface`, `text-text-muted`, `rounded-card`, `shadow-card` instead of direct `var(--lx-*)`
 - Auth routes use splat pattern: `sign-in.$.tsx`, `sign-up.$tsx` (not flat `sign-in.tsx`)
+- Docs live in `docs/`: PRD, database design, UI issue tracker, implementation plans, screenshots.
 
 ## ENV / RUNTIME BOUNDARIES
 
@@ -102,9 +109,14 @@ pnpm build            # Production build
 pnpm preview          # Preview production build
 pnpm test             # Vitest run
 pnpm lint             # oxlint
+pnpm typecheck        # tsc --noEmit
 pnpm format           # oxfmt + oxlint --fix
 pnpm check            # oxfmt --check + oxlint
+pnpm ci:quality       # check + typecheck + test
+pnpm ci:build         # build only
+pnpm deploy:convex    # Deploy Convex backend
 pnpm deploy           # Build + wrangler deploy
+pnpm cities:generate  # Regenerate city seed data
 ```
 
 ## NOTES

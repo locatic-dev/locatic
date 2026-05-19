@@ -13,17 +13,19 @@ lib/
 ├── icons.ts          # Icon mappings, custom icon components
 ├── social-links.ts   # Social link validation, formatting
 ├── time.ts           # Time utilities, relative time formatting
+├── auth-routing.ts   # Auth redirect and route-target helpers
 └── __tests__/        # Utility tests
 ```
 
 ## WHERE TO LOOK
 
-| Task            | File        | Notes                     |
-| --------------- | ----------- | ------------------------- |
-| Add utility     | `utils.ts`  | General-purpose helpers   |
-| Add formatter   | `format.ts` | Display formatting        |
-| Add icon        | `icons.ts`  | Icon components, mappings |
-| Add time helper | `time.ts`   | Date/time utilities       |
+| Task                  | File              | Notes                     |
+| --------------------- | ----------------- | ------------------------- |
+| Add utility           | `utils.ts`        | General-purpose helpers   |
+| Add formatter         | `format.ts`       | Display formatting        |
+| Add icon              | `icons.ts`        | Icon components, mappings |
+| Add time helper       | `time.ts`         | Date/time utilities       |
+| Add auth route helper | `auth-routing.ts` | Login redirect targets    |
 
 ## CONVENTIONS
 
@@ -31,6 +33,7 @@ lib/
 - `cn()` uses `clsx` + `tailwind-merge` for className composition
 - Each utility file has a focused domain
 - Auth moved to `__root.tsx` — no route-level auth helpers in lib
+- Auth-routing helpers are shared across route guards and tests; keep route target names in sync with `_app` flows.
 
 ## ANTI-PATTERNS
 

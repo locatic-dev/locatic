@@ -48,6 +48,7 @@ convex/
 | Add scheduled task | `crons.ts`                       | Cron-triggered functions                |
 | Add validator      | `lib/validators.ts`              | Used in schema definitions              |
 | GitHub integration | `github.ts`, `github_actions.ts` | API sync, webhooks                      |
+| Viewer payloads    | `users.ts`, `lib/viewer.ts`      | Authenticated app bootstrap queries     |
 
 ## CONVENTIONS
 
@@ -57,6 +58,7 @@ convex/
 - Use `query()` for reads, `mutation()` for writes, `action()` for external calls
 - `auth.config.ts` requires `CLERK_JWT_ISSUER_DOMAIN` — fails fast if missing
 - Convex tsconfig requires `"types": ["node"]` for Node.js type access
+- Viewer/bootstrap queries now feed route-prefetch flows; keep payload names stable when editing `users.ts` or `lib/viewer.ts`.
 
 ## ANTI-PATTERNS
 

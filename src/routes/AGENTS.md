@@ -27,13 +27,14 @@ routes/
 
 ## WHERE TO LOOK
 
-| Task                    | File                     | Notes                             |
-| ----------------------- | ------------------------ | --------------------------------- |
-| Add public route        | `routes/<name>.tsx`      | Direct file = public route        |
-| Add protected route     | `routes/_app/<name>.tsx` | Inside `_app/` = requires auth    |
-| Add dynamic param route | `routes/$param.tsx`      | `$` prefix = dynamic segment      |
-| Modify root layout      | `__root.tsx`             | Providers, SSR auth, meta tags    |
-| Modify auth layout      | `_app.tsx`               | Sidebar, header, navigation shell |
+| Task                    | File                                        | Notes                             |
+| ----------------------- | ------------------------------------------- | --------------------------------- |
+| Add public route        | `routes/<name>.tsx`                         | Direct file = public route        |
+| Add protected route     | `routes/_app/<name>.tsx`                    | Inside `_app/` = requires auth    |
+| Add dynamic param route | `routes/$param.tsx`                         | `$` prefix = dynamic segment      |
+| Modify root layout      | `__root.tsx`                                | Providers, SSR auth, meta tags    |
+| Modify auth layout      | `_app.tsx`                                  | Sidebar, header, navigation shell |
+| Modify route loading UX | `../components/app-shell/route-pending.tsx` | Shared pending fallback           |
 
 ## CONVENTIONS
 
@@ -44,6 +45,7 @@ routes/
 - `__root.tsx` handles Clerk SSR auth via `createServerFn` — `context.auth` available in all route `beforeLoad`
 - Auth is centralized in root — do NOT create per-route auth server functions
 - `_app.tsx` reuses `context.auth` from root for auth checks
+- App routes now use loader-prefetched suspense queries with route-pending fallbacks instead of ad-hoc loading states.
 - All routes use `.page-shell` class for responsive spacing and safe-area handling
 - Public routes (index, sign-in.$, sign-up.$, u.$username, onboarding): full-width mobile, centered desktop
 - `__root.tsx` includes skip link for keyboard accessibility

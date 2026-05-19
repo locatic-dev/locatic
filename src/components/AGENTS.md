@@ -16,21 +16,23 @@ components/
 │   ├── input.tsx
 │   ├── ...           # Radix-based primitives
 │   └── __tests__/    # Component tests
-├── app-shell/        # Layout components (4 files)
+├── app-shell/        # Layout components (5 files)
 │   ├── app-layout.tsx    # Main app layout wrapper
 │   ├── sidebar.tsx       # Collapsible sidebar
 │   ├── header.tsx        # Page header with wrapped actions
+│   ├── route-pending.tsx # Shared suspense/pending fallback UI
 │   └── mobile-tab-bar.tsx # Bottom tab bar (mobile only)
 └── ...               # Top-level shared components
 ```
 
 ## WHERE TO LOOK
 
-| Task                 | Location      | Notes                     |
-| -------------------- | ------------- | ------------------------- |
-| Add shadcn component | `ui/`         | Use `shadcn add` CLI      |
-| Add layout component | `app-shell/`  | Sidebar, header, nav      |
-| Add shared component | `components/` | Cross-feature UI elements |
+| Task                  | Location                      | Notes                     |
+| --------------------- | ----------------------------- | ------------------------- |
+| Add shadcn component  | `ui/`                         | Use `shadcn add` CLI      |
+| Add layout component  | `app-shell/`                  | Sidebar, header, nav      |
+| Add shared component  | `components/`                 | Cross-feature UI elements |
+| Add shared loading UI | `app-shell/route-pending.tsx` | Route suspense fallback   |
 
 ## CONVENTIONS
 
@@ -44,6 +46,7 @@ components/
 - Dialog, Card, EmptyState: allow content wrapping (`break-words`, `overflow-wrap`)
 - Semantic Tailwind tokens: `bg-surface`, `text-text-muted`, `rounded-card`, `shadow-card` — use instead of `var(--lx-*)`
 - Inline `style={{}}` banned for static layout — Tailwind utility classes only, except for explicit runtime-only values
+- Shared form controls now include fallback IDs for browser autofill and accessibility. Preserve label/control wiring when editing `ui/input.tsx`, `ui/switch.tsx`, and `ui/textarea.tsx`.
 
 ## ANTI-PATTERNS
 
