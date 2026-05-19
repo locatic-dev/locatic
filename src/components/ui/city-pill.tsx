@@ -1,4 +1,5 @@
 import { MapPin, X } from '@/lib/icons'
+import { cn } from '@/lib/utils'
 
 interface CityPillProps {
   city: string
@@ -9,52 +10,20 @@ interface CityPillProps {
 export function CityPill({ city, onRemove, className }: CityPillProps) {
   return (
     <span
-      className={className}
+      className={cn(
+        'inline-flex min-h-7 max-w-full items-center gap-1.5 overflow-hidden rounded-[3px] border border-line bg-surface-alt px-2 py-1 font-mono text-[11px] leading-none text-text-muted',
+        className,
+      )}
       title={city}
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 5,
-        padding: '5px 8px',
-        borderRadius: 3,
-        border: '1px solid var(--lx-border)',
-        background: 'var(--lx-surface-alt)',
-        fontFamily: 'var(--lx-font-mono)',
-        fontSize: 11,
-        color: 'var(--lx-text-2)',
-        lineHeight: 1,
-        maxWidth: '100%',
-        minHeight: 28,
-        overflow: 'hidden',
-      }}
     >
-      <MapPin size={10} style={{ color: 'var(--lx-text-3)', flexShrink: 0 }} />
-      <span
-        style={{
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
-        }}
-      >
-        {city}
-      </span>
+      <MapPin size={10} className="shrink-0 text-text-faint" />
+      <span className="truncate">{city}</span>
       {onRemove && (
         <button
+          type="button"
           onClick={onRemove}
           aria-label={`Remove ${city}`}
-          style={{
-            background: 'none',
-            border: 'none',
-            padding: 2,
-            marginLeft: 2,
-            color: 'var(--lx-text-3)',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            minWidth: 20,
-            minHeight: 20,
-            justifyContent: 'center',
-          }}
+          className="ml-0.5 flex size-5 items-center justify-center rounded-sm text-text-faint transition-colors hover:text-text"
         >
           <X size={9} strokeWidth={2} />
         </button>

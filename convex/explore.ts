@@ -163,7 +163,10 @@ export const searchBuilders = query({
                   q.eq(q.field('deactivatedAt'), null),
                 ),
               )
-              .take(cityIds.length > 0 ? 200 : 120)
+              // Transitional rollout fallback for older rows whose search text
+              // has not been backfilled yet. Collect the full discoverable set
+              // so exact name matches are not lost to arbitrary table slices.
+              .collect()
           ).filter((candidate) =>
             matchesBuilderSearchQuery(candidate, normalizedQ),
           )

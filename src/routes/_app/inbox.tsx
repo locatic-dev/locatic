@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate, useSearch } from '@tanstack/react-router'
-import { skipToken, useQuery } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
+import type { Id } from '../../../convex/_generated/dataModel'
 import {
   conversationDetailQueryOptions,
   conversationsQueryOptions,
@@ -23,6 +24,7 @@ import {
   type EnrichedConversation,
   type PrivateProfilePayload,
 } from '@/features/contracts'
+import { disabledQuery } from '@/lib/query'
 
 export const Route = createFileRoute('/_app/inbox')({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -44,14 +46,14 @@ function InboxPage() {
   const viewerId = profile?.viewer.id
 
   const convsQuery = useQuery(conversationsQueryOptions())
-  const idleConversationDetailQuery = {
-    queryKey: ['conversations', 'detail', 'idle'],
-    queryFn: skipToken,
-  } as any
   const detailQuery = useQuery(
     selectedId
       ? conversationDetailQueryOptions(selectedId as never)
-      : idleConversationDetailQuery,
+      : disabledQuery(
+          conversationDetailQueryOptions(
+            'conversations_idle' as Id<'conversations'>,
+          ),
+        ),
   )
   const sendMessage = useSendMessage()
   const markConversationRead = useMarkConversationRead()
@@ -156,19 +158,13 @@ function InboxPage() {
         </div>
       </div>
 
-      <div className="flex flex-1 flex-col min-h-0">
+      <div className="flex min-h-0 flex-1 flex-col">
         <div
-          style={{
-            width: '100%',
-            borderBottom: selectedConversation
-              ? 'none'
-              : '1px solid var(--lx-border)',
-            display: 'flex',
-            flexDirection: 'column',
-            flexShrink: 0,
-            minHeight: 0,
-            ...(selectedConversation ? { display: 'none' } : null),
-          }}
+          className={
+            selectedConversation
+              ? 'hidden'
+              : 'flex min-h-0 w-full shrink-0 flex-col border-b border-line'
+          }
         >
           <div
             className={
@@ -176,15 +172,7 @@ function InboxPage() {
             }
           >
             {conversations.length === 0 && (
-              <div
-                style={{
-                  padding: '32px 20px',
-                  textAlign: 'center',
-                  fontFamily: 'var(--lx-font-mono)',
-                  fontSize: 12,
-                  color: 'var(--lx-text-3)',
-                }}
-              >
+              <div className="px-5 py-8 text-center font-mono text-xs text-text-faint">
                 {tab === 'requests'
                   ? 'no message requests.'
                   : 'no conversations yet.'}
@@ -210,20 +198,11 @@ function InboxPage() {
                       } as never,
                     } as never)
                   }
-                  style={{
-                    width: '100%',
-                    padding: '14px 20px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 12,
-                    background: isSelected
-                      ? 'var(--lx-surface-alt)'
-                      : 'transparent',
-                    border: 'none',
-                    borderBottom: '1px solid var(--lx-border)',
-                    cursor: 'pointer',
-                    textAlign: 'left',
-                  }}
+                  className={`flex w-full items-center gap-3 border-b border-line px-5 py-3.5 text-left transition-colors ${
+                    isSelected
+                      ? 'bg-surface-alt'
+                      : 'bg-transparent hover:bg-surface-alt'
+                  }`}
                   type="button"
                 >
                   <LxAvatar
@@ -235,81 +214,26 @@ function InboxPage() {
                     avatarUrl={conversation.otherUser?.avatarUrl ?? undefined}
                     size={36}
                   />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        marginBottom: 4,
-                        gap: 8,
-                        flexWrap: 'wrap',
-                      }}
-                    >
-                      <span
-                        style={{
-                          fontFamily: 'var(--lx-font-mono)',
-                          fontSize: 12.5,
-                          fontWeight: 600,
-                          color: 'var(--lx-text)',
-                          overflowWrap: 'anywhere',
-                        }}
-                      >
+                  <div className="min-w-0 flex-1">
+                    <div className="mb-1 flex flex-wrap justify-between gap-2">
+                      <span className="font-mono text-[12.5px] font-semibold text-text [overflow-wrap:anywhere]">
                         {conversation.otherUser?.displayName ??
                           conversation.otherUser?.githubUsername ??
                           'Unknown user'}
                       </span>
-                      <span
-                        style={{
-                          fontFamily: 'var(--lx-font-mono)',
-                          fontSize: 10.5,
-                          color: 'var(--lx-text-3)',
-                          flexShrink: 0,
-                          marginLeft: 8,
-                        }}
-                      >
+                      <span className="ml-2 shrink-0 font-mono text-[10.5px] text-text-faint">
                         {relativeTime(conversation.lastMessage.sentAt)}
                       </span>
                     </div>
-                    <div
-                      style={{
-                        fontFamily: 'var(--lx-font-sans)',
-                        fontSize: 12,
-                        color: 'var(--lx-text-2)',
-                        overflowWrap: 'anywhere',
-                      }}
-                    >
+                    <div className="font-sans text-xs text-text-muted [overflow-wrap:anywhere]">
                       {conversation.lastMessage.content}
                     </div>
-                    <div
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        marginTop: 6,
-                        gap: 8,
-                      }}
-                    >
-                      <span
-                        style={{
-                          fontFamily: 'var(--lx-font-mono)',
-                          fontSize: 10.5,
-                          color: 'var(--lx-text-3)',
-                        }}
-                      >
+                    <div className="mt-1.5 flex items-center justify-between gap-2">
+                      <span className="font-mono text-[10.5px] text-text-faint">
                         {conversation.otherUser?.cityName ?? 'location hidden'}
                       </span>
                       {unreadCount > 0 && (
-                        <span
-                          style={{
-                            fontFamily: 'var(--lx-font-mono)',
-                            fontSize: 10,
-                            padding: '1px 6px',
-                            borderRadius: 999,
-                            background: 'var(--lx-accent)',
-                            color: '#0d1117',
-                            lineHeight: 1.4,
-                          }}
-                        >
+                        <span className="rounded-pill bg-brand px-1.5 py-px font-mono text-[10px] leading-[1.4] text-brand-foreground">
                           {unreadCount}
                         </span>
                       )}
@@ -321,21 +245,11 @@ function InboxPage() {
           </div>
         </div>
 
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+        <div className="flex flex-1 flex-col">
           {!selectedConversation && (
-            <div
-              style={{
-                flex: 1,
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 14,
-                color: 'var(--lx-text-3)',
-              }}
-            >
+            <div className="flex flex-1 flex-col items-center justify-center gap-3.5 text-text-faint">
               <Inbox size={36} strokeWidth={1.2} />
-              <span style={{ fontFamily: 'var(--lx-font-mono)', fontSize: 12 }}>
+              <span className="font-mono text-xs">
                 select a conversation to read messages.
               </span>
             </div>
@@ -343,17 +257,7 @@ function InboxPage() {
 
           {selectedConversation && (
             <>
-              <div
-                style={{
-                  minHeight: 56,
-                  padding: '0 var(--lx-gutter)',
-                  borderBottom: '1px solid var(--lx-border)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 12,
-                  flexShrink: 0,
-                }}
-              >
+              <div className="flex min-h-14 shrink-0 items-center gap-3 border-b border-line px-[var(--lx-gutter)]">
                 <Button
                   variant="ghost"
                   onClick={() =>
@@ -363,7 +267,6 @@ function InboxPage() {
                     } as never)
                   }
                   className="md:hidden"
-                  style={{ fontFamily: 'var(--lx-font-mono)', fontSize: 12 }}
                 >
                   back
                 </Button>
@@ -378,82 +281,45 @@ function InboxPage() {
                   }
                   size={32}
                 />
-                <div>
-                  <div
-                    style={{
-                      fontFamily: 'var(--lx-font-mono)',
-                      fontSize: 12.5,
-                      color: 'var(--lx-text)',
-                      fontWeight: 600,
-                    }}
-                  >
+                <div className="min-w-0">
+                  <div className="font-mono text-[12.5px] font-semibold text-text">
                     {selectedConversation.otherUser?.displayName ??
                       selectedConversation.otherUser?.githubUsername ??
                       'Unknown user'}
                   </div>
-                  <div
-                    style={{
-                      fontFamily: 'var(--lx-font-mono)',
-                      fontSize: 10.5,
-                      color: 'var(--lx-text-3)',
-                    }}
-                  >
+                  <div className="font-mono text-[10.5px] text-text-faint">
                     {selectedConversation.otherUser?.cityName ??
                       'location hidden'}
                   </div>
                 </div>
               </div>
 
-              <div
-                style={{
-                  flex: 1,
-                  overflowY: 'auto',
-                  padding: '24px var(--lx-gutter) 32px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 12,
-                }}
-              >
+              <div className="flex flex-1 flex-col gap-3 overflow-y-auto px-[var(--lx-gutter)] pt-6 pb-8">
                 {messages.map((message) => {
                   const isMe = viewerId === message.senderId
                   return (
                     <div
                       key={String(message._id)}
-                      style={{
-                        display: 'flex',
-                        justifyContent: isMe ? 'flex-end' : 'flex-start',
-                      }}
+                      className={`flex ${
+                        isMe ? 'justify-end' : 'justify-start'
+                      }`}
                     >
                       <div
-                        style={{
-                          maxWidth: 'min(100%, 36rem)',
-                          padding: '10px 12px',
-                          borderRadius: 8,
-                          background: isMe
-                            ? 'var(--lx-accent)'
-                            : 'var(--lx-surface)',
-                          color: isMe ? '#0d1117' : 'var(--lx-text)',
-                          border: isMe ? 'none' : '1px solid var(--lx-border)',
-                        }}
+                        className={`max-w-[min(100%,36rem)] rounded-lg px-3 py-2.5 ${
+                          isMe
+                            ? 'bg-brand text-brand-foreground'
+                            : 'border border-line bg-surface text-text'
+                        }`}
                       >
-                        <div
-                          style={{
-                            fontFamily: 'var(--lx-font-sans)',
-                            fontSize: 13.5,
-                            lineHeight: 1.5,
-                            whiteSpace: 'pre-wrap',
-                          }}
-                        >
+                        <div className="whitespace-pre-wrap font-sans text-[13.5px] leading-6">
                           {message.content}
                         </div>
                         <div
-                          style={{
-                            marginTop: 6,
-                            fontFamily: 'var(--lx-font-mono)',
-                            fontSize: 10.5,
-                            color: isMe ? '#0d1117' : 'var(--lx-text-3)',
-                            opacity: isMe ? 0.8 : 1,
-                          }}
+                          className={`mt-1.5 font-mono text-[10.5px] ${
+                            isMe
+                              ? 'text-brand-foreground/80'
+                              : 'text-text-faint'
+                          }`}
                         >
                           {relativeTime(message.createdAt)}
                         </div>
@@ -463,29 +329,13 @@ function InboxPage() {
                 })}
               </div>
 
-              <div
-                style={{
-                  padding: '16px var(--lx-gutter) 20px',
-                  borderTop: '1px solid var(--lx-border)',
-                  display: 'flex',
-                  gap: 12,
-                  alignItems: 'flex-end',
-                  flexShrink: 0,
-                  flexWrap: 'wrap',
-                }}
-              >
+              <div className="flex shrink-0 flex-wrap items-end gap-3 border-t border-line px-[var(--lx-gutter)] pt-4 pb-5">
                 <Textarea
                   value={newMessage}
                   onChange={(event) => setNewMessage(event.target.value)}
                   placeholder="write a message…"
                   rows={2}
-                  style={{
-                    resize: 'none',
-                    background: 'var(--lx-surface)',
-                    borderColor: 'var(--lx-border)',
-                    color: 'var(--lx-text)',
-                    fontFamily: 'var(--lx-font-sans)',
-                  }}
+                  className="resize-none border-line bg-surface font-sans text-text"
                   onKeyDown={(event) => {
                     if (event.key === 'Enter' && !event.shiftKey) {
                       event.preventDefault()
@@ -496,15 +346,7 @@ function InboxPage() {
                 <Button
                   onClick={() => void handleSend()}
                   disabled={!newMessage.trim() || sending}
-                  className="min-h-11"
-                  style={{
-                    background: 'var(--lx-accent)',
-                    color: '#0d1117',
-                    border: 'none',
-                    fontFamily: 'var(--lx-font-mono)',
-                    fontSize: 12.5,
-                    fontWeight: 600,
-                  }}
+                  className="min-h-11 border-none bg-brand font-mono text-[12.5px] font-semibold text-brand-foreground hover:bg-brand/90"
                 >
                   {sending ? 'sending…' : 'send'}
                 </Button>
@@ -513,13 +355,6 @@ function InboxPage() {
           )}
         </div>
       </div>
-      <style>{`
-        @media (min-width: 768px) {
-          .md\\:hidden {
-            display: none;
-          }
-        }
-      `}</style>
     </div>
   )
 }
