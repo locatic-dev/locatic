@@ -30,6 +30,7 @@ ui/
 - Tailwind-first styling: `EmptyState`, `ProjectCard` migrated from inline styles to semantic utility classes
 - Use semantic tokens: `bg-surface`, `text-text-muted`, `rounded-card`, `shadow-card` instead of `var(--lx-*)`
 - Inline `style={{}}` only for dynamic runtime values such as data-derived color, size, mask, or SVG paint — never for static layout
+- Form controls preserve fallback IDs and label associations for autofill/a11y; keep those props intact when editing inputs, switches, and textareas.
 
 ## ANTI-PATTERNS
 

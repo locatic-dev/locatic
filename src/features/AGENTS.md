@@ -19,20 +19,20 @@ features/
 ├── profile/          # User profiles (public + private)
 ├── projects/         # Project management, repo linking
 ├── settings/         # User settings, preferences
-├── viewer/           # Current user context
+├── viewer/           # Current user context + bootstrap queries
 ├── contracts.ts      # Shared type contracts between features
 └── __tests__/        # Cross-feature tests
 ```
 
 ## WHERE TO LOOK
 
-| Task              | Location           | Notes                                    |
-| ----------------- | ------------------ | ---------------------------------------- |
-| Add new feature   | `features/<name>/` | Create dir with hooks, types, components |
-| Shared types      | `contracts.ts`     | Cross-feature type definitions           |
-| GitHub sync logic | `github/`          | API calls, webhook handlers              |
-| City search       | `cities/`          | Geolocation, city data                   |
-| Current user data | `viewer/`          | Authenticated user context               |
+| Task              | Location           | Notes                                      |
+| ----------------- | ------------------ | ------------------------------------------ |
+| Add new feature   | `features/<name>/` | Create dir with hooks, types, components   |
+| Shared types      | `contracts.ts`     | Cross-feature type definitions             |
+| GitHub sync logic | `github/`          | API calls, webhook handlers                |
+| City search       | `cities/`          | Geolocation, city data                     |
+| Current user data | `viewer/`          | Authenticated user context, route payloads |
 
 ## CONVENTIONS
 
@@ -40,6 +40,7 @@ features/
 - Features communicate via `contracts.ts` for shared types
 - Routes import from features, not vice versa
 - Feature hooks are the primary interface — routes call hooks, not internal components
+- Viewer queries now feed route-prefetch payloads; keep contract names stable when editing `viewer/queries.ts`.
 
 ## ANTI-PATTERNS
 

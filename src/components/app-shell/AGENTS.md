@@ -11,6 +11,7 @@ app-shell/
 ├── app-layout.tsx       # Main layout: sidebar + content area + mobile tab bar
 ├── sidebar-nav.tsx      # Collapsible nav (hidden mobile, visible desktop)
 ├── page-header.tsx      # Header with wrapped actions, safe-area padding
+├── route-pending.tsx    # Shared suspense/pending fallback UI
 └── mobile-tab-bar.tsx   # Bottom tab navigation (mobile only, hidden md+)
 ```
 
@@ -29,6 +30,7 @@ app-shell/
 - Page header: actions use `flex-wrap`, gap tokens (`--space-*`), safe-area top padding
 - App layout: uses `.page-shell` class for consistent spacing
 - Scroll: content area scrolls independently, header/sidebar fixed
+- Route pending UI is shared here; keep route-specific loading states out of individual routes.
 
 ## ANTI-PATTERNS
 
