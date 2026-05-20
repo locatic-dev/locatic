@@ -86,8 +86,35 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
         content:
           'Discover what developers are building from locally to globally. Like it, comment on it, follow them.',
       },
+      { name: 'theme-color', content: '#0f141c' },
+      { property: 'og:type', content: 'website' },
+      { property: 'og:site_name', content: 'Locatic' },
+      { property: 'og:title', content: 'Locatic — GitHub with a map.' },
+      {
+        property: 'og:description',
+        content:
+          'Discover what developers are building from locally to globally. Like it, comment on it, follow them.',
+      },
+      { property: 'og:image', content: '/og-locatic.png' },
+      { property: 'og:image:alt', content: 'Locatic social preview' },
+      { property: 'og:image:width', content: '1200' },
+      { property: 'og:image:height', content: '630' },
+      { name: 'twitter:card', content: 'summary_large_image' },
+      { name: 'twitter:title', content: 'Locatic — GitHub with a map.' },
+      {
+        name: 'twitter:description',
+        content:
+          'Discover what developers are building from locally to globally. Like it, comment on it, follow them.',
+      },
+      { name: 'twitter:image', content: '/og-locatic.png' },
+      { name: 'twitter:image:alt', content: 'Locatic social preview' },
     ],
-    links: [{ rel: 'stylesheet', href: appCss }],
+    links: [
+      { rel: 'stylesheet', href: appCss },
+      { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' },
+      { rel: 'shortcut icon', href: '/favicon.ico' },
+      { rel: 'manifest', href: '/manifest.json' },
+    ],
   }),
   errorComponent: RootErrorPage,
   notFoundComponent: NotFoundPage,
