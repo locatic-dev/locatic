@@ -121,7 +121,7 @@ function SettingsPage() {
     setLinkedin(profile.viewer.socialLinks.linkedin ?? '')
     setBluesky(profile.viewer.socialLinks.bluesky ?? '')
     setWebsite(profile.viewer.socialLinks.website ?? '')
-  }, [profile])
+  }, [data])
 
   const cityResults =
     citySearch.trim().length > 0
@@ -193,8 +193,14 @@ function SettingsPage() {
                   <div className={sectionTitleClassName}>profile</div>
                   <div className="flex flex-col gap-4">
                     <div>
-                      <label className={labelClassName}>display name</label>
+                      <label
+                        htmlFor="settings-display-name"
+                        className={labelClassName}
+                      >
+                        display name
+                      </label>
                       <Input
+                        id="settings-display-name"
                         value={displayName}
                         onChange={(event) => setDisplayName(event.target.value)}
                         className={fieldClassName}
@@ -203,13 +209,14 @@ function SettingsPage() {
                     </div>
 
                     <div>
-                      <label className={labelClassName}>
+                      <label htmlFor="settings-bio" className={labelClassName}>
                         bio{' '}
                         <span className="text-text-faint">
                           ({bio.length}/140)
                         </span>
                       </label>
                       <Textarea
+                        id="settings-bio"
                         value={bio}
                         onChange={(event) =>
                           setBio(event.target.value.slice(0, 140))
@@ -220,8 +227,8 @@ function SettingsPage() {
                       />
                     </div>
 
-                    <div>
-                      <label className={labelClassName}>build status</label>
+                    <fieldset>
+                      <legend className={labelClassName}>build status</legend>
                       <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
                         {(
                           Object.entries(BUILD_STATUS) as Array<
@@ -229,28 +236,45 @@ function SettingsPage() {
                           >
                         ).map(([statusId]) => {
                           const selected = buildStatus === statusId
+                          const inputId = `settings-build-status-${statusId}`
 
                           return (
-                            <button
-                              key={statusId}
-                              onClick={() => setBuildStatus(statusId)}
-                              className={`rounded border px-3.5 py-3 text-left ${
-                                selected
-                                  ? 'border-brand bg-brand-quiet'
-                                  : 'border-line bg-surface'
-                              }`}
-                              type="button"
-                            >
-                              <StatusPill status={statusId} size="md" />
-                            </button>
+                            <div key={statusId}>
+                              <input
+                                id={inputId}
+                                type="radio"
+                                name="settings-build-status"
+                                value={statusId}
+                                checked={selected}
+                                onChange={(event) => {
+                                  if (event.target.checked) {
+                                    setBuildStatus(statusId)
+                                  }
+                                }}
+                                className="peer sr-only"
+                              />
+                              <label
+                                htmlFor={inputId}
+                                className={`block cursor-pointer rounded border px-3.5 py-3 text-left transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-brand/40 peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-canvas ${
+                                  selected
+                                    ? 'border-brand bg-brand-quiet'
+                                    : 'border-line bg-surface'
+                                }`}
+                              >
+                                <StatusPill status={statusId} size="md" />
+                              </label>
+                            </div>
                           )
                         })}
                       </div>
-                    </div>
+                    </fieldset>
 
                     <div>
-                      <label className={labelClassName}>city</label>
+                      <label htmlFor="settings-city" className={labelClassName}>
+                        city
+                      </label>
                       <Input
+                        id="settings-city"
                         value={citySearch}
                         onChange={(event) => setCitySearch(event.target.value)}
                         className={fieldClassName}
@@ -288,8 +312,14 @@ function SettingsPage() {
                   <div className={sectionTitleClassName}>social links</div>
                   <div className="flex flex-col gap-4">
                     <div>
-                      <label className={labelClassName}>x</label>
+                      <label
+                        htmlFor="settings-twitter"
+                        className={labelClassName}
+                      >
+                        x
+                      </label>
                       <Input
+                        id="settings-twitter"
                         value={twitter}
                         onChange={(event) => setTwitter(event.target.value)}
                         className={fieldClassName}
@@ -297,8 +327,14 @@ function SettingsPage() {
                       />
                     </div>
                     <div>
-                      <label className={labelClassName}>linkedin</label>
+                      <label
+                        htmlFor="settings-linkedin"
+                        className={labelClassName}
+                      >
+                        linkedin
+                      </label>
                       <Input
+                        id="settings-linkedin"
                         value={linkedin}
                         onChange={(event) => setLinkedin(event.target.value)}
                         className={fieldClassName}
@@ -306,8 +342,14 @@ function SettingsPage() {
                       />
                     </div>
                     <div>
-                      <label className={labelClassName}>bluesky</label>
+                      <label
+                        htmlFor="settings-bluesky"
+                        className={labelClassName}
+                      >
+                        bluesky
+                      </label>
                       <Input
+                        id="settings-bluesky"
                         value={bluesky}
                         onChange={(event) => setBluesky(event.target.value)}
                         className={fieldClassName}
@@ -315,8 +357,14 @@ function SettingsPage() {
                       />
                     </div>
                     <div>
-                      <label className={labelClassName}>website</label>
+                      <label
+                        htmlFor="settings-website"
+                        className={labelClassName}
+                      >
+                        website
+                      </label>
                       <Input
+                        id="settings-website"
                         value={website}
                         onChange={(event) => setWebsite(event.target.value)}
                         className={fieldClassName}

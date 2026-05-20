@@ -368,6 +368,9 @@ function OnboardingPage() {
           <div className="overflow-hidden rounded border border-line bg-canvas">
             <div className="flex items-center gap-2.5 border-b border-line bg-surface-alt px-3.5 py-2.5">
               <Search size={13} strokeWidth={1.4} className="text-text-faint" />
+              <label htmlFor="repo-filter" className="sr-only">
+                filter repositories
+              </label>
               <input
                 id="repo-filter"
                 name="repoFilter"
@@ -466,8 +469,14 @@ function OnboardingPage() {
 
           <div className="flex flex-col gap-4">
             <div>
-              <label className={fieldLabelClass}>display name</label>
+              <label
+                htmlFor="onboarding-display-name"
+                className={fieldLabelClass}
+              >
+                display name
+              </label>
               <Input
+                id="onboarding-display-name"
                 value={state.displayName}
                 onChange={(event) =>
                   setState((current) => ({
@@ -481,8 +490,11 @@ function OnboardingPage() {
             </div>
 
             <div>
-              <label className={fieldLabelClass}>city</label>
+              <label htmlFor="onboarding-city" className={fieldLabelClass}>
+                city
+              </label>
               <Input
+                id="onboarding-city"
                 value={citySearch}
                 onChange={(event) => setCitySearch(event.target.value)}
                 placeholder={selectedCityName ?? 'search for your city'}
@@ -512,13 +524,14 @@ function OnboardingPage() {
             </div>
 
             <div>
-              <label className={fieldLabelClass}>
+              <label htmlFor="onboarding-bio" className={fieldLabelClass}>
                 one-line bio{' '}
                 <span className="text-text-faint">
                   ({state.bio.length}/140)
                 </span>
               </label>
               <Textarea
+                id="onboarding-bio"
                 value={state.bio}
                 onChange={(event) =>
                   setState((current) => ({
@@ -548,48 +561,66 @@ function OnboardingPage() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-            {(
-              Object.entries(BUILD_STATUS) as Array<
-                [BuildStatus, (typeof BUILD_STATUS)[BuildStatus]]
-              >
-            ).map(([id, meta]) => {
-              const isSelected = state.buildStatus === id
-
-              return (
-                <button
-                  key={id}
-                  onClick={() =>
-                    setState((current) => ({ ...current, buildStatus: id }))
-                  }
-                  className={`flex flex-col gap-2 rounded border px-4 py-3.5 text-left ${
-                    isSelected
-                      ? 'border-brand bg-brand/5'
-                      : 'border-line bg-canvas'
-                  }`}
-                  type="button"
+          <fieldset>
+            <legend className="sr-only">build status</legend>
+            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+              {(
+                Object.entries(BUILD_STATUS) as Array<
+                  [BuildStatus, (typeof BUILD_STATUS)[BuildStatus]]
                 >
-                  <div className="flex items-center justify-between gap-3">
-                    <StatusPill status={id} size="md" />
-                    <div
-                      className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full ${
+              ).map(([id, meta]) => {
+                const isSelected = state.buildStatus === id
+                const inputId = `onboarding-build-status-${id}`
+
+                return (
+                  <div key={id}>
+                    <input
+                      id={inputId}
+                      type="radio"
+                      name="onboarding-build-status"
+                      value={id}
+                      checked={isSelected}
+                      onChange={(event) => {
+                        if (event.target.checked) {
+                          setState((current) => ({
+                            ...current,
+                            buildStatus: id,
+                          }))
+                        }
+                      }}
+                      className="peer sr-only"
+                    />
+                    <label
+                      htmlFor={inputId}
+                      className={`flex cursor-pointer flex-col gap-2 rounded border px-4 py-3.5 text-left transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-brand/40 peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-canvas ${
                         isSelected
-                          ? 'bg-brand'
-                          : 'border-[1.5px] border-line-strong bg-transparent'
+                          ? 'border-brand bg-brand/5'
+                          : 'border-line bg-canvas'
                       }`}
                     >
-                      {isSelected && (
-                        <div className="h-1.25 w-1.25 rounded-full bg-canvas" />
-                      )}
-                    </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <StatusPill status={id} size="md" />
+                        <div
+                          className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full ${
+                            isSelected
+                              ? 'bg-brand'
+                              : 'border-[1.5px] border-line-strong bg-transparent'
+                          }`}
+                        >
+                          {isSelected && (
+                            <div className="h-1.25 w-1.25 rounded-full bg-canvas" />
+                          )}
+                        </div>
+                      </div>
+                      <div className="font-sans text-[12.5px] leading-[1.55] text-text-muted">
+                        {meta.label}
+                      </div>
+                    </label>
                   </div>
-                  <div className="font-sans text-[12.5px] leading-[1.55] text-text-muted">
-                    {meta.label}
-                  </div>
-                </button>
-              )
-            })}
-          </div>
+                )
+              })}
+            </div>
+          </fieldset>
 
           {navButtons(Boolean(state.buildStatus))}
         </OnboardingShell>
@@ -630,8 +661,14 @@ function OnboardingPage() {
               ] as const
             ).map(({ key, label, placeholder }) => (
               <div key={key}>
-                <label className={fieldLabelClass}>{label}</label>
+                <label
+                  htmlFor={`onboarding-${key}`}
+                  className={fieldLabelClass}
+                >
+                  {label}
+                </label>
                 <Input
+                  id={`onboarding-${key}`}
                   value={state[key]}
                   onChange={(event) =>
                     setState((current) => ({
