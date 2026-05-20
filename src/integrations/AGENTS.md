@@ -26,12 +26,14 @@ integrations/
 | Modify auth provider      | `clerk/provider.tsx`               | Clerk configuration                 |
 | Modify backend connection | `convex/provider.tsx`              | Convex client setup                 |
 | Modify query client       | `tanstack-query/root-provider.tsx` | QueryClient config, SSR integration |
+| Shared Convex queries     | `convex/query-options.ts`          | Route-loader/query helper options   |
 
 ## CONVENTIONS
 
 - Each integration has a provider component that wraps the app tree
 - TanStack Query provider exports `getContext()` for router integration
 - Shared query option helpers live beside the Convex provider now; use them instead of ad-hoc query config.
+- Shared query helpers now cover viewer/bootstrap, public/private profile, explore, inbox, and follow-graph flows; prefer them over direct route calls.
 - SSR auth flows through `createServerFn` in `__root.tsx`
 - No devtools integration — TanStack Query devtools removed for production
 
@@ -40,3 +42,4 @@ integrations/
 - DO NOT mix integration logic — each provider handles one service
 - DO NOT bypass providers to create ad-hoc client instances
 - DO NOT re-add TanStack Query devtools — removed to avoid runtime/HMR issues
+- DO NOT duplicate Convex query options in routes or feature hooks when a shared helper exists

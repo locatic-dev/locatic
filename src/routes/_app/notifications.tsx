@@ -1,8 +1,10 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useSuspenseQuery } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import type { Id } from '../../../convex/_generated/dataModel'
 import { notificationsQueryOptions } from '@/features/notifications/queries'
 import {
+  useBackfillNotificationTargets,
   useMarkAllNotificationsRead,
   useMarkNotificationRead,
 } from '@/features/notifications/mutations'
@@ -10,9 +12,10 @@ import { LxAvatar } from '@/components/ui/lx-avatar'
 import { Button } from '@/components/ui/button'
 import { relativeTime } from '@/lib/time'
 import { Bell, Heart, MessageSquare, UserPlus } from '@/lib/icons'
-import { mapNotifications } from '@/features/contracts'
+import { mapNotifications, type NotificationRecord } from '@/features/contracts'
 import type { Doc } from '../../../convex/_generated/dataModel'
 import { FeedRoutePending } from '@/components/app-shell/route-pending'
+import { getNotificationDestination } from '@/features/notifications/navigation'
 
 export const Route = createFileRoute('/_app/notifications')({
   loader: ({ context }) =>
@@ -56,19 +59,35 @@ function notifText(notification: Doc<'notifications'>) {
 }
 
 function NotificationsPage() {
+  const navigate = Route.useNavigate()
   const { data } = useSuspenseQuery(notificationsQueryOptions())
+  const backfillTargets = useBackfillNotificationTargets()
   const markRead = useMarkNotificationRead()
   const markAllRead = useMarkAllNotificationsRead()
   const [localReadIds, setLocalReadIds] = useState<Set<string>>(new Set())
   const [markingAll, setMarkingAll] = useState(false)
-  const [pendingReadIds, setPendingReadIds] = useState<Set<string>>(new Set())
 
   const notifications =
-    mapNotifications(data as Array<Doc<'notifications'>> | undefined) ?? []
+    mapNotifications(data as Array<NotificationRecord> | undefined) ?? []
   const unreadCount = notifications.filter(
     (notification) =>
       !notification.isRead && !localReadIds.has(String(notification._id)),
   ).length
+
+  useEffect(() => {
+    const needsBackfill = notifications.some(
+      (notification) =>
+        !notification.target ||
+        (notification.target.kind === 'conversation' &&
+          notification.target.inboxTab === undefined),
+    )
+
+    if (!needsBackfill) {
+      return
+    }
+
+    void backfillTargets({})
+  }, [backfillTargets, notifications])
 
   const handleMarkAll = async () => {
     if (markingAll) return
@@ -86,38 +105,63 @@ function NotificationsPage() {
     }
   }
 
-  const handleMarkRead = async (notificationId: string) => {
-    if (
-      pendingReadIds.has(notificationId) ||
-      localReadIds.has(notificationId)
-    ) {
+  const handleMarkRead = async (notificationId: Id<'notifications'>) => {
+    const notificationKey = String(notificationId)
+    if (localReadIds.has(notificationKey)) {
       return
     }
 
-    setPendingReadIds((current) => new Set(current).add(notificationId))
-    setLocalReadIds((current) => new Set(current).add(notificationId))
+    setLocalReadIds((current) => new Set(current).add(notificationKey))
 
     try {
-      await markRead({ notificationId: notificationId as never })
+      await markRead({ notificationId })
     } catch (error) {
       console.error('Mark read failed', error)
       setLocalReadIds((current) => {
         const next = new Set(current)
-        next.delete(notificationId)
+        next.delete(notificationKey)
         return next
       })
-    } finally {
-      setPendingReadIds((current) => {
-        const next = new Set(current)
-        next.delete(notificationId)
-        return next
+    }
+  }
+
+  const handleNotificationClick = async (notification: NotificationRecord) => {
+    void handleMarkRead(notification._id)
+
+    const destination = getNotificationDestination(notification.target)
+    if (!destination) {
+      return
+    }
+
+    if (destination.to === '/u/$username') {
+      void navigate({
+        to: destination.to,
+        params: destination.params,
+        search: destination.search,
+      })
+      return
+    }
+
+    if (destination.to === '/project/$owner/$repo') {
+      void navigate({
+        to: destination.to,
+        params: destination.params,
+        search: destination.search,
+      })
+      return
+    }
+
+    if (destination.to === '/inbox') {
+      void navigate({
+        to: destination.to,
+        search: destination.search,
       })
     }
   }
 
   return (
     <div className="lx-page-shell">
-      <div className="flex min-h-14 shrink-0 flex-wrap items-center justify-between gap-3 border-b border-line px-[var(--lx-gutter)]">
+      <div className="flex min-h-14 shrink-0 flex-wrap items-center justify-between gap-3 border-b border-line px-(--lx-gutter)">
         <h1 className="m-0 font-mono text-sm font-semibold text-text">
           notifications
         </h1>
@@ -151,9 +195,9 @@ function NotificationsPage() {
               <button
                 key={notificationId}
                 className={`flex w-full items-start gap-3 border-b border-line px-0 py-4 text-left transition-colors hover:bg-surface-alt focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
-                  !isRead ? 'bg-[oklch(72%_0.17_185_/_0.04)]' : 'bg-transparent'
+                  !isRead ? 'bg-[oklch(72%_0.17_185/0.04)]' : 'bg-transparent'
                 }`}
-                onClick={() => void handleMarkRead(notificationId)}
+                onClick={() => void handleNotificationClick(notification)}
                 type="button"
               >
                 <div className="relative shrink-0">
@@ -162,12 +206,12 @@ function NotificationsPage() {
                     avatarUrl={notification.actorSnapshot.avatarUrl}
                     size={36}
                   />
-                  <div className="absolute -bottom-0.5 -right-0.5 flex size-[18px] items-center justify-center rounded-full border border-line bg-surface">
+                  <div className="absolute -bottom-0.5 -right-0.5 flex size-4.5 items-center justify-center rounded-full border border-line bg-surface">
                     {notifIcon(notification.type)}
                   </div>
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="m-0 font-sans text-[13.5px] leading-6 text-text [overflow-wrap:anywhere]">
+                  <p className="m-0 font-sans text-[13.5px] leading-6 text-text wrap-anywhere">
                     <strong className="font-mono font-semibold">
                       {notification.actorSnapshot.displayName}
                     </strong>{' '}

@@ -1,8 +1,8 @@
-import { createFileRoute, useNavigate, useSearch } from '@tanstack/react-router'
+import { createFileRoute } from '@tanstack/react-router'
 import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
-import type { Doc } from '../../../convex/_generated/dataModel'
-import { privateProfileQueryOptions } from '@/features/profile/queries'
+import type { Doc, Id } from '../../../convex/_generated/dataModel'
+import { privateProfileOverviewQueryOptions } from '@/features/profile/queries'
 import {
   citiesSearchQueryOptions,
   popularCitiesQueryOptions,
@@ -10,6 +10,7 @@ import {
 import {
   useDeactivateAccount,
   useDeleteAccount,
+  useUpdateGithubSyncPreference,
   useUpdateNotificationPrefs,
   useUpdatePrivacy,
   useUpdateProfile,
@@ -27,8 +28,8 @@ import {
   type BuildStatus,
 } from '@/components/ui/status-pill'
 import {
-  mapPrivateProfile,
-  type PrivateProfilePayload,
+  mapPrivateProfileOverview,
+  type PrivateProfileOverviewPayload,
 } from '@/features/contracts'
 import { normalizeSocialLinkValue } from '@/lib/social-links'
 
@@ -50,7 +51,7 @@ export const Route = createFileRoute('/_app/settings')({
       | 'danger',
   }),
   loader: ({ context }) =>
-    context.queryClient.ensureQueryData(privateProfileQueryOptions()),
+    context.queryClient.ensureQueryData(privateProfileOverviewQueryOptions()),
   pendingComponent: FormRoutePending,
   pendingMs: 250,
   component: SettingsPage,
@@ -72,10 +73,12 @@ const settingsRowClassName =
   'flex items-center justify-between gap-4 border-b border-line py-3.5'
 
 function SettingsPage() {
-  const { tab } = useSearch({ from: '/_app/settings' })
-  const navigate = useNavigate()
-  const { data } = useSuspenseQuery(privateProfileQueryOptions())
-  const profile = mapPrivateProfile(data as PrivateProfilePayload | undefined)
+  const { tab } = Route.useSearch()
+  const navigate = Route.useNavigate()
+  const { data } = useSuspenseQuery(privateProfileOverviewQueryOptions())
+  const profile = mapPrivateProfileOverview(
+    data as PrivateProfileOverviewPayload | undefined,
+  )
   if (!profile) {
     throw new Error('Settings data was not available')
   }
@@ -90,6 +93,7 @@ function SettingsPage() {
   const updateProfile = useUpdateProfile()
   const updatePrivacy = useUpdatePrivacy()
   const updateNotifPrefs = useUpdateNotificationPrefs()
+  const updateGithubSyncPreference = useUpdateGithubSyncPreference()
   const deactivate = useDeactivateAccount()
   const deleteAccount = useDeleteAccount()
 
@@ -97,7 +101,9 @@ function SettingsPage() {
   const [displayName, setDisplayName] = useState('')
   const [bio, setBio] = useState('')
   const [buildStatus, setBuildStatus] = useState<BuildStatus>('building_solo')
-  const [selectedCityId, setSelectedCityId] = useState<string | null>(null)
+  const [selectedCityId, setSelectedCityId] = useState<Id<'cities'> | null>(
+    null,
+  )
   const [selectedCityName, setSelectedCityName] = useState<string | null>(null)
   const [twitter, setTwitter] = useState('')
   const [linkedin, setLinkedin] = useState('')
@@ -109,9 +115,7 @@ function SettingsPage() {
     setDisplayName(profile.viewer.displayName)
     setBio(profile.viewer.bio)
     setBuildStatus(profile.viewer.buildStatus)
-    setSelectedCityId(
-      profile.viewer.cityId ? String(profile.viewer.cityId) : null,
-    )
+    setSelectedCityId(profile.viewer.cityId ?? null)
     setSelectedCityName(profile.viewer.cityName)
     setTwitter(profile.viewer.socialLinks.x ?? '')
     setLinkedin(profile.viewer.socialLinks.linkedin ?? '')
@@ -132,7 +136,7 @@ function SettingsPage() {
       await updateProfile({
         displayName: displayName.trim(),
         bio: bio.trim(),
-        cityId: (selectedCityId as never) ?? null,
+        cityId: selectedCityId,
         buildStatus,
         socialLinks: {
           github: profile.viewer.githubUsername,
@@ -164,8 +168,8 @@ function SettingsPage() {
               onClick={() =>
                 void navigate({
                   to: '/settings',
-                  search: { tab: tabItem.id } as never,
-                } as never)
+                  search: { tab: tabItem.id },
+                })
               }
               className={`mb-px whitespace-nowrap border-b-2 px-1 pb-2.5 font-mono text-[12px] transition-colors ${
                 tab === tabItem.id
@@ -266,7 +270,7 @@ function SettingsPage() {
                           <button
                             key={String(city._id)}
                             onClick={() => {
-                              setSelectedCityId(String(city._id))
+                              setSelectedCityId(city._id)
                               setSelectedCityName(city.displayName)
                               setCitySearch('')
                             }}
@@ -479,6 +483,32 @@ function SettingsPage() {
                   <span className="font-mono text-[11px] text-success">
                     connected
                   </span>
+                </div>
+                <div className="rounded-card border border-line bg-surface px-4.5 py-4 shadow-card">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <div className="mb-0.5 font-mono text-[13px] text-text">
+                        also star repos on GitHub
+                      </div>
+                      <div className="font-sans text-xs leading-5 text-text-faint">
+                        When enabled, liking a repo on Locatic will also try to
+                        star it on GitHub. Your Locatic like will still be saved
+                        even if GitHub sync fails.
+                      </div>
+                    </div>
+                    <Switch
+                      checked={profile.viewer.syncGithubStarsOnLike}
+                      onCheckedChange={async (checked) => {
+                        try {
+                          await updateGithubSyncPreference({
+                            syncGithubStarsOnLike: checked,
+                          })
+                        } catch (error) {
+                          console.error(error)
+                        }
+                      }}
+                    />
+                  </div>
                 </div>
               </div>
             )}

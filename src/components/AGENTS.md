@@ -17,10 +17,10 @@ components/
 │   ├── ...           # Radix-based primitives
 │   └── __tests__/    # Component tests
 ├── app-shell/        # Layout components (5 files)
-│   ├── app-layout.tsx    # Main app layout wrapper
-│   ├── sidebar.tsx       # Collapsible sidebar
-│   ├── header.tsx        # Page header with wrapped actions
-│   ├── route-pending.tsx # Shared suspense/pending fallback UI
+│   ├── app-layout.tsx     # Main app layout wrapper
+│   ├── sidebar-nav.tsx    # Collapsible sidebar navigation
+│   ├── page-header.tsx    # Page header with wrapped actions
+│   ├── route-pending.tsx  # Shared suspense/pending fallback UI
 │   └── mobile-tab-bar.tsx # Bottom tab bar (mobile only)
 └── ...               # Top-level shared components
 ```
@@ -46,6 +46,7 @@ components/
 - Dialog, Card, EmptyState: allow content wrapping (`break-words`, `overflow-wrap`)
 - Semantic Tailwind tokens: `bg-surface`, `text-text-muted`, `rounded-card`, `shadow-card` — use instead of `var(--lx-*)`
 - Inline `style={{}}` banned for static layout — Tailwind utility classes only, except for explicit runtime-only values
+- Shell components stay layout-only; sidebar persistence and skip-link helpers live in `src/lib/`.
 - Shared form controls now include fallback IDs for browser autofill and accessibility. Preserve label/control wiring when editing `ui/input.tsx`, `ui/switch.tsx`, and `ui/textarea.tsx`.
 
 ## ANTI-PATTERNS
@@ -58,3 +59,4 @@ components/
 - DO NOT hide overflow on scrollable containers without testing mobile
 - DO NOT use direct `var(--lx-*)` in component styling — use semantic Tailwind utilities
 - DO NOT use inline `style={{}}` for static layout — Tailwind-first only
+- DO NOT duplicate sidebar collapse state or skip-link logic inside components

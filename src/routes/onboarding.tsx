@@ -1,14 +1,14 @@
-import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, redirect } from '@tanstack/react-router'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
-import type { Doc } from '../../convex/_generated/dataModel'
+import type { Doc, Id } from '../../convex/_generated/dataModel'
 import { Logo } from '@/components/ui/logo'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { StatusPill, BUILD_STATUS } from '@/components/ui/status-pill'
 import { LangDot } from '@/components/ui/lang-dot'
-import { ArrowRight, Star, Pin, Search, Check } from '@/lib/icons'
+import { ArrowRight, Star, Search, Check } from '@/lib/icons'
 import { useCompleteOnboarding } from '@/features/onboarding/mutations'
 import { viewerQueryOptions } from '@/features/viewer/queries'
 import { mineProjectsQueryOptions } from '@/features/projects/queries'
@@ -21,7 +21,7 @@ import {
   popularCitiesQueryOptions,
 } from '@/features/cities/queries'
 import {
-  buildPinnedProjectIds,
+  buildOwnedProjectIdsFromFullNames,
   deriveStackPrefsFromRepositories,
   type GithubRepositoryListItem,
 } from '@/features/onboarding/helpers'
@@ -34,7 +34,7 @@ import { normalizeSocialLinkValue } from '@/lib/social-links'
 export const Route = createFileRoute('/onboarding')({
   beforeLoad: async ({ context }) => {
     if (!context.auth.isAuthenticated) {
-      throw redirect({ to: '/sign-in' })
+      throw redirect({ to: '/sign-in/$' })
     }
 
     const bootstrap = (await context.queryClient.ensureQueryData(
@@ -56,7 +56,6 @@ type OnboardingState = {
   buildStatus: BuildStatus | ''
   displayName: string
   linkedin: string
-  pinnedRepoFullNames: string[]
   selectedRepoFullNames: string[]
   twitter: string
   website: string
@@ -125,7 +124,7 @@ function OnboardingShell({
 }
 
 function OnboardingPage() {
-  const navigate = useNavigate()
+  const navigate = Route.useNavigate()
   const queryClient = useQueryClient()
   const completeOnboarding = useCompleteOnboarding()
   const listGithubRepositories = useListGithubRepositories()
@@ -144,7 +143,9 @@ function OnboardingPage() {
   const [step, setStep] = useState(0)
   const [repoFilter, setRepoFilter] = useState('')
   const [citySearch, setCitySearch] = useState('')
-  const [selectedCityId, setSelectedCityId] = useState<string | null>(null)
+  const [selectedCityId, setSelectedCityId] = useState<Id<'cities'> | null>(
+    null,
+  )
   const [selectedCityName, setSelectedCityName] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [repoLoading, setRepoLoading] = useState(true)
@@ -156,7 +157,6 @@ function OnboardingPage() {
     buildStatus: '',
     displayName: '',
     linkedin: '',
-    pinnedRepoFullNames: [],
     selectedRepoFullNames: [],
     twitter: '',
     website: '',
@@ -219,7 +219,7 @@ function OnboardingPage() {
     })
 
     if (!selectedCityId && bootstrap.viewer?.cityId) {
-      setSelectedCityId(String(bootstrap.viewer.cityId))
+      setSelectedCityId(bootstrap.viewer.cityId)
       setSelectedCityName(bootstrap.viewer.cityName)
     }
   }, [bootstrap, selectedCityId])
@@ -253,40 +253,9 @@ function OnboardingPage() {
       const isSelected = current.selectedRepoFullNames.includes(fullName)
       return {
         ...current,
-        pinnedRepoFullNames: isSelected
-          ? current.pinnedRepoFullNames.filter(
-              (pinnedRepo) => pinnedRepo !== fullName,
-            )
-          : current.pinnedRepoFullNames,
         selectedRepoFullNames: isSelected
           ? current.selectedRepoFullNames.filter((repo) => repo !== fullName)
           : [...current.selectedRepoFullNames, fullName],
-      }
-    })
-  }
-
-  const togglePin = (fullName: string) => {
-    setState((current) => {
-      if (!current.selectedRepoFullNames.includes(fullName)) {
-        return current
-      }
-
-      if (current.pinnedRepoFullNames.includes(fullName)) {
-        return {
-          ...current,
-          pinnedRepoFullNames: current.pinnedRepoFullNames.filter(
-            (repo) => repo !== fullName,
-          ),
-        }
-      }
-
-      if (current.pinnedRepoFullNames.length >= 3) {
-        return current
-      }
-
-      return {
-        ...current,
-        pinnedRepoFullNames: [...current.pinnedRepoFullNames, fullName],
       }
     })
   }
@@ -318,11 +287,11 @@ function OnboardingPage() {
       await completeOnboarding({
         bio: state.bio.trim(),
         buildStatus: state.buildStatus,
-        cityId: selectedCityId as never,
+        cityId: selectedCityId,
         displayName: state.displayName.trim(),
-        exploreCityIds: [selectedCityId as never],
-        pinnedOwnedProjectIds: buildPinnedProjectIds(
-          state.pinnedRepoFullNames,
+        exploreCityIds: [selectedCityId],
+        onboardingSelectedOwnedProjectIds: buildOwnedProjectIdsFromFullNames(
+          state.selectedRepoFullNames,
           ownedProjects,
         ),
         socialLinks: {
@@ -344,7 +313,7 @@ function OnboardingPage() {
         }),
       ])
 
-      void navigate({ to: '/home', search: {} as never } as never)
+      void navigate({ to: '/home', search: true })
     } catch (error) {
       console.error(error)
       setSaving(false)
@@ -385,16 +354,15 @@ function OnboardingPage() {
           <div>
             <h1 className={sectionTitleClass}>pick what to show</h1>
             <p className={sectionCopyClass}>
-              import your public repos from GitHub. pin up to 3 for the top of
-              your profile. you can skip this and come back later.
+              choose which public repos to bring into Locatic first. you can pin
+              profile projects later from your profile once everything is
+              imported.
             </p>
           </div>
 
           <div className="flex items-center justify-between font-mono text-[11.5px] text-text-faint">
             <span>{state.selectedRepoFullNames.length} selected</span>
-            <span className="text-brand">
-              {state.pinnedRepoFullNames.length}/3 pinned
-            </span>
+            <span>imports from GitHub</span>
           </div>
 
           <div className="overflow-hidden rounded border border-line bg-canvas">
@@ -435,9 +403,6 @@ function OnboardingPage() {
               {!repoError &&
                 filteredRepos.map((repository, index) => {
                   const isSelected = state.selectedRepoFullNames.includes(
-                    repository.fullName,
-                  )
-                  const isPinned = state.pinnedRepoFullNames.includes(
                     repository.fullName,
                   )
 
@@ -482,28 +447,6 @@ function OnboardingPage() {
                           {repository.description || 'no description provided'}
                         </div>
                       </div>
-
-                      {isSelected && (
-                        <button
-                          onClick={(event) => {
-                            event.stopPropagation()
-                            togglePin(repository.fullName)
-                          }}
-                          className={`inline-flex items-center gap-1 rounded-[3px] border px-2.5 py-1.25 font-mono text-[10.5px] ${
-                            isPinned
-                              ? 'border-brand/40 bg-brand/10 text-brand'
-                              : 'border-line bg-transparent text-text-faint'
-                          }`}
-                          type="button"
-                        >
-                          <Pin
-                            size={10}
-                            fill={isPinned ? 'currentColor' : 'none'}
-                            strokeWidth={1.4}
-                          />
-                          {isPinned ? 'pinned' : 'pin'}
-                        </button>
-                      )}
                     </div>
                   )
                 })}
@@ -556,7 +499,7 @@ function OnboardingPage() {
                   <button
                     key={String(city._id)}
                     onClick={() => {
-                      setSelectedCityId(String(city._id))
+                      setSelectedCityId(city._id)
                       setSelectedCityName(city.displayName)
                       setCitySearch('')
                     }}
@@ -722,7 +665,7 @@ function OnboardingPage() {
             </p>
             <div className="mt-5 inline-flex flex-col gap-1.5 font-mono text-[11.5px] text-text-faint">
               <span>{state.selectedRepoFullNames.length} repos selected</span>
-              <span>{state.pinnedRepoFullNames.length} repos pinned</span>
+              <span>pins can be set from your profile later</span>
               <span>{selectedCityName ?? 'city not selected yet'}</span>
             </div>
           </div>

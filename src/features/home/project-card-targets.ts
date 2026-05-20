@@ -1,11 +1,15 @@
-export function getHomeCardDmTargetUserId({
+import type { Id } from '../../../convex/_generated/dataModel'
+
+export function getHomeCardDmTargetUserId<
+  TUserId extends string | Id<'users'>,
+>({
   actorUserId,
   ownerUserId,
   viewerUserId,
 }: {
-  actorUserId: string
-  ownerUserId: string
-  viewerUserId?: string | null
+  actorUserId: TUserId
+  ownerUserId: TUserId
+  viewerUserId?: TUserId | null
 }) {
   if (!actorUserId || !ownerUserId) {
     return null

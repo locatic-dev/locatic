@@ -282,7 +282,7 @@ button {
   opacity: 0;
 }
 
-.lx-skip-link:focus-visible {
+html[data-skip-link-modality='keyboard'] .lx-skip-link:focus-visible {
   transform: translateY(0);
   opacity: 1;
 }
@@ -317,6 +317,12 @@ button {
 
 .lx-page-width-form {
   width: min(100%, var(--lx-form-max));
+}
+
+.lx-page-width-feed-left {
+  width: min(100%, var(--lx-feed-max));
+  margin-inline: 0;
+  min-width: 0;
 }
 
 .lx-page-width-detail {
