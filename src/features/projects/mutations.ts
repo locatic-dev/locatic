@@ -7,3 +7,8 @@ export const useUnlikeProject = () =>
 
 export const useAddComment = () => useMutation(api.comments.create)
 export const useDeleteComment = () => useMutation(api.comments.remove)
+export const useReactToTarget = () => useMutation(api.reactions.reactToTarget)
+export const useUnreactFromTarget = () =>
+  useMutation(api.reactions.unreactFromTarget)
+export const usePinOwnedProject = () =>
+  useMutation(api.projects.pinOwnedProject)

@@ -8,12 +8,18 @@ import {
 } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
 import { auth } from '@clerk/tanstack-react-start/server'
+import { useEffect } from 'react'
 import ClerkProvider from '../integrations/clerk/provider'
 import ConvexProvider from '../integrations/convex/provider'
 import { Logo } from '@/components/ui/logo'
 import { DotMap } from '@/components/ui/dot-map'
 import { ArrowLeft } from '@/lib/icons'
 import { createClientRouteAuthStateGetter } from '@/lib/auth-routing'
+import {
+  enableSkipLinkKeyboardMode,
+  isSkipLinkKeyboardTrigger,
+  resetSkipLinkFocusState,
+} from '@/lib/skip-link'
 import appCss from '../styles.css?url'
 import type { QueryClient } from '@tanstack/react-query'
 import type { ConvexQueryClient } from '@convex-dev/react-query'
@@ -135,7 +141,7 @@ function RootErrorPage({ error, reset }: ErrorComponentProps) {
             Retry
           </button>
           <Link
-            to="/sign-in"
+            to="/sign-in/$"
             className="inline-flex min-h-11 items-center rounded-[5px] border border-line bg-surface-alt px-4 py-2.5 font-mono text-[12.5px] font-bold text-text no-underline"
           >
             Back to sign in
@@ -212,7 +218,8 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <HeadContent />
       </head>
       <body className="antialiased wrap-anywhere">
-        <a className="lx-skip-link" href="#main-content">
+        <SkipLinkFocusManager />
+        <a className="lx-skip-link" href="#main-content" data-skip-link="true">
           Skip to main content
         </a>
         <ClerkProvider>
@@ -224,4 +231,38 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       </body>
     </html>
   )
+}
+
+function SkipLinkFocusManager() {
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (isSkipLinkKeyboardTrigger(event.key)) {
+        enableSkipLinkKeyboardMode(document)
+      }
+    }
+
+    const handlePointerIntent = () => {
+      resetSkipLinkFocusState(document)
+    }
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        resetSkipLinkFocusState(document)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown, true)
+    window.addEventListener('pointerdown', handlePointerIntent, true)
+    window.addEventListener('blur', handlePointerIntent)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown, true)
+      window.removeEventListener('pointerdown', handlePointerIntent, true)
+      window.removeEventListener('blur', handlePointerIntent)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [])
+
+  return null
 }

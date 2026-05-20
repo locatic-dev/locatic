@@ -21,7 +21,7 @@ routes/
 ├── index.tsx           # Landing page (public)
 ├── onboarding.tsx      # New user onboarding flow
 ├── sign-in.$.tsx       # Clerk sign-in (splat route)
-├── sign-up.$tsx        # Clerk sign-up (splat route)
+├── sign-up.$.tsx       # Clerk sign-up (splat route)
 └── u.$username.tsx     # Public user profile
 ```
 
@@ -50,6 +50,8 @@ routes/
 - Public routes (index, sign-in.$, sign-up.$, u.$username, onboarding): full-width mobile, centered desktop
 - `__root.tsx` includes skip link for keyboard accessibility
 - Routes use Tailwind-first styling — semantic tokens (`bg-surface`, `text-text-muted`) over inline styles or `var(--lx-*)`
+- Route search params should come from feature helpers (`state.ts`, `navigation.ts`, `helpers.ts`) instead of ad hoc parsing inside route files.
+- Shared Convex query options live in `src/integrations/convex/query-options.ts`; use them for loader prefetches.
 
 ## ANTI-PATTERNS
 
@@ -61,3 +63,4 @@ routes/
 - DO NOT create route-specific scroll handling — content scrolls within page-shell
 - DO NOT use inline `style={{}}` for layout — use Tailwind utility classes
 - DO NOT use direct `var(--lx-*)` — use semantic Tailwind tokens (`bg-surface`, `text-text-muted`, etc.) unless the value is runtime-only
+- DO NOT normalize search params or destination maps inside routes when feature helpers exist

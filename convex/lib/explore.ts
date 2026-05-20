@@ -15,7 +15,7 @@ export interface ExploreCandidate {
 interface BuildExploreCandidatesOptions {
   candidates: ExploreCandidate[]
   ownedProjectIds: Set<string>
-  seenProjectIds: Set<string>
+  dismissedProjectIds: Set<string>
   selectedCityIds: Set<string>
   stackPrefs: string[]
   now: number
@@ -43,24 +43,27 @@ function computeFreshnessScore(
 export function buildExploreCandidates({
   candidates,
   ownedProjectIds,
-  seenProjectIds,
+  dismissedProjectIds,
   selectedCityIds,
   stackPrefs,
   now,
   limit,
 }: BuildExploreCandidatesOptions): ExploreCandidate[] {
   const filtered = candidates.filter((candidate) => {
-    if (ownedProjectIds.has(candidate.id) || seenProjectIds.has(candidate.id)) {
+    if (
+      ownedProjectIds.has(candidate.id) ||
+      dismissedProjectIds.has(candidate.id)
+    ) {
       return false
     }
 
     return true
   })
 
-  const scoped = filtered.filter((candidate) =>
-    selectedCityIds.has(candidate.cityId),
-  )
-  const pool = scoped.length >= limit ? scoped : filtered
+  const pool =
+    selectedCityIds.size > 0
+      ? filtered.filter((candidate) => selectedCityIds.has(candidate.cityId))
+      : filtered
   const stackPrefsSet = new Set(stackPrefs.map((pref) => pref.toLowerCase()))
 
   const enriched = pool.map((candidate) => {

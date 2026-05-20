@@ -4,8 +4,10 @@ import {
   mapConversationList,
   mapNotifications,
   mapPrivateProfile,
+  mapPrivateProfileOverview,
   mapProjectDetail,
   mapPublicProfile,
+  mapPublicProfileOverview,
   mapViewerInboxSummary,
   mapViewerLikedProjectIds,
   mapViewerSummary,
@@ -31,8 +33,9 @@ describe('contract mappers', () => {
           updateLikes: true,
           weeklyDigest: false,
         },
+        onboardingSelectedOwnedProjectIds: [],
         onboardingCompletedAt: 1,
-        pinnedOwnedProjectIds: [],
+        pinnedProfileProjectIds: [],
         privacy: {
           appearInPulse: true,
           cityVisibility: 'exact_city',
@@ -41,6 +44,7 @@ describe('contract mappers', () => {
           likedProjectsVisibility: 'public',
           profileVisibility: 'public',
         },
+        syncGithubStarsOnLike: false,
         profile: {
           avatarUrl: null,
           bio: 'building things',
@@ -57,11 +61,11 @@ describe('contract mappers', () => {
         },
         stats: {
           commentsCount: 0,
+          contributionsCount: 0,
           followersCount: 2,
           followingCount: 3,
-          likesReceivedCount: 1,
+          likedCount: 1,
           projectsCount: 4,
-          updatesCount: 0,
         },
       } as never,
       'Berlin, Germany',
@@ -102,8 +106,9 @@ describe('contract mappers', () => {
           updateLikes: true,
           weeklyDigest: false,
         },
+        onboardingSelectedOwnedProjectIds: [],
         onboardingCompletedAt: null,
-        pinnedOwnedProjectIds: [],
+        pinnedProfileProjectIds: [],
         privacy: {
           appearInPulse: true,
           cityVisibility: 'exact_city',
@@ -112,6 +117,7 @@ describe('contract mappers', () => {
           likedProjectsVisibility: 'public',
           profileVisibility: 'public',
         },
+        syncGithubStarsOnLike: true,
         profile: {
           avatarUrl: null,
           bio: '',
@@ -128,18 +134,24 @@ describe('contract mappers', () => {
         },
         stats: {
           commentsCount: 0,
+          contributionsCount: 0,
           followersCount: 0,
           followingCount: 0,
-          likesReceivedCount: 0,
+          likedCount: 0,
           projectsCount: 0,
-          updatesCount: 0,
         },
       },
+      contributions: [],
+      followers: [],
+      following: [],
     } as never)
 
     const publicProfile = mapPublicProfile({
       comments: [],
+      contributions: [],
+      followers: [],
       githubUsername: 'octocat',
+      following: [],
       likedProjects: [],
       privacy: {
         appearInPulse: true,
@@ -166,11 +178,11 @@ describe('contract mappers', () => {
       projects: [],
       stats: {
         commentsCount: 0,
+        contributionsCount: 0,
         followersCount: 8,
         followingCount: 4,
-        likesReceivedCount: 0,
+        likedCount: 0,
         projectsCount: 2,
-        updatesCount: 0,
       },
       userId: 'user_1',
       viewerFollowsProfile: true,
@@ -184,6 +196,104 @@ describe('contract mappers', () => {
     expect(publicProfile?.profile.city).toBe('Berlin, Germany')
   })
 
+  it('maps lightweight profile overview payloads', () => {
+    const privateOverview = mapPrivateProfileOverview({
+      cityName: 'Bengaluru, India',
+      viewer: {
+        _id: 'user_1',
+        appearInExplore: false,
+        exploreConfig: { cityIds: [], stackPrefs: [] },
+        github: { username: 'octocat' },
+        githubContributions: null,
+        notificationPrefs: {
+          comments: true,
+          commentReplies: true,
+          contributorRecognized: true,
+          dms: true,
+          newFollowers: true,
+          projectLikes: true,
+          updateLikes: true,
+          weeklyDigest: false,
+        },
+        onboardingSelectedOwnedProjectIds: [],
+        onboardingCompletedAt: null,
+        pinnedProfileProjectIds: [],
+        privacy: {
+          appearInPulse: true,
+          cityVisibility: 'exact_city',
+          commentHistoryVisibility: 'public',
+          followGraphVisibility: 'public',
+          likedProjectsVisibility: 'public',
+          profileVisibility: 'public',
+        },
+        syncGithubStarsOnLike: false,
+        profile: {
+          avatarUrl: null,
+          bio: '',
+          buildStatus: 'building_solo',
+          cityId: null,
+          displayName: 'Octo',
+          socialLinks: {
+            bluesky: null,
+            github: 'octocat',
+            linkedin: null,
+            website: null,
+            x: null,
+          },
+        },
+        stats: {
+          commentsCount: 0,
+          contributionsCount: 0,
+          followersCount: 0,
+          followingCount: 0,
+          likedCount: 0,
+          projectsCount: 0,
+        },
+        unreadMessagesCount: 0,
+      },
+    } as never)
+
+    const publicOverview = mapPublicProfileOverview({
+      githubUsername: 'octocat',
+      privacy: {
+        appearInPulse: true,
+        cityVisibility: 'exact_city',
+        commentHistoryVisibility: 'public',
+        followGraphVisibility: 'public',
+        likedProjectsVisibility: 'public',
+        profileVisibility: 'public',
+      },
+      profile: {
+        avatarUrl: null,
+        bio: 'hello',
+        buildStatus: 'building_solo',
+        city: 'Berlin, Germany',
+        displayName: 'Octo',
+        socialLinks: {
+          bluesky: null,
+          github: 'octocat',
+          linkedin: null,
+          website: null,
+          x: null,
+        },
+      },
+      stats: {
+        commentsCount: 0,
+        contributionsCount: 0,
+        followersCount: 8,
+        followingCount: 4,
+        likedCount: 0,
+        projectsCount: 2,
+      },
+      userId: 'user_1',
+      viewerFollowsProfile: true,
+    } as never)
+
+    expect(privateOverview?.viewer.cityName).toBe('Bengaluru, India')
+    expect(publicOverview?.viewerFollowsProfile).toBe(true)
+    expect(publicOverview?.profile.city).toBe('Berlin, Germany')
+  })
+
   it('maps smaller viewer payloads without collapsing them into private profile', () => {
     const viewerSummary = mapViewerSummary({
       viewerId: 'user_1',
@@ -193,12 +303,14 @@ describe('contract mappers', () => {
       viewerId: 'user_1',
     } as never)
     const inboxSummary = mapViewerInboxSummary({
+      unreadMessages: 3,
       viewerId: 'user_1',
     } as never)
 
     expect(viewerSummary?.id).toBe('user_1')
     expect(likedProjects?.likedProjectIds).toHaveLength(2)
     expect(inboxSummary?.viewerId).toBe('user_1')
+    expect(inboxSummary?.unreadMessages).toBe(3)
   })
 
   it('returns null when project detail is absent', () => {

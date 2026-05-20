@@ -43,6 +43,17 @@ export const notificationTypeValidator = v.union(
   v.literal('contributor_recognized'),
 )
 
+export const notificationTargetKindValidator = v.union(
+  v.literal('profile'),
+  v.literal('project'),
+  v.literal('conversation'),
+)
+
+export const inboxTabValidator = v.union(
+  v.literal('inbox'),
+  v.literal('requests'),
+)
+
 export const profileVisibilityValidator = v.union(
   v.literal('public'),
   v.literal('locatic_only'),
@@ -171,3 +182,12 @@ export const updateSnapshotValidator = v.union(
   }),
   v.null(),
 )
+
+export const notificationTargetValidator = v.object({
+  kind: notificationTargetKindValidator,
+  username: optionalStringValidator,
+  projectFullName: optionalStringValidator,
+  conversationId: v.union(v.id('conversations'), v.null()),
+  inboxTab: v.optional(v.union(inboxTabValidator, v.null())),
+  commentId: v.union(v.id('comments'), v.null()),
+})

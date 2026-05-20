@@ -1,6 +1,6 @@
 # PROJECT KNOWLEDGE BASE
 
-**Generated:** 2026-05-19
+**Generated:** 2026-05-20
 **Stack:** TanStack Start + Convex + Clerk + Cloudflare Workers + Tailwind v4
 
 ## OVERVIEW
@@ -20,8 +20,10 @@ Locatic — "GitHub with a map." Developer activity platform: discover projects,
 ├── convex/                 # Backend (Convex serverless functions + schema)
 │   ├── lib/                # Shared backend utilities
 │   └── _generated/         # Auto-generated Convex types (DO NOT EDIT)
-├── locatic-design/         # Design assets
-├── docs/                   # Product docs, plans, screenshots
+├── locatic-design/         # Design assets and visual references
+├── docs/                   # PRD, issue tracker, plans, screenshots
+│   ├── assets/             # Captured UI artifacts and references
+│   └── plans/              # Implementation plans and RCAs
 └── public/                 # Static assets
 ```
 
@@ -36,6 +38,8 @@ Locatic — "GitHub with a map." Developer activity platform: discover projects,
 | Add Convex function  | `convex/`                                                                     | Queries, mutations, HTTP endpoints                                           |
 | Add DB table         | `convex/schema.ts`                                                            | Define table + validators in `convex/lib/validators.ts`                      |
 | Add product doc      | `docs/`                                                                       | PRDs, design notes, issue trackers, plans                                    |
+| Add design asset     | `locatic-design/`                                                             | Visual references, comp boards                                               |
+| Add plan / RCA       | `docs/plans/`                                                                 | Implementation plans, remediation notes                                      |
 | Auth logic           | `src/routes/__root.tsx` + `src/lib/auth-routing.ts` + `convex/auth.config.ts` | SSR auth centralized in root, route-target helpers, Convex JWT issuer config |
 | API integrations     | `convex/github.ts`                                                            | GitHub API sync, webhooks                                                    |
 | App shell/layout     | `src/components/app-shell/`                                                   | Sidebar, header, navigation                                                  |
@@ -128,6 +132,7 @@ pnpm cities:generate  # Regenerate city seed data
 - Wrangler config in `wrangler.jsonc` — secrets via `wrangler secret put`
 - `CLERK_SECRET_KEY` is NOT a browser variable — used only by TanStack Start server runtime and Convex backend actions
 - Convex tsconfig requires `"types": ["node"]` for Node.js type access in server code
+- Feature state/search helpers live beside the feature they normalize (`state.ts`, `navigation.ts`, `helpers.ts`); routes stay thin.
 
 ## RESPONSIVE LAYOUT
 

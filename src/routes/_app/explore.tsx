@@ -1,6 +1,11 @@
-import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
-import { useEffect, useRef, useState } from 'react'
+import { createFileRoute } from '@tanstack/react-router'
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+  useSuspenseQuery,
+} from '@tanstack/react-query'
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import type { Doc, Id } from '../../../convex/_generated/dataModel'
 import {
   builderSearchQueryOptions,
@@ -18,43 +23,134 @@ import { Input } from '@/components/ui/input'
 import { CityPill } from '@/components/ui/city-pill'
 import { EmptyState } from '@/components/ui/empty-state'
 import { LxAvatar } from '@/components/ui/lx-avatar'
+import { Button } from '@/components/ui/button'
 import { relativeTime } from '@/lib/time'
 import { useLikeProject, useUnlikeProject } from '@/features/projects/mutations'
+import { showGithubSyncFeedback } from '@/features/projects/github-sync-feedback'
 import { useFollowUser, useUnfollowUser } from '@/features/follows/mutations'
-import { Plus } from '@/lib/icons'
-import {
-  mapViewerExplorePrefs,
-  mapViewerLikedProjectIds,
-  type ViewerExplorePrefsPayload,
-  type ViewerLikedProjectIdsPayload,
-} from '@/features/contracts'
 import { useUpdateExploreConfig } from '@/features/settings/mutations'
 import { useDismissExploreProject } from '@/features/explore/mutations'
 import { useOpenConversation } from '@/features/inbox/use-open-conversation'
 import { disabledQuery } from '@/lib/query'
 import { FeedRoutePending } from '@/components/app-shell/route-pending'
 import {
+  mapViewerExplorePrefs,
+  mapViewerLikedProjectIds,
+  type ViewerExplorePrefsPayload,
+  type ViewerLikedProjectIdsPayload,
+} from '@/features/contracts'
+import {
   viewerExplorePrefsQueryOptions,
   viewerLikedProjectIdsQueryOptions,
 } from '@/features/viewer/queries'
+import { Plus, Search, X } from '@/lib/icons'
+import {
+  deriveDefaultExploreCityIds,
+  getExploreProjectCityIds,
+  getExploreScopeStatusCopy,
+  isExploreProjectFeedGlobal,
+  normalizeExploreSearch,
+  type ExploreSearch,
+} from '@/features/explore/state'
+
+type BuilderPreview = {
+  userId: Id<'users'>
+  displayName: string
+  avatarUrl: string | null
+  githubUsername: string
+  projectsCount: number
+  followersCount: number
+}
+
+type ExploreFeedPayload = {
+  scope: 'default' | 'global' | 'custom'
+  appliedCityIds: Array<Id<'cities'>>
+  isCityFiltered: boolean
+  projects: Array<Doc<'projects'>>
+}
+
+function updateExploreFeedPayload(
+  payload: ExploreFeedPayload | undefined,
+  projectId: Id<'projects'>,
+  currentlyLiked: boolean,
+  nextLiked: boolean,
+) {
+  if (!payload) {
+    return payload
+  }
+
+  const delta = nextLiked === currentlyLiked ? 0 : nextLiked ? 1 : -1
+
+  return {
+    ...payload,
+    projects: payload.projects.map((project) =>
+      project._id === projectId
+        ? {
+            ...project,
+            locatic: {
+              ...project.locatic,
+              likesCount: Math.max(0, project.locatic.likesCount + delta),
+            },
+          }
+        : project,
+    ),
+  }
+}
+
+function updateLikedProjectIdsPayload(
+  payload: ViewerLikedProjectIdsPayload | undefined,
+  projectId: Id<'projects'>,
+  nextLiked: boolean,
+) {
+  if (!payload) {
+    return payload
+  }
+
+  const likedProjectIds = new Set(payload.likedProjectIds)
+  if (nextLiked) {
+    likedProjectIds.add(projectId)
+  } else {
+    likedProjectIds.delete(projectId)
+  }
+
+  return {
+    ...payload,
+    likedProjectIds: [...likedProjectIds],
+  }
+}
 
 export const Route = createFileRoute('/_app/explore')({
-  loader: async ({ context }) => {
-    const [explorePrefs] = await Promise.all([
+  validateSearch: normalizeExploreSearch,
+  loaderDeps: ({ search }) => normalizeExploreSearch(search),
+  loader: async ({ context, deps }) => {
+    const [explorePrefsData] = await Promise.all([
       context.queryClient.ensureQueryData(viewerExplorePrefsQueryOptions()),
-      context.queryClient.ensureQueryData(exploreFeedQueryOptions()),
-      context.queryClient.ensureQueryData(nearbyBuildersQueryOptions()),
       context.queryClient.ensureQueryData(viewerLikedProjectIdsQueryOptions()),
     ])
+    const explorePrefs = mapViewerExplorePrefs(
+      explorePrefsData as ViewerExplorePrefsPayload | undefined,
+    )
+    if (!explorePrefs) {
+      return
+    }
 
-    const selectedCityIds =
-      explorePrefs.exploreConfig.cityIds.length > 0
-        ? explorePrefs.exploreConfig.cityIds
-        : explorePrefs.cityId
-          ? [explorePrefs.cityId]
-          : []
+    const defaultCityIds = deriveDefaultExploreCityIds(explorePrefs)
+    const selectedCityIds = getExploreProjectCityIds(
+      deps,
+      defaultCityIds,
+    ) as Array<Id<'cities'>>
+    const defaultScopedCityIds = defaultCityIds as Array<Id<'cities'>>
 
     await Promise.all([
+      context.queryClient.ensureQueryData(
+        exploreFeedQueryOptions({
+          scope: deps.scope,
+          selectedCityIds,
+        }),
+      ),
+      context.queryClient.ensureQueryData(
+        nearbyBuildersQueryOptions(defaultScopedCityIds),
+      ),
       context.queryClient.ensureQueryData(
         followingQueryOptions(explorePrefs.viewerId),
       ),
@@ -71,15 +167,9 @@ export const Route = createFileRoute('/_app/explore')({
 })
 
 function ExplorePage() {
-  const cityIdsMatch = (left: string[], right: string[]) =>
-    left.length === right.length &&
-    left.every((cityId, index) => cityId === right[index])
-
-  const navigate = useNavigate()
-  const { data: feedData } = useSuspenseQuery(exploreFeedQueryOptions())
-  const { data: nearbyBuildersData } = useSuspenseQuery(
-    nearbyBuildersQueryOptions(),
-  )
+  const navigate = Route.useNavigate()
+  const queryClient = useQueryClient()
+  const search = Route.useSearch()
   const { data: explorePrefsData } = useSuspenseQuery(
     viewerExplorePrefsQueryOptions(),
   )
@@ -92,7 +182,27 @@ function ExplorePage() {
   const viewerState = mapViewerLikedProjectIds(
     viewerStateData as ViewerLikedProjectIdsPayload | undefined,
   )
+  const defaultCityIds = deriveDefaultExploreCityIds(explorePrefs)
+  const effectiveSelectedCityIds = getExploreProjectCityIds(
+    search,
+    defaultCityIds,
+  )
+  const selectedCityIds = effectiveSelectedCityIds as Array<Id<'cities'>>
+  const defaultScopedCityIds = defaultCityIds as Array<Id<'cities'>>
   const viewerId = explorePrefs?.viewerId
+  const cityPickerRef = useRef<HTMLDivElement | null>(null)
+  const currentScope = search.scope
+  const isGlobalFeed = isExploreProjectFeedGlobal(currentScope)
+
+  const scopedFeedQuery = useQuery({
+    ...exploreFeedQueryOptions({
+      scope: currentScope,
+      selectedCityIds,
+    }),
+  })
+  const { data: nearbyBuildersData } = useSuspenseQuery(
+    nearbyBuildersQueryOptions(defaultScopedCityIds),
+  )
   const { data: followingData } = useSuspenseQuery(
     followingQueryOptions(viewerId as Id<'users'>),
   )
@@ -108,102 +218,109 @@ function ExplorePage() {
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set())
   const [pendingLikes, setPendingLikes] = useState<Set<string>>(new Set())
   const [pendingFollows, setPendingFollows] = useState<Set<string>>(new Set())
-  const [likedOverrides, setLikedOverrides] = useState<Record<string, boolean>>(
-    {},
-  )
   const [followOverrides, setFollowOverrides] = useState<
     Record<string, boolean>
   >({})
-  const [selectedCityIds, setSelectedCityIds] = useState<string[]>([])
+  const [pendingCityIds, setPendingCityIds] = useState(false)
   const [selectedCityLabels, setSelectedCityLabels] = useState<
     Record<string, string>
   >({})
-  const [didHydrateCities, setDidHydrateCities] = useState(false)
-  const [isPersistingCities, setIsPersistingCities] = useState(false)
-  const [cityQuery, setCityQuery] = useState('')
-  const [builderQuery, setBuilderQuery] = useState('')
-  const [debouncedBuilderQuery, setDebouncedBuilderQuery] = useState('')
-  const persistTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const persistInFlightRef = useRef(false)
-  const queuedCityIdsRef = useRef<string[] | null>(null)
-  const lastPersistedCityIdsRef = useRef<string[]>([])
-
-  const initialCityIds = explorePrefs?.exploreConfig.cityIds.length
-    ? explorePrefs.exploreConfig.cityIds.map(String)
-    : explorePrefs?.cityId
-      ? [String(explorePrefs.cityId)]
-      : []
-
-  useEffect(() => {
-    if (didHydrateCities) return
-
-    setSelectedCityIds(initialCityIds)
-    setSelectedCityLabels((current) => {
-      if (current && Object.keys(current).length > 0) {
-        return current
-      }
-
-      if (initialCityIds.length === 1 && explorePrefs?.cityName) {
-        return { [initialCityIds[0] ?? '']: explorePrefs.cityName }
-      }
-
-      return current
-    })
-    lastPersistedCityIdsRef.current = initialCityIds
-    setDidHydrateCities(true)
-  }, [didHydrateCities, explorePrefs?.cityName, initialCityIds])
+  const [debouncedBuilderQuery, setDebouncedBuilderQuery] = useState(
+    search.builderQuery.trim(),
+  )
+  const [isCityDropdownOpen, setIsCityDropdownOpen] = useState(false)
+  const [activeCityIndex, setActiveCityIndex] = useState(-1)
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
-      setDebouncedBuilderQuery(builderQuery.trim())
+      setDebouncedBuilderQuery(search.builderQuery.trim())
     }, 250)
 
     return () => window.clearTimeout(timeout)
-  }, [builderQuery])
-
-  const builderSearchQuery = useQuery(
-    debouncedBuilderQuery.trim().length > 0
-      ? builderSearchQueryOptions(
-          debouncedBuilderQuery,
-          selectedCityIds as Array<Id<'cities'>>,
-        )
-      : disabledQuery(builderSearchQueryOptions('', [])),
-  )
+  }, [search.builderQuery])
 
   const selectedCitiesQuery = useQuery({
-    ...citiesByIdsQueryOptions(selectedCityIds as never[]),
+    ...citiesByIdsQueryOptions(selectedCityIds),
     enabled: selectedCityIds.length > 0,
   })
   const popularCitiesQuery = useQuery(popularCitiesQueryOptions())
   const citySearchResultsQuery = useQuery({
-    ...citiesSearchQueryOptions(cityQuery.trim() || 'unused'),
-    enabled: cityQuery.trim().length > 0,
+    ...citiesSearchQueryOptions(search.cityQuery.trim() || 'unused'),
+    enabled: search.cityQuery.trim().length > 0,
+  })
+  const builderSearchQuery = useQuery(
+    debouncedBuilderQuery.length > 0
+      ? builderSearchQueryOptions(debouncedBuilderQuery)
+      : disabledQuery(builderSearchQueryOptions('')),
+  )
+  const feedQueryKey = exploreFeedQueryOptions({
+    scope: currentScope,
+    selectedCityIds,
+  }).queryKey
+  const likedProjectIdsQueryKey = viewerLikedProjectIdsQueryOptions().queryKey
+  const likeMutation = useMutation({
+    mutationFn: async ({
+      currentlyLiked,
+      projectId,
+    }: {
+      currentlyLiked: boolean
+      projectId: Id<'projects'>
+    }) =>
+      currentlyLiked
+        ? unlikeProject({ projectId })
+        : likeProject({ projectId }),
+    onMutate: async ({ currentlyLiked, projectId }) => {
+      await Promise.all([
+        queryClient.cancelQueries({ queryKey: feedQueryKey }),
+        queryClient.cancelQueries({ queryKey: likedProjectIdsQueryKey }),
+      ])
+
+      const previousFeed =
+        queryClient.getQueryData<ExploreFeedPayload>(feedQueryKey)
+      const previousLikedProjectIds =
+        queryClient.getQueryData<ViewerLikedProjectIdsPayload>(
+          likedProjectIdsQueryKey,
+        )
+
+      queryClient.setQueryData(
+        feedQueryKey,
+        (current: ExploreFeedPayload | undefined) =>
+          updateExploreFeedPayload(
+            current,
+            projectId,
+            currentlyLiked,
+            !currentlyLiked,
+          ),
+      )
+      queryClient.setQueryData(
+        likedProjectIdsQueryKey,
+        (current: ViewerLikedProjectIdsPayload | undefined) =>
+          updateLikedProjectIdsPayload(current, projectId, !currentlyLiked),
+      )
+
+      return { previousFeed, previousLikedProjectIds }
+    },
+    onError: (_error, _variables, context) => {
+      queryClient.setQueryData(feedQueryKey, context?.previousFeed)
+      queryClient.setQueryData(
+        likedProjectIdsQueryKey,
+        context?.previousLikedProjectIds,
+      )
+    },
+    onSuccess: (result) => {
+      showGithubSyncFeedback(result)
+    },
+    onSettled: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: feedQueryKey }),
+        queryClient.invalidateQueries({ queryKey: likedProjectIdsQueryKey }),
+      ])
+    },
   })
 
-  const likedProjectIds = new Set(
-    viewerState?.likedProjectIds.map(String) ?? [],
-  )
-  const followedUserIds = new Set(
-    ((followingData as Array<Doc<'follows'>> | undefined) ?? []).map((follow) =>
-      String(follow.followingId),
-    ),
-  )
-
-  const allItems = (
-    feedData as {
-      projects: Array<Doc<'projects'>>
-      fallback: Array<Doc<'projects'>>
-    }
-  ).projects
-  const items = allItems.filter((item) => !dismissedIds.has(String(item._id)))
-  const fallbackItems = (
-    feedData as {
-      projects: Array<Doc<'projects'>>
-      fallback: Array<Doc<'projects'>>
-    }
-  ).fallback
   const selectedCities =
     (selectedCitiesQuery.data as Array<Doc<'cities'>> | undefined) ?? []
+
   useEffect(() => {
     if (selectedCities.length === 0) {
       return
@@ -218,404 +335,378 @@ function ExplorePage() {
     })
   }, [selectedCities])
 
-  const cityResults =
-    cityQuery.trim().length > 0
-      ? ((citySearchResultsQuery.data as Array<Doc<'cities'>> | undefined) ??
-        [])
-      : ((popularCitiesQuery.data as Array<Doc<'cities'>> | undefined) ?? [])
-  const suggestedCities = cityResults
-    .filter((city) => !selectedCityIds.includes(String(city._id)))
-    .slice(0, 6)
-  const hasSelectedCities = selectedCityIds.length > 0
-  const selectedCityChips = selectedCityIds.map((cityId) => ({
+  useEffect(() => {
+    if (
+      defaultCityIds.length === 1 &&
+      explorePrefs?.cityName &&
+      !selectedCityLabels[defaultCityIds[0] ?? '']
+    ) {
+      setSelectedCityLabels((current) => ({
+        ...current,
+        [defaultCityIds[0] ?? '']: explorePrefs.cityName ?? 'selected city',
+      }))
+    }
+  }, [defaultCityIds, explorePrefs?.cityName, selectedCityLabels])
+
+  const likedProjectIds = new Set(
+    viewerState?.likedProjectIds.map(String) ?? [],
+  )
+  const followedUserIds = new Set(
+    ((followingData as Array<Doc<'follows'>> | undefined) ?? []).map((follow) =>
+      String(follow.followingId),
+    ),
+  )
+
+  const scopedFeedData = scopedFeedQuery.data as ExploreFeedPayload | undefined
+  const projects = scopedFeedData?.projects ?? []
+  const items = projects.filter((item) => !dismissedIds.has(String(item._id)))
+  const nearbyBuilders =
+    (nearbyBuildersData as Array<BuilderPreview> | undefined) ?? []
+  const builderResults =
+    (builderSearchQuery.data as Array<BuilderPreview> | undefined) ?? []
+  const isBuilderSearchActive = debouncedBuilderQuery.length > 0
+  const hasSelectedCities = effectiveSelectedCityIds.length > 0
+
+  const selectedCityChips = effectiveSelectedCityIds.map((cityId: string) => ({
     id: cityId,
     name: selectedCityLabels[cityId] ?? 'loading city…',
   }))
-  const builderResults =
-    (builderSearchQuery.data as
-      | Array<{
-          userId: string
-          displayName: string
-          avatarUrl: string | null
-          githubUsername: string
-          projectsCount: number
-          followersCount: number
-        }>
-      | undefined) ?? []
-  const nearbyBuilders =
-    (nearbyBuildersData as
-      | Array<{
-          userId: string
-          displayName: string
-          avatarUrl: string | null
-          githubUsername: string
-          projectsCount: number
-          followersCount: number
-        }>
-      | undefined) ?? []
-  const isBuilderSearchActive = debouncedBuilderQuery.length > 0
 
-  const persistExploreConfig = async (nextCityIds: string[]) => {
-    if (!explorePrefs) return
+  const cityResults =
+    search.cityQuery.trim().length > 0
+      ? ((citySearchResultsQuery.data as Array<Doc<'cities'>> | undefined) ??
+        [])
+      : ((popularCitiesQuery.data as Array<Doc<'cities'>> | undefined) ?? [])
+  const availableCities = cityResults.filter(
+    (city: Doc<'cities'>) =>
+      !effectiveSelectedCityIds.includes(String(city._id)),
+  )
+  const visibleCities = availableCities.slice(0, 8)
+  const showCityDropdown = isCityDropdownOpen && visibleCities.length > 0
+  const activeCity =
+    activeCityIndex >= 0 ? visibleCities[activeCityIndex] : null
 
-    await updateExploreConfig({
-      cityIds: nextCityIds as never[],
-      stackPrefs: explorePrefs.exploreConfig.stackPrefs,
-      appearInExplore: explorePrefs.appearInExplore,
+  const updateSearch = (next: Partial<ExploreSearch>) =>
+    void navigate({
+      to: '/explore',
+      search: {
+        ...search,
+        ...next,
+      },
+      replace: true,
     })
-  }
 
-  const queueCityPersist = (nextCityIds: string[]) => {
-    queuedCityIdsRef.current = nextCityIds
-    if (persistTimeoutRef.current) {
-      clearTimeout(persistTimeoutRef.current)
-    }
-
-    persistTimeoutRef.current = setTimeout(() => {
-      void flushCityPersist()
-    }, 120)
-  }
-
-  const flushCityPersist = async () => {
-    if (persistInFlightRef.current) {
+  useEffect(() => {
+    if (!showCityDropdown) {
+      setActiveCityIndex(-1)
       return
     }
 
-    const nextCityIds = queuedCityIdsRef.current
-    if (!nextCityIds) {
+    setActiveCityIndex((current) =>
+      current >= 0 && current < visibleCities.length ? current : 0,
+    )
+  }, [showCityDropdown, visibleCities.length])
+
+  useEffect(() => {
+    const handlePointerDown = (event: MouseEvent) => {
+      if (
+        cityPickerRef.current &&
+        !cityPickerRef.current.contains(event.target as Node)
+      ) {
+        setIsCityDropdownOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handlePointerDown)
+    return () => document.removeEventListener('mousedown', handlePointerDown)
+  }, [])
+
+  const persistCityIds = async (nextCityIds: Array<Id<'cities'>>) => {
+    if (!explorePrefs) {
       return
     }
 
-    if (cityIdsMatch(nextCityIds, lastPersistedCityIdsRef.current)) {
-      queuedCityIdsRef.current = null
-      return
-    }
+    const nextCityIdStrings = Array.from(
+      new Set(nextCityIds.map((cityId) => String(cityId))),
+    )
+    const nextScope = nextCityIdStrings.length > 0 ? 'custom' : 'global'
 
-    persistInFlightRef.current = true
-    setIsPersistingCities(true)
+    setPendingCityIds(true)
+    setIsCityDropdownOpen(false)
+    setActiveCityIndex(-1)
 
     try {
-      await persistExploreConfig(nextCityIds)
-      lastPersistedCityIdsRef.current = nextCityIds
-      if (
-        queuedCityIdsRef.current &&
-        cityIdsMatch(queuedCityIdsRef.current, nextCityIds)
-      ) {
-        queuedCityIdsRef.current = null
+      updateSearch({
+        scope: nextScope,
+        cityQuery: '',
+        selectedCityIds: nextCityIdStrings,
+      })
+      if (nextCityIds.length > 0) {
+        await updateExploreConfig({
+          appearInExplore: explorePrefs.appearInExplore,
+          cityIds: nextCityIds,
+          stackPrefs: explorePrefs.exploreConfig.stackPrefs,
+        })
       }
     } catch (error) {
       console.error('Failed to persist city filters', error)
-      queuedCityIdsRef.current = lastPersistedCityIdsRef.current
-      setSelectedCityIds(lastPersistedCityIdsRef.current)
-      setSelectedCityLabels((current) => {
-        const next: Record<string, string> = {}
-        for (const cityId of lastPersistedCityIdsRef.current) {
-          if (current[cityId]) {
-            next[cityId] = current[cityId]
-          }
-        }
-        return next
-      })
     } finally {
-      persistInFlightRef.current = false
-      setIsPersistingCities(false)
-
-      if (
-        queuedCityIdsRef.current &&
-        !cityIdsMatch(queuedCityIdsRef.current, lastPersistedCityIdsRef.current)
-      ) {
-        void flushCityPersist()
-      }
+      setPendingCityIds(false)
     }
   }
 
-  useEffect(() => {
-    return () => {
-      if (persistTimeoutRef.current) {
-        clearTimeout(persistTimeoutRef.current)
-      }
-    }
-  }, [])
-
-  const applySelectedCityIds = (
-    nextCityIds: string[],
-    nextLabels?: Record<string, string>,
+  const handleDismiss = async (
+    projectId: Id<'projects'>,
+    projectKey: string,
   ) => {
-    setSelectedCityIds(nextCityIds)
-    if (nextLabels) {
-      setSelectedCityLabels(nextLabels)
-    } else {
-      setSelectedCityLabels((current) => {
-        const next: Record<string, string> = {}
-        for (const cityId of nextCityIds) {
-          if (current[cityId]) {
-            next[cityId] = current[cityId]
-          }
-        }
-        return next
-      })
-    }
-    queueCityPersist(nextCityIds)
-  }
-
-  const handleDismiss = async (projectId: string) => {
-    setDismissedIds((current) => new Set(current).add(projectId))
+    setDismissedIds((current) => new Set(current).add(projectKey))
 
     try {
-      await dismissProject({ projectId: projectId as never })
+      await dismissProject({ projectId })
     } catch (error) {
       console.error('Dismiss failed', error)
       setDismissedIds((current) => {
         const next = new Set(current)
-        next.delete(projectId)
+        next.delete(projectKey)
         return next
       })
     }
   }
 
-  const handleLike = async (projectId: string, currentlyLiked: boolean) => {
-    if (pendingLikes.has(projectId)) return
-    setPendingLikes((current) => new Set(current).add(projectId))
-    setLikedOverrides((current) => ({
-      ...current,
-      [projectId]: !currentlyLiked,
-    }))
+  const handleLike = async (
+    projectId: Id<'projects'>,
+    projectKey: string,
+    currentlyLiked: boolean,
+  ) => {
+    if (pendingLikes.has(projectKey)) return
+    setPendingLikes((current) => new Set(current).add(projectKey))
 
     try {
-      if (currentlyLiked) {
-        await unlikeProject({ projectId: projectId as never })
-      } else {
-        await likeProject({ projectId: projectId as never })
-      }
+      await likeMutation.mutateAsync({ currentlyLiked, projectId })
     } catch (error) {
       console.error('Like failed', error)
-      setLikedOverrides((current) => ({
-        ...current,
-        [projectId]: currentlyLiked,
-      }))
     } finally {
       setPendingLikes((current) => {
         const next = new Set(current)
-        next.delete(projectId)
+        next.delete(projectKey)
         return next
       })
     }
   }
 
-  const handleFollow = async (userId: string, currentlyFollowed: boolean) => {
-    if (pendingFollows.has(userId)) return
-    setPendingFollows((current) => new Set(current).add(userId))
+  const handleFollow = async (
+    userId: Id<'users'>,
+    userKey: string,
+    currentlyFollowed: boolean,
+  ) => {
+    if (pendingFollows.has(userKey)) return
+    setPendingFollows((current) => new Set(current).add(userKey))
     setFollowOverrides((current) => ({
       ...current,
-      [userId]: !currentlyFollowed,
+      [userKey]: !currentlyFollowed,
     }))
 
     try {
       if (currentlyFollowed) {
-        await unfollowUser({ targetUserId: userId as never })
+        await unfollowUser({ targetUserId: userId })
       } else {
-        await followUser({ targetUserId: userId as never })
+        await followUser({ targetUserId: userId })
       }
     } catch (error) {
       console.error('Follow failed', error)
       setFollowOverrides((current) => ({
         ...current,
-        [userId]: currentlyFollowed,
+        [userKey]: currentlyFollowed,
       }))
     } finally {
       setPendingFollows((current) => {
         const next = new Set(current)
-        next.delete(userId)
+        next.delete(userKey)
         return next
       })
     }
   }
 
+  const handleCityKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Escape') {
+      setIsCityDropdownOpen(false)
+      setActiveCityIndex(-1)
+      return
+    }
+
+    if (visibleCities.length === 0) {
+      return
+    }
+
+    if (event.key === 'ArrowDown') {
+      event.preventDefault()
+      setIsCityDropdownOpen(true)
+      setActiveCityIndex((current) =>
+        current < visibleCities.length - 1 ? current + 1 : 0,
+      )
+      return
+    }
+
+    if (event.key === 'ArrowUp') {
+      event.preventDefault()
+      setIsCityDropdownOpen(true)
+      setActiveCityIndex((current) =>
+        current > 0 ? current - 1 : visibleCities.length - 1,
+      )
+      return
+    }
+
+    if (event.key === 'Enter' && activeCity) {
+      event.preventDefault()
+      void persistCityIds([...selectedCityIds, activeCity._id])
+    }
+  }
+
+  const removeCityById = (cityId: string) =>
+    void persistCityIds(
+      selectedCityIds.filter((selectedId) => String(selectedId) !== cityId),
+    )
+
   const explanationStats = [
     {
       l: 'selected cities',
-      v: `${selectedCityIds.length}`,
+      v: `${effectiveSelectedCityIds.length}`,
     },
-    { l: 'available now', v: `${items.length} repos` },
-    { l: 'dismissed', v: `${dismissedIds.size}` },
+    { l: 'matching projects', v: `${items.length}` },
+    { l: 'nearby builders', v: `${nearbyBuilders.length}` },
   ]
 
   return (
-    <div className="lx-page-shell flex flex-col xl:flex-row">
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="shrink-0 border-b border-line px-[var(--lx-gutter)] py-5">
-          <div className="mb-3 flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <div className="mb-1.5 font-mono text-[11px] lowercase text-text-faint">
-                // projects we think you'd like
-              </div>
-              <h1 className="font-mono text-[22px] font-semibold tracking-[-0.02em] text-text">
-                explore
-              </h1>
+    <div className="lx-page-shell">
+      <header className="shrink-0 border-b border-line px-(--lx-gutter) py-5">
+        <div className="mb-3 flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <div className="mb-1.5 font-mono text-[11px] lowercase text-text-faint">
+              // discover builders and projects nearby
             </div>
-            <div className="flex items-center gap-2 font-mono text-[11.5px] text-text-faint">
-              <span>
-                {hasSelectedCities
-                  ? 'showing builders in'
-                  : 'showing builders everywhere'}
-              </span>
-              {isPersistingCities && (
-                <span className="text-[11px]">updating…</span>
-              )}
-            </div>
+            <h1 className="font-mono text-[22px] font-semibold tracking-[-0.02em] text-text">
+              explore
+            </h1>
           </div>
+          <div className="flex items-center gap-2 font-mono text-[11.5px] text-text-faint">
+            <span>{getExploreScopeStatusCopy(currentScope)}</span>
+            {pendingCityIds && <span>saving…</span>}
+          </div>
+        </div>
 
-          {selectedCityChips.length > 0 && (
-            <div className="mb-4 flex gap-2 overflow-x-auto pb-1">
-              {selectedCityChips.map((city) => (
-                <CityPill
-                  key={city.id}
-                  city={city.name}
-                  className="shrink-0"
-                  onRemove={() => {
-                    const nextCityIds = selectedCityIds.filter(
-                      (cityId) => cityId !== city.id,
-                    )
-                    applySelectedCityIds(nextCityIds)
+        {selectedCityChips.length > 0 && (
+          <div className="mb-4 flex flex-wrap gap-2">
+            {selectedCityChips.map((city: { id: string; name: string }) => (
+              <CityPill
+                key={city.id}
+                city={city.name}
+                className="shrink-0"
+                onRemove={() => removeCityById(city.id)}
+              />
+            ))}
+          </div>
+        )}
+
+        <div className="grid gap-3 md:grid-cols-2">
+          <Input
+            type="text"
+            placeholder="search builders by username or name"
+            value={search.builderQuery}
+            onChange={(event) =>
+              updateSearch({ builderQuery: event.target.value })
+            }
+            className="border-line bg-canvas font-mono text-sm text-text placeholder:text-text-faint"
+            aria-label="Search builders"
+          />
+
+          <div ref={cityPickerRef} className="relative">
+            <div className="relative">
+              <Search
+                size={14}
+                className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-text-faint"
+              />
+              <Input
+                type="text"
+                role="combobox"
+                aria-activedescendant={
+                  activeCity
+                    ? `explore-city-option-${String(activeCity._id)}`
+                    : undefined
+                }
+                aria-autocomplete="list"
+                aria-expanded={showCityDropdown}
+                aria-controls="explore-city-options"
+                placeholder="search and add city filters"
+                value={search.cityQuery}
+                onChange={(event) => {
+                  setIsCityDropdownOpen(true)
+                  updateSearch({ cityQuery: event.target.value })
+                }}
+                onFocus={() => setIsCityDropdownOpen(true)}
+                onKeyDown={handleCityKeyDown}
+                className="border-line bg-canvas pl-9 font-mono text-sm text-text placeholder:text-text-faint"
+                aria-label="Search and add city filters"
+              />
+            </div>
+
+            {showCityDropdown && (
+              <div
+                id="explore-city-options"
+                role="listbox"
+                className="absolute z-10 mt-2 max-h-72 w-full overflow-y-auto rounded-card border border-line bg-surface shadow-floating"
+              >
+                {visibleCities.map((city, index) => (
+                  <div
+                    key={String(city._id)}
+                    id={`explore-city-option-${String(city._id)}`}
+                    role="option"
+                    tabIndex={-1}
+                    aria-selected={index === activeCityIndex}
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() =>
+                      void persistCityIds([...selectedCityIds, city._id])
+                    }
+                    onMouseEnter={() => setActiveCityIndex(index)}
+                    className={`flex min-h-11 w-full items-center justify-between gap-3 border-b border-line px-3 py-2 text-left transition-colors last:border-b-0 hover:bg-surface-alt ${
+                      index === activeCityIndex ? 'bg-surface-alt' : ''
+                    }`}
+                  >
+                    <span className="font-mono text-[12px] text-text">
+                      {city.displayName}
+                    </span>
+                    <Plus size={12} className="text-text-faint" />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </header>
+
+      <div className="lx-page-scroll">
+        <div className="flex min-w-0 flex-col gap-8 md:flex-row md:items-start">
+          <div className="lx-page-width-feed-left min-w-0 flex-1">
+            {!isBuilderSearchActive && !isGlobalFeed && items.length === 0 && (
+              <div className="py-10">
+                <EmptyState
+                  title="no projects match these cities yet."
+                  description="Your city filter is strict right now. Reset it to see builders everywhere, or keep these cities saved and check back later."
+                  action={{
+                    label: 'show everywhere',
+                    onClick: () => void persistCityIds([]),
                   }}
                 />
-              ))}
-            </div>
-          )}
+              </div>
+            )}
 
-          <div className="grid gap-3 md:grid-cols-2">
-            <Input
-              type="text"
-              placeholder="search builders by username or name"
-              value={builderQuery}
-              onChange={(event) => setBuilderQuery(event.target.value)}
-              className="border-line bg-canvas font-mono text-sm text-text placeholder:text-text-faint"
-              aria-label="Search builders"
-            />
-            <Input
-              type="text"
-              placeholder="filter by city"
-              value={cityQuery}
-              onChange={(event) => setCityQuery(event.target.value)}
-              className="border-line bg-canvas font-mono text-sm text-text placeholder:text-text-faint"
-              aria-label="Filter builders by city"
-            />
-          </div>
-
-          {suggestedCities.length > 0 && (
-            <div className="mt-3 flex flex-wrap gap-2">
-              {suggestedCities.map((city) => (
-                <button
-                  key={String(city._id)}
-                  onClick={() => {
-                    const nextCityIds = [...selectedCityIds, String(city._id)]
-                    applySelectedCityIds(nextCityIds, {
-                      ...selectedCityLabels,
-                      [String(city._id)]: city.displayName,
-                    })
-                    setCityQuery('')
-                  }}
-                  className="inline-flex min-h-11 items-center gap-2 rounded-md border border-dashed border-line bg-transparent px-3 py-2 text-left font-mono text-[11.5px] text-text-muted transition-colors hover:border-text-muted hover:text-text"
-                  type="button"
-                >
-                  <span>{city.displayName}</span>
-                  <Plus size={11} />
-                </button>
-              ))}
-            </div>
-          )}
-        </header>
-
-        <div className="lx-page-scroll">
-          <div className="lx-page-width-feed">
-            {!isBuilderSearchActive &&
-              items.length === 0 &&
-              fallbackItems.length === 0 && (
-                <div className="py-10">
-                  <EmptyState
-                    title={
-                      hasSelectedCities
-                        ? 'no projects in these cities yet.'
-                        : 'nothing to explore right now.'
-                    }
-                    description={
-                      hasSelectedCities
-                        ? 'locatic is growing — add more cities or check back later.'
-                        : 'follow more builders or check back later.'
-                    }
-                  />
-                </div>
-              )}
-
-            {!isBuilderSearchActive &&
-              items.length === 0 &&
-              fallbackItems.length > 0 && (
-                <div className="py-10">
-                  <p className="mb-8 rounded-md border border-line px-3.5 py-2.5 font-mono text-[12.5px] text-text-muted">
-                    {hasSelectedCities
-                      ? 'No projects in your selected cities yet.'
-                      : 'Nothing nearby right now.'}{' '}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        applySelectedCityIds([])
-                      }}
-                      className="bg-transparent p-0 font-mono text-[12.5px] text-primary underline underline-offset-4 transition-colors hover:text-text"
-                    >
-                      Show builders everywhere
-                    </button>
-                  </p>
-                  <div className="mb-4 font-mono text-[10.5px] uppercase tracking-[0.05em] text-text-faint">
-                    meanwhile, from around the world
-                  </div>
-                  <div className="flex flex-col gap-3.5">
-                    {fallbackItems.map((project) => {
-                      const owner = project.github.fullName.split('/')[0] ?? ''
-                      const repo = project.github.name
-                      const projectId = String(project._id)
-                      const cardData: ProjectCardData = {
-                        id: projectId,
-                        owner,
-                        repo,
-                        fullName: project.github.fullName,
-                        description: project.github.description,
-                        lang: project.github.primaryLanguage,
-                        lastCommitLabel: relativeTime(
-                          project.github.lastCommitAt,
-                        ),
-                        githubStars: project.github.stargazersCount,
-                        locaticLikes: project.locatic.likesCount,
-                        commentsCount: project.locatic.commentsCount,
-                        authorName: project.ownerSnapshot.displayName,
-                        authorHandle: owner,
-                        authorAvatarUrl: project.ownerSnapshot.avatarUrl,
-                        city: project.ownerSnapshot.cityName,
-                        liked: false,
-                        followed: false,
-                      }
-                      return (
-                        <ProjectCard
-                          key={projectId}
-                          project={cardData}
-                          showActions={false}
-                          onAuthorClick={() =>
-                            void navigate({
-                              to: '/u/$username',
-                              params: { username: owner } as never,
-                            } as never)
-                          }
-                          onCardClick={() =>
-                            void navigate({
-                              to: '/project/$owner/$repo',
-                              params: { owner, repo } as never,
-                            } as never)
-                          }
-                        />
-                      )
-                    })}
-                  </div>
-                </div>
-              )}
+            {!isBuilderSearchActive && isGlobalFeed && items.length === 0 && (
+              <div className="py-10">
+                <EmptyState
+                  title="nothing to explore right now."
+                  description="Try searching for builders, add city filters, or check back after more projects are imported."
+                />
+              </div>
+            )}
 
             {isBuilderSearchActive && builderSearchQuery.isLoading && (
               <div className="py-5 text-center font-mono text-[12.5px] text-text-faint">
@@ -638,26 +729,28 @@ function ExplorePage() {
                           to: '/u/$username',
                           params: {
                             username: builder.githubUsername,
-                          } as never,
-                        } as never)
+                          },
+                          search: { tab: 'projects' },
+                        })
                       }
                       onFollow={() =>
                         void handleFollow(
                           builder.userId,
-                          followedUserIds.has(builder.userId),
+                          String(builder.userId),
+                          followedUserIds.has(String(builder.userId)),
                         )
                       }
                       followed={
-                        followOverrides[builder.userId] ??
-                        followedUserIds.has(builder.userId)
+                        followOverrides[String(builder.userId)] ??
+                        followedUserIds.has(String(builder.userId))
                       }
-                      followPending={pendingFollows.has(builder.userId)}
+                      followPending={pendingFollows.has(String(builder.userId))}
                       onMessage={
                         viewerId && builder.userId !== viewerId
                           ? () => void openConversation(builder.userId)
                           : undefined
                       }
-                      messagePending={pendingUserId === builder.userId}
+                      messagePending={pendingUserId === String(builder.userId)}
                       isSelf={builder.userId === viewerId}
                     />
                   ))}
@@ -673,62 +766,21 @@ function ExplorePage() {
                 </div>
               )}
 
-            {!isBuilderSearchActive && nearbyBuilders.length > 0 && (
-              <div className="mb-8">
-                <div className="mb-3 font-mono text-[10.5px] uppercase tracking-[0.06em] text-text-faint">
-                  nearby builders
-                </div>
-                <div className="flex flex-col gap-2">
-                  {nearbyBuilders.map((builder) => (
-                    <NearbyBuilderRow
-                      key={builder.userId}
-                      builder={builder}
-                      onOpenProfile={() =>
-                        void navigate({
-                          to: '/u/$username',
-                          params: {
-                            username: builder.githubUsername,
-                          } as never,
-                        } as never)
-                      }
-                      onFollow={() =>
-                        void handleFollow(
-                          builder.userId,
-                          followedUserIds.has(builder.userId),
-                        )
-                      }
-                      followed={
-                        followOverrides[builder.userId] ??
-                        followedUserIds.has(builder.userId)
-                      }
-                      followPending={pendingFollows.has(builder.userId)}
-                      onMessage={
-                        viewerId && builder.userId !== viewerId
-                          ? () => void openConversation(builder.userId)
-                          : undefined
-                      }
-                      messagePending={pendingUserId === builder.userId}
-                      isSelf={builder.userId === viewerId}
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
-
             {!isBuilderSearchActive && items.length > 0 && (
               <div className="flex flex-col gap-3.5">
                 {items.map((item, index) => {
                   const owner = item.github.fullName.split('/')[0] ?? ''
                   const repo = item.github.name
-                  const projectId = String(item._id)
-                  const ownerId = String(item.ownerId)
-                  const liked =
-                    likedOverrides[projectId] ?? likedProjectIds.has(projectId)
+                  const projectId = item._id
+                  const projectKey = String(item._id)
+                  const ownerId = item.ownerId
+                  const ownerKey = String(item.ownerId)
+                  const liked = likedProjectIds.has(projectKey)
                   const followed =
-                    followOverrides[ownerId] ?? followedUserIds.has(ownerId)
+                    followOverrides[ownerKey] ?? followedUserIds.has(ownerKey)
 
                   const cardData: ProjectCardData = {
-                    id: projectId,
+                    id: projectKey,
                     owner,
                     repo,
                     fullName: item.github.fullName,
@@ -749,17 +801,24 @@ function ExplorePage() {
 
                   return (
                     <ProjectCard
-                      key={String(item._id)}
+                      key={projectId}
                       project={cardData}
-                      onDismiss={() => void handleDismiss(projectId)}
-                      onLike={() => void handleLike(projectId, liked)}
+                      onDismiss={() =>
+                        void handleDismiss(projectId, projectKey)
+                      }
+                      onLike={() =>
+                        void handleLike(projectId, projectKey, liked)
+                      }
                       onAuthorClick={() =>
                         void navigate({
                           to: '/u/$username',
-                          params: { username: owner } as never,
-                        } as never)
+                          params: { username: owner },
+                          search: { tab: 'projects' },
+                        })
                       }
-                      onFollow={() => void handleFollow(ownerId, followed)}
+                      onFollow={() =>
+                        void handleFollow(ownerId, ownerKey, followed)
+                      }
                       onDM={
                         viewerId !== ownerId
                           ? () => void openConversation(ownerId)
@@ -768,76 +827,231 @@ function ExplorePage() {
                       onCardClick={() =>
                         void navigate({
                           to: '/project/$owner/$repo',
-                          params: { owner, repo } as never,
-                        } as never)
+                          params: { owner, repo },
+                          search: { comment: null },
+                        })
                       }
-                      likePending={pendingLikes.has(projectId)}
-                      followPending={pendingFollows.has(ownerId)}
-                      dmPending={pendingUserId === ownerId}
+                      likePending={pendingLikes.has(projectKey)}
+                      followPending={pendingFollows.has(ownerKey)}
+                      dmPending={pendingUserId === ownerKey}
                     />
                   )
                 })}
               </div>
             )}
+
+            <div className="mt-8 md:hidden">
+              <ExploreRail
+                explanationStats={explanationStats}
+                hasSelectedCities={hasSelectedCities}
+                nearbyBuilders={nearbyBuilders}
+                compact
+                onFollowBuilder={(builder) =>
+                  void handleFollow(
+                    builder.userId,
+                    String(builder.userId),
+                    followedUserIds.has(String(builder.userId)),
+                  )
+                }
+                onMessageBuilder={(builder) =>
+                  viewerId && builder.userId !== viewerId
+                    ? () => void openConversation(builder.userId)
+                    : undefined
+                }
+                onOpenBuilderProfile={(builder) =>
+                  void navigate({
+                    to: '/u/$username',
+                    params: {
+                      username: builder.githubUsername,
+                    },
+                    search: { tab: 'projects' },
+                  })
+                }
+                onRemoveCity={removeCityById}
+                onShowEverywhere={() => void persistCityIds([])}
+                pendingFollows={pendingFollows}
+                pendingUserId={pendingUserId}
+                selectedCityChips={selectedCityChips}
+                followedUserIds={followedUserIds}
+                followOverrides={followOverrides}
+                viewerId={viewerId}
+              />
+            </div>
           </div>
+
+          <aside className="sticky top-6 hidden w-full shrink-0 md:block md:w-70">
+            <ExploreRail
+              explanationStats={explanationStats}
+              hasSelectedCities={hasSelectedCities}
+              nearbyBuilders={nearbyBuilders}
+              compact
+              onFollowBuilder={(builder) =>
+                void handleFollow(
+                  builder.userId,
+                  String(builder.userId),
+                  followedUserIds.has(String(builder.userId)),
+                )
+              }
+              onMessageBuilder={(builder) =>
+                viewerId && builder.userId !== viewerId
+                  ? () => void openConversation(builder.userId)
+                  : undefined
+              }
+              onOpenBuilderProfile={(builder) =>
+                void navigate({
+                  to: '/u/$username',
+                  params: {
+                    username: builder.githubUsername,
+                  },
+                  search: { tab: 'projects' },
+                })
+              }
+              onRemoveCity={removeCityById}
+              onShowEverywhere={() => void persistCityIds([])}
+              pendingFollows={pendingFollows}
+              pendingUserId={pendingUserId}
+              selectedCityChips={selectedCityChips}
+              followedUserIds={followedUserIds}
+              followOverrides={followOverrides}
+              viewerId={viewerId}
+            />
+          </aside>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ExploreRail({
+  explanationStats,
+  compact = false,
+  followOverrides,
+  followedUserIds,
+  hasSelectedCities,
+  nearbyBuilders,
+  onFollowBuilder,
+  onMessageBuilder,
+  onOpenBuilderProfile,
+  onRemoveCity,
+  onShowEverywhere,
+  pendingFollows,
+  pendingUserId,
+  selectedCityChips,
+  viewerId,
+}: {
+  explanationStats: Array<{ l: string; v: string }>
+  compact?: boolean
+  followOverrides: Record<string, boolean>
+  followedUserIds: Set<string>
+  hasSelectedCities: boolean
+  nearbyBuilders: BuilderPreview[]
+  onFollowBuilder: (builder: BuilderPreview) => void
+  onMessageBuilder: (builder: BuilderPreview) => (() => void) | undefined
+  onOpenBuilderProfile: (builder: BuilderPreview) => void
+  onRemoveCity: (cityId: string) => void
+  onShowEverywhere: () => void
+  pendingFollows: Set<string>
+  pendingUserId: string | null
+  selectedCityChips: Array<{ id: string; name: string }>
+  viewerId?: Id<'users'>
+}) {
+  return (
+    <div className="flex flex-col gap-6">
+      <div className="rounded-card border border-line bg-surface px-4 py-4 shadow-card">
+        <div className="mb-1 font-mono text-[10.5px] uppercase tracking-[0.06em] text-text-faint">
+          nearby builders
+        </div>
+        <p className="mb-4 font-sans text-[13px] leading-6 text-text-muted">
+          Builders around your default city context. This rail stays stable even
+          when the main feed goes global or you search people directly.
+        </p>
+        {nearbyBuilders.length > 0 ? (
+          <div className="flex flex-col gap-2">
+            {nearbyBuilders.map((builder) => (
+              <NearbyBuilderRow
+                key={builder.userId}
+                builder={builder}
+                compact={compact}
+                onOpenProfile={() => onOpenBuilderProfile(builder)}
+                onFollow={() => onFollowBuilder(builder)}
+                followed={
+                  followOverrides[String(builder.userId)] ??
+                  followedUserIds.has(String(builder.userId))
+                }
+                followPending={pendingFollows.has(String(builder.userId))}
+                onMessage={onMessageBuilder(builder)}
+                messagePending={pendingUserId === String(builder.userId)}
+                isSelf={builder.userId === viewerId}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="font-mono text-[11px] leading-5 text-text-faint">
+            no nearby builders are available in your default city context yet.
+          </div>
+        )}
+      </div>
+
+      <div>
+        <div className="mb-3 font-mono text-[10.5px] uppercase tracking-[0.06em] text-text-faint">
+          why this feed
+        </div>
+        <div className="flex flex-col gap-3">
+          {explanationStats.map((stat) => (
+            <div key={stat.l}>
+              <div className="mb-0.5 font-mono text-lg text-text">{stat.v}</div>
+              <div className="font-mono text-[11px] text-text-faint">
+                {stat.l}
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 
-      <aside className="hidden w-[280px] shrink-0 flex-col gap-6 overflow-y-auto border-l border-line bg-canvas px-[var(--lx-gutter)] py-6 xl:flex">
-        <div>
-          <div className="mb-3 font-mono text-[10.5px] uppercase tracking-[0.06em] text-text-faint">
-            why this feed
-          </div>
-          <div className="flex flex-col gap-3">
-            {explanationStats.map((stat) => (
-              <div key={stat.l}>
-                <div className="mb-0.5 font-mono text-lg text-text">
-                  {stat.v}
-                </div>
-                <div className="font-mono text-[11px] text-text-faint">
-                  {stat.l}
-                </div>
-              </div>
-            ))}
-          </div>
+      <div>
+        <div className="mb-3 font-mono text-[10.5px] uppercase tracking-[0.06em] text-text-faint">
+          city filters
+        </div>
+        <p className="mb-3 font-mono text-[11px] leading-5 text-text-faint">
+          {hasSelectedCities
+            ? 'Selected cities are strict for projects. Clear them to switch this session back to global discovery.'
+            : 'Project discovery is global right now. Add one or more cities to make the feed strict again.'}
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {selectedCityChips.length > 0 ? (
+            selectedCityChips.map((city) => (
+              <CityPill
+                key={`aside-${city.id}`}
+                city={city.name}
+                onRemove={() => onRemoveCity(city.id)}
+              />
+            ))
+          ) : (
+            <span className="font-mono text-[11px] text-text-faint">
+              no city filters selected
+            </span>
+          )}
         </div>
 
-        <div>
-          <div className="mb-3 font-mono text-[10.5px] uppercase tracking-[0.06em] text-text-faint">
-            city filters
-          </div>
-          <p className="mb-3 font-mono text-[11px] leading-5 text-text-faint">
-            Use the city search above to tune who appears in builder search and
-            which project feed fallback you see.
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {selectedCityChips.length > 0 ? (
-              selectedCityChips.map((city) => (
-                <CityPill
-                  key={`aside-${city.id}`}
-                  city={city.name}
-                  onRemove={() => {
-                    const nextCityIds = selectedCityIds.filter(
-                      (cityId) => cityId !== city.id,
-                    )
-                    applySelectedCityIds(nextCityIds)
-                  }}
-                />
-              ))
-            ) : (
-              <span className="font-mono text-[11px] text-text-faint">
-                no city filters selected
-              </span>
-            )}
-          </div>
-        </div>
-      </aside>
+        {hasSelectedCities && (
+          <Button
+            variant="monoOutline"
+            size="meta"
+            onClick={onShowEverywhere}
+            className="mt-4 font-mono"
+          >
+            <X size={12} />
+            show everywhere
+          </Button>
+        )}
+      </div>
     </div>
   )
 }
 
 function NearbyBuilderRow({
   builder,
+  compact = false,
   onOpenProfile,
   onFollow,
   onMessage,
@@ -846,13 +1060,8 @@ function NearbyBuilderRow({
   messagePending,
   isSelf,
 }: {
-  builder: {
-    userId: string
-    displayName: string
-    avatarUrl: string | null
-    githubUsername: string
-    projectsCount: number
-  }
+  builder: BuilderPreview
+  compact?: boolean
   onOpenProfile: () => void
   onFollow: () => void
   onMessage?: () => void
@@ -861,8 +1070,63 @@ function NearbyBuilderRow({
   messagePending?: boolean
   isSelf?: boolean
 }) {
+  if (compact) {
+    return (
+      <div className="border-b border-line py-3 last:border-b-0">
+        <div className="flex items-start gap-3">
+          <button
+            type="button"
+            onClick={onOpenProfile}
+            className="flex min-w-0 flex-1 items-center gap-3 rounded-md bg-transparent p-0 text-left transition-colors hover:text-text"
+          >
+            <LxAvatar
+              name={builder.displayName}
+              avatarUrl={builder.avatarUrl}
+              size={32}
+            />
+            <div className="min-w-0 flex-1">
+              <div className="truncate font-mono text-[13px] font-semibold text-text">
+                {builder.displayName}
+              </div>
+              <div className="truncate font-mono text-[11px] text-text-faint">
+                @{builder.githubUsername}
+                {isSelf ? ' · you' : ''}
+              </div>
+            </div>
+          </button>
+
+          {!isSelf && (
+            <button
+              type="button"
+              onClick={onFollow}
+              disabled={followPending}
+              className={`min-h-11 min-w-29 shrink-0 self-start rounded-md border px-3 py-2 text-center font-mono text-[11.5px] transition-colors ${
+                followed
+                  ? 'border-text-muted bg-transparent text-text'
+                  : 'border-line bg-transparent text-text-muted hover:border-text-muted hover:text-text'
+              }`}
+            >
+              {followPending ? '…' : followed ? 'following' : 'follow'}
+            </button>
+          )}
+        </div>
+
+        {onMessage && (
+          <button
+            type="button"
+            onClick={onMessage}
+            disabled={messagePending}
+            className="mt-3 flex min-h-11 w-full items-center justify-center rounded-md border border-line px-3 py-2 font-mono text-[11.5px] text-text-muted transition-colors hover:border-text-muted hover:text-text disabled:cursor-default disabled:opacity-60"
+          >
+            {messagePending ? 'opening…' : 'message'}
+          </button>
+        )}
+      </div>
+    )
+  }
+
   return (
-    <div className="flex items-center gap-3 border-b border-line py-2">
+    <div className="flex items-center gap-3 border-b border-line py-2 last:border-b-0">
       <button
         type="button"
         onClick={onOpenProfile}
@@ -877,7 +1141,7 @@ function NearbyBuilderRow({
           <div className="truncate font-mono text-[13px] font-semibold text-text">
             {builder.displayName}
           </div>
-          <div className="font-mono text-[11px] text-text-faint">
+          <div className="truncate font-mono text-[11px] text-text-faint">
             @{builder.githubUsername}
             {isSelf ? ' · you' : ''}
           </div>
@@ -889,7 +1153,7 @@ function NearbyBuilderRow({
             type="button"
             onClick={onMessage}
             disabled={messagePending}
-            className="min-h-11 min-w-[96px] rounded-md border border-line px-3 py-2 font-mono text-[11.5px] text-text-muted transition-colors hover:border-text-muted hover:text-text disabled:cursor-default disabled:opacity-60"
+            className="min-h-11 min-w-24 rounded-md border border-line px-3 py-2 font-mono text-[11.5px] text-text-muted transition-colors hover:border-text-muted hover:text-text disabled:cursor-default disabled:opacity-60"
           >
             {messagePending ? 'opening…' : 'message'}
           </button>
@@ -899,7 +1163,7 @@ function NearbyBuilderRow({
             type="button"
             onClick={onFollow}
             disabled={followPending}
-            className={`min-h-11 min-w-[88px] rounded-md border px-3 py-2 font-mono text-[11.5px] transition-colors ${
+            className={`min-h-11 min-w-22 rounded-md border px-3 py-2 font-mono text-[11.5px] transition-colors ${
               followed
                 ? 'border-text-muted bg-transparent text-text'
                 : 'border-line bg-transparent text-text-muted hover:border-text-muted hover:text-text'

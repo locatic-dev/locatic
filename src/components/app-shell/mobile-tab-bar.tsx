@@ -1,6 +1,7 @@
 import { Link, useRouterState } from '@tanstack/react-router'
 import { Home, Compass, Inbox, User, Bell } from '@/lib/icons'
 import type { ReactNode } from 'react'
+import { getFreshExploreSearch } from '@/features/explore/state'
 
 interface TabItem {
   id: string
@@ -64,6 +65,7 @@ export function MobileTabBar({
           <Link
             key={item.id}
             to={item.href}
+            search={item.href === '/explore' ? getFreshExploreSearch() : true}
             preload={false}
             aria-current={isActive ? 'page' : undefined}
             aria-label={item.label}
@@ -85,9 +87,11 @@ export function MobileTabBar({
               {item.icon}
               {item.badge != null && item.badge > 0 && (
                 <span
-                  className="absolute -top-1 -right-1.5 h-2 w-2 rounded-full bg-brand"
-                  aria-hidden
-                />
+                  className="absolute -top-2 -right-3 min-w-4.5 rounded-pill bg-brand px-1 py-0.5 text-center font-mono text-[9px] leading-none text-brand-foreground"
+                  aria-label={`${item.badge} unread ${item.label}`}
+                >
+                  {item.badge > 99 ? '99+' : item.badge}
+                </span>
               )}
             </span>
             <span

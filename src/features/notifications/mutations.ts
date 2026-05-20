@@ -5,3 +5,5 @@ export const useMarkNotificationRead = () =>
   useMutation(api.notifications.markRead)
 export const useMarkAllNotificationsRead = () =>
   useMutation(api.notifications.markAllRead)
+export const useBackfillNotificationTargets = () =>
+  useMutation(api.notifications.backfillTargets)
