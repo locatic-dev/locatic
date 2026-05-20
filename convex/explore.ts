@@ -12,6 +12,10 @@ import { buildExploreCandidates } from './lib/explore'
 export const list = query({
   args: {
     limit: v.optional(v.number()),
+    scope: v.optional(
+      v.union(v.literal('default'), v.literal('global'), v.literal('custom')),
+    ),
+    selectedCityIds: v.optional(v.array(v.id('cities'))),
   },
   handler: async (ctx, args) => {
     const viewer = await getViewerOrThrow(ctx)
@@ -30,10 +34,12 @@ export const list = query({
           return false
         }
 
+        const ownerCityId = owner.profile.cityId ?? project.ownerSnapshot.cityId
+
         return (
           project.locatic.isVisible &&
           project.ownerId !== viewer._id &&
-          project.ownerSnapshot.cityId !== null &&
+          ownerCityId !== null &&
           owner.appearInExplore &&
           !owner.deletedAt &&
           !owner.deactivatedAt
@@ -45,11 +51,32 @@ export const list = query({
       .query('explore_history')
       .withIndex('by_user_last_seen', (query) => query.eq('userId', viewer._id))
       .collect()
+    const dismissedProjectIds = new Set(
+      exploreHistory
+        .filter((item) => item.dismissedAt !== null)
+        .map((item) => String(item.projectId)),
+    )
 
+    const scope = args.scope ?? 'default'
+    const defaultCityIds =
+      viewer.exploreConfig.cityIds.length > 0
+        ? viewer.exploreConfig.cityIds
+        : viewer.profile.cityId
+          ? [viewer.profile.cityId]
+          : []
+    const selectedCityIds =
+      scope === 'global'
+        ? []
+        : scope === 'custom'
+          ? Array.from(new Set(args.selectedCityIds ?? []))
+          : defaultCityIds
     const result = buildExploreCandidates({
       candidates: projects.map((project) => ({
         id: String(project._id),
-        cityId: String(project.ownerSnapshot.cityId),
+        cityId: String(
+          usersById.get(String(project.ownerId))?.profile.cityId ??
+            project.ownerSnapshot.cityId,
+        ),
         primaryLanguage: project.github.primaryLanguage,
         topics: project.github.topics,
         likesCount: project.locatic.likesCount,
@@ -61,17 +88,8 @@ export const list = query({
       ownedProjectIds: new Set(
         ownedProjects.map((project) => String(project._id)),
       ),
-      seenProjectIds: new Set(
-        exploreHistory.map((item) => String(item.projectId)),
-      ),
-      selectedCityIds: new Set(
-        (viewer.exploreConfig.cityIds.length > 0
-          ? viewer.exploreConfig.cityIds
-          : viewer.profile.cityId
-            ? [viewer.profile.cityId]
-            : []
-        ).map((cityId) => String(cityId)),
-      ),
+      dismissedProjectIds,
+      selectedCityIds: new Set(selectedCityIds.map((cityId) => String(cityId))),
       stackPrefs: viewer.exploreConfig.stackPrefs,
       now: Date.now(),
       limit,
@@ -85,34 +103,12 @@ export const list = query({
       .map((candidate) => projectById.get(candidate.id))
       .filter(Boolean)
 
-    const isCityFiltered =
-      viewer.exploreConfig.cityIds.length > 0 || Boolean(viewer.profile.cityId)
-
-    // When city-filtered results are empty, include globally recent projects
-    // the viewer hasn't dismissed — so the feed is never completely blank.
-    const fallback =
-      ranked.length === 0
-        ? (await ctx.db.query('projects').collect())
-            .filter((p) => {
-              const owner = usersById.get(String(p.ownerId))
-              return (
-                p.locatic.isVisible &&
-                p.ownerId !== viewer._id &&
-                owner?.appearInExplore &&
-                !owner?.deletedAt &&
-                !owner?.deactivatedAt &&
-                !exploreHistory.some(
-                  (h) =>
-                    String(h.projectId) === String(p._id) &&
-                    h.dismissedAt != null,
-                )
-              )
-            })
-            .sort((a, b) => b.addedToLocaticAt - a.addedToLocaticAt)
-            .slice(0, 10)
-        : []
-
-    return { projects: ranked, fallback, isCityFiltered }
+    return {
+      scope,
+      appliedCityIds: selectedCityIds,
+      isCityFiltered: selectedCityIds.length > 0,
+      projects: ranked,
+    }
   },
 })
 
@@ -183,26 +179,63 @@ export const searchBuilders = query({
 })
 
 export const listNearbyBuilders = query({
-  args: {},
-  handler: async (ctx) => {
+  args: {
+    cityIds: v.optional(v.array(v.id('cities'))),
+  },
+  handler: async (ctx, args) => {
     const viewer = await getViewerOrThrow(ctx)
-    const cityId = viewer.profile.cityId
-    if (!cityId) return []
+    const cityIds = Array.from(
+      new Set(
+        args.cityIds && args.cityIds.length > 0
+          ? args.cityIds
+          : viewer.profile.cityId
+            ? [viewer.profile.cityId]
+            : [],
+      ),
+    )
+    if (cityIds.length === 0) return []
 
-    const cityUsers = await ctx.db
-      .query('users')
-      .withIndex('by_city_id', (q) => q.eq('profile.cityId', cityId))
-      .filter((q) =>
-        q.and(
-          q.neq(q.field('_id'), viewer._id),
-          q.eq(q.field('appearInExplore'), true),
-          q.eq(q.field('deletedAt'), null),
-          q.eq(q.field('deactivatedAt'), null),
-        ),
-      )
-      .take(8)
+    const usersById = new Map()
+    const cityUsers = await Promise.all(
+      cityIds.map((cityId) =>
+        ctx.db
+          .query('users')
+          .withIndex('by_city_id', (query) =>
+            query.eq('profile.cityId', cityId),
+          )
+          .filter((query) =>
+            query.and(
+              query.neq(query.field('_id'), viewer._id),
+              query.eq(query.field('appearInExplore'), true),
+              query.eq(query.field('deletedAt'), null),
+              query.eq(query.field('deactivatedAt'), null),
+            ),
+          )
+          .take(8),
+      ),
+    )
 
-    return cityUsers.map((u) => ({
+    for (const usersInCity of cityUsers) {
+      for (const user of usersInCity) {
+        usersById.set(String(user._id), user)
+      }
+    }
+
+    const rankedUsers = [...usersById.values()]
+      .sort((left, right) => {
+        if (right.stats.followersCount !== left.stats.followersCount) {
+          return right.stats.followersCount - left.stats.followersCount
+        }
+
+        if (right.stats.projectsCount !== left.stats.projectsCount) {
+          return right.stats.projectsCount - left.stats.projectsCount
+        }
+
+        return left.github.username.localeCompare(right.github.username)
+      })
+      .slice(0, 8)
+
+    return rankedUsers.map((u) => ({
       userId: u._id,
       displayName: u.profile.displayName,
       avatarUrl: u.profile.avatarUrl ?? null,

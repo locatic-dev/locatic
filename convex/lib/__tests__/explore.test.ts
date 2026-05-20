@@ -19,11 +19,11 @@ function createCandidate(
 }
 
 describe('buildExploreCandidates', () => {
-  test('filters out seen and owned projects and keeps the requested limit', () => {
+  test('filters out dismissed and owned projects and keeps the requested limit', () => {
     const now = Date.now()
     const candidates = [
       createCandidate({ id: 'owned', likesCount: 100, lastCommitAt: now }),
-      createCandidate({ id: 'seen', likesCount: 90, lastCommitAt: now }),
+      createCandidate({ id: 'dismissed', likesCount: 90, lastCommitAt: now }),
       createCandidate({ id: 'popular', likesCount: 80, lastCommitAt: now }),
       createCandidate({
         id: 'fresh',
@@ -36,7 +36,7 @@ describe('buildExploreCandidates', () => {
     const result = buildExploreCandidates({
       candidates,
       ownedProjectIds: new Set(['owned']),
-      seenProjectIds: new Set(['seen']),
+      dismissedProjectIds: new Set(['dismissed']),
       selectedCityIds: new Set(['city-1']),
       stackPrefs: ['TypeScript'],
       now,
@@ -49,7 +49,7 @@ describe('buildExploreCandidates', () => {
     ])
   })
 
-  test('falls back to global candidates when the selected city pool is exhausted', () => {
+  test('keeps city filtering strict when selected cities are present', () => {
     const now = Date.now()
     const result = buildExploreCandidates({
       candidates: [
@@ -57,16 +57,13 @@ describe('buildExploreCandidates', () => {
         createCandidate({ id: 'global', cityId: 'city-b', likesCount: 12 }),
       ],
       ownedProjectIds: new Set(),
-      seenProjectIds: new Set(),
+      dismissedProjectIds: new Set(),
       selectedCityIds: new Set(['city-a']),
       stackPrefs: [],
       now,
       limit: 2,
     })
 
-    expect(result.map((candidate) => candidate.id)).toEqual([
-      'city-a',
-      'global',
-    ])
+    expect(result.map((candidate) => candidate.id)).toEqual(['city-a'])
   })
 })

@@ -1,4 +1,5 @@
 import { ConvexError, v } from 'convex/values'
+import { paginationOptsValidator } from 'convex/server'
 
 import {
   action,
@@ -7,9 +8,12 @@ import {
   internalQuery,
   mutation,
   query,
+  type MutationCtx,
   type QueryCtx,
 } from './_generated/server'
 import { internal } from './_generated/api'
+import type { Id } from './_generated/dataModel'
+import type { Doc } from './lib/types'
 import {
   getOrCreateViewer,
   getViewerByClerkId,
@@ -18,8 +22,14 @@ import {
   requireIdentity,
 } from './lib/auth'
 import { buildDiscoverabilitySearchText } from './lib/discoverability'
-import { buildActorSnapshot } from './lib/snapshots'
-import { createDefaultViewerProfile } from './lib/viewer'
+import { buildActorSnapshot, buildOwnerSnapshot } from './lib/snapshots'
+import {
+  createDefaultViewerProfile,
+  resolveOnboardingSelectedOwnedProjectIds,
+  resolvePinnedProfileProjectIds,
+  resolveSyncGithubStarsOnLike,
+  resolveUnreadMessagesCount,
+} from './lib/viewer'
 
 function serializeViewer(
   viewer: NonNullable<Awaited<ReturnType<typeof getViewerFromAuth>>>,
@@ -33,7 +43,11 @@ function serializeViewer(
     exploreConfig: viewer.exploreConfig,
     privacy: viewer.privacy,
     notificationPrefs: viewer.notificationPrefs,
-    pinnedOwnedProjectIds: viewer.pinnedOwnedProjectIds,
+    onboardingSelectedOwnedProjectIds:
+      resolveOnboardingSelectedOwnedProjectIds(viewer),
+    pinnedProfileProjectIds: resolvePinnedProfileProjectIds(viewer),
+    syncGithubStarsOnLike: resolveSyncGithubStarsOnLike(viewer),
+    unreadMessagesCount: resolveUnreadMessagesCount(viewer),
     onboardingCompletedAt: viewer.onboardingCompletedAt,
     appearInExplore: viewer.appearInExplore,
     githubContributions: viewer.githubContributions ?? null,
@@ -54,6 +68,374 @@ async function getViewerCityName(
   return city?.displayName ?? null
 }
 
+async function syncOwnedProjectOwnerSnapshots(
+  ctx: MutationCtx,
+  user: Doc<'users'>,
+) {
+  const ownedProjects = await ctx.db
+    .query('projects')
+    .withIndex('by_owner', (query) => query.eq('ownerId', user._id))
+    .collect()
+
+  if (ownedProjects.length === 0) {
+    return
+  }
+
+  const ownerSnapshot = await buildOwnerSnapshot(ctx.db, user)
+
+  await Promise.all(
+    ownedProjects.map((project) =>
+      ctx.db.patch(project._id, {
+        ownerSnapshot,
+      }),
+    ),
+  )
+}
+
+async function mapFollowUserPreview(
+  ctx: QueryCtx,
+  userId: Doc<'users'>['_id'],
+): Promise<{
+  userId: Doc<'users'>['_id']
+  githubUsername: string
+  displayName: string
+  avatarUrl: string | null
+  cityName: string | null
+} | null> {
+  const user = await ctx.db.get(userId)
+  if (!user || user.deletedAt || user.deactivatedAt) {
+    return null
+  }
+
+  const city = user.profile.cityId
+    ? await ctx.db.get(user.profile.cityId)
+    : null
+
+  return {
+    userId: user._id,
+    githubUsername: user.github.username,
+    displayName: user.profile.displayName,
+    avatarUrl: user.profile.avatarUrl,
+    cityName: city?.displayName ?? null,
+  }
+}
+
+async function listFollowPreviewPage(
+  ctx: QueryCtx,
+  args: {
+    userId: Doc<'users'>['_id']
+    kind: 'followers' | 'following'
+    paginationOpts: {
+      cursor: string | null
+      numItems: number
+      endCursor?: string | null
+      maximumRowsRead?: number
+      maximumBytesRead?: number
+    }
+  },
+) {
+  const followsPage =
+    args.kind === 'followers'
+      ? await ctx.db
+          .query('follows')
+          .withIndex('by_following', (query) =>
+            query.eq('followingId', args.userId),
+          )
+          .order('desc')
+          .paginate(args.paginationOpts)
+      : await ctx.db
+          .query('follows')
+          .withIndex('by_follower', (query) =>
+            query.eq('followerId', args.userId),
+          )
+          .order('desc')
+          .paginate(args.paginationOpts)
+
+  const previews = await Promise.all(
+    followsPage.page.map((follow) =>
+      mapFollowUserPreview(
+        ctx,
+        args.kind === 'followers' ? follow.followerId : follow.followingId,
+      ),
+    ),
+  )
+
+  return {
+    ...followsPage,
+    page: previews.filter(Boolean) as Array<{
+      userId: Doc<'users'>['_id']
+      githubUsername: string
+      displayName: string
+      avatarUrl: string | null
+      cityName: string | null
+    }>,
+  }
+}
+
+async function listContributedProjects(
+  ctx: QueryCtx,
+  userId: Doc<'users'>['_id'],
+  limit = 24,
+) {
+  const rows = await ctx.db
+    .query('project_contributors')
+    .withIndex('by_user', (query) => query.eq('userId', userId))
+    .take(Math.min(limit, 50))
+
+  const projects = await Promise.all(
+    rows.map(async (row) => {
+      const project = await ctx.db.get(row.projectId)
+      if (!project || !project.locatic.isVisible) {
+        return null
+      }
+
+      return {
+        project,
+        commitCount: row.commitCount,
+      }
+    }),
+  )
+
+  return projects.filter(
+    (
+      project,
+    ): project is {
+      project: Doc<'projects'>
+      commitCount: number
+    } => Boolean(project),
+  )
+}
+
+async function listFollowPreviewSlice(
+  ctx: QueryCtx,
+  args: {
+    userId: Doc<'users'>['_id']
+    kind: 'followers' | 'following'
+    limit?: number
+  },
+) {
+  const follows =
+    args.kind === 'followers'
+      ? await ctx.db
+          .query('follows')
+          .withIndex('by_following', (query) =>
+            query.eq('followingId', args.userId),
+          )
+          .order('desc')
+          .take(Math.min(args.limit ?? 12, 50))
+      : await ctx.db
+          .query('follows')
+          .withIndex('by_follower', (query) =>
+            query.eq('followerId', args.userId),
+          )
+          .order('desc')
+          .take(Math.min(args.limit ?? 12, 50))
+
+  const previews = await Promise.all(
+    follows.map((follow) =>
+      mapFollowUserPreview(
+        ctx,
+        args.kind === 'followers' ? follow.followerId : follow.followingId,
+      ),
+    ),
+  )
+
+  return previews.filter(Boolean) as Array<{
+    userId: Doc<'users'>['_id']
+    githubUsername: string
+    displayName: string
+    avatarUrl: string | null
+    cityName: string | null
+  }>
+}
+
+async function listPrivateProfileProjects(
+  ctx: QueryCtx,
+  viewer: NonNullable<Awaited<ReturnType<typeof getViewerFromAuth>>>,
+) {
+  const pinnedProjectIds = new Set(
+    resolvePinnedProfileProjectIds(viewer).map(String),
+  )
+  const rawProjects = await ctx.db
+    .query('projects')
+    .withIndex('by_owner', (query) => query.eq('ownerId', viewer._id))
+    .collect()
+
+  return [...rawProjects].sort((left, right) => {
+    const leftPinned = pinnedProjectIds.has(String(left._id)) ? 1 : 0
+    const rightPinned = pinnedProjectIds.has(String(right._id)) ? 1 : 0
+    if (leftPinned !== rightPinned) {
+      return rightPinned - leftPinned
+    }
+    return right.updatedAt - left.updatedAt
+  })
+}
+
+async function listPublicProfileProjects(
+  ctx: QueryCtx,
+  viewer: NonNullable<Awaited<ReturnType<typeof getViewerByClerkId>>>,
+) {
+  const pinnedProjectIds = new Set(
+    resolvePinnedProfileProjectIds(viewer).map(String),
+  )
+  const rawProjects = await ctx.db
+    .query('projects')
+    .withIndex('by_owner_visible', (query) =>
+      query.eq('ownerId', viewer._id).eq('locatic.isVisible', true),
+    )
+    .collect()
+
+  return [...rawProjects].sort((left, right) => {
+    const leftPinned = pinnedProjectIds.has(String(left._id)) ? 1 : 0
+    const rightPinned = pinnedProjectIds.has(String(right._id)) ? 1 : 0
+    if (leftPinned !== rightPinned) {
+      return rightPinned - leftPinned
+    }
+    return right.updatedAt - left.updatedAt
+  })
+}
+
+async function listPrivateProfileComments(
+  ctx: QueryCtx,
+  userId: Doc<'users'>['_id'],
+) {
+  return await ctx.db
+    .query('comments')
+    .withIndex('by_author', (query) => query.eq('authorId', userId))
+    .collect()
+}
+
+async function listPublicProfileComments(
+  ctx: QueryCtx,
+  viewer: NonNullable<Awaited<ReturnType<typeof getViewerByClerkId>>>,
+) {
+  if (viewer.privacy.commentHistoryVisibility !== 'public') {
+    return []
+  }
+
+  return (
+    await ctx.db
+      .query('comments')
+      .withIndex('by_author', (query) => query.eq('authorId', viewer._id))
+      .collect()
+  )
+    .filter((comment) => !comment.isDeleted)
+    .map((comment) => ({
+      _id: comment._id,
+      targetType: comment.targetType,
+      targetId: comment.targetId,
+      content: comment.content,
+      replyCount: comment.replyCount,
+      likesCount: comment.likesCount,
+      createdAt: comment.createdAt,
+    }))
+}
+
+async function listPrivateLikedProjects(
+  ctx: QueryCtx,
+  userId: Doc<'users'>['_id'],
+) {
+  const likedReactions = await ctx.db
+    .query('reactions')
+    .withIndex('by_user_target_type', (query) =>
+      query
+        .eq('userId', userId)
+        .eq('targetType', 'project')
+        .eq('reactionType', 'like'),
+    )
+    .collect()
+
+  const likedProjects = await Promise.all(
+    likedReactions.map(async (reaction) => {
+      const projectId = ctx.db.normalizeId('projects', reaction.targetId)
+      const project = projectId ? await ctx.db.get(projectId) : null
+
+      return {
+        reactionId: reaction._id,
+        projectId,
+        likedAt: reaction.createdAt,
+        project,
+      }
+    }),
+  )
+
+  return likedProjects.filter(
+    (
+      likedProject,
+    ): likedProject is {
+      reactionId: typeof likedProject.reactionId
+      projectId: NonNullable<typeof likedProject.projectId>
+      likedAt: number
+      project: NonNullable<typeof likedProject.project>
+    } => Boolean(likedProject.projectId && likedProject.project),
+  )
+}
+
+async function listPublicLikedProjects(
+  ctx: QueryCtx,
+  viewer: NonNullable<Awaited<ReturnType<typeof getViewerByClerkId>>>,
+) {
+  if (viewer.privacy.likedProjectsVisibility !== 'public') {
+    return []
+  }
+
+  const reactions = await ctx.db
+    .query('reactions')
+    .withIndex('by_user_target_type', (query) =>
+      query
+        .eq('userId', viewer._id)
+        .eq('targetType', 'project')
+        .eq('reactionType', 'like'),
+    )
+    .collect()
+
+  const likedProjects = await Promise.all(
+    reactions.map(async (reaction) => {
+      const projectId = ctx.db.normalizeId('projects', reaction.targetId)
+      const project = projectId ? await ctx.db.get(projectId) : null
+      if (!project || !project.locatic.isVisible) {
+        return null
+      }
+
+      return {
+        reactionId: reaction._id,
+        projectId,
+        fullName: project.github.fullName,
+        name: project.github.name,
+        likedAt: reaction.createdAt,
+      }
+    }),
+  )
+
+  return likedProjects.filter(
+    (
+      project,
+    ): project is {
+      reactionId: Id<'reactions'>
+      projectId: Id<'projects'>
+      fullName: string
+      name: string
+      likedAt: number
+    } => Boolean(project),
+  )
+}
+
+function emptyFollowPreviewPage(cursor: string | null = null) {
+  return {
+    continueCursor: cursor ?? '',
+    isDone: true,
+    page: [] as Array<{
+      userId: Doc<'users'>['_id']
+      githubUsername: string
+      displayName: string
+      avatarUrl: string | null
+      cityName: string | null
+    }>,
+    pageStatus: null,
+    splitCursor: null,
+  }
+}
+
 function resolvePublicCityLabel(
   viewer: NonNullable<Awaited<ReturnType<typeof getViewerFromAuth>>>,
   cityName: string | null,
@@ -69,6 +451,44 @@ function resolvePublicCityLabel(
   }
 }
 
+async function getAccessiblePublicProfileViewer(
+  ctx: QueryCtx,
+  username: string,
+) {
+  const requesterIdentity = await ctx.auth.getUserIdentity()
+  const requester = requesterIdentity
+    ? await getViewerByClerkId(ctx, requesterIdentity.subject)
+    : null
+  const viewer = await ctx.db
+    .query('users')
+    .withIndex('by_github_username', (query) =>
+      query.eq('github.username', username),
+    )
+    .unique()
+
+  if (!viewer || viewer.deletedAt || viewer.deactivatedAt) {
+    return {
+      requester,
+      requesterIdentity,
+      viewer: null,
+    }
+  }
+
+  if (viewer.privacy.profileVisibility !== 'public' && !requesterIdentity) {
+    return {
+      requester,
+      requesterIdentity,
+      viewer: null,
+    }
+  }
+
+  return {
+    requester,
+    requesterIdentity,
+    viewer,
+  }
+}
+
 async function getPublicProfilePayload(
   ctx: QueryCtx,
   viewer: NonNullable<Awaited<ReturnType<typeof getViewerByClerkId>>>,
@@ -76,65 +496,33 @@ async function getPublicProfilePayload(
   const city = viewer.profile.cityId
     ? await ctx.db.get(viewer.profile.cityId)
     : null
-  const projects = await ctx.db
-    .query('projects')
-    .withIndex('by_owner_visible', (query) =>
-      query.eq('ownerId', viewer._id).eq('locatic.isVisible', true),
-    )
-    .collect()
-
-  const comments =
-    viewer.privacy.commentHistoryVisibility === 'public'
-      ? (
-          await ctx.db
-            .query('comments')
-            .withIndex('by_author', (query) => query.eq('authorId', viewer._id))
-            .collect()
-        )
-          .filter((comment) => !comment.isDeleted)
-          .map((comment) => ({
-            _id: comment._id,
-            targetType: comment.targetType,
-            targetId: comment.targetId,
-            content: comment.content,
-            replyCount: comment.replyCount,
-            likesCount: comment.likesCount,
-            createdAt: comment.createdAt,
-          }))
-      : []
-
-  const likedProjects = []
-  if (viewer.privacy.likedProjectsVisibility === 'public') {
-    const likes = await ctx.db
-      .query('reactions')
-      .withIndex('by_user_target_type', (query) =>
-        query
-          .eq('userId', viewer._id)
-          .eq('targetType', 'project')
-          .eq('reactionType', 'like'),
-      )
-      .collect()
-
-    for (const like of likes) {
-      const projectId = ctx.db.normalizeId('projects', like.targetId)
-      if (!projectId) {
-        continue
-      }
-
-      const project = await ctx.db.get(projectId)
-      if (!project || !project.locatic.isVisible) {
-        continue
-      }
-
-      likedProjects.push({
-        reactionId: like._id,
-        projectId: project._id,
-        fullName: project.github.fullName,
-        name: project.github.name,
-        likedAt: like.createdAt,
-      })
-    }
-  }
+  const [
+    projects,
+    comments,
+    likedProjects,
+    contributions,
+    followers,
+    following,
+  ] = await Promise.all([
+    listPublicProfileProjects(ctx, viewer),
+    listPublicProfileComments(ctx, viewer),
+    listPublicLikedProjects(ctx, viewer),
+    listContributedProjects(ctx, viewer._id),
+    viewer.privacy.followGraphVisibility === 'public'
+      ? listFollowPreviewSlice(ctx, {
+          userId: viewer._id,
+          kind: 'followers',
+          limit: 12,
+        })
+      : [],
+    viewer.privacy.followGraphVisibility === 'public'
+      ? listFollowPreviewSlice(ctx, {
+          userId: viewer._id,
+          kind: 'following',
+          limit: 12,
+        })
+      : [],
+  ])
 
   return {
     githubUsername: viewer.github.username,
@@ -147,9 +535,13 @@ async function getPublicProfilePayload(
       city: resolvePublicCityLabel(viewer, city?.displayName ?? null),
     },
     stats: viewer.stats,
+    githubContributions: viewer.githubContributions ?? null,
     projects,
     comments,
+    contributions,
+    followers,
     likedProjects,
+    following,
     privacy: viewer.privacy,
   }
 }
@@ -187,57 +579,135 @@ export const privateProfile = query({
   args: {},
   handler: async (ctx) => {
     const viewer = await getViewerOrThrow(ctx)
-    const city = viewer.profile.cityId
-      ? await ctx.db.get(viewer.profile.cityId)
-      : null
-    const projects = await ctx.db
-      .query('projects')
-      .withIndex('by_owner', (query) => query.eq('ownerId', viewer._id))
-      .collect()
-    const comments = await ctx.db
-      .query('comments')
-      .withIndex('by_author', (query) => query.eq('authorId', viewer._id))
-      .collect()
-    const likedReactions = await ctx.db
-      .query('reactions')
-      .withIndex('by_user_target_type', (query) =>
-        query
-          .eq('userId', viewer._id)
-          .eq('targetType', 'project')
-          .eq('reactionType', 'like'),
-      )
-      .collect()
-
-    const likedProjects = await Promise.all(
-      likedReactions.map(async (reaction) => {
-        const projectId = ctx.db.normalizeId('projects', reaction.targetId)
-        const project = projectId ? await ctx.db.get(projectId) : null
-
-        return {
-          reactionId: reaction._id,
-          projectId,
-          likedAt: reaction.createdAt,
-          project,
-        }
+    const [
+      city,
+      projects,
+      comments,
+      contributions,
+      followers,
+      likedProjects,
+      following,
+    ] = await Promise.all([
+      viewer.profile.cityId ? ctx.db.get(viewer.profile.cityId) : null,
+      listPrivateProfileProjects(ctx, viewer),
+      listPrivateProfileComments(ctx, viewer._id),
+      listContributedProjects(ctx, viewer._id),
+      listFollowPreviewSlice(ctx, {
+        userId: viewer._id,
+        kind: 'followers',
+        limit: 12,
       }),
-    )
+      listPrivateLikedProjects(ctx, viewer._id),
+      listFollowPreviewSlice(ctx, {
+        userId: viewer._id,
+        kind: 'following',
+        limit: 12,
+      }),
+    ])
 
     return {
       viewer: serializeViewer(viewer),
       cityName: city?.displayName ?? null,
       projects,
       comments,
-      likedProjects: likedProjects.filter(
-        (
-          likedProject,
-        ): likedProject is {
-          reactionId: typeof likedProject.reactionId
-          projectId: NonNullable<typeof likedProject.projectId>
-          likedAt: number
-          project: NonNullable<typeof likedProject.project>
-        } => Boolean(likedProject.projectId && likedProject.project),
-      ),
+      contributions,
+      followers,
+      likedProjects,
+      following,
     }
+  },
+})
+
+export const privateProfileOverview = query({
+  args: {},
+  handler: async (ctx) => {
+    const viewer = await getViewerOrThrow(ctx)
+    const city = viewer.profile.cityId
+      ? await ctx.db.get(viewer.profile.cityId)
+      : null
+
+    return {
+      viewer: serializeViewer(viewer),
+      cityName: city?.displayName ?? null,
+    }
+  },
+})
+
+export const privateProfileProjects = query({
+  args: {},
+  handler: async (ctx) => {
+    const viewer = await getViewerOrThrow(ctx)
+    return await listPrivateProfileProjects(ctx, viewer)
+  },
+})
+
+export const privateProfileContributions = query({
+  args: {},
+  handler: async (ctx) => {
+    const viewer = await getViewerOrThrow(ctx)
+    return await listContributedProjects(ctx, viewer._id)
+  },
+})
+
+export const privateProfileComments = query({
+  args: {},
+  handler: async (ctx) => {
+    const viewer = await getViewerOrThrow(ctx)
+    return await listPrivateProfileComments(ctx, viewer._id)
+  },
+})
+
+export const privateProfileLikedProjects = query({
+  args: {},
+  handler: async (ctx) => {
+    const viewer = await getViewerOrThrow(ctx)
+    return await listPrivateLikedProjects(ctx, viewer._id)
+  },
+})
+
+export const privateFollowGraphPage = query({
+  args: {
+    kind: v.union(v.literal('followers'), v.literal('following')),
+    paginationOpts: paginationOptsValidator,
+  },
+  handler: async (ctx, args) => {
+    const viewer = await getViewerOrThrow(ctx)
+
+    return await listFollowPreviewPage(ctx, {
+      userId: viewer._id,
+      kind: args.kind,
+      paginationOpts: args.paginationOpts,
+    })
+  },
+})
+
+export const publicFollowGraphPage = query({
+  args: {
+    username: v.string(),
+    kind: v.union(v.literal('followers'), v.literal('following')),
+    paginationOpts: paginationOptsValidator,
+  },
+  handler: async (ctx, args) => {
+    const viewer = await ctx.db
+      .query('users')
+      .withIndex('by_github_username', (query) =>
+        query.eq('github.username', args.username),
+      )
+      .unique()
+
+    if (!viewer || viewer.deletedAt || viewer.deactivatedAt) {
+      return emptyFollowPreviewPage(args.paginationOpts.cursor)
+    }
+
+    if (viewer.privacy.followGraphVisibility !== 'public') {
+      return emptyFollowPreviewPage(args.paginationOpts.cursor)
+    }
+
+    return await listFollowPreviewPage(ctx, {
+      userId: viewer._id,
+      kind: args.kind,
+      paginationOpts: args.paginationOpts,
+    })
   },
 })
 
@@ -298,6 +768,7 @@ export const viewerInboxSummary = query({
 
     return {
       viewerId: viewer._id,
+      unreadMessages: resolveUnreadMessagesCount(viewer),
     }
   },
 })
@@ -307,22 +778,12 @@ export const publicProfile = query({
     username: v.string(),
   },
   handler: async (ctx, args) => {
-    const requesterIdentity = await ctx.auth.getUserIdentity()
-    const requester = requesterIdentity
-      ? await getViewerByClerkId(ctx, requesterIdentity.subject)
-      : null
-    const viewer = await ctx.db
-      .query('users')
-      .withIndex('by_github_username', (query) =>
-        query.eq('github.username', args.username),
-      )
-      .unique()
+    const { requester, viewer } = await getAccessiblePublicProfileViewer(
+      ctx,
+      args.username,
+    )
 
-    if (!viewer || viewer.deletedAt || viewer.deactivatedAt) {
-      return null
-    }
-
-    if (viewer.privacy.profileVisibility !== 'public' && !requesterIdentity) {
+    if (!viewer) {
       return null
     }
 
@@ -340,6 +801,119 @@ export const publicProfile = query({
       viewerFollowsProfile: Boolean(followRecord),
       ...(await getPublicProfilePayload(ctx, viewer)),
     }
+  },
+})
+
+export const publicProfileOverview = query({
+  args: {
+    username: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const { requester, viewer } = await getAccessiblePublicProfileViewer(
+      ctx,
+      args.username,
+    )
+
+    if (!viewer) {
+      return null
+    }
+
+    const city = viewer.profile.cityId
+      ? await ctx.db.get(viewer.profile.cityId)
+      : null
+    const followRecord = requester
+      ? await ctx.db
+          .query('follows')
+          .withIndex('by_pair', (query) =>
+            query.eq('followerId', requester._id).eq('followingId', viewer._id),
+          )
+          .unique()
+      : null
+
+    return {
+      userId: viewer._id,
+      viewerFollowsProfile: Boolean(followRecord),
+      githubUsername: viewer.github.username,
+      profile: {
+        displayName: viewer.profile.displayName,
+        bio: viewer.profile.bio,
+        avatarUrl: viewer.profile.avatarUrl,
+        buildStatus: viewer.profile.buildStatus,
+        socialLinks: viewer.profile.socialLinks,
+        city: resolvePublicCityLabel(viewer, city?.displayName ?? null),
+      },
+      stats: viewer.stats,
+      githubContributions: viewer.githubContributions ?? null,
+      privacy: viewer.privacy,
+    }
+  },
+})
+
+export const publicProfileProjects = query({
+  args: {
+    username: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const { viewer } = await getAccessiblePublicProfileViewer(
+      ctx,
+      args.username,
+    )
+    if (!viewer) {
+      return null
+    }
+
+    return await listPublicProfileProjects(ctx, viewer)
+  },
+})
+
+export const publicProfileContributions = query({
+  args: {
+    username: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const { viewer } = await getAccessiblePublicProfileViewer(
+      ctx,
+      args.username,
+    )
+    if (!viewer) {
+      return null
+    }
+
+    return await listContributedProjects(ctx, viewer._id)
+  },
+})
+
+export const publicProfileComments = query({
+  args: {
+    username: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const { viewer } = await getAccessiblePublicProfileViewer(
+      ctx,
+      args.username,
+    )
+    if (!viewer) {
+      return null
+    }
+
+    return await listPublicProfileComments(ctx, viewer)
+  },
+})
+
+export const publicProfileLikedProjects = query({
+  args: {
+    username: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const { viewer } = await getAccessiblePublicProfileViewer(
+      ctx,
+      args.username,
+    )
+    if (!viewer) {
+      return null
+    }
+
+    return await listPublicLikedProjects(ctx, viewer)
   },
 })
 
@@ -369,6 +943,19 @@ export const updateProfile = mutation({
       throw new ConvexError('Viewer not found')
     }
 
+    const updatedViewer = {
+      ...viewer,
+      profile: {
+        ...viewer.profile,
+        displayName: args.displayName,
+        fullName: args.displayName,
+        bio: args.bio,
+        cityId: args.cityId,
+        buildStatus: args.buildStatus,
+        socialLinks: args.socialLinks,
+      },
+    }
+
     await ctx.db.patch(viewer._id, {
       profile: {
         ...viewer.profile,
@@ -388,6 +975,7 @@ export const updateProfile = mutation({
       },
       updatedAt: Date.now(),
     })
+    await syncOwnedProjectOwnerSnapshots(ctx, updatedViewer)
 
     return await ctx.db.get(viewer._id)
   },
@@ -494,27 +1082,42 @@ export const completeOnboarding = mutation({
       bluesky: v.union(v.string(), v.null()),
       website: v.union(v.string(), v.null()),
     }),
-    pinnedOwnedProjectIds: v.array(v.id('projects')),
+    onboardingSelectedOwnedProjectIds: v.array(v.id('projects')),
     exploreCityIds: v.array(v.id('cities')),
     stackPrefs: v.array(v.string()),
   },
   handler: async (ctx, args) => {
-    if (args.pinnedOwnedProjectIds.length > 3) {
-      throw new ConvexError('You can pin at most three projects')
-    }
-
     const viewer = await getOrCreateViewer(ctx)
     if (!viewer) {
       throw new ConvexError('Viewer not found')
     }
 
-    for (const projectId of args.pinnedOwnedProjectIds) {
+    for (const projectId of args.onboardingSelectedOwnedProjectIds) {
       const project = await ctx.db.get(projectId)
       if (!project || project.ownerId !== viewer._id) {
         throw new ConvexError(
-          'Pinned projects must belong to the current viewer',
+          'Selected projects must belong to the current viewer',
         )
       }
+    }
+
+    const updatedViewer = {
+      ...viewer,
+      profile: {
+        ...viewer.profile,
+        displayName: args.displayName,
+        fullName: args.displayName,
+        bio: args.bio,
+        cityId: args.cityId,
+        buildStatus: args.buildStatus,
+        socialLinks: args.socialLinks,
+      },
+      onboardingSelectedOwnedProjectIds: args.onboardingSelectedOwnedProjectIds,
+      exploreConfig: {
+        cityIds: args.exploreCityIds,
+        stackPrefs: args.stackPrefs,
+      },
+      onboardingCompletedAt: Date.now(),
     }
 
     await ctx.db.patch(viewer._id, {
@@ -534,7 +1137,7 @@ export const completeOnboarding = mutation({
           args.displayName,
         ),
       },
-      pinnedOwnedProjectIds: args.pinnedOwnedProjectIds,
+      onboardingSelectedOwnedProjectIds: args.onboardingSelectedOwnedProjectIds,
       exploreConfig: {
         cityIds: args.exploreCityIds,
         stackPrefs: args.stackPrefs,
@@ -542,8 +1145,28 @@ export const completeOnboarding = mutation({
       onboardingCompletedAt: Date.now(),
       updatedAt: Date.now(),
     })
+    await syncOwnedProjectOwnerSnapshots(ctx, updatedViewer)
 
     return await ctx.db.get(viewer._id)
+  },
+})
+
+export const updateGithubSyncPreference = mutation({
+  args: {
+    syncGithubStarsOnLike: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    const viewer = await getOrCreateViewer(ctx)
+    if (!viewer) {
+      throw new ConvexError('Viewer not found')
+    }
+
+    await ctx.db.patch(viewer._id, {
+      syncGithubStarsOnLike: args.syncGithubStarsOnLike,
+      updatedAt: Date.now(),
+    })
+
+    return null
   },
 })
 

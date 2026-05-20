@@ -7,6 +7,8 @@ export const useUpdateNotificationPrefs = () =>
   useMutation(api.users.updateNotificationPrefs)
 export const useUpdateExploreConfig = () =>
   useMutation(api.users.updateExploreConfig)
+export const useUpdateGithubSyncPreference = () =>
+  useMutation(api.users.updateGithubSyncPreference)
 export const useDeactivateAccount = () =>
   useMutation(api.users.deactivateAccount)
 export const useDeleteAccount = () => useMutation(api.users.deleteAccount)

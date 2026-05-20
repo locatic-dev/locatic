@@ -33,15 +33,15 @@ export function deriveStackPrefsFromRepositories(
   return stackPrefs
 }
 
-export function buildPinnedProjectIds(
-  pinnedRepoFullNames: string[],
+export function buildOwnedProjectIdsFromFullNames(
+  repoFullNames: string[],
   projects: Array<Pick<Doc<'projects'>, '_id' | 'github'>>,
 ) {
   const projectByFullName = new Map(
     projects.map((project) => [project.github.fullName, project._id]),
   )
 
-  return pinnedRepoFullNames.reduce<Id<'projects'>[]>((result, fullName) => {
+  return repoFullNames.reduce<Id<'projects'>[]>((result, fullName) => {
     const projectId = projectByFullName.get(fullName)
     if (projectId) {
       result.push(projectId)

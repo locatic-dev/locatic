@@ -39,6 +39,10 @@ export function createDefaultViewerProfile(
       },
     },
     pinnedOwnedProjectIds: [],
+    pinnedProfileProjectIds: [],
+    onboardingSelectedOwnedProjectIds: [],
+    syncGithubStarsOnLike: false,
+    unreadMessagesCount: 0,
     stats: {
       followersCount: 0,
       followingCount: 0,
@@ -83,4 +87,36 @@ export function createDefaultViewerProfile(
     deactivatedAt: null,
     deletedAt: null,
   }
+}
+
+export function resolvePinnedProfileProjectIds<T extends string>(viewer: {
+  pinnedOwnedProjectIds?: T[]
+  pinnedProfileProjectIds?: T[]
+}): T[] {
+  return viewer.pinnedProfileProjectIds ?? viewer.pinnedOwnedProjectIds ?? []
+}
+
+export function resolveOnboardingSelectedOwnedProjectIds<
+  T extends string,
+>(viewer: {
+  pinnedOwnedProjectIds?: T[]
+  onboardingSelectedOwnedProjectIds?: T[]
+}) {
+  return (
+    viewer.onboardingSelectedOwnedProjectIds ??
+    viewer.pinnedOwnedProjectIds ??
+    []
+  )
+}
+
+export function resolveSyncGithubStarsOnLike(viewer: {
+  syncGithubStarsOnLike?: boolean
+}) {
+  return viewer.syncGithubStarsOnLike ?? false
+}
+
+export function resolveUnreadMessagesCount(viewer: {
+  unreadMessagesCount?: number
+}) {
+  return viewer.unreadMessagesCount ?? 0
 }

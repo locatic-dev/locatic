@@ -1,8 +1,8 @@
-import { createFileRoute, useNavigate, useSearch } from '@tanstack/react-router'
+import { createFileRoute } from '@tanstack/react-router'
 import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
-import type { Doc } from '../../../convex/_generated/dataModel'
-import { privateProfileQueryOptions } from '@/features/profile/queries'
+import type { Doc, Id } from '../../../convex/_generated/dataModel'
+import { privateProfileOverviewQueryOptions } from '@/features/profile/queries'
 import {
   citiesSearchQueryOptions,
   popularCitiesQueryOptions,
@@ -10,6 +10,7 @@ import {
 import {
   useDeactivateAccount,
   useDeleteAccount,
+  useUpdateGithubSyncPreference,
   useUpdateNotificationPrefs,
   useUpdatePrivacy,
   useUpdateProfile,
@@ -27,8 +28,8 @@ import {
   type BuildStatus,
 } from '@/components/ui/status-pill'
 import {
-  mapPrivateProfile,
-  type PrivateProfilePayload,
+  mapPrivateProfileOverview,
+  type PrivateProfileOverviewPayload,
 } from '@/features/contracts'
 import { normalizeSocialLinkValue } from '@/lib/social-links'
 
@@ -50,7 +51,7 @@ export const Route = createFileRoute('/_app/settings')({
       | 'danger',
   }),
   loader: ({ context }) =>
-    context.queryClient.ensureQueryData(privateProfileQueryOptions()),
+    context.queryClient.ensureQueryData(privateProfileOverviewQueryOptions()),
   pendingComponent: FormRoutePending,
   pendingMs: 250,
   component: SettingsPage,
@@ -72,10 +73,12 @@ const settingsRowClassName =
   'flex items-center justify-between gap-4 border-b border-line py-3.5'
 
 function SettingsPage() {
-  const { tab } = useSearch({ from: '/_app/settings' })
-  const navigate = useNavigate()
-  const { data } = useSuspenseQuery(privateProfileQueryOptions())
-  const profile = mapPrivateProfile(data as PrivateProfilePayload | undefined)
+  const { tab } = Route.useSearch()
+  const navigate = Route.useNavigate()
+  const { data } = useSuspenseQuery(privateProfileOverviewQueryOptions())
+  const profile = mapPrivateProfileOverview(
+    data as PrivateProfileOverviewPayload | undefined,
+  )
   if (!profile) {
     throw new Error('Settings data was not available')
   }
@@ -90,6 +93,7 @@ function SettingsPage() {
   const updateProfile = useUpdateProfile()
   const updatePrivacy = useUpdatePrivacy()
   const updateNotifPrefs = useUpdateNotificationPrefs()
+  const updateGithubSyncPreference = useUpdateGithubSyncPreference()
   const deactivate = useDeactivateAccount()
   const deleteAccount = useDeleteAccount()
 
@@ -97,7 +101,9 @@ function SettingsPage() {
   const [displayName, setDisplayName] = useState('')
   const [bio, setBio] = useState('')
   const [buildStatus, setBuildStatus] = useState<BuildStatus>('building_solo')
-  const [selectedCityId, setSelectedCityId] = useState<string | null>(null)
+  const [selectedCityId, setSelectedCityId] = useState<Id<'cities'> | null>(
+    null,
+  )
   const [selectedCityName, setSelectedCityName] = useState<string | null>(null)
   const [twitter, setTwitter] = useState('')
   const [linkedin, setLinkedin] = useState('')
@@ -109,15 +115,13 @@ function SettingsPage() {
     setDisplayName(profile.viewer.displayName)
     setBio(profile.viewer.bio)
     setBuildStatus(profile.viewer.buildStatus)
-    setSelectedCityId(
-      profile.viewer.cityId ? String(profile.viewer.cityId) : null,
-    )
+    setSelectedCityId(profile.viewer.cityId ?? null)
     setSelectedCityName(profile.viewer.cityName)
     setTwitter(profile.viewer.socialLinks.x ?? '')
     setLinkedin(profile.viewer.socialLinks.linkedin ?? '')
     setBluesky(profile.viewer.socialLinks.bluesky ?? '')
     setWebsite(profile.viewer.socialLinks.website ?? '')
-  }, [profile])
+  }, [data])
 
   const cityResults =
     citySearch.trim().length > 0
@@ -132,7 +136,7 @@ function SettingsPage() {
       await updateProfile({
         displayName: displayName.trim(),
         bio: bio.trim(),
-        cityId: (selectedCityId as never) ?? null,
+        cityId: selectedCityId,
         buildStatus,
         socialLinks: {
           github: profile.viewer.githubUsername,
@@ -164,8 +168,8 @@ function SettingsPage() {
               onClick={() =>
                 void navigate({
                   to: '/settings',
-                  search: { tab: tabItem.id } as never,
-                } as never)
+                  search: { tab: tabItem.id },
+                })
               }
               className={`mb-px whitespace-nowrap border-b-2 px-1 pb-2.5 font-mono text-[12px] transition-colors ${
                 tab === tabItem.id
@@ -189,8 +193,14 @@ function SettingsPage() {
                   <div className={sectionTitleClassName}>profile</div>
                   <div className="flex flex-col gap-4">
                     <div>
-                      <label className={labelClassName}>display name</label>
+                      <label
+                        htmlFor="settings-display-name"
+                        className={labelClassName}
+                      >
+                        display name
+                      </label>
                       <Input
+                        id="settings-display-name"
                         value={displayName}
                         onChange={(event) => setDisplayName(event.target.value)}
                         className={fieldClassName}
@@ -199,13 +209,14 @@ function SettingsPage() {
                     </div>
 
                     <div>
-                      <label className={labelClassName}>
+                      <label htmlFor="settings-bio" className={labelClassName}>
                         bio{' '}
                         <span className="text-text-faint">
                           ({bio.length}/140)
                         </span>
                       </label>
                       <Textarea
+                        id="settings-bio"
                         value={bio}
                         onChange={(event) =>
                           setBio(event.target.value.slice(0, 140))
@@ -216,8 +227,8 @@ function SettingsPage() {
                       />
                     </div>
 
-                    <div>
-                      <label className={labelClassName}>build status</label>
+                    <fieldset>
+                      <legend className={labelClassName}>build status</legend>
                       <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
                         {(
                           Object.entries(BUILD_STATUS) as Array<
@@ -225,28 +236,45 @@ function SettingsPage() {
                           >
                         ).map(([statusId]) => {
                           const selected = buildStatus === statusId
+                          const inputId = `settings-build-status-${statusId}`
 
                           return (
-                            <button
-                              key={statusId}
-                              onClick={() => setBuildStatus(statusId)}
-                              className={`rounded border px-3.5 py-3 text-left ${
-                                selected
-                                  ? 'border-brand bg-brand-quiet'
-                                  : 'border-line bg-surface'
-                              }`}
-                              type="button"
-                            >
-                              <StatusPill status={statusId} size="md" />
-                            </button>
+                            <div key={statusId}>
+                              <input
+                                id={inputId}
+                                type="radio"
+                                name="settings-build-status"
+                                value={statusId}
+                                checked={selected}
+                                onChange={(event) => {
+                                  if (event.target.checked) {
+                                    setBuildStatus(statusId)
+                                  }
+                                }}
+                                className="peer sr-only"
+                              />
+                              <label
+                                htmlFor={inputId}
+                                className={`block cursor-pointer rounded border px-3.5 py-3 text-left transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-brand/40 peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-canvas ${
+                                  selected
+                                    ? 'border-brand bg-brand-quiet'
+                                    : 'border-line bg-surface'
+                                }`}
+                              >
+                                <StatusPill status={statusId} size="md" />
+                              </label>
+                            </div>
                           )
                         })}
                       </div>
-                    </div>
+                    </fieldset>
 
                     <div>
-                      <label className={labelClassName}>city</label>
+                      <label htmlFor="settings-city" className={labelClassName}>
+                        city
+                      </label>
                       <Input
+                        id="settings-city"
                         value={citySearch}
                         onChange={(event) => setCitySearch(event.target.value)}
                         className={fieldClassName}
@@ -266,7 +294,7 @@ function SettingsPage() {
                           <button
                             key={String(city._id)}
                             onClick={() => {
-                              setSelectedCityId(String(city._id))
+                              setSelectedCityId(city._id)
                               setSelectedCityName(city.displayName)
                               setCitySearch('')
                             }}
@@ -284,8 +312,14 @@ function SettingsPage() {
                   <div className={sectionTitleClassName}>social links</div>
                   <div className="flex flex-col gap-4">
                     <div>
-                      <label className={labelClassName}>x</label>
+                      <label
+                        htmlFor="settings-twitter"
+                        className={labelClassName}
+                      >
+                        x
+                      </label>
                       <Input
+                        id="settings-twitter"
                         value={twitter}
                         onChange={(event) => setTwitter(event.target.value)}
                         className={fieldClassName}
@@ -293,8 +327,14 @@ function SettingsPage() {
                       />
                     </div>
                     <div>
-                      <label className={labelClassName}>linkedin</label>
+                      <label
+                        htmlFor="settings-linkedin"
+                        className={labelClassName}
+                      >
+                        linkedin
+                      </label>
                       <Input
+                        id="settings-linkedin"
                         value={linkedin}
                         onChange={(event) => setLinkedin(event.target.value)}
                         className={fieldClassName}
@@ -302,8 +342,14 @@ function SettingsPage() {
                       />
                     </div>
                     <div>
-                      <label className={labelClassName}>bluesky</label>
+                      <label
+                        htmlFor="settings-bluesky"
+                        className={labelClassName}
+                      >
+                        bluesky
+                      </label>
                       <Input
+                        id="settings-bluesky"
                         value={bluesky}
                         onChange={(event) => setBluesky(event.target.value)}
                         className={fieldClassName}
@@ -311,8 +357,14 @@ function SettingsPage() {
                       />
                     </div>
                     <div>
-                      <label className={labelClassName}>website</label>
+                      <label
+                        htmlFor="settings-website"
+                        className={labelClassName}
+                      >
+                        website
+                      </label>
                       <Input
+                        id="settings-website"
                         value={website}
                         onChange={(event) => setWebsite(event.target.value)}
                         className={fieldClassName}
@@ -479,6 +531,32 @@ function SettingsPage() {
                   <span className="font-mono text-[11px] text-success">
                     connected
                   </span>
+                </div>
+                <div className="rounded-card border border-line bg-surface px-4.5 py-4 shadow-card">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <div className="mb-0.5 font-mono text-[13px] text-text">
+                        also star repos on GitHub
+                      </div>
+                      <div className="font-sans text-xs leading-5 text-text-faint">
+                        When enabled, liking a repo on Locatic will also try to
+                        star it on GitHub. Your Locatic like will still be saved
+                        even if GitHub sync fails.
+                      </div>
+                    </div>
+                    <Switch
+                      checked={profile.viewer.syncGithubStarsOnLike}
+                      onCheckedChange={async (checked) => {
+                        try {
+                          await updateGithubSyncPreference({
+                            syncGithubStarsOnLike: checked,
+                          })
+                        } catch (error) {
+                          console.error(error)
+                        }
+                      }}
+                    />
+                  </div>
                 </div>
               </div>
             )}

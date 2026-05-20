@@ -6,7 +6,10 @@ import {
   backfillHomeFeedForFollow,
   removeHomeFeedItemsForFollow,
 } from './lib/homeFeed'
-import { createNotificationIfEnabled } from './lib/notifications'
+import {
+  buildProfileNotificationTarget,
+  createNotificationIfEnabled,
+} from './lib/notifications'
 
 export const listFollowers = query({
   args: {
@@ -87,6 +90,7 @@ export const follow = mutation({
       recipient: targetUser,
       actor: viewer,
       type: 'followed',
+      target: buildProfileNotificationTarget(viewer.github.username),
     })
 
     return await ctx.db.get(followId)

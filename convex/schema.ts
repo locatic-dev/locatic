@@ -13,6 +13,7 @@ import {
   githubSyncTypeValidator,
   githubTokenStatusValidator,
   notificationTypeValidator,
+  notificationTargetValidator,
   optionalStringValidator,
   optionalTimestampValidator,
   ownerSnapshotValidator,
@@ -88,6 +89,10 @@ export default defineSchema({
       socialLinks: socialLinksValidator,
     }),
     pinnedOwnedProjectIds: v.array(v.id('projects')),
+    pinnedProfileProjectIds: v.optional(v.array(v.id('projects'))),
+    onboardingSelectedOwnedProjectIds: v.optional(v.array(v.id('projects'))),
+    syncGithubStarsOnLike: v.optional(v.boolean()),
+    unreadMessagesCount: v.optional(v.number()),
     stats: v.object({
       followersCount: v.number(),
       followingCount: v.number(),
@@ -388,6 +393,7 @@ export default defineSchema({
       avatarUrl: v.string(),
     }),
     projectName: optionalStringValidator,
+    target: v.optional(notificationTargetValidator),
     isRead: v.boolean(),
     createdAt: v.number(),
   })

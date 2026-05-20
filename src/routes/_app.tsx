@@ -4,46 +4,47 @@ import {
   redirect,
   useRouterState,
 } from '@tanstack/react-router'
-import { useSuspenseQuery } from '@tanstack/react-query'
+import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
 import { AppLayout } from '@/components/app-shell/app-layout'
 import {
   mapViewerBootstrap,
   type ViewerBootstrapPayload,
 } from '@/features/contracts'
+import { notificationsUnreadCountQueryOptions } from '@/features/notifications/queries'
 import { viewerQueryOptions } from '@/features/viewer/queries'
 import { isProjectDetailPath } from '@/lib/auth-routing'
 
 export const Route = createFileRoute('/_app')({
   beforeLoad: async ({ context, location }) => {
-    if (isProjectDetailPath(location.pathname)) {
-      return
-    }
-
     if (!context.auth.isAuthenticated) {
-      throw redirect({ to: '/sign-in' })
+      if (isProjectDetailPath(location.pathname)) {
+        return
+      }
+
+      throw redirect({ to: '/sign-in/$' })
     }
 
     const bootstrap = (await context.queryClient.ensureQueryData(
       viewerQueryOptions(),
     )) as ViewerBootstrapPayload
 
-    if (bootstrap.needsOnboarding) {
+    if (bootstrap.needsOnboarding && !isProjectDetailPath(location.pathname)) {
       throw redirect({ to: '/onboarding' })
     }
   },
-  component: AppFrame,
+  component: AuthenticatedApp,
 })
 
-function AppFrame() {
-  return <AuthenticatedApp />
-}
-
 function AuthenticatedApp() {
+  const { data: viewerData } = useSuspenseQuery(viewerQueryOptions())
+  const bootstrap = mapViewerBootstrap(
+    viewerData as ViewerBootstrapPayload | undefined,
+  )
   const currentPath = useRouterState({
     select: (state) => state.location.pathname,
   })
 
-  if (isProjectDetailPath(currentPath)) {
+  if (isProjectDetailPath(currentPath) && !bootstrap?.isAuthenticated) {
     return <Outlet />
   }
 
@@ -52,6 +53,10 @@ function AuthenticatedApp() {
 
 function ShellApp() {
   const { data } = useSuspenseQuery(viewerQueryOptions())
+  const { data: unreadNotificationsData } = useQuery({
+    ...notificationsUnreadCountQueryOptions(),
+    staleTime: 30_000,
+  })
   const bootstrap = mapViewerBootstrap(
     data as ViewerBootstrapPayload | undefined,
   )
@@ -71,7 +76,15 @@ function ShellApp() {
     : undefined
 
   return (
-    <AppLayout viewer={viewerForShell ?? null}>
+    <AppLayout
+      viewer={viewerForShell ?? null}
+      unreadNotifications={
+        typeof unreadNotificationsData === 'number'
+          ? unreadNotificationsData
+          : 0
+      }
+      unreadMessages={viewer?.unreadMessagesCount ?? 0}
+    >
       <Outlet />
     </AppLayout>
   )

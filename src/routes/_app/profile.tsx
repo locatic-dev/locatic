@@ -1,10 +1,27 @@
-import { createFileRoute, useNavigate, useSearch } from '@tanstack/react-router'
-import { useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
-import { useEffect, useState } from 'react'
+import { createFileRoute } from '@tanstack/react-router'
+import {
+  useQuery,
+  useQueryClient,
+  useSuspenseQuery,
+} from '@tanstack/react-query'
+import { useEffect, useState, useTransition } from 'react'
 import { useAction } from 'convex/react'
 import { api } from '../../../convex/_generated/api'
-import type { Doc } from '../../../convex/_generated/dataModel'
-import { privateProfileQueryOptions } from '@/features/profile/queries'
+import type { Doc, Id } from '../../../convex/_generated/dataModel'
+import {
+  privateFollowGraphQueryOptions,
+  privateProfileCommentsQueryOptions,
+  privateProfileContributionsQueryOptions,
+  privateProfileLikedProjectsQueryOptions,
+  privateProfileOverviewQueryOptions,
+  privateProfileProjectsQueryOptions,
+} from '@/features/profile/queries'
+import {
+  normalizeProfileSearch,
+  type ProfileContentTab,
+  type ProfileNetworkTab,
+} from '@/features/profile/state'
+import { ProfileNetworkSection } from '@/features/profile/network-section'
 import { LxAvatar } from '@/components/ui/lx-avatar'
 import { StatusPill } from '@/components/ui/status-pill'
 import { BrandIcon } from '@/components/ui/brand-icon'
@@ -14,18 +31,37 @@ import { compactNumber } from '@/lib/format'
 import { relativeTime } from '@/lib/time'
 import { ProjectCard, type ProjectCardData } from '@/components/ui/project-card'
 import { FormRoutePending } from '@/components/app-shell/route-pending'
+import { usePinOwnedProject } from '@/features/projects/mutations'
 import {
-  mapPrivateProfile,
-  type PrivateProfilePayload,
+  mapPrivateProfileOverview,
+  type ContributedProjectPreview,
+  type PrivateProfileOverviewPayload,
+  type ProfileSocialPagePayload,
 } from '@/features/contracts'
 import { socialLinkHref } from '@/lib/social-links'
+import { Pin } from '@/lib/icons'
+
+const TAB_QUERY_STALE_TIME = 60_000
+const SOCIAL_PAGE_SIZE = 12
 
 export const Route = createFileRoute('/_app/profile')({
-  validateSearch: (search: Record<string, unknown>) => ({
-    tab: (search.tab as 'projects' | 'comments' | 'liked') ?? 'projects',
+  validateSearch: normalizeProfileSearch,
+  loaderDeps: ({ search }) => ({
+    network: search.network ?? 'followers',
   }),
-  loader: ({ context }) =>
-    context.queryClient.ensureQueryData(privateProfileQueryOptions()),
+  loader: ({ context, deps }) =>
+    Promise.all([
+      context.queryClient.ensureQueryData(privateProfileOverviewQueryOptions()),
+      context.queryClient.ensureQueryData(
+        privateFollowGraphQueryOptions({
+          kind: deps.network,
+          paginationOpts: {
+            cursor: null,
+            numItems: SOCIAL_PAGE_SIZE,
+          },
+        }),
+      ),
+    ]),
   pendingComponent: FormRoutePending,
   pendingMs: 250,
   component: ProfilePage,
@@ -51,62 +87,322 @@ function projectCardData(project: Doc<'projects'>): ProjectCardData {
   }
 }
 
+function mergeSocialItems<
+  TItem extends {
+    userId: Id<'users'>
+  },
+>(current: TItem[], nextItems: TItem[]) {
+  const itemsById = new Map(current.map((item) => [String(item.userId), item]))
+
+  for (const item of nextItems) {
+    itemsById.set(String(item.userId), item)
+  }
+
+  return [...itemsById.values()]
+}
+
+function emptySocialPage(): ProfileSocialPagePayload {
+  return {
+    continueCursor: '',
+    isDone: true,
+    page: [],
+    pageStatus: null,
+    splitCursor: null,
+  }
+}
+
 function ProfilePage() {
-  const { tab } = useSearch({ from: '/_app/profile' })
-  const navigate = useNavigate()
+  const { tab, network = 'followers' } = Route.useSearch()
+  const navigate = Route.useNavigate()
   const queryClient = useQueryClient()
-  const { data } = useSuspenseQuery(privateProfileQueryOptions())
-  const profile = mapPrivateProfile(data as PrivateProfilePayload | undefined)
-  if (!profile) {
+  const [isRoutePending, startRouteTransition] = useTransition()
+  const { data } = useSuspenseQuery(privateProfileOverviewQueryOptions())
+  const overview = mapPrivateProfileOverview(
+    data as PrivateProfileOverviewPayload | undefined,
+  )
+
+  if (!overview) {
     throw new Error('Profile data was not available')
   }
+
   const syncContributions = useAction(api.github_actions.syncContributions)
+  const pinOwnedProject = usePinOwnedProject()
   const [isSyncing, setIsSyncing] = useState(false)
+  const [pinPendingId, setPinPendingId] = useState<string | null>(null)
+  const [loadingMoreGraph, setLoadingMoreGraph] =
+    useState<ProfileNetworkTab | null>(null)
+  const [followersPage, setFollowersPage] =
+    useState<ProfileSocialPagePayload>(emptySocialPage)
+  const [followingPage, setFollowingPage] =
+    useState<ProfileSocialPagePayload>(emptySocialPage)
+  const activeSocialQuery = useQuery({
+    ...privateFollowGraphQueryOptions({
+      kind: network,
+      paginationOpts: {
+        cursor: null,
+        numItems: SOCIAL_PAGE_SIZE,
+      },
+    }),
+    staleTime: TAB_QUERY_STALE_TIME,
+  })
+
+  const projectsQuery = useQuery({
+    ...privateProfileProjectsQueryOptions(),
+    enabled: tab === 'projects',
+    staleTime: TAB_QUERY_STALE_TIME,
+  })
+  const contributionsQuery = useQuery({
+    ...privateProfileContributionsQueryOptions(),
+    enabled: tab === 'contributions',
+    staleTime: TAB_QUERY_STALE_TIME,
+  })
+  const commentsQuery = useQuery({
+    ...privateProfileCommentsQueryOptions(),
+    enabled: tab === 'comments',
+    staleTime: TAB_QUERY_STALE_TIME,
+  })
+  const likedProjectsQuery = useQuery({
+    ...privateProfileLikedProjectsQueryOptions(),
+    enabled: tab === 'liked',
+    staleTime: TAB_QUERY_STALE_TIME,
+  })
 
   useEffect(() => {
-    const syncedAt = profile.viewer.githubContributions?.syncedAt
-    const isStale = !syncedAt || Date.now() - syncedAt > 6 * 60 * 60 * 1000
-    if (isStale) {
-      setIsSyncing(true)
-      void syncContributions({})
-        .then(() =>
-          queryClient.invalidateQueries({
-            queryKey: privateProfileQueryOptions().queryKey,
-          }),
-        )
-        .catch(console.error)
-        .finally(() => setIsSyncing(false))
+    const page = activeSocialQuery.data as ProfileSocialPagePayload | undefined
+    if (!page) {
+      return
     }
-  }, [profile, queryClient, syncContributions])
 
-  const githubHref = socialLinkHref('github', profile.viewer.githubUsername)
-  const xHref = socialLinkHref('x', profile.viewer.socialLinks.x)
+    if (network === 'followers') {
+      setFollowersPage(page)
+      return
+    }
+
+    setFollowingPage(page)
+  }, [activeSocialQuery.data, network])
+
+  useEffect(() => {
+    void queryClient.prefetchQuery(privateProfileProjectsQueryOptions())
+    void queryClient.prefetchQuery(privateProfileContributionsQueryOptions())
+    void queryClient.prefetchQuery(privateProfileCommentsQueryOptions())
+    void queryClient.prefetchQuery(privateProfileLikedProjectsQueryOptions())
+    void queryClient.prefetchQuery(
+      privateFollowGraphQueryOptions({
+        kind: 'followers',
+        paginationOpts: {
+          cursor: null,
+          numItems: SOCIAL_PAGE_SIZE,
+        },
+      }),
+    )
+    void queryClient.prefetchQuery(
+      privateFollowGraphQueryOptions({
+        kind: 'following',
+        paginationOpts: {
+          cursor: null,
+          numItems: SOCIAL_PAGE_SIZE,
+        },
+      }),
+    )
+  }, [queryClient])
+
+  useEffect(() => {
+    const syncedAt = overview.viewer.githubContributions?.syncedAt
+    const isStale = !syncedAt || Date.now() - syncedAt > 6 * 60 * 60 * 1000
+    if (!isStale) {
+      return
+    }
+
+    setIsSyncing(true)
+    void syncContributions({})
+      .then(() =>
+        Promise.all([
+          queryClient.invalidateQueries({
+            queryKey: privateProfileOverviewQueryOptions().queryKey,
+          }),
+          queryClient.invalidateQueries({
+            queryKey: privateProfileContributionsQueryOptions().queryKey,
+          }),
+        ]),
+      )
+      .catch(console.error)
+      .finally(() => setIsSyncing(false))
+  }, [
+    overview.viewer.githubContributions?.syncedAt,
+    queryClient,
+    syncContributions,
+  ])
+
+  const githubHref = socialLinkHref('github', overview.viewer.githubUsername)
+  const xHref = socialLinkHref('x', overview.viewer.socialLinks.x)
   const linkedinHref = socialLinkHref(
     'linkedin',
-    profile.viewer.socialLinks.linkedin,
+    overview.viewer.socialLinks.linkedin,
+  )
+  const blueskyHref = socialLinkHref(
+    'bluesky',
+    overview.viewer.socialLinks.bluesky,
   )
   const websiteHref = socialLinkHref(
     'website',
-    profile.viewer.socialLinks.website,
+    overview.viewer.socialLinks.website,
   )
 
   const tabs = [
     {
       id: 'projects',
       label: 'projects',
-      count: profile.projects.length,
+      count: overview.viewer.stats.projectsCount,
+    },
+    {
+      id: 'contributions',
+      label: 'contributions',
+      count: overview.viewer.stats.contributionsCount,
     },
     {
       id: 'comments',
       label: 'comments',
-      count: profile.comments.filter((comment) => !comment.isDeleted).length,
+      count: overview.viewer.stats.commentsCount,
     },
     {
       id: 'liked',
       label: 'liked',
-      count: profile.likedProjects.length,
+      count: overview.viewer.stats.likedCount,
     },
   ] as const
+
+  const projects =
+    (projectsQuery.data as Array<Doc<'projects'>> | undefined) ?? []
+  const contributions =
+    (contributionsQuery.data as Array<ContributedProjectPreview> | undefined) ??
+    []
+  const comments =
+    (commentsQuery.data as Array<Doc<'comments'>> | undefined) ?? []
+  const likedProjects =
+    (likedProjectsQuery.data as
+      | Array<{
+          reactionId: Id<'reactions'>
+          projectId: Id<'projects'>
+          likedAt: number
+          project: Doc<'projects'>
+        }>
+      | undefined) ?? []
+
+  const contentIsLoading =
+    (tab === 'projects' && projectsQuery.isLoading) ||
+    (tab === 'contributions' && contributionsQuery.isLoading) ||
+    (tab === 'comments' && commentsQuery.isLoading) ||
+    (tab === 'liked' && likedProjectsQuery.isLoading)
+
+  const pinnedProjectIds = new Set(
+    overview.viewer.pinnedProfileProjectIds.map(String),
+  )
+  const socialItems =
+    network === 'followers' ? followersPage.page : followingPage.page
+  const hasMoreSocial =
+    network === 'followers' ? !followersPage.isDone : !followingPage.isDone
+
+  const prefetchTab = (nextTab: ProfileContentTab) => {
+    switch (nextTab) {
+      case 'projects':
+        return queryClient.prefetchQuery(privateProfileProjectsQueryOptions())
+      case 'contributions':
+        return queryClient.prefetchQuery(
+          privateProfileContributionsQueryOptions(),
+        )
+      case 'comments':
+        return queryClient.prefetchQuery(privateProfileCommentsQueryOptions())
+      case 'liked':
+        return queryClient.prefetchQuery(
+          privateProfileLikedProjectsQueryOptions(),
+        )
+    }
+  }
+
+  const navigateSearch = (
+    nextValues: Partial<{
+      tab: ProfileContentTab
+      network: ProfileNetworkTab
+    }>,
+  ) => {
+    startRouteTransition(() => {
+      void navigate({
+        to: '/profile',
+        search: (current) => ({ ...current, ...nextValues }),
+      })
+    })
+  }
+
+  const handleTogglePin = async (
+    projectId: Id<'projects'>,
+    projectKey: string,
+    pinned: boolean,
+  ) => {
+    if (pinPendingId === projectKey) {
+      return
+    }
+
+    setPinPendingId(projectKey)
+    try {
+      await pinOwnedProject({
+        pinned: !pinned,
+        projectId,
+      })
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: privateProfileOverviewQueryOptions().queryKey,
+        }),
+        queryClient.invalidateQueries({
+          queryKey: privateProfileProjectsQueryOptions().queryKey,
+        }),
+      ])
+    } catch (error) {
+      console.error(error)
+    } finally {
+      setPinPendingId(null)
+    }
+  }
+
+  const handleLoadMoreGraph = async (kind: ProfileNetworkTab) => {
+    if (loadingMoreGraph === kind) {
+      return
+    }
+
+    const currentPage = kind === 'followers' ? followersPage : followingPage
+    if (currentPage.isDone) {
+      return
+    }
+
+    setLoadingMoreGraph(kind)
+
+    try {
+      const page = (await queryClient.fetchQuery(
+        privateFollowGraphQueryOptions({
+          kind,
+          paginationOpts: {
+            cursor: currentPage.continueCursor,
+            numItems: SOCIAL_PAGE_SIZE,
+          },
+        }),
+      )) as ProfileSocialPagePayload
+
+      if (kind === 'followers') {
+        setFollowersPage((current) => ({
+          ...page,
+          page: mergeSocialItems(current.page, page.page),
+        }))
+      } else {
+        setFollowingPage((current) => ({
+          ...page,
+          page: mergeSocialItems(current.page, page.page),
+        }))
+      }
+    } catch (error) {
+      console.error(error)
+    } finally {
+      setLoadingMoreGraph(null)
+    }
+  }
 
   return (
     <div className="lx-page-shell">
@@ -115,250 +411,411 @@ function ProfilePage() {
           <div className="relative border-b border-line py-8 pb-7">
             <div className="flex flex-col items-start gap-6">
               <LxAvatar
-                name={profile.viewer.displayName}
-                avatarUrl={profile.viewer.avatarUrl}
+                name={overview.viewer.displayName}
+                avatarUrl={overview.viewer.avatarUrl}
                 size={88}
               />
-              <div className="flex-1 pt-1">
-                <div className="mb-2 flex items-center gap-3">
-                  <h1 className="m-0 font-mono text-[30px] font-bold tracking-[-0.02em] text-text">
-                    {profile.viewer.displayName}
-                  </h1>
-                  <StatusPill status={profile.viewer.buildStatus} size="md" />
-                </div>
-                <div className="mb-3.5 font-mono text-[13px] text-text-faint">
-                  <span>@{profile.viewer.githubUsername}</span>
-                  {profile.viewer.cityName && (
-                    <span> · {profile.viewer.cityName}</span>
+              <div className="flex w-full flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+                <div className="flex-1 pt-1">
+                  <div className="mb-2 flex flex-wrap items-center gap-3">
+                    <h1 className="m-0 font-mono text-[30px] font-bold tracking-[-0.02em] text-text">
+                      {overview.viewer.displayName}
+                    </h1>
+                    <StatusPill
+                      status={overview.viewer.buildStatus}
+                      size="md"
+                    />
+                  </div>
+                  <div className="mb-3.5 font-mono text-[13px] text-text-faint">
+                    <span>@{overview.viewer.githubUsername}</span>
+                    {overview.viewer.cityName && (
+                      <span> · {overview.viewer.cityName}</span>
+                    )}
+                  </div>
+                  {overview.viewer.bio && (
+                    <p className="mb-4 max-w-135 font-sans text-sm leading-6 text-text-muted">
+                      {overview.viewer.bio}
+                    </p>
                   )}
+                  <div className="flex flex-wrap items-center gap-4.5 font-mono text-xs">
+                    <button
+                      type="button"
+                      onClick={() => navigateSearch({ network: 'followers' })}
+                      className="bg-transparent p-0 text-left font-mono text-xs text-inherit"
+                    >
+                      <strong className="text-text">
+                        {compactNumber(overview.viewer.stats.followersCount)}
+                      </strong>{' '}
+                      <span className="text-text-faint">followers</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => navigateSearch({ network: 'following' })}
+                      className="bg-transparent p-0 text-left font-mono text-xs text-inherit"
+                    >
+                      <strong className="text-text">
+                        {compactNumber(overview.viewer.stats.followingCount)}
+                      </strong>{' '}
+                      <span className="text-text-faint">following</span>
+                    </button>
+                    <span className="ml-1.5 inline-flex items-center gap-2.5 text-text-faint">
+                      {githubHref && (
+                        <a
+                          href={githubHref}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-inherit"
+                        >
+                          <BrandIcon name="github" size={14} />
+                        </a>
+                      )}
+                      {xHref && (
+                        <a
+                          href={xHref}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-inherit"
+                        >
+                          <BrandIcon name="twitter" size={14} />
+                        </a>
+                      )}
+                      {linkedinHref && (
+                        <a
+                          href={linkedinHref}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-inherit"
+                        >
+                          <BrandIcon name="linkedin" size={14} />
+                        </a>
+                      )}
+                      {blueskyHref && (
+                        <a
+                          href={blueskyHref}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[11px] text-inherit no-underline"
+                        >
+                          bsky
+                        </a>
+                      )}
+                      {websiteHref && (
+                        <a
+                          href={websiteHref}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[11px] text-inherit no-underline"
+                        >
+                          site
+                        </a>
+                      )}
+                    </span>
+                  </div>
                 </div>
-                {profile.viewer.bio && (
-                  <p className="mb-4 max-w-135 font-sans text-sm leading-6 text-text-muted">
-                    {profile.viewer.bio}
-                  </p>
-                )}
-                <div className="flex flex-wrap items-center gap-4.5 font-mono text-xs">
-                  <span>
-                    <strong className="text-text">
-                      {compactNumber(profile.viewer.stats.followersCount)}
-                    </strong>{' '}
-                    <span className="text-text-faint">followers</span>
-                  </span>
-                  <span>
-                    <strong className="text-text">
-                      {compactNumber(profile.viewer.stats.followingCount)}
-                    </strong>{' '}
-                    <span className="text-text-faint">following</span>
-                  </span>
-                  <span className="ml-1.5 inline-flex gap-2.5 text-text-faint">
-                    {githubHref && (
-                      <a
-                        href={githubHref}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-inherit"
-                      >
-                        <BrandIcon name="github" size={14} />
-                      </a>
-                    )}
-                    {xHref && (
-                      <a
-                        href={xHref}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-inherit"
-                      >
-                        <BrandIcon name="twitter" size={14} />
-                      </a>
-                    )}
-                    {linkedinHref && (
-                      <a
-                        href={linkedinHref}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-inherit"
-                      >
-                        <BrandIcon name="linkedin" size={14} />
-                      </a>
-                    )}
-                    {websiteHref && (
-                      <a
-                        href={websiteHref}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-[11px] text-inherit no-underline"
-                      >
-                        site
-                      </a>
-                    )}
-                  </span>
-                </div>
+                <Button
+                  variant="monoOutline"
+                  size="meta"
+                  onClick={() =>
+                    void navigate({
+                      to: '/settings',
+                      search: { tab: 'account' },
+                    })
+                  }
+                  className="shrink-0 font-mono"
+                >
+                  edit profile
+                </Button>
               </div>
-              <Button
-                variant="monoOutline"
-                size="meta"
-                onClick={() =>
-                  void navigate({
-                    to: '/settings',
-                    search: {} as never,
-                  } as never)
-                }
-                className="shrink-0 font-mono"
-              >
-                edit profile
-              </Button>
             </div>
 
             <div className="mt-7">
               <div className="mb-2.5 font-mono text-[10.5px] uppercase tracking-[0.06em] text-text-faint">
-                {profile.viewer.githubContributions?.totalContributions != null
-                  ? `${profile.viewer.githubContributions.totalContributions.toLocaleString()} contributions this year`
+                {overview.viewer.githubContributions?.totalContributions != null
+                  ? `${overview.viewer.githubContributions.totalContributions.toLocaleString()} contributions this year`
                   : 'contributions this year'}
               </div>
               <div className="overflow-x-auto">
                 <ContributionGraph
-                  weeks={profile.viewer.githubContributions?.weeks ?? undefined}
+                  weeks={
+                    overview.viewer.githubContributions?.weeks ?? undefined
+                  }
                   totalContributions={
-                    profile.viewer.githubContributions?.totalContributions ??
+                    overview.viewer.githubContributions?.totalContributions ??
                     undefined
                   }
-                  loading={isSyncing && !profile.viewer.githubContributions}
+                  loading={isSyncing && !overview.viewer.githubContributions}
                   unavailable={
                     !isSyncing &&
-                    (!profile.viewer.githubContributions?.weeks ||
-                      profile.viewer.githubContributions.weeks.length === 0)
+                    (!overview.viewer.githubContributions?.weeks ||
+                      overview.viewer.githubContributions.weeks.length === 0)
                   }
                 />
               </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-3 items-center border-b border-line px-0">
-            {tabs.map((tabItem) => (
-              <button
-                key={tabItem.id}
-                onClick={() =>
-                  void navigate({
-                    to: '/profile',
-                    search: { tab: tabItem.id } as never,
-                  } as never)
-                }
-                className={`relative inline-flex min-w-0 items-center justify-center gap-1.75 px-3 py-3.5 text-center font-mono text-[12.5px] ${
-                  tab === tabItem.id
-                    ? 'font-semibold text-text'
-                    : 'text-text-faint'
-                }`}
-                type="button"
-              >
-                {tabItem.label}
-                <span className="rounded-pill bg-surface-alt px-1.5 py-px text-[10.5px] leading-[1.3] text-text-faint">
-                  {tabItem.count}
-                </span>
-                {tab === tabItem.id && (
-                  <div className="absolute -bottom-px left-3 right-3 h-0.5 bg-brand" />
-                )}
-              </button>
-            ))}
-          </div>
-
-          <div className="pt-7">
-            {tab === 'projects' && (
-              <div className="flex flex-col gap-3.5">
-                {profile.projects.length === 0 && (
-                  <div className="font-mono text-[12px] text-text-faint">
-                    no projects imported yet.
-                  </div>
-                )}
-                {profile.projects.map((project) => {
-                  const owner = project.github.fullName.split('/')[0] ?? ''
-                  const repo = project.github.name
-
-                  return (
-                    <ProjectCard
-                      key={String(project._id)}
-                      project={projectCardData(project)}
-                      showActions={false}
-                      onAuthorClick={() =>
-                        void navigate({
-                          to: '/u/$username',
-                          params: { username: owner } as never,
-                        } as never)
-                      }
-                      onCardClick={() =>
-                        void navigate({
-                          to: '/project/$owner/$repo',
-                          params: { owner, repo } as never,
-                        } as never)
-                      }
-                    />
-                  )
-                })}
+          <div className="grid gap-8 py-7 lg:grid-cols-[minmax(0,1.75fr)_minmax(280px,0.95fr)]">
+            <aside className="order-first lg:order-last">
+              <div className="lg:sticky lg:top-6">
+                <ProfileNetworkSection
+                  activeTab={network}
+                  emptyLabel={
+                    network === 'followers'
+                      ? 'no followers yet.'
+                      : 'not following anyone yet.'
+                  }
+                  hasMore={hasMoreSocial}
+                  items={socialItems.map((item) => ({
+                    ...item,
+                    userId: String(item.userId),
+                  }))}
+                  loadingMore={loadingMoreGraph === network}
+                  onChangeTab={(nextTab) =>
+                    navigateSearch({ network: nextTab })
+                  }
+                  onLoadMore={() => void handleLoadMoreGraph(network)}
+                  onSelectUser={(username) =>
+                    void navigate({
+                      to: '/u/$username',
+                      params: { username },
+                      search: { tab: 'projects', network: 'followers' },
+                    })
+                  }
+                />
               </div>
-            )}
+            </aside>
 
-            {tab === 'comments' && (
-              <div className="flex flex-col gap-4">
-                {profile.comments
-                  .filter((comment) => !comment.isDeleted)
-                  .map((comment) => (
-                    <div
-                      key={String(comment._id)}
-                      className="rounded-[6px] border border-line bg-surface px-4.5 py-4"
-                    >
-                      <div className="mb-2 font-mono text-[11px] text-text-faint">
-                        {comment.targetType} · {relativeTime(comment.createdAt)}
-                      </div>
-                      <p className="m-0 font-sans text-[13.5px] leading-[1.6] text-text">
-                        {comment.content}
-                      </p>
-                    </div>
-                  ))}
-                {profile.comments.filter((comment) => !comment.isDeleted)
-                  .length === 0 && (
-                  <div className="font-mono text-[12px] text-text-faint">
-                    no comments yet.
-                  </div>
-                )}
-              </div>
-            )}
-
-            {tab === 'liked' && (
-              <div className="flex flex-col gap-3.5">
-                {profile.likedProjects.length === 0 && (
-                  <div className="font-mono text-[12px] text-text-faint">
-                    no liked projects yet.
-                  </div>
-                )}
-                {profile.likedProjects.map((likedProject) => {
-                  const owner =
-                    likedProject.project.github.fullName.split('/')[0] ?? ''
-                  const repo = likedProject.project.github.name
-
-                  return (
-                    <ProjectCard
-                      key={String(likedProject.projectId)}
-                      project={{
-                        ...projectCardData(likedProject.project),
-                        liked: true,
+            <section>
+              <div className="overflow-x-auto overflow-y-hidden border-b border-line">
+                <div className="flex min-w-max items-stretch gap-1">
+                  {tabs.map((tabItem) => (
+                    <button
+                      key={tabItem.id}
+                      onClick={() => {
+                        void prefetchTab(tabItem.id)
+                        navigateSearch({ tab: tabItem.id })
                       }}
-                      showActions={false}
-                      onAuthorClick={() =>
-                        void navigate({
-                          to: '/u/$username',
-                          params: { username: owner } as never,
-                        } as never)
-                      }
-                      onCardClick={() =>
-                        void navigate({
-                          to: '/project/$owner/$repo',
-                          params: { owner, repo } as never,
-                        } as never)
-                      }
-                    />
-                  )
-                })}
+                      className={`relative inline-flex min-h-11 min-w-[96px] shrink-0 flex-1 items-center justify-center gap-1.75 px-3 py-3.5 text-center font-mono text-[12.5px] ${
+                        tab === tabItem.id
+                          ? 'font-semibold text-text'
+                          : 'text-text-faint'
+                      }`}
+                      type="button"
+                      aria-busy={isRoutePending && tab === tabItem.id}
+                    >
+                      {tabItem.label}
+                      <span className="rounded-pill bg-surface-alt px-1.5 py-px text-[10.5px] leading-[1.3] text-text-faint">
+                        {tabItem.count}
+                      </span>
+                      {tab === tabItem.id && (
+                        <div className="absolute bottom-0 left-3 right-3 h-0.5 bg-brand" />
+                      )}
+                    </button>
+                  ))}
+                </div>
               </div>
-            )}
+
+              <div className="pt-7">
+                {contentIsLoading && (
+                  <div className="font-mono text-[12px] text-text-faint">
+                    loading {tab}…
+                  </div>
+                )}
+
+                {!contentIsLoading && tab === 'projects' && (
+                  <div className="flex flex-col gap-3.5">
+                    {projects.length === 0 && (
+                      <div className="font-mono text-[12px] text-text-faint">
+                        no projects imported yet.
+                      </div>
+                    )}
+                    {projects.map((project) => {
+                      const owner = project.github.fullName.split('/')[0] ?? ''
+                      const repo = project.github.name
+                      const projectId = project._id
+                      const projectKey = String(project._id)
+                      const isPinned = pinnedProjectIds.has(projectKey)
+
+                      return (
+                        <div
+                          key={projectId}
+                          className="rounded-card border border-line bg-transparent"
+                        >
+                          <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
+                            <div className="font-mono text-[11px] text-text-faint">
+                              {isPinned
+                                ? 'pinned on profile'
+                                : 'visible on profile'}
+                            </div>
+                            <Button
+                              variant={isPinned ? 'brand' : 'monoOutline'}
+                              size="meta"
+                              onClick={() =>
+                                void handleTogglePin(
+                                  projectId,
+                                  projectKey,
+                                  isPinned,
+                                )
+                              }
+                              disabled={pinPendingId === projectKey}
+                              className="font-mono"
+                            >
+                              <Pin size={12} />
+                              {pinPendingId === projectKey
+                                ? 'saving…'
+                                : isPinned
+                                  ? 'unpinned'
+                                  : 'pin to profile'}
+                            </Button>
+                          </div>
+                          <ProjectCard
+                            project={{
+                              ...projectCardData(project),
+                              isPinned,
+                            }}
+                            showActions={false}
+                            className="rounded-none border-0"
+                            onAuthorClick={() =>
+                              void navigate({
+                                to: '/u/$username',
+                                params: { username: owner },
+                                search: {
+                                  tab: 'projects',
+                                  network: 'followers',
+                                },
+                              })
+                            }
+                            onCardClick={() =>
+                              void navigate({
+                                to: '/project/$owner/$repo',
+                                params: { owner, repo },
+                                search: { comment: null },
+                              })
+                            }
+                          />
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+
+                {!contentIsLoading && tab === 'contributions' && (
+                  <div className="flex flex-col gap-3.5">
+                    {contributions.length === 0 && (
+                      <div className="font-mono text-[12px] text-text-faint">
+                        no matched contributions yet.
+                      </div>
+                    )}
+                    {contributions.map((entry) => {
+                      const owner =
+                        entry.project.github.fullName.split('/')[0] ?? ''
+                      const repo = entry.project.github.name
+
+                      return (
+                        <div
+                          key={String(entry.project._id)}
+                          className="rounded-card border border-line bg-transparent"
+                        >
+                          <div className="border-b border-line px-4 py-3 font-mono text-[11px] text-text-faint">
+                            contributor · {compactNumber(entry.commitCount)}{' '}
+                            commits matched
+                          </div>
+                          <ProjectCard
+                            project={projectCardData(entry.project)}
+                            showActions={false}
+                            className="rounded-none border-0"
+                            onAuthorClick={() =>
+                              void navigate({
+                                to: '/u/$username',
+                                params: { username: owner },
+                                search: {
+                                  tab: 'projects',
+                                  network: 'followers',
+                                },
+                              })
+                            }
+                            onCardClick={() =>
+                              void navigate({
+                                to: '/project/$owner/$repo',
+                                params: { owner, repo },
+                                search: { comment: null },
+                              })
+                            }
+                          />
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+
+                {!contentIsLoading && tab === 'comments' && (
+                  <div className="flex flex-col gap-4">
+                    {comments
+                      .filter((comment) => !comment.isDeleted)
+                      .map((comment) => (
+                        <div
+                          key={String(comment._id)}
+                          className="rounded-[6px] border border-line bg-surface px-4.5 py-4"
+                        >
+                          <div className="mb-2 font-mono text-[11px] text-text-faint">
+                            {comment.targetType} ·{' '}
+                            {relativeTime(comment.createdAt)}
+                          </div>
+                          <p className="m-0 font-sans text-[13.5px] leading-[1.6] text-text">
+                            {comment.content}
+                          </p>
+                        </div>
+                      ))}
+                    {comments.filter((comment) => !comment.isDeleted).length ===
+                      0 && (
+                      <div className="font-mono text-[12px] text-text-faint">
+                        no comments yet.
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {!contentIsLoading && tab === 'liked' && (
+                  <div className="flex flex-col gap-3.5">
+                    {likedProjects.length === 0 && (
+                      <div className="font-mono text-[12px] text-text-faint">
+                        no liked projects yet.
+                      </div>
+                    )}
+                    {likedProjects.map((likedProject) => {
+                      const owner =
+                        likedProject.project.github.fullName.split('/')[0] ?? ''
+                      const repo = likedProject.project.github.name
+
+                      return (
+                        <ProjectCard
+                          key={String(likedProject.projectId)}
+                          project={{
+                            ...projectCardData(likedProject.project),
+                            liked: true,
+                          }}
+                          showActions={false}
+                          onAuthorClick={() =>
+                            void navigate({
+                              to: '/u/$username',
+                              params: { username: owner },
+                              search: { tab: 'projects', network: 'followers' },
+                            })
+                          }
+                          onCardClick={() =>
+                            void navigate({
+                              to: '/project/$owner/$repo',
+                              params: { owner, repo },
+                              search: { comment: null },
+                            })
+                          }
+                        />
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            </section>
           </div>
         </div>
       </div>

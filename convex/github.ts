@@ -2,6 +2,10 @@ import { ConvexError, v } from 'convex/values'
 
 import { internalMutation, internalQuery } from './_generated/server'
 import { fanOutActivityEventToFollowers } from './lib/homeFeed'
+import {
+  createNotificationIfEnabled,
+  buildProjectNotificationTarget,
+} from './lib/notifications'
 import { buildActorSnapshot, buildProjectSnapshot } from './lib/snapshots'
 
 export const applyProjectLike = internalMutation({
@@ -63,6 +67,18 @@ export const applyProjectLike = internalMutation({
       if (event) {
         await fanOutActivityEventToFollowers(ctx, event)
       }
+
+      const owner = await ctx.db.get(project.ownerId)
+      if (owner) {
+        await createNotificationIfEnabled(ctx, {
+          recipient: owner,
+          actor: viewer,
+          type: 'project_liked',
+          projectId: project._id,
+          projectName: project.github.name,
+          target: buildProjectNotificationTarget(project.github.fullName),
+        })
+      }
     }
 
     await ctx.db.patch(project._id, {
@@ -86,6 +102,7 @@ export const applyProjectLike = internalMutation({
       await ctx.db.patch(history._id, {
         likedAt: Date.now(),
         lastSeenAt: Date.now(),
+        dismissedAt: null,
       })
     }
 

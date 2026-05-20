@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate, useSearch } from '@tanstack/react-router'
+import { createFileRoute } from '@tanstack/react-router'
 import { useSuspenseQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import type { Id } from '../../../convex/_generated/dataModel'
@@ -18,12 +18,12 @@ import { Inbox } from '@/lib/icons'
 import {
   mapConversationDetail,
   mapConversationList,
-  mapViewerInboxSummary,
+  mapViewerBootstrap,
   type ConversationDetailPayload,
   type EnrichedConversation,
-  type ViewerInboxSummaryPayload,
+  type ViewerBootstrapPayload,
 } from '@/features/contracts'
-import { viewerInboxSummaryQueryOptions } from '@/features/viewer/queries'
+import { viewerQueryOptions } from '@/features/viewer/queries'
 import { InboxRoutePending } from '@/components/app-shell/route-pending'
 
 export const Route = createFileRoute('/_app/inbox')({
@@ -31,7 +31,8 @@ export const Route = createFileRoute('/_app/inbox')({
     tab: ((search.tab as string) === 'requests' ? 'requests' : 'inbox') as
       | 'inbox'
       | 'requests',
-    conversation: (search.conversation as string) ?? null,
+    conversation:
+      typeof search.conversation === 'string' ? search.conversation : null,
   }),
   loaderDeps: ({ search }) => ({
     conversationId: search.conversation,
@@ -39,7 +40,7 @@ export const Route = createFileRoute('/_app/inbox')({
   loader: async ({ context, deps }) => {
     await Promise.all([
       context.queryClient.ensureQueryData(conversationsQueryOptions()),
-      context.queryClient.ensureQueryData(viewerInboxSummaryQueryOptions()),
+      context.queryClient.ensureQueryData(viewerQueryOptions()),
     ])
 
     if (deps.conversationId) {
@@ -56,26 +57,24 @@ export const Route = createFileRoute('/_app/inbox')({
 })
 
 function InboxPage() {
-  const { tab, conversation: selectedId } = useSearch({ from: '/_app/inbox' })
-  const navigate = useNavigate()
-  const { data: viewerData } = useSuspenseQuery(
-    viewerInboxSummaryQueryOptions(),
-  )
+  const { tab, conversation: selectedId } = Route.useSearch()
+  const navigate = Route.useNavigate()
+  const { data: viewerData } = useSuspenseQuery(viewerQueryOptions())
   const { data: conversationsData } = useSuspenseQuery(
     conversationsQueryOptions(),
   )
 
-  const viewer = mapViewerInboxSummary(
-    viewerData as ViewerInboxSummaryPayload | undefined,
+  const viewer = mapViewerBootstrap(
+    viewerData as ViewerBootstrapPayload | undefined,
   )
-  const viewerId = viewer?.viewerId ? String(viewer.viewerId) : null
+  const viewerId = viewer?.viewer?.id ? String(viewer.viewer.id) : null
   const allConversations =
     mapConversationList(conversationsData as Array<EnrichedConversation>) ?? []
   const conversations = allConversations.filter((conversation) =>
     tab === 'requests' ? conversation.isRequest : !conversation.isRequest,
   )
   const selectedConversation =
-    conversations.find(
+    allConversations.find(
       (conversation) => String(conversation._id) === selectedId,
     ) ?? null
   const markConversationRead = useMarkConversationRead()
@@ -106,6 +105,18 @@ function InboxPage() {
     },
   ] as const
 
+  const openProfile = (username: string | null | undefined) => {
+    if (!username) {
+      return
+    }
+
+    void navigate({
+      to: '/u/$username',
+      params: { username },
+      search: { tab: 'projects', network: 'followers' },
+    })
+  }
+
   return (
     <div className="lx-page-shell min-h-0 overflow-hidden">
       <div className="shrink-0 border-b border-line">
@@ -121,8 +132,8 @@ function InboxPage() {
               onClick={() =>
                 void navigate({
                   to: '/inbox',
-                  search: { tab: tabItem.id } as never,
-                } as never)
+                  search: { tab: tabItem.id, conversation: null },
+                })
               }
               className={`relative inline-flex items-center gap-[7px] px-4 py-2.5 font-mono text-[12px] transition-colors ${
                 tab === tabItem.id
@@ -174,34 +185,45 @@ function InboxPage() {
               const isSelected = selectedId === String(conversation._id)
 
               return (
-                <button
+                <div
                   key={String(conversation._id)}
-                  onClick={() =>
-                    void navigate({
-                      to: '/inbox',
-                      search: {
-                        tab,
-                        conversation: String(conversation._id),
-                      } as never,
-                    } as never)
-                  }
-                  className={`flex w-full items-center gap-3 border-b border-line px-5 py-3.5 text-left transition-colors ${
+                  className={`flex items-stretch gap-3 border-b border-line px-5 py-3.5 transition-colors ${
                     isSelected
                       ? 'bg-surface-alt'
                       : 'bg-transparent hover:bg-surface-alt'
                   }`}
-                  type="button"
                 >
-                  <LxAvatar
-                    name={
-                      conversation.otherUser?.displayName ??
-                      conversation.otherUser?.githubUsername ??
-                      'user'
+                  <button
+                    type="button"
+                    onClick={() =>
+                      openProfile(conversation.otherUser?.githubUsername)
                     }
-                    avatarUrl={conversation.otherUser?.avatarUrl ?? undefined}
-                    size={36}
-                  />
-                  <div className="min-w-0 flex-1">
+                    className="flex min-h-11 shrink-0 items-center rounded-[6px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                    aria-label={`Open ${conversation.otherUser?.displayName ?? conversation.otherUser?.githubUsername ?? 'user'} profile`}
+                  >
+                    <LxAvatar
+                      name={
+                        conversation.otherUser?.displayName ??
+                        conversation.otherUser?.githubUsername ??
+                        'user'
+                      }
+                      avatarUrl={conversation.otherUser?.avatarUrl ?? undefined}
+                      size={36}
+                    />
+                  </button>
+                  <button
+                    onClick={() =>
+                      void navigate({
+                        to: '/inbox',
+                        search: {
+                          tab,
+                          conversation: String(conversation._id),
+                        },
+                      })
+                    }
+                    className="min-w-0 flex-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                    type="button"
+                  >
                     <div className="mb-1 flex flex-wrap justify-between gap-2">
                       <span className="font-mono text-[12.5px] font-semibold text-text [overflow-wrap:anywhere]">
                         {conversation.otherUser?.displayName ??
@@ -225,8 +247,8 @@ function InboxPage() {
                         </span>
                       )}
                     </div>
-                  </div>
-                </button>
+                  </button>
+                </div>
               )
             })}
           </div>
@@ -264,7 +286,7 @@ function SelectedConversationPanel({
   selectedConversation: EnrichedConversation
   viewerId: string
 }) {
-  const navigate = useNavigate()
+  const navigate = Route.useNavigate()
   const { data } = useSuspenseQuery(
     conversationDetailQueryOptions(selectedConversation._id),
   )
@@ -294,6 +316,12 @@ function SelectedConversationPanel({
     }
   }
 
+  const otherUsername = selectedConversation.otherUser?.githubUsername
+  const otherDisplayName =
+    selectedConversation.otherUser?.displayName ??
+    selectedConversation.otherUser?.githubUsername ??
+    'Unknown user'
+
   return (
     <>
       <div className="flex min-h-14 shrink-0 items-center gap-3 border-b border-line px-[var(--lx-gutter)]">
@@ -302,32 +330,43 @@ function SelectedConversationPanel({
           onClick={() =>
             void navigate({
               to: '/inbox',
-              search: { tab, conversation: null } as never,
-            } as never)
+              search: { tab, conversation: null },
+            })
           }
           className="md:hidden"
         >
           back
         </Button>
-        <LxAvatar
-          name={
-            selectedConversation.otherUser?.displayName ??
-            selectedConversation.otherUser?.githubUsername ??
-            'user'
-          }
-          avatarUrl={selectedConversation.otherUser?.avatarUrl ?? undefined}
-          size={32}
-        />
-        <div className="min-w-0">
-          <div className="font-mono text-[12.5px] font-semibold text-text">
-            {selectedConversation.otherUser?.displayName ??
-              selectedConversation.otherUser?.githubUsername ??
-              'Unknown user'}
+        <button
+          type="button"
+          onClick={() => {
+            if (!otherUsername) {
+              return
+            }
+
+            void navigate({
+              to: '/u/$username',
+              params: { username: otherUsername },
+              search: { tab: 'projects', network: 'followers' },
+            })
+          }}
+          disabled={!otherUsername}
+          className="flex min-w-0 items-center gap-3 rounded-[6px] px-1 py-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand disabled:cursor-default"
+        >
+          <LxAvatar
+            name={otherDisplayName}
+            avatarUrl={selectedConversation.otherUser?.avatarUrl ?? undefined}
+            size={32}
+          />
+          <div className="min-w-0">
+            <div className="font-mono text-[12.5px] font-semibold text-text">
+              {otherDisplayName}
+            </div>
+            <div className="font-mono text-[10.5px] text-text-faint">
+              {selectedConversation.otherUser?.cityName ?? 'location hidden'}
+            </div>
           </div>
-          <div className="font-mono text-[10.5px] text-text-faint">
-            {selectedConversation.otherUser?.cityName ?? 'location hidden'}
-          </div>
-        </div>
+        </button>
       </div>
 
       <div className="flex flex-1 flex-col gap-3 overflow-y-auto px-[var(--lx-gutter)] pt-6 pb-8">

@@ -240,7 +240,14 @@ export const likeProject = action({
   args: {
     projectId: v.id('projects'),
   },
-  handler: async (ctx, args): Promise<null> => {
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{
+    githubSyncAttempted: boolean
+    githubSyncSucceeded: boolean
+    githubSyncError: string | null
+  }> => {
     const identity = await requireIdentity(ctx)
     const project = await ctx.runQuery(internal.projects.projectById, {
       projectId: args.projectId,
@@ -259,23 +266,48 @@ export const likeProject = action({
       throw new ConvexError('Project not found')
     }
 
-    const { accessToken, scopes } = await getGithubAccessToken(identity.subject)
-    await githubNoContentRequest(
-      `/user/starred/${project.github.fullName}`,
-      accessToken,
-      { method: 'PUT' },
-    )
-    await ctx.runMutation(internal.github.recordGithubTokenState, {
-      userId: viewer._id,
-      tokenStatus: 'active',
-      scopes,
-      lastError: null,
-    })
-
-    return await ctx.runMutation(internal.github.applyProjectLike, {
+    await ctx.runMutation(internal.github.applyProjectLike, {
       projectId: args.projectId,
       clerkId: identity.subject,
     })
+
+    if (!viewer.syncGithubStarsOnLike) {
+      return {
+        githubSyncAttempted: false,
+        githubSyncSucceeded: false,
+        githubSyncError: null,
+      }
+    }
+
+    try {
+      const { accessToken, scopes } = await getGithubAccessToken(
+        identity.subject,
+      )
+      await githubNoContentRequest(
+        `/user/starred/${project.github.fullName}`,
+        accessToken,
+        { method: 'PUT' },
+      )
+      await ctx.runMutation(internal.github.recordGithubTokenState, {
+        userId: viewer._id,
+        tokenStatus: 'active',
+        scopes,
+        lastError: null,
+      })
+
+      return {
+        githubSyncAttempted: true,
+        githubSyncSucceeded: true,
+        githubSyncError: null,
+      }
+    } catch (error) {
+      return {
+        githubSyncAttempted: true,
+        githubSyncSucceeded: false,
+        githubSyncError:
+          error instanceof Error ? error.message : 'GitHub star sync failed',
+      }
+    }
   },
 })
 
@@ -283,7 +315,14 @@ export const unlikeProject = action({
   args: {
     projectId: v.id('projects'),
   },
-  handler: async (ctx, args): Promise<null> => {
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{
+    githubSyncAttempted: boolean
+    githubSyncSucceeded: boolean
+    githubSyncError: string | null
+  }> => {
     const identity = await requireIdentity(ctx)
     const project = await ctx.runQuery(internal.projects.projectById, {
       projectId: args.projectId,
@@ -302,23 +341,48 @@ export const unlikeProject = action({
       throw new ConvexError('Project not found')
     }
 
-    const { accessToken, scopes } = await getGithubAccessToken(identity.subject)
-    await githubNoContentRequest(
-      `/user/starred/${project.github.fullName}`,
-      accessToken,
-      { method: 'DELETE' },
-    )
-    await ctx.runMutation(internal.github.recordGithubTokenState, {
-      userId: viewer._id,
-      tokenStatus: 'active',
-      scopes,
-      lastError: null,
-    })
-
-    return await ctx.runMutation(internal.github.removeProjectLike, {
+    await ctx.runMutation(internal.github.removeProjectLike, {
       projectId: args.projectId,
       clerkId: identity.subject,
     })
+
+    if (!viewer.syncGithubStarsOnLike) {
+      return {
+        githubSyncAttempted: false,
+        githubSyncSucceeded: false,
+        githubSyncError: null,
+      }
+    }
+
+    try {
+      const { accessToken, scopes } = await getGithubAccessToken(
+        identity.subject,
+      )
+      await githubNoContentRequest(
+        `/user/starred/${project.github.fullName}`,
+        accessToken,
+        { method: 'DELETE' },
+      )
+      await ctx.runMutation(internal.github.recordGithubTokenState, {
+        userId: viewer._id,
+        tokenStatus: 'active',
+        scopes,
+        lastError: null,
+      })
+
+      return {
+        githubSyncAttempted: true,
+        githubSyncSucceeded: true,
+        githubSyncError: null,
+      }
+    } catch (error) {
+      return {
+        githubSyncAttempted: true,
+        githubSyncSucceeded: false,
+        githubSyncError:
+          error instanceof Error ? error.message : 'GitHub unstar sync failed',
+      }
+    }
   },
 })
 

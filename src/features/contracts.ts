@@ -9,9 +9,25 @@ export type ViewerRecord = {
   exploreConfig: Doc<'users'>['exploreConfig']
   privacy: Doc<'users'>['privacy']
   notificationPrefs: Doc<'users'>['notificationPrefs']
-  pinnedOwnedProjectIds: Doc<'users'>['pinnedOwnedProjectIds']
+  onboardingSelectedOwnedProjectIds: Array<Id<'projects'>>
+  pinnedProfileProjectIds: Array<Id<'projects'>>
+  syncGithubStarsOnLike: boolean
+  unreadMessagesCount: number
   onboardingCompletedAt: Doc<'users'>['onboardingCompletedAt']
   githubContributions?: Doc<'users'>['githubContributions']
+}
+
+export type ProfileSocialPreview = {
+  userId: Id<'users'>
+  githubUsername: string
+  displayName: string
+  avatarUrl: string | null
+  cityName: string | null
+}
+
+export type ContributedProjectPreview = {
+  project: Doc<'projects'>
+  commitCount: number
 }
 
 export type ViewerBootstrapPayload = {
@@ -25,12 +41,20 @@ export type PrivateProfilePayload = {
   cityName: string | null
   projects: Array<Doc<'projects'>>
   comments: Array<Doc<'comments'>>
+  contributions: Array<ContributedProjectPreview>
+  followers: Array<ProfileSocialPreview>
   likedProjects: Array<{
     reactionId: Id<'reactions'>
     projectId: Id<'projects'>
     likedAt: number
     project: Doc<'projects'>
   }>
+  following: Array<ProfileSocialPreview>
+}
+
+export type PrivateProfileOverviewPayload = {
+  viewer: ViewerRecord
+  cityName: string | null
 }
 
 export type ViewerSummaryPayload = {
@@ -52,6 +76,15 @@ export type ViewerExplorePrefsPayload = {
 
 export type ViewerInboxSummaryPayload = {
   viewerId: Id<'users'>
+  unreadMessages: number
+}
+
+export type ProfileSocialPagePayload = {
+  page: Array<ProfileSocialPreview>
+  continueCursor: string
+  isDone: boolean
+  pageStatus?: 'SplitRecommended' | 'SplitRequired' | null
+  splitCursor?: string | null
 }
 
 export type PublicProfilePayload = {
@@ -67,6 +100,7 @@ export type PublicProfilePayload = {
     city: string | null
   }
   stats: Doc<'users'>['stats']
+  githubContributions?: Doc<'users'>['githubContributions'] | null
   projects: Array<Doc<'projects'>>
   comments: Array<{
     _id: Id<'comments'>
@@ -77,6 +111,8 @@ export type PublicProfilePayload = {
     likesCount: number
     createdAt: number
   }>
+  contributions: Array<ContributedProjectPreview>
+  followers: Array<ProfileSocialPreview>
   likedProjects: Array<{
     reactionId: Id<'reactions'>
     projectId: Id<'projects'>
@@ -84,13 +120,40 @@ export type PublicProfilePayload = {
     name: string
     likedAt: number
   }>
+  following: Array<ProfileSocialPreview>
   privacy: Doc<'users'>['privacy']
+}
+
+export type PublicProfileOverviewPayload = {
+  userId: Id<'users'>
+  viewerFollowsProfile: boolean
+  githubUsername: string
+  profile: {
+    displayName: string
+    bio: string
+    avatarUrl: string
+    buildStatus: Doc<'users'>['profile']['buildStatus']
+    socialLinks: Doc<'users'>['profile']['socialLinks']
+    city: string | null
+  }
+  stats: Doc<'users'>['stats']
+  githubContributions?: Doc<'users'>['githubContributions'] | null
+  privacy: Doc<'users'>['privacy']
+}
+
+export type ThreadedProjectComment = Doc<'comments'> & {
+  viewerHasLiked: boolean
+  replies: Array<
+    Doc<'comments'> & {
+      viewerHasLiked: boolean
+    }
+  >
 }
 
 export type ProjectDetailPayload = {
   project: Doc<'projects'>
   updates: Array<Doc<'updates'>>
-  comments: Array<Doc<'comments'>>
+  comments: Array<ThreadedProjectComment>
   viewerHasLiked: boolean
   viewerFollowsOwner: boolean
   owner: {
@@ -102,6 +165,19 @@ export type ProjectDetailPayload = {
     buildStatus: Doc<'users'>['profile']['buildStatus']
     city: string | null
   }
+}
+
+export type NotificationTarget = {
+  kind: 'profile' | 'project' | 'conversation'
+  username: string | null
+  projectFullName: string | null
+  conversationId: Id<'conversations'> | null
+  inboxTab?: 'inbox' | 'requests' | null
+  commentId: Id<'comments'> | null
+}
+
+export type NotificationRecord = Doc<'notifications'> & {
+  target?: NotificationTarget | null
 }
 
 export type EnrichedConversation = Doc<'conversations'> & {
@@ -148,10 +224,13 @@ export function mapViewer(
     id: viewer._id,
     notificationPrefs: viewer.notificationPrefs,
     onboardingCompletedAt: viewer.onboardingCompletedAt,
-    pinnedOwnedProjectIds: viewer.pinnedOwnedProjectIds,
+    onboardingSelectedOwnedProjectIds: viewer.onboardingSelectedOwnedProjectIds,
+    pinnedProfileProjectIds: viewer.pinnedProfileProjectIds,
     privacy: viewer.privacy,
     socialLinks: viewer.profile.socialLinks,
     stats: viewer.stats,
+    syncGithubStarsOnLike: viewer.syncGithubStarsOnLike,
+    unreadMessagesCount: viewer.unreadMessagesCount,
   }
 }
 
@@ -172,8 +251,21 @@ export function mapPrivateProfile(payload: PrivateProfilePayload | undefined) {
 
   return {
     comments: payload.comments,
+    contributions: payload.contributions,
+    followers: payload.followers,
+    following: payload.following,
     likedProjects: payload.likedProjects,
     projects: payload.projects,
+    viewer: mapViewer(payload.viewer, payload.cityName),
+  }
+}
+
+export function mapPrivateProfileOverview(
+  payload: PrivateProfileOverviewPayload | undefined,
+) {
+  if (!payload) return null
+
+  return {
     viewer: mapViewer(payload.viewer, payload.cityName),
   }
 }
@@ -217,11 +309,31 @@ export function mapPublicProfile(
 
   return {
     comments: payload.comments,
+    contributions: payload.contributions,
+    followers: payload.followers,
     githubUsername: payload.githubUsername,
+    githubContributions: payload.githubContributions ?? null,
+    following: payload.following,
     likedProjects: payload.likedProjects,
     privacy: payload.privacy,
     profile: payload.profile,
     projects: payload.projects,
+    stats: payload.stats,
+    userId: payload.userId,
+    viewerFollowsProfile: payload.viewerFollowsProfile,
+  }
+}
+
+export function mapPublicProfileOverview(
+  payload: PublicProfileOverviewPayload | null | undefined,
+) {
+  if (!payload) return null
+
+  return {
+    githubUsername: payload.githubUsername,
+    githubContributions: payload.githubContributions ?? null,
+    privacy: payload.privacy,
+    profile: payload.profile,
     stats: payload.stats,
     userId: payload.userId,
     viewerFollowsProfile: payload.viewerFollowsProfile,
@@ -256,7 +368,7 @@ export function mapConversationDetail(
 }
 
 export function mapNotifications(
-  payload: Array<Doc<'notifications'>> | undefined,
+  payload: Array<NotificationRecord> | undefined,
 ) {
   return payload
 }
