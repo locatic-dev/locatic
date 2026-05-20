@@ -3,7 +3,11 @@ import { ConvexError, v } from 'convex/values'
 import { mutation, query } from './_generated/server'
 import { getViewerOrThrow } from './lib/auth'
 import { buildConversationKey } from './lib/conversation'
-import { createNotificationIfEnabled } from './lib/notifications'
+import {
+  buildConversationNotificationTarget,
+  createNotificationIfEnabled,
+} from './lib/notifications'
+import { resolveUnreadMessagesCount } from './lib/viewer'
 
 export const list = query({
   args: {},
@@ -180,19 +184,21 @@ export const sendMessage = mutation({
       throw new ConvexError('Recipient not found')
     }
 
+    const sentAt = Date.now()
+
     const messageId = await ctx.db.insert('messages', {
       conversationId: conversation._id,
       senderId: viewer._id,
       content: args.content,
       readAt: null,
-      createdAt: Date.now(),
+      createdAt: sentAt,
     })
 
     await ctx.db.patch(conversation._id, {
       lastMessage: {
         content: args.content,
         senderId: viewer._id,
-        sentAt: Date.now(),
+        sentAt,
       },
       unreadCounts: {
         ...conversation.unreadCounts,
@@ -202,13 +208,24 @@ export const sendMessage = mutation({
       isRequest:
         conversation.isRequest &&
         conversation.lastMessage.senderId === viewer._id,
-      updatedAt: Date.now(),
+      updatedAt: sentAt,
+    })
+
+    await ctx.db.patch(recipient._id, {
+      unreadMessagesCount: resolveUnreadMessagesCount(recipient) + 1,
+      updatedAt: sentAt,
     })
 
     await createNotificationIfEnabled(ctx, {
       recipient,
       actor: viewer,
       type: 'dm_received',
+      conversationId: conversation._id,
+      target: buildConversationNotificationTarget(
+        conversation._id,
+        conversation.isRequest &&
+          conversation.lastMessage.senderId === viewer._id,
+      ),
     })
 
     return await ctx.db.get(messageId)
@@ -236,6 +253,9 @@ export const markRead = mutation({
         query.eq('conversationId', conversation._id),
       )
       .collect()
+    const clearedUnreadCount =
+      conversation.unreadCounts[String(viewer._id)] ?? 0
+    const readAt = Date.now()
 
     await Promise.all(
       messages
@@ -245,7 +265,7 @@ export const markRead = mutation({
         )
         .map((message) =>
           ctx.db.patch(message._id, {
-            readAt: Date.now(),
+            readAt,
           }),
         ),
     )
@@ -255,8 +275,18 @@ export const markRead = mutation({
         ...conversation.unreadCounts,
         [String(viewer._id)]: 0,
       },
-      updatedAt: Date.now(),
+      updatedAt: readAt,
     })
+
+    if (clearedUnreadCount > 0) {
+      await ctx.db.patch(viewer._id, {
+        unreadMessagesCount: Math.max(
+          0,
+          resolveUnreadMessagesCount(viewer) - clearedUnreadCount,
+        ),
+        updatedAt: readAt,
+      })
+    }
 
     return null
   },

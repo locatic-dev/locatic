@@ -1,4 +1,16 @@
 export {
+  privateProfileCommentsQueryOptions,
+  privateProfileContributionsQueryOptions,
+  privateProfileLikedProjectsQueryOptions,
+  privateProfileOverviewQueryOptions,
+  privateProfileProjectsQueryOptions,
+  privateFollowGraphQueryOptions,
   publicProfileQueryOptions,
+  publicProfileCommentsQueryOptions,
+  publicProfileContributionsQueryOptions,
+  publicProfileLikedProjectsQueryOptions,
+  publicProfileOverviewQueryOptions,
+  publicProfileProjectsQueryOptions,
   privateProfileQueryOptions,
+  publicFollowGraphQueryOptions,
 } from '@/integrations/convex/query-options'

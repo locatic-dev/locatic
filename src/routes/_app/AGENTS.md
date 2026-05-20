@@ -29,6 +29,8 @@ _app/
 - Profile, settings, notifications routes simplified — large inline style blocks replaced with utility classes
 - Authenticated routes now lean on suspense queries + route-pending fallbacks; keep loading UI in the shared pending component, not inline per route.
 - Intent preloading stays off for sidebar/tab routes to avoid fast-switch crashes.
+- Explore/profile routes should use feature search-state helpers; inbox/notifications should use feature navigation helpers.
+- Shared Convex query options live in `src/integrations/convex/query-options.ts`; use them for loader prefetches.
 
 ## ANTI-PATTERNS
 
@@ -36,3 +38,4 @@ _app/
 - DO NOT create route-specific layout wrappers — use `.page-shell`
 - DO NOT put business logic in routes — delegate to `src/features/`
 - DO NOT bypass auth — all `_app/` routes are protected by layout
+- DO NOT duplicate route search normalization or destination mapping inside protected route files

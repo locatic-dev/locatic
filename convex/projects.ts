@@ -11,6 +11,7 @@ import { internal } from './_generated/api'
 import { fanOutActivityEventToFollowers } from './lib/homeFeed'
 import { getViewerOrThrow } from './lib/auth'
 import { buildOwnerSnapshot, buildProjectSnapshot } from './lib/snapshots'
+import { resolvePinnedProfileProjectIds } from './lib/viewer'
 
 function getCommitFrequency(lastCommitAt: number) {
   const ageDays = (Date.now() - lastCommitAt) / (24 * 60 * 60 * 1000)
@@ -65,10 +66,10 @@ export const getPublicByFullName = query({
       .withIndex('by_project', (query) => query.eq('projectId', project._id))
       .collect()
 
-    const comments = await ctx.db
+    const allComments = await ctx.db
       .query('comments')
-      .withIndex('by_target_parent', (query) =>
-        query.eq('targetId', String(project._id)).eq('parentId', null),
+      .withIndex('by_target_created', (query) =>
+        query.eq('targetId', String(project._id)),
       )
       .collect()
 
@@ -92,6 +93,52 @@ export const getPublicByFullName = query({
           )
           .unique()
       : null
+
+    const commentLikeIds = requester
+      ? new Set(
+          (
+            await ctx.db
+              .query('reactions')
+              .withIndex('by_user_target_type', (query) =>
+                query
+                  .eq('userId', requester._id)
+                  .eq('targetType', 'comment')
+                  .eq('reactionType', 'like'),
+              )
+              .collect()
+          ).map((reaction) => reaction.targetId),
+        )
+      : new Set<string>()
+    const repliesByParentId = new Map(
+      allComments
+        .filter((comment) => comment.parentId === null)
+        .map((comment) => [String(comment._id), [] as typeof allComments]),
+    )
+
+    for (const comment of allComments) {
+      if (!comment.parentId) {
+        continue
+      }
+
+      const existingReplies = repliesByParentId.get(String(comment.parentId))
+      if (existingReplies) {
+        existingReplies.push(comment)
+      }
+    }
+
+    const comments = allComments
+      .filter((comment) => comment.parentId === null)
+      .sort((left, right) => right.createdAt - left.createdAt)
+      .map((comment) => ({
+        ...comment,
+        viewerHasLiked: commentLikeIds.has(String(comment._id)),
+        replies: (repliesByParentId.get(String(comment._id)) ?? [])
+          .sort((left, right) => left.createdAt - right.createdAt)
+          .map((reply) => ({
+            ...reply,
+            viewerHasLiked: commentLikeIds.has(String(reply._id)),
+          })),
+      }))
 
     return {
       project,
@@ -175,7 +222,7 @@ export const pinOwnedProject = mutation({
       throw new ConvexError('Project not found')
     }
 
-    const currentIds = new Set(viewer.pinnedOwnedProjectIds)
+    const currentIds = new Set(resolvePinnedProfileProjectIds(viewer))
     if (args.pinned) {
       currentIds.add(args.projectId)
     } else {
@@ -189,6 +236,7 @@ export const pinOwnedProject = mutation({
 
     await ctx.db.patch(viewer._id, {
       pinnedOwnedProjectIds: nextPinnedProjects,
+      pinnedProfileProjectIds: nextPinnedProjects,
       updatedAt: Date.now(),
     })
 

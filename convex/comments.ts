@@ -5,7 +5,10 @@ import { getViewerOrThrow } from './lib/auth'
 import { fanOutActivityEventToFollowers } from './lib/homeFeed'
 import type { Doc } from './lib/types'
 import { buildActorSnapshot, buildProjectSnapshot } from './lib/snapshots'
-import { createNotificationIfEnabled } from './lib/notifications'
+import {
+  buildProjectNotificationTarget,
+  createNotificationIfEnabled,
+} from './lib/notifications'
 
 export const listByTarget = query({
   args: {
@@ -145,6 +148,9 @@ export const create = mutation({
             projectId: project._id,
             commentId,
             projectName: project.github.name,
+            target: buildProjectNotificationTarget(project.github.fullName, {
+              commentId,
+            }),
           })
         }
 
@@ -184,6 +190,12 @@ export const create = mutation({
             updateId: update._id,
             commentId,
             projectName: update.projectSnapshot.name,
+            target: buildProjectNotificationTarget(
+              update.projectSnapshot.fullName,
+              {
+                commentId,
+              },
+            ),
           })
         }
       }
@@ -194,11 +206,18 @@ export const create = mutation({
       if (parent) {
         const parentAuthor = await ctx.db.get(parent.authorId)
         if (parentAuthor) {
+          const projectFullName =
+            projectTarget?.github.fullName ??
+            updateTarget?.projectSnapshot.fullName
           await createNotificationIfEnabled(ctx, {
             recipient: parentAuthor,
             actor: viewer,
             type: 'comment_replied',
+            projectId: projectTarget?._id ?? updateTarget?.projectId ?? null,
             commentId,
+            target: projectFullName
+              ? buildProjectNotificationTarget(projectFullName, { commentId })
+              : null,
           })
         }
       }

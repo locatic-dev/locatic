@@ -8,12 +8,18 @@ import {
 } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
 import { auth } from '@clerk/tanstack-react-start/server'
+import { useEffect } from 'react'
 import ClerkProvider from '../integrations/clerk/provider'
 import ConvexProvider from '../integrations/convex/provider'
 import { Logo } from '@/components/ui/logo'
 import { DotMap } from '@/components/ui/dot-map'
 import { ArrowLeft } from '@/lib/icons'
 import { createClientRouteAuthStateGetter } from '@/lib/auth-routing'
+import {
+  enableSkipLinkKeyboardMode,
+  isSkipLinkKeyboardTrigger,
+  resetSkipLinkFocusState,
+} from '@/lib/skip-link'
 import appCss from '../styles.css?url'
 import type { QueryClient } from '@tanstack/react-query'
 import type { ConvexQueryClient } from '@convex-dev/react-query'
@@ -80,8 +86,35 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
         content:
           'Discover what developers are building from locally to globally. Like it, comment on it, follow them.',
       },
+      { name: 'theme-color', content: '#0f141c' },
+      { property: 'og:type', content: 'website' },
+      { property: 'og:site_name', content: 'Locatic' },
+      { property: 'og:title', content: 'Locatic — GitHub with a map.' },
+      {
+        property: 'og:description',
+        content:
+          'Discover what developers are building from locally to globally. Like it, comment on it, follow them.',
+      },
+      { property: 'og:image', content: '/og-locatic.png' },
+      { property: 'og:image:alt', content: 'Locatic social preview' },
+      { property: 'og:image:width', content: '1200' },
+      { property: 'og:image:height', content: '630' },
+      { name: 'twitter:card', content: 'summary_large_image' },
+      { name: 'twitter:title', content: 'Locatic — GitHub with a map.' },
+      {
+        name: 'twitter:description',
+        content:
+          'Discover what developers are building from locally to globally. Like it, comment on it, follow them.',
+      },
+      { name: 'twitter:image', content: '/og-locatic.png' },
+      { name: 'twitter:image:alt', content: 'Locatic social preview' },
     ],
-    links: [{ rel: 'stylesheet', href: appCss }],
+    links: [
+      { rel: 'stylesheet', href: appCss },
+      { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' },
+      { rel: 'shortcut icon', href: '/favicon.ico' },
+      { rel: 'manifest', href: '/manifest.json' },
+    ],
   }),
   errorComponent: RootErrorPage,
   notFoundComponent: NotFoundPage,
@@ -135,7 +168,7 @@ function RootErrorPage({ error, reset }: ErrorComponentProps) {
             Retry
           </button>
           <Link
-            to="/sign-in"
+            to="/sign-in/$"
             className="inline-flex min-h-11 items-center rounded-[5px] border border-line bg-surface-alt px-4 py-2.5 font-mono text-[12.5px] font-bold text-text no-underline"
           >
             Back to sign in
@@ -212,7 +245,8 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <HeadContent />
       </head>
       <body className="antialiased wrap-anywhere">
-        <a className="lx-skip-link" href="#main-content">
+        <SkipLinkFocusManager />
+        <a className="lx-skip-link" href="#main-content" data-skip-link="true">
           Skip to main content
         </a>
         <ClerkProvider>
@@ -224,4 +258,38 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       </body>
     </html>
   )
+}
+
+function SkipLinkFocusManager() {
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (isSkipLinkKeyboardTrigger(event.key)) {
+        enableSkipLinkKeyboardMode(document)
+      }
+    }
+
+    const handlePointerIntent = () => {
+      resetSkipLinkFocusState(document)
+    }
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        resetSkipLinkFocusState(document)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown, true)
+    window.addEventListener('pointerdown', handlePointerIntent, true)
+    window.addEventListener('blur', handlePointerIntent)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown, true)
+      window.removeEventListener('pointerdown', handlePointerIntent, true)
+      window.removeEventListener('blur', handlePointerIntent)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [])
+
+  return null
 }

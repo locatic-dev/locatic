@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
-  buildPinnedProjectIds,
+  buildOwnedProjectIdsFromFullNames,
   deriveStackPrefsFromRepositories,
 } from '../helpers'
 
@@ -35,7 +35,7 @@ describe('onboarding helpers', () => {
   })
 
   it('maps pinned repo full names back to imported project ids in order', () => {
-    const pinnedProjectIds = buildPinnedProjectIds(
+    const pinnedProjectIds = buildOwnedProjectIdsFromFullNames(
       ['locatic/api', 'locatic/missing', 'locatic/web'],
       [
         {

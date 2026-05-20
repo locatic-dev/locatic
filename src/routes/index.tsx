@@ -46,7 +46,7 @@ function LandingPage() {
             github
           </a>
           <Link
-            to="/sign-in"
+            to="/sign-in/$"
             className="inline-flex min-h-11 items-center rounded-control border border-line bg-surface px-3.5 py-2 font-mono text-[12.5px] text-text no-underline transition-colors hover:border-line-strong hover:bg-surface-alt"
           >
             sign in
@@ -83,14 +83,14 @@ function LandingPage() {
 
           <div className="mt-9 flex flex-wrap items-center gap-3">
             <Link
-              to="/sign-in"
+              to="/sign-in/$"
               className="inline-flex min-h-11 items-center gap-2.5 rounded-[5px] border border-transparent bg-brand px-5.5 py-3.5 font-mono text-[13.5px] font-semibold text-brand-foreground no-underline shadow-card transition-colors hover:bg-brand/90 active:scale-[0.98]"
             >
               <BrandIcon name="github" size={16} />
               Sign in with GitHub
             </Link>
             <Link
-              to="/sign-in"
+              to="/sign-in/$"
               className="inline-flex min-h-11 items-center gap-2 rounded-card border border-line bg-transparent px-4.5 py-3.5 font-mono text-[13.5px] text-text-muted no-underline transition-colors hover:border-line-strong hover:bg-surface hover:text-text active:scale-[0.98]"
             >
               browse the feed <ArrowRight size={14} />

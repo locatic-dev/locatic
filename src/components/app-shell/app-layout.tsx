@@ -1,6 +1,10 @@
-import type { ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { SidebarNav } from './sidebar-nav'
 import { MobileTabBar } from './mobile-tab-bar'
+import {
+  parseStoredSidebarCollapsed,
+  SIDEBAR_COLLAPSED_STORAGE_KEY,
+} from '@/lib/sidebar-layout'
 
 interface AppLayoutProps {
   children: ReactNode
@@ -22,6 +26,29 @@ export function AppLayout({
   unreadNotifications,
   unreadMessages,
 }: AppLayoutProps) {
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+    setSidebarCollapsed(
+      parseStoredSidebarCollapsed(
+        window.localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY),
+      ),
+    )
+  }, [])
+
+  const handleSidebarCollapsedChange = (collapsed: boolean) => {
+    setSidebarCollapsed(collapsed)
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(
+        SIDEBAR_COLLAPSED_STORAGE_KEY,
+        String(collapsed),
+      )
+    }
+  }
+
   return (
     <div className="min-h-dvh bg-background md:flex">
       {/* Desktop sidebar — hidden on mobile, sticky so it doesn't scroll with content */}
@@ -30,6 +57,8 @@ export function AppLayout({
           viewer={viewer}
           unreadNotifications={unreadNotifications}
           unreadMessages={unreadMessages}
+          collapsed={sidebarCollapsed}
+          onCollapsedChange={handleSidebarCollapsedChange}
         />
       </div>
 
