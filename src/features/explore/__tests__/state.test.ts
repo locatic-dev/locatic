@@ -13,8 +13,6 @@ describe('explore state helpers', () => {
   it('defaults a fresh explore visit to default scope', () => {
     expect(getFreshExploreSearch()).toEqual({
       scope: 'default',
-      builderQuery: '',
-      cityQuery: '',
       selectedCityIds: [],
     })
   })
@@ -29,8 +27,6 @@ describe('explore state helpers', () => {
       }),
     ).toEqual({
       scope: 'custom',
-      builderQuery: '  avinash  ',
-      cityQuery: 'banga',
       selectedCityIds: ['city_1'],
     })
   })
@@ -43,8 +39,6 @@ describe('explore state helpers', () => {
       }),
     ).toEqual({
       scope: 'global',
-      builderQuery: '',
-      cityQuery: '',
       selectedCityIds: [],
     })
   })
@@ -78,8 +72,6 @@ describe('explore state helpers', () => {
       getExploreProjectCityIds(
         {
           scope: 'default',
-          builderQuery: '',
-          cityQuery: '',
           selectedCityIds: [],
         },
         defaultCityIds,
@@ -90,8 +82,6 @@ describe('explore state helpers', () => {
       getExploreProjectCityIds(
         {
           scope: 'custom',
-          builderQuery: '',
-          cityQuery: '',
           selectedCityIds: ['custom_city'],
         },
         defaultCityIds,
@@ -102,8 +92,6 @@ describe('explore state helpers', () => {
       getExploreProjectCityIds(
         {
           scope: 'global',
-          builderQuery: '',
-          cityQuery: '',
           selectedCityIds: [],
         },
         defaultCityIds,

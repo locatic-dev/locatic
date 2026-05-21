@@ -12,3 +12,5 @@ export const useUnreactFromTarget = () =>
   useMutation(api.reactions.unreactFromTarget)
 export const usePinOwnedProject = () =>
   useMutation(api.projects.pinOwnedProject)
+export const useUpdateProjectVisibility = () =>
+  useMutation(api.projects.updateVisibility)

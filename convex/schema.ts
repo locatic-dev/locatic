@@ -4,6 +4,7 @@ import {
   actorSnapshotValidator,
   buildStatusValidator,
   cityReferenceValidator,
+  commentTargetSnapshotValidator,
   commentTargetTypeValidator,
   commitFrequencyValidator,
   contributorSyncCadenceValidator,
@@ -88,11 +89,10 @@ export default defineSchema({
       primaryLanguages: v.array(v.string()),
       socialLinks: socialLinksValidator,
     }),
-    pinnedOwnedProjectIds: v.array(v.id('projects')),
-    pinnedProfileProjectIds: v.optional(v.array(v.id('projects'))),
-    onboardingSelectedOwnedProjectIds: v.optional(v.array(v.id('projects'))),
-    syncGithubStarsOnLike: v.optional(v.boolean()),
-    unreadMessagesCount: v.optional(v.number()),
+    pinnedProfileProjectIds: v.array(v.id('projects')),
+    onboardingSelectedOwnedProjectIds: v.array(v.id('projects')),
+    syncGithubStarsOnLike: v.boolean(),
+    unreadMessagesCount: v.number(),
     stats: v.object({
       followersCount: v.number(),
       followingCount: v.number(),
@@ -106,11 +106,9 @@ export default defineSchema({
       stackPrefs: v.array(v.string()),
     }),
     appearInExplore: v.boolean(),
-    discoverability: v.optional(
-      v.object({
-        searchText: v.optional(v.string()),
-      }),
-    ),
+    discoverability: v.object({
+      searchText: v.string(),
+    }),
     privacy: v.object({
       profileVisibility: profileVisibilityValidator,
       followGraphVisibility: tabVisibilityValidator,
@@ -172,6 +170,12 @@ export default defineSchema({
       githubUrl: v.string(),
       projectUrl: optionalStringValidator,
       primaryLanguage: optionalStringValidator,
+      languages: v.array(
+        v.object({
+          name: v.string(),
+          bytes: v.number(),
+        }),
+      ),
       topics: v.array(v.string()),
       stargazersCount: v.number(),
       lastCommitAt: v.number(),
@@ -185,6 +189,12 @@ export default defineSchema({
       likesCount: v.number(),
       commentsCount: v.number(),
       updatesCount: v.number(),
+    }),
+    exploreOwner: v.object({
+      cityId: cityReferenceValidator,
+      appearInExplore: v.boolean(),
+      isActive: v.boolean(),
+      isEligible: v.boolean(),
     }),
     ownerSnapshot: ownerSnapshotValidator,
     topContributorsSnapshot: v.array(
@@ -207,6 +217,51 @@ export default defineSchema({
     .index('by_full_name', ['github.fullName'])
     .index('by_owner', ['ownerId'])
     .index('by_owner_visible', ['ownerId', 'locatic.isVisible'])
+    .index('by_explore_eligible_added', [
+      'exploreOwner.isEligible',
+      'addedToLocaticAt',
+    ])
+    .index('by_explore_eligible_last_commit', [
+      'exploreOwner.isEligible',
+      'github.lastCommitAt',
+    ])
+    .index('by_explore_eligible_likes', [
+      'exploreOwner.isEligible',
+      'locatic.likesCount',
+    ])
+    .index('by_explore_eligible_comments', [
+      'exploreOwner.isEligible',
+      'locatic.commentsCount',
+    ])
+    .index('by_explore_eligible_stars', [
+      'exploreOwner.isEligible',
+      'github.stargazersCount',
+    ])
+    .index('by_explore_city_added', [
+      'exploreOwner.cityId',
+      'exploreOwner.isEligible',
+      'addedToLocaticAt',
+    ])
+    .index('by_explore_city_last_commit', [
+      'exploreOwner.cityId',
+      'exploreOwner.isEligible',
+      'github.lastCommitAt',
+    ])
+    .index('by_explore_city_likes', [
+      'exploreOwner.cityId',
+      'exploreOwner.isEligible',
+      'locatic.likesCount',
+    ])
+    .index('by_explore_city_comments', [
+      'exploreOwner.cityId',
+      'exploreOwner.isEligible',
+      'locatic.commentsCount',
+    ])
+    .index('by_explore_city_stars', [
+      'exploreOwner.cityId',
+      'exploreOwner.isEligible',
+      'github.stargazersCount',
+    ])
     .index('by_city_likes', ['ownerSnapshot.cityId', 'locatic.likesCount'])
     .index('by_city_comments', [
       'ownerSnapshot.cityId',
@@ -256,6 +311,12 @@ export default defineSchema({
       name: v.string(),
       fullName: v.string(),
       primaryLanguage: optionalStringValidator,
+      languages: v.array(
+        v.object({
+          name: v.string(),
+          bytes: v.number(),
+        }),
+      ),
     }),
     createdAt: v.number(),
   })
@@ -301,12 +362,14 @@ export default defineSchema({
     likesCount: v.number(),
     isDeleted: v.boolean(),
     authorSnapshot: actorSnapshotValidator,
+    targetSnapshot: commentTargetSnapshotValidator,
     createdAt: v.number(),
   })
     .index('by_target_parent', ['targetId', 'parentId'])
     .index('by_target_created', ['targetId', 'createdAt'])
     .index('by_target_likes', ['targetId', 'likesCount'])
-    .index('by_author', ['authorId']),
+    .index('by_author', ['authorId'])
+    .index('by_created_at', ['createdAt']),
 
   follows: defineTable({
     followerId: v.id('users'),
@@ -349,6 +412,7 @@ export default defineSchema({
   })
     .index('by_user_priority', ['userId', 'priority'])
     .index('by_user_created', ['userId', 'createdAt'])
+    .index('by_created_at', ['createdAt'])
     .index('by_actor_created', ['actorId', 'createdAt'])
     .index('by_user_dedupe', ['userId', 'dedupeKey']),
 
@@ -399,7 +463,9 @@ export default defineSchema({
   })
     .index('by_recipient_read', ['recipientId', 'isRead'])
     .index('by_recipient_created', ['recipientId', 'createdAt'])
-    .index('by_actor_created', ['actorId', 'createdAt']),
+    .index('by_actor_created', ['actorId', 'createdAt'])
+    .index('by_read_created', ['isRead', 'createdAt'])
+    .index('by_created_at', ['createdAt']),
 
   github_sync_log: defineTable({
     userId: v.id('users'),
@@ -434,7 +500,8 @@ export default defineSchema({
     likedAt: optionalTimestampValidator,
   })
     .index('by_user_project', ['userId', 'projectId'])
-    .index('by_user_last_seen', ['userId', 'lastSeenAt']),
+    .index('by_user_last_seen', ['userId', 'lastSeenAt'])
+    .index('by_user_dismissed', ['userId', 'dismissedAt']),
 
   pulse_snapshots: defineTable({
     scopeType: pulseScopeTypeValidator,

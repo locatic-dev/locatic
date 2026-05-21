@@ -7,7 +7,7 @@ import {
 import { useEffect, useState, useTransition } from 'react'
 import { useAction } from 'convex/react'
 import { api } from '../../../convex/_generated/api'
-import type { Doc, Id } from '../../../convex/_generated/dataModel'
+import type { Id } from '../../../convex/_generated/dataModel'
 import {
   privateFollowGraphQueryOptions,
   privateProfileCommentsQueryOptions,
@@ -29,17 +29,53 @@ import { ContributionGraph } from '@/components/ui/contribution-graph'
 import { Button } from '@/components/ui/button'
 import { compactNumber } from '@/lib/format'
 import { relativeTime } from '@/lib/time'
-import { ProjectCard, type ProjectCardData } from '@/components/ui/project-card'
+import { ProjectCard } from '@/components/ui/project-card'
 import { FormRoutePending } from '@/components/app-shell/route-pending'
 import { usePinOwnedProject } from '@/features/projects/mutations'
+import { RepositoryManagerDialog } from '@/features/github/repository-manager-dialog'
 import {
   mapPrivateProfileOverview,
   type ContributedProjectPreview,
+  type ProjectCardPreview,
+  type ProfileCommentPreview,
   type PrivateProfileOverviewPayload,
   type ProfileSocialPagePayload,
 } from '@/features/contracts'
+import {
+  getProjectCardDbId,
+  getProjectCardId,
+  getProjectCardOwner,
+  getProjectCardRepo,
+  toProjectCardData,
+} from '@/features/project-card-preview'
 import { socialLinkHref } from '@/lib/social-links'
 import { Pin } from '@/lib/icons'
+
+function isCommentTargetOpenable(
+  comment: ProfileCommentPreview,
+): comment is ProfileCommentPreview & {
+  projectOwner: string
+  projectRepo: string
+  targetAvailability: 'available'
+} {
+  return (
+    comment.targetAvailability === 'available' &&
+    Boolean(comment.projectOwner) &&
+    Boolean(comment.projectRepo)
+  )
+}
+
+function commentAvailabilityCopy(comment: ProfileCommentPreview) {
+  switch (comment.targetAvailability) {
+    case 'available':
+      return 'open in project'
+    case 'hidden':
+      return 'hidden from profile'
+    case 'deleted':
+    default:
+      return 'project removed'
+  }
+}
 
 const TAB_QUERY_STALE_TIME = 60_000
 const SOCIAL_PAGE_SIZE = 12
@@ -66,26 +102,6 @@ export const Route = createFileRoute('/_app/profile')({
   pendingMs: 250,
   component: ProfilePage,
 })
-
-function projectCardData(project: Doc<'projects'>): ProjectCardData {
-  const owner = project.github.fullName.split('/')[0] ?? ''
-  return {
-    id: String(project._id),
-    owner,
-    repo: project.github.name,
-    fullName: project.github.fullName,
-    description: project.github.description,
-    lang: project.github.primaryLanguage,
-    lastCommitLabel: relativeTime(project.github.lastCommitAt),
-    githubStars: project.github.stargazersCount,
-    locaticLikes: project.locatic.likesCount,
-    commentsCount: project.locatic.commentsCount,
-    authorName: project.ownerSnapshot.displayName,
-    authorHandle: owner,
-    authorAvatarUrl: project.ownerSnapshot.avatarUrl,
-    city: project.ownerSnapshot.cityName,
-  }
-}
 
 function mergeSocialItems<
   TItem extends {
@@ -272,19 +288,19 @@ function ProfilePage() {
   ] as const
 
   const projects =
-    (projectsQuery.data as Array<Doc<'projects'>> | undefined) ?? []
+    (projectsQuery.data as Array<ProjectCardPreview> | undefined) ?? []
   const contributions =
     (contributionsQuery.data as Array<ContributedProjectPreview> | undefined) ??
     []
   const comments =
-    (commentsQuery.data as Array<Doc<'comments'>> | undefined) ?? []
+    (commentsQuery.data as Array<ProfileCommentPreview> | undefined) ?? []
   const likedProjects =
     (likedProjectsQuery.data as
       | Array<{
           reactionId: Id<'reactions'>
           projectId: Id<'projects'>
           likedAt: number
-          project: Doc<'projects'>
+          project: ProjectCardPreview
         }>
       | undefined) ?? []
 
@@ -329,6 +345,7 @@ function ProfilePage() {
       void navigate({
         to: '/profile',
         search: (current) => ({ ...current, ...nextValues }),
+        resetScroll: false,
       })
     })
   }
@@ -361,6 +378,22 @@ function ProfilePage() {
     } finally {
       setPinPendingId(null)
     }
+  }
+
+  const openCommentTarget = (comment: ProfileCommentPreview) => {
+    if (!isCommentTargetOpenable(comment)) {
+      return
+    }
+
+    void navigate({
+      to: '/project/$owner/$repo',
+      params: {
+        owner: comment.projectOwner,
+        repo: comment.projectRepo,
+      },
+      search: { comment: String(comment._id) },
+      hash: `comment-${String(comment._id)}`,
+    })
   }
 
   const handleLoadMoreGraph = async (kind: ProfileNetworkTab) => {
@@ -595,7 +628,7 @@ function ProfilePage() {
                         void prefetchTab(tabItem.id)
                         navigateSearch({ tab: tabItem.id })
                       }}
-                      className={`relative inline-flex min-h-11 min-w-[96px] shrink-0 flex-1 items-center justify-center gap-1.75 px-3 py-3.5 text-center font-mono text-[12.5px] ${
+                      className={`relative inline-flex min-h-11 min-w-24 shrink-0 flex-1 items-center justify-center gap-1.75 px-3 py-3.5 text-center font-mono text-[12.5px] ${
                         tab === tabItem.id
                           ? 'font-semibold text-text'
                           : 'text-text-faint'
@@ -624,16 +657,41 @@ function ProfilePage() {
 
                 {!contentIsLoading && tab === 'projects' && (
                   <div className="flex flex-col gap-3.5">
+                    <div className="rounded-card border border-line bg-surface px-4 py-4 shadow-card">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <div className="mb-1 font-mono text-[12px] text-text">
+                            Missing a repo on your profile?
+                          </div>
+                          <div className="font-sans text-[13px] leading-6 text-text-muted">
+                            Add, hide, restore, or pin repositories here instead
+                            of digging through settings.
+                          </div>
+                        </div>
+                        <RepositoryManagerDialog
+                          buttonLabel="manage repositories"
+                          buttonVariant="brand"
+                          buttonSize="meta"
+                          title="Manage profile repositories"
+                          description="Choose which public GitHub repositories show up on your Locatic profile, and restore or pin the ones you want people to notice first."
+                          pinnedProjectIds={
+                            overview.viewer.pinnedProfileProjectIds
+                          }
+                          profileUsername={overview.viewer.githubUsername}
+                        />
+                      </div>
+                    </div>
+
                     {projects.length === 0 && (
                       <div className="font-mono text-[12px] text-text-faint">
                         no projects imported yet.
                       </div>
                     )}
                     {projects.map((project) => {
-                      const owner = project.github.fullName.split('/')[0] ?? ''
-                      const repo = project.github.name
-                      const projectId = project._id
-                      const projectKey = String(project._id)
+                      const owner = getProjectCardOwner(project)
+                      const repo = getProjectCardRepo(project)
+                      const projectId = getProjectCardDbId(project)
+                      const projectKey = getProjectCardId(project)
                       const isPinned = pinnedProjectIds.has(projectKey)
 
                       return (
@@ -670,7 +728,7 @@ function ProfilePage() {
                           </div>
                           <ProjectCard
                             project={{
-                              ...projectCardData(project),
+                              ...toProjectCardData(project),
                               isPinned,
                             }}
                             showActions={false}
@@ -707,13 +765,12 @@ function ProfilePage() {
                       </div>
                     )}
                     {contributions.map((entry) => {
-                      const owner =
-                        entry.project.github.fullName.split('/')[0] ?? ''
-                      const repo = entry.project.github.name
+                      const owner = getProjectCardOwner(entry.project)
+                      const repo = getProjectCardRepo(entry.project)
 
                       return (
                         <div
-                          key={String(entry.project._id)}
+                          key={getProjectCardId(entry.project)}
                           className="rounded-card border border-line bg-transparent"
                         >
                           <div className="border-b border-line px-4 py-3 font-mono text-[11px] text-text-faint">
@@ -721,7 +778,7 @@ function ProfilePage() {
                             commits matched
                           </div>
                           <ProjectCard
-                            project={projectCardData(entry.project)}
+                            project={toProjectCardData(entry.project)}
                             showActions={false}
                             className="rounded-none border-0"
                             onAuthorClick={() =>
@@ -750,24 +807,43 @@ function ProfilePage() {
 
                 {!contentIsLoading && tab === 'comments' && (
                   <div className="flex flex-col gap-4">
-                    {comments
-                      .filter((comment) => !comment.isDeleted)
-                      .map((comment) => (
-                        <div
-                          key={String(comment._id)}
-                          className="rounded-[6px] border border-line bg-surface px-4.5 py-4"
-                        >
-                          <div className="mb-2 font-mono text-[11px] text-text-faint">
-                            {comment.targetType} ·{' '}
+                    {comments.map((comment) => (
+                      <button
+                        key={String(comment._id)}
+                        type="button"
+                        onClick={() => openCommentTarget(comment)}
+                        disabled={!isCommentTargetOpenable(comment)}
+                        className={`rounded-[6px] border px-4.5 py-4 text-left transition-colors ${
+                          isCommentTargetOpenable(comment)
+                            ? 'border-line bg-surface hover:border-line-strong hover:bg-surface-alt'
+                            : 'border-line bg-surface/70 opacity-70'
+                        }`}
+                      >
+                        <div className="mb-2 flex flex-wrap items-center justify-between gap-2.5">
+                          <span className="font-mono text-[11px] text-text-faint">
+                            {comment.targetLabel}
+                          </span>
+                          <span className="font-mono text-[11px] text-text-faint">
                             {relativeTime(comment.createdAt)}
-                          </div>
-                          <p className="m-0 font-sans text-[13.5px] leading-[1.6] text-text">
-                            {comment.content}
-                          </p>
+                          </span>
                         </div>
-                      ))}
-                    {comments.filter((comment) => !comment.isDeleted).length ===
-                      0 && (
+                        <p className="m-0 font-sans text-[13.5px] leading-[1.6] text-text">
+                          {comment.content}
+                        </p>
+                        <div className="mt-3 flex flex-wrap items-center gap-3 font-mono text-[11px] text-text-faint">
+                          <span>
+                            {comment.likesCount}{' '}
+                            {comment.likesCount === 1 ? 'like' : 'likes'}
+                          </span>
+                          <span>
+                            {comment.replyCount}{' '}
+                            {comment.replyCount === 1 ? 'reply' : 'replies'}
+                          </span>
+                          <span>{commentAvailabilityCopy(comment)}</span>
+                        </div>
+                      </button>
+                    ))}
+                    {comments.length === 0 && (
                       <div className="font-mono text-[12px] text-text-faint">
                         no comments yet.
                       </div>
@@ -783,15 +859,14 @@ function ProfilePage() {
                       </div>
                     )}
                     {likedProjects.map((likedProject) => {
-                      const owner =
-                        likedProject.project.github.fullName.split('/')[0] ?? ''
-                      const repo = likedProject.project.github.name
+                      const owner = getProjectCardOwner(likedProject.project)
+                      const repo = getProjectCardRepo(likedProject.project)
 
                       return (
                         <ProjectCard
                           key={String(likedProject.projectId)}
                           project={{
-                            ...projectCardData(likedProject.project),
+                            ...toProjectCardData(likedProject.project),
                             liked: true,
                           }}
                           showActions={false}

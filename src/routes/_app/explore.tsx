@@ -5,7 +5,7 @@ import {
   useQueryClient,
   useSuspenseQuery,
 } from '@tanstack/react-query'
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
+import { useEffect, useState } from 'react'
 import type { Doc, Id } from '../../../convex/_generated/dataModel'
 import {
   builderSearchQueryOptions,
@@ -18,17 +18,15 @@ import {
   citiesSearchQueryOptions,
   popularCitiesQueryOptions,
 } from '@/features/cities/queries'
-import { ProjectCard, type ProjectCardData } from '@/components/ui/project-card'
+import { ProjectCard } from '@/components/ui/project-card'
 import { Input } from '@/components/ui/input'
 import { CityPill } from '@/components/ui/city-pill'
+import { CityCombobox } from '@/components/ui/city-combobox'
 import { EmptyState } from '@/components/ui/empty-state'
 import { LxAvatar } from '@/components/ui/lx-avatar'
-import { Button } from '@/components/ui/button'
-import { relativeTime } from '@/lib/time'
 import { useLikeProject, useUnlikeProject } from '@/features/projects/mutations'
 import { showGithubSyncFeedback } from '@/features/projects/github-sync-feedback'
 import { useFollowUser, useUnfollowUser } from '@/features/follows/mutations'
-import { useUpdateExploreConfig } from '@/features/settings/mutations'
 import { useDismissExploreProject } from '@/features/explore/mutations'
 import { useOpenConversation } from '@/features/inbox/use-open-conversation'
 import { disabledQuery } from '@/lib/query'
@@ -36,21 +34,21 @@ import { FeedRoutePending } from '@/components/app-shell/route-pending'
 import {
   mapViewerExplorePrefs,
   mapViewerLikedProjectIds,
+  type ProjectCardPreview,
   type ViewerExplorePrefsPayload,
   type ViewerLikedProjectIdsPayload,
 } from '@/features/contracts'
+import { toProjectCardData } from '@/features/project-card-preview'
 import {
   viewerExplorePrefsQueryOptions,
   viewerLikedProjectIdsQueryOptions,
 } from '@/features/viewer/queries'
-import { Plus, Search, X } from '@/lib/icons'
 import {
   deriveDefaultExploreCityIds,
   getExploreProjectCityIds,
   getExploreScopeStatusCopy,
   isExploreProjectFeedGlobal,
   normalizeExploreSearch,
-  type ExploreSearch,
 } from '@/features/explore/state'
 
 type BuilderPreview = {
@@ -66,7 +64,7 @@ type ExploreFeedPayload = {
   scope: 'default' | 'global' | 'custom'
   appliedCityIds: Array<Id<'cities'>>
   isCityFiltered: boolean
-  projects: Array<Doc<'projects'>>
+  projects: Array<ProjectCardPreview>
 }
 
 function updateExploreFeedPayload(
@@ -84,13 +82,10 @@ function updateExploreFeedPayload(
   return {
     ...payload,
     projects: payload.projects.map((project) =>
-      project._id === projectId
+      project.projectId === projectId
         ? {
             ...project,
-            locatic: {
-              ...project.locatic,
-              likesCount: Math.max(0, project.locatic.likesCount + delta),
-            },
+            locaticLikes: Math.max(0, project.locaticLikes + delta),
           }
         : project,
     ),
@@ -190,7 +185,6 @@ function ExplorePage() {
   const selectedCityIds = effectiveSelectedCityIds as Array<Id<'cities'>>
   const defaultScopedCityIds = defaultCityIds as Array<Id<'cities'>>
   const viewerId = explorePrefs?.viewerId
-  const cityPickerRef = useRef<HTMLDivElement | null>(null)
   const currentScope = search.scope
   const isGlobalFeed = isExploreProjectFeedGlobal(currentScope)
 
@@ -211,7 +205,6 @@ function ExplorePage() {
   const unlikeProject = useUnlikeProject()
   const followUser = useFollowUser()
   const unfollowUser = useUnfollowUser()
-  const updateExploreConfig = useUpdateExploreConfig()
   const dismissProject = useDismissExploreProject()
   const { openConversation, pendingUserId } = useOpenConversation()
 
@@ -225,19 +218,17 @@ function ExplorePage() {
   const [selectedCityLabels, setSelectedCityLabels] = useState<
     Record<string, string>
   >({})
-  const [debouncedBuilderQuery, setDebouncedBuilderQuery] = useState(
-    search.builderQuery.trim(),
-  )
-  const [isCityDropdownOpen, setIsCityDropdownOpen] = useState(false)
-  const [activeCityIndex, setActiveCityIndex] = useState(-1)
+  const [builderQuery, setBuilderQuery] = useState('')
+  const [cityQuery, setCityQuery] = useState('')
+  const [debouncedBuilderQuery, setDebouncedBuilderQuery] = useState('')
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
-      setDebouncedBuilderQuery(search.builderQuery.trim())
+      setDebouncedBuilderQuery(builderQuery.trim())
     }, 250)
 
     return () => window.clearTimeout(timeout)
-  }, [search.builderQuery])
+  }, [builderQuery])
 
   const selectedCitiesQuery = useQuery({
     ...citiesByIdsQueryOptions(selectedCityIds),
@@ -245,8 +236,8 @@ function ExplorePage() {
   })
   const popularCitiesQuery = useQuery(popularCitiesQueryOptions())
   const citySearchResultsQuery = useQuery({
-    ...citiesSearchQueryOptions(search.cityQuery.trim() || 'unused'),
-    enabled: search.cityQuery.trim().length > 0,
+    ...citiesSearchQueryOptions(cityQuery.trim() || 'unused'),
+    enabled: cityQuery.trim().length > 0,
   })
   const builderSearchQuery = useQuery(
     debouncedBuilderQuery.length > 0
@@ -359,7 +350,9 @@ function ExplorePage() {
 
   const scopedFeedData = scopedFeedQuery.data as ExploreFeedPayload | undefined
   const projects = scopedFeedData?.projects ?? []
-  const items = projects.filter((item) => !dismissedIds.has(String(item._id)))
+  const items = projects.filter(
+    (item) => !dismissedIds.has(String(item.projectId)),
+  )
   const nearbyBuilders =
     (nearbyBuildersData as Array<BuilderPreview> | undefined) ?? []
   const builderResults =
@@ -373,7 +366,7 @@ function ExplorePage() {
   }))
 
   const cityResults =
-    search.cityQuery.trim().length > 0
+    cityQuery.trim().length > 0
       ? ((citySearchResultsQuery.data as Array<Doc<'cities'>> | undefined) ??
         [])
       : ((popularCitiesQuery.data as Array<Doc<'cities'>> | undefined) ?? [])
@@ -381,12 +374,7 @@ function ExplorePage() {
     (city: Doc<'cities'>) =>
       !effectiveSelectedCityIds.includes(String(city._id)),
   )
-  const visibleCities = availableCities.slice(0, 8)
-  const showCityDropdown = isCityDropdownOpen && visibleCities.length > 0
-  const activeCity =
-    activeCityIndex >= 0 ? visibleCities[activeCityIndex] : null
-
-  const updateSearch = (next: Partial<ExploreSearch>) =>
+  const updateSearch = (next: Partial<typeof search>) =>
     void navigate({
       to: '/explore',
       search: {
@@ -394,32 +382,8 @@ function ExplorePage() {
         ...next,
       },
       replace: true,
+      resetScroll: false,
     })
-
-  useEffect(() => {
-    if (!showCityDropdown) {
-      setActiveCityIndex(-1)
-      return
-    }
-
-    setActiveCityIndex((current) =>
-      current >= 0 && current < visibleCities.length ? current : 0,
-    )
-  }, [showCityDropdown, visibleCities.length])
-
-  useEffect(() => {
-    const handlePointerDown = (event: MouseEvent) => {
-      if (
-        cityPickerRef.current &&
-        !cityPickerRef.current.contains(event.target as Node)
-      ) {
-        setIsCityDropdownOpen(false)
-      }
-    }
-
-    document.addEventListener('mousedown', handlePointerDown)
-    return () => document.removeEventListener('mousedown', handlePointerDown)
-  }, [])
 
   const persistCityIds = async (nextCityIds: Array<Id<'cities'>>) => {
     if (!explorePrefs) {
@@ -432,24 +396,15 @@ function ExplorePage() {
     const nextScope = nextCityIdStrings.length > 0 ? 'custom' : 'global'
 
     setPendingCityIds(true)
-    setIsCityDropdownOpen(false)
-    setActiveCityIndex(-1)
 
     try {
       updateSearch({
         scope: nextScope,
-        cityQuery: '',
         selectedCityIds: nextCityIdStrings,
       })
-      if (nextCityIds.length > 0) {
-        await updateExploreConfig({
-          appearInExplore: explorePrefs.appearInExplore,
-          cityIds: nextCityIds,
-          stackPrefs: explorePrefs.exploreConfig.stackPrefs,
-        })
-      }
+      setCityQuery('')
     } catch (error) {
-      console.error('Failed to persist city filters', error)
+      console.error('Failed to update city filters', error)
     } finally {
       setPendingCityIds(false)
     }
@@ -473,16 +428,23 @@ function ExplorePage() {
     }
   }
 
-  const handleLike = async (
-    projectId: Id<'projects'>,
-    projectKey: string,
-    currentlyLiked: boolean,
-  ) => {
+  const handleLike = async (projectId: Id<'projects'>, projectKey: string) => {
     if (pendingLikes.has(projectKey)) return
     setPendingLikes((current) => new Set(current).add(projectKey))
 
     try {
-      await likeMutation.mutateAsync({ currentlyLiked, projectId })
+      const currentLikedProjectIds =
+        queryClient.getQueryData<ViewerLikedProjectIdsPayload>(
+          likedProjectIdsQueryKey,
+        )
+      await likeMutation.mutateAsync({
+        currentlyLiked: Boolean(
+          currentLikedProjectIds?.likedProjectIds
+            .map(String)
+            .includes(projectKey) ?? likedProjectIds.has(projectKey),
+        ),
+        projectId,
+      })
     } catch (error) {
       console.error('Like failed', error)
     } finally {
@@ -527,54 +489,10 @@ function ExplorePage() {
     }
   }
 
-  const handleCityKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === 'Escape') {
-      setIsCityDropdownOpen(false)
-      setActiveCityIndex(-1)
-      return
-    }
-
-    if (visibleCities.length === 0) {
-      return
-    }
-
-    if (event.key === 'ArrowDown') {
-      event.preventDefault()
-      setIsCityDropdownOpen(true)
-      setActiveCityIndex((current) =>
-        current < visibleCities.length - 1 ? current + 1 : 0,
-      )
-      return
-    }
-
-    if (event.key === 'ArrowUp') {
-      event.preventDefault()
-      setIsCityDropdownOpen(true)
-      setActiveCityIndex((current) =>
-        current > 0 ? current - 1 : visibleCities.length - 1,
-      )
-      return
-    }
-
-    if (event.key === 'Enter' && activeCity) {
-      event.preventDefault()
-      void persistCityIds([...selectedCityIds, activeCity._id])
-    }
-  }
-
   const removeCityById = (cityId: string) =>
     void persistCityIds(
       selectedCityIds.filter((selectedId) => String(selectedId) !== cityId),
     )
-
-  const explanationStats = [
-    {
-      l: 'selected cities',
-      v: `${effectiveSelectedCityIds.length}`,
-    },
-    { l: 'matching projects', v: `${items.length}` },
-    { l: 'nearby builders', v: `${nearbyBuilders.length}` },
-  ]
 
   return (
     <div className="lx-page-shell">
@@ -611,75 +529,23 @@ function ExplorePage() {
           <Input
             type="text"
             placeholder="search builders by username or name"
-            value={search.builderQuery}
-            onChange={(event) =>
-              updateSearch({ builderQuery: event.target.value })
-            }
+            value={builderQuery}
+            onChange={(event) => setBuilderQuery(event.target.value)}
             className="border-line bg-canvas font-mono text-sm text-text placeholder:text-text-faint"
             aria-label="Search builders"
           />
 
-          <div ref={cityPickerRef} className="relative">
-            <div className="relative">
-              <Search
-                size={14}
-                className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-text-faint"
-              />
-              <Input
-                type="text"
-                role="combobox"
-                aria-activedescendant={
-                  activeCity
-                    ? `explore-city-option-${String(activeCity._id)}`
-                    : undefined
-                }
-                aria-autocomplete="list"
-                aria-expanded={showCityDropdown}
-                aria-controls="explore-city-options"
-                placeholder="search and add city filters"
-                value={search.cityQuery}
-                onChange={(event) => {
-                  setIsCityDropdownOpen(true)
-                  updateSearch({ cityQuery: event.target.value })
-                }}
-                onFocus={() => setIsCityDropdownOpen(true)}
-                onKeyDown={handleCityKeyDown}
-                className="border-line bg-canvas pl-9 font-mono text-sm text-text placeholder:text-text-faint"
-                aria-label="Search and add city filters"
-              />
-            </div>
-
-            {showCityDropdown && (
-              <div
-                id="explore-city-options"
-                role="listbox"
-                className="absolute z-10 mt-2 max-h-72 w-full overflow-y-auto rounded-card border border-line bg-surface shadow-floating"
-              >
-                {visibleCities.map((city, index) => (
-                  <div
-                    key={String(city._id)}
-                    id={`explore-city-option-${String(city._id)}`}
-                    role="option"
-                    tabIndex={-1}
-                    aria-selected={index === activeCityIndex}
-                    onMouseDown={(event) => event.preventDefault()}
-                    onClick={() =>
-                      void persistCityIds([...selectedCityIds, city._id])
-                    }
-                    onMouseEnter={() => setActiveCityIndex(index)}
-                    className={`flex min-h-11 w-full items-center justify-between gap-3 border-b border-line px-3 py-2 text-left transition-colors last:border-b-0 hover:bg-surface-alt ${
-                      index === activeCityIndex ? 'bg-surface-alt' : ''
-                    }`}
-                  >
-                    <span className="font-mono text-[12px] text-text">
-                      {city.displayName}
-                    </span>
-                    <Plus size={12} className="text-text-faint" />
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          <CityCombobox
+            id="explore-city"
+            label="Search and add city filters"
+            query={cityQuery}
+            onQueryChange={setCityQuery}
+            cities={availableCities}
+            onSelectCity={(city) =>
+              void persistCityIds([...selectedCityIds, city._id])
+            }
+            placeholder="search and add city filters"
+          />
         </div>
       </header>
 
@@ -690,11 +556,7 @@ function ExplorePage() {
               <div className="py-10">
                 <EmptyState
                   title="no projects match these cities yet."
-                  description="Your city filter is strict right now. Reset it to see builders everywhere, or keep these cities saved and check back later."
-                  action={{
-                    label: 'show everywhere',
-                    onClick: () => void persistCityIds([]),
-                  }}
+                  description="Try another city, remove one of your selected filters, or check back after more projects are imported."
                 />
               </div>
             )}
@@ -769,46 +631,29 @@ function ExplorePage() {
             {!isBuilderSearchActive && items.length > 0 && (
               <div className="flex flex-col gap-3.5">
                 {items.map((item, index) => {
-                  const owner = item.github.fullName.split('/')[0] ?? ''
-                  const repo = item.github.name
-                  const projectId = item._id
-                  const projectKey = String(item._id)
-                  const ownerId = item.ownerId
-                  const ownerKey = String(item.ownerId)
+                  const owner = item.owner
+                  const repo = item.repo
+                  const projectId = item.projectId
+                  const projectKey = String(item.projectId)
+                  const ownerId = item.ownerUserId
+                  const ownerKey = item.authorHandle
                   const liked = likedProjectIds.has(projectKey)
                   const followed =
                     followOverrides[ownerKey] ?? followedUserIds.has(ownerKey)
 
-                  const cardData: ProjectCardData = {
-                    id: projectKey,
-                    owner,
-                    repo,
-                    fullName: item.github.fullName,
-                    description: item.github.description,
-                    lang: item.github.primaryLanguage,
-                    lastCommitLabel: relativeTime(item.github.lastCommitAt),
-                    githubStars: item.github.stargazersCount,
-                    locaticLikes: item.locatic.likesCount,
-                    commentsCount: item.locatic.commentsCount,
-                    authorName: item.ownerSnapshot.displayName,
-                    authorHandle: owner,
-                    authorAvatarUrl: item.ownerSnapshot.avatarUrl,
-                    city: item.ownerSnapshot.cityName,
-                    liked,
-                    followed,
-                    isRecommended: index === 0,
-                  }
-
                   return (
                     <ProjectCard
                       key={projectId}
-                      project={cardData}
+                      project={{
+                        ...toProjectCardData(item),
+                        liked,
+                        followed,
+                        isRecommended: index === 0,
+                      }}
                       onDismiss={() =>
                         void handleDismiss(projectId, projectKey)
                       }
-                      onLike={() =>
-                        void handleLike(projectId, projectKey, liked)
-                      }
+                      onLike={() => void handleLike(projectId, projectKey)}
                       onAuthorClick={() =>
                         void navigate({
                           to: '/u/$username',
@@ -842,7 +687,6 @@ function ExplorePage() {
 
             <div className="mt-8 md:hidden">
               <ExploreRail
-                explanationStats={explanationStats}
                 hasSelectedCities={hasSelectedCities}
                 nearbyBuilders={nearbyBuilders}
                 compact
@@ -868,7 +712,6 @@ function ExplorePage() {
                   })
                 }
                 onRemoveCity={removeCityById}
-                onShowEverywhere={() => void persistCityIds([])}
                 pendingFollows={pendingFollows}
                 pendingUserId={pendingUserId}
                 selectedCityChips={selectedCityChips}
@@ -881,7 +724,6 @@ function ExplorePage() {
 
           <aside className="sticky top-6 hidden w-full shrink-0 md:block md:w-70">
             <ExploreRail
-              explanationStats={explanationStats}
               hasSelectedCities={hasSelectedCities}
               nearbyBuilders={nearbyBuilders}
               compact
@@ -907,7 +749,6 @@ function ExplorePage() {
                 })
               }
               onRemoveCity={removeCityById}
-              onShowEverywhere={() => void persistCityIds([])}
               pendingFollows={pendingFollows}
               pendingUserId={pendingUserId}
               selectedCityChips={selectedCityChips}
@@ -923,7 +764,6 @@ function ExplorePage() {
 }
 
 function ExploreRail({
-  explanationStats,
   compact = false,
   followOverrides,
   followedUserIds,
@@ -933,13 +773,11 @@ function ExploreRail({
   onMessageBuilder,
   onOpenBuilderProfile,
   onRemoveCity,
-  onShowEverywhere,
   pendingFollows,
   pendingUserId,
   selectedCityChips,
   viewerId,
 }: {
-  explanationStats: Array<{ l: string; v: string }>
   compact?: boolean
   followOverrides: Record<string, boolean>
   followedUserIds: Set<string>
@@ -949,7 +787,6 @@ function ExploreRail({
   onMessageBuilder: (builder: BuilderPreview) => (() => void) | undefined
   onOpenBuilderProfile: (builder: BuilderPreview) => void
   onRemoveCity: (cityId: string) => void
-  onShowEverywhere: () => void
   pendingFollows: Set<string>
   pendingUserId: string | null
   selectedCityChips: Array<{ id: string; name: string }>
@@ -994,28 +831,12 @@ function ExploreRail({
 
       <div>
         <div className="mb-3 font-mono text-[10.5px] uppercase tracking-[0.06em] text-text-faint">
-          why this feed
-        </div>
-        <div className="flex flex-col gap-3">
-          {explanationStats.map((stat) => (
-            <div key={stat.l}>
-              <div className="mb-0.5 font-mono text-lg text-text">{stat.v}</div>
-              <div className="font-mono text-[11px] text-text-faint">
-                {stat.l}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div>
-        <div className="mb-3 font-mono text-[10.5px] uppercase tracking-[0.06em] text-text-faint">
           city filters
         </div>
         <p className="mb-3 font-mono text-[11px] leading-5 text-text-faint">
           {hasSelectedCities
-            ? 'Selected cities are strict for projects. Clear them to switch this session back to global discovery.'
-            : 'Project discovery is global right now. Add one or more cities to make the feed strict again.'}
+            ? 'Selected cities are strict for projects. Remove chips to broaden the feed again.'
+            : 'Project discovery is following your current scope. Add one or more cities to narrow it down.'}
         </p>
         <div className="flex flex-wrap gap-2">
           {selectedCityChips.length > 0 ? (
@@ -1032,18 +853,6 @@ function ExploreRail({
             </span>
           )}
         </div>
-
-        {hasSelectedCities && (
-          <Button
-            variant="monoOutline"
-            size="meta"
-            onClick={onShowEverywhere}
-            className="mt-4 font-mono"
-          >
-            <X size={12} />
-            show everywhere
-          </Button>
-        )}
       </div>
     </div>
   )

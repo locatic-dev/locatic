@@ -10,18 +10,19 @@ import {
 import {
   useDeactivateAccount,
   useDeleteAccount,
-  useUpdateGithubSyncPreference,
   useUpdateNotificationPrefs,
   useUpdatePrivacy,
   useUpdateProfile,
 } from '@/features/settings/mutations'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { CityCombobox } from '@/components/ui/city-combobox'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 import { BrandIcon } from '@/components/ui/brand-icon'
 import { FormRoutePending } from '@/components/app-shell/route-pending'
 import { CheckCircle2 } from '@/lib/icons'
+import { RepositoryManagerDialog } from '@/features/github/repository-manager-dialog'
 import {
   BUILD_STATUS,
   StatusPill,
@@ -93,7 +94,6 @@ function SettingsPage() {
   const updateProfile = useUpdateProfile()
   const updatePrivacy = useUpdatePrivacy()
   const updateNotifPrefs = useUpdateNotificationPrefs()
-  const updateGithubSyncPreference = useUpdateGithubSyncPreference()
   const deactivate = useDeactivateAccount()
   const deleteAccount = useDeleteAccount()
 
@@ -273,37 +273,29 @@ function SettingsPage() {
                       <label htmlFor="settings-city" className={labelClassName}>
                         city
                       </label>
-                      <Input
+                      <CityCombobox
                         id="settings-city"
-                        value={citySearch}
-                        onChange={(event) => setCitySearch(event.target.value)}
-                        className={fieldClassName}
+                        label="Search for your city"
+                        query={citySearch}
+                        onQueryChange={setCitySearch}
+                        cities={(citySearch.trim()
+                          ? cityResults
+                          : cityResults.slice(0, 6)
+                        ).slice(0, 6)}
+                        onSelectCity={(city) => {
+                          setSelectedCityId(city._id)
+                          setSelectedCityName(city.displayName)
+                          setCitySearch('')
+                        }}
                         placeholder={selectedCityName ?? 'search for your city'}
+                        inputClassName={fieldClassName}
+                        maxResults={6}
                       />
                       {selectedCityName && (
                         <div className="mt-2 font-mono text-[11px] text-text-faint">
                           selected: {selectedCityName}
                         </div>
                       )}
-                      {(citySearch.trim()
-                        ? cityResults
-                        : cityResults.slice(0, 6)
-                      )
-                        .slice(0, 6)
-                        .map((city) => (
-                          <button
-                            key={String(city._id)}
-                            onClick={() => {
-                              setSelectedCityId(city._id)
-                              setSelectedCityName(city.displayName)
-                              setCitySearch('')
-                            }}
-                            className="mt-2 w-full rounded border border-dashed border-line bg-transparent px-2.5 py-2 text-left font-mono text-[11.5px] text-text-muted"
-                            type="button"
-                          >
-                            {city.displayName}
-                          </button>
-                        ))}
                     </div>
                   </div>
                 </div>
@@ -533,30 +525,25 @@ function SettingsPage() {
                   </span>
                 </div>
                 <div className="rounded-card border border-line bg-surface px-4.5 py-4 shadow-card">
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <div className="mb-0.5 font-mono text-[13px] text-text">
-                        also star repos on GitHub
-                      </div>
-                      <div className="font-sans text-xs leading-5 text-text-faint">
-                        When enabled, liking a repo on Locatic will also try to
-                        star it on GitHub. Your Locatic like will still be saved
-                        even if GitHub sync fails.
-                      </div>
+                  <div className="mb-3">
+                    <div className="mb-0.5 font-mono text-[13px] text-text">
+                      manage repositories
                     </div>
-                    <Switch
-                      checked={profile.viewer.syncGithubStarsOnLike}
-                      onCheckedChange={async (checked) => {
-                        try {
-                          await updateGithubSyncPreference({
-                            syncGithubStarsOnLike: checked,
-                          })
-                        } catch (error) {
-                          console.error(error)
-                        }
-                      }}
-                    />
+                    <div className="font-sans text-xs leading-5 text-text-faint">
+                      Add, hide, restore, or pin public GitHub repos after
+                      onboarding. Locatic likes stay separate from GitHub stars.
+                    </div>
                   </div>
+                  <RepositoryManagerDialog
+                    buttonLabel="manage repositories"
+                    buttonVariant="monoOutline"
+                    buttonSize="meta"
+                    title="Manage repositories"
+                    description="Search every public GitHub repo we can load for your account, then add, hide, restore, or pin the ones that belong on your Locatic profile."
+                    emptyStateCopy="No imported or public GitHub repositories are available yet."
+                    pinnedProjectIds={profile.viewer.pinnedProfileProjectIds}
+                    profileUsername={profile.viewer.githubUsername}
+                  />
                 </div>
               </div>
             )}
@@ -598,8 +585,8 @@ function SettingsPage() {
                     delete account
                   </div>
                   <p className="mb-3.5 mt-0 font-sans text-[13px] leading-normal text-text-muted">
-                    permanently removes all your Locatic data and unstars all
-                    repos starred via Locatic. this cannot be undone.
+                    permanently removes all your Locatic data. this cannot be
+                    undone.
                   </p>
                   <Button
                     variant="destructive"
