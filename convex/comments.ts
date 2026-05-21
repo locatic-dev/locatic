@@ -10,6 +10,36 @@ import {
   createNotificationIfEnabled,
 } from './lib/notifications'
 
+function buildCommentTargetSnapshot(args: {
+  project: Doc<'projects'> | null
+  update: Doc<'updates'> | null
+}) {
+  const projectFullName =
+    args.project?.github.fullName ?? args.update?.projectSnapshot.fullName
+  if (!projectFullName) {
+    throw new ConvexError('Comment target snapshot could not be created')
+  }
+
+  const projectOwner = projectFullName.split('/')[0]
+  const projectRepo =
+    args.project?.github.name ?? args.update?.projectSnapshot.name
+  if (!projectOwner || !projectRepo) {
+    throw new ConvexError('Comment target snapshot is incomplete')
+  }
+
+  const targetLabel = args.update
+    ? `${projectFullName} update`
+    : projectFullName
+
+  return {
+    projectFullName,
+    projectOwner,
+    projectRepo,
+    targetLabel,
+    updateTitle: args.update?.title ?? null,
+  }
+}
+
 export const listByTarget = query({
   args: {
     targetType: v.union(v.literal('project'), v.literal('update')),
@@ -95,11 +125,10 @@ export const create = mutation({
       const parent = await ctx.db.get(args.parentId)
       if (
         !parent ||
-        parent.parentId ||
         parent.targetType !== args.targetType ||
         parent.targetId !== args.targetId
       ) {
-        throw new ConvexError('Replies are limited to one level')
+        throw new ConvexError('Reply parent does not match this target')
       }
 
       await ctx.db.patch(parent._id, {
@@ -117,6 +146,10 @@ export const create = mutation({
       likesCount: 0,
       isDeleted: false,
       authorSnapshot: actorSnapshot,
+      targetSnapshot: buildCommentTargetSnapshot({
+        project: projectTarget,
+        update: updateTarget,
+      }),
       createdAt: Date.now(),
     })
 

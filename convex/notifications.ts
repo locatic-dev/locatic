@@ -5,6 +5,7 @@ import {
   type QueryCtx,
 } from './_generated/server'
 import { v } from 'convex/values'
+import { paginationOptsValidator } from 'convex/server'
 
 import { getViewerOrThrow } from './lib/auth'
 import type { Id } from './_generated/dataModel'
@@ -135,18 +136,25 @@ async function normalizeNotificationTarget(
 }
 
 export const list = query({
-  args: {},
-  handler: async (ctx) => {
+  args: {
+    paginationOpts: v.optional(paginationOptsValidator),
+  },
+  handler: async (ctx, args) => {
     const viewer = await getViewerOrThrow(ctx)
-    const notifications = await ctx.db
+    const paginationOpts = args.paginationOpts ?? {
+      cursor: null,
+      numItems: 20,
+    }
+    const notificationsPage = await ctx.db
       .query('notifications')
       .withIndex('by_recipient_created', (query) =>
         query.eq('recipientId', viewer._id),
       )
-      .collect()
+      .order('desc')
+      .paginate(paginationOpts)
 
-    return await Promise.all(
-      notifications.map(async (notification) => {
+    const page = await Promise.all(
+      notificationsPage.page.map(async (notification) => {
         const resolvedTarget = notification.target
           ? await normalizeNotificationTarget(ctx, notification.target)
           : await resolveNotificationTarget(ctx, notification)
@@ -157,6 +165,11 @@ export const list = query({
         }
       }),
     )
+
+    return {
+      ...notificationsPage,
+      page,
+    }
   },
 })
 

@@ -157,11 +157,25 @@ export const actorSnapshotValidator = v.object({
   cityName: optionalStringValidator,
 })
 
+export const commentTargetSnapshotValidator = v.object({
+  projectFullName: v.string(),
+  projectOwner: v.string(),
+  projectRepo: v.string(),
+  targetLabel: v.string(),
+  updateTitle: optionalStringValidator,
+})
+
 export const projectSnapshotValidator = v.object({
   name: v.string(),
   fullName: v.string(),
   description: optionalStringValidator,
   primaryLanguage: optionalStringValidator,
+  languages: v.array(
+    v.object({
+      name: v.string(),
+      bytes: v.number(),
+    }),
+  ),
   likesCount: v.number(),
   commentsCount: v.number(),
   stargazersCount: v.number(),

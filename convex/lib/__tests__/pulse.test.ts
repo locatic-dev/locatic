@@ -13,6 +13,7 @@ function createProject(
       fullName: `owner/${partial.projectId}`,
       description: null,
       primaryLanguage: 'TypeScript',
+      languages: [],
       likesCount: partial.likesCount ?? 0,
       commentsCount: partial.commentsCount ?? 0,
       stargazersCount: partial.stargazersCount ?? 0,

@@ -5,10 +5,10 @@ import {
   useSuspenseQuery,
 } from '@tanstack/react-query'
 import { useState } from 'react'
-import type { Doc, Id } from '../../../convex/_generated/dataModel'
+import type { Id } from '../../../convex/_generated/dataModel'
 import { homeFeedQueryOptions } from '@/features/home/queries'
 import { viewerLikedProjectIdsQueryOptions } from '@/features/viewer/queries'
-import { ProjectCard, type ProjectCardData } from '@/components/ui/project-card'
+import { ProjectCard } from '@/components/ui/project-card'
 import { EmptyState } from '@/components/ui/empty-state'
 import { PageHeader } from '@/components/app-shell/page-header'
 import { relativeTime } from '@/lib/time'
@@ -18,68 +18,17 @@ import { useOpenConversation } from '@/features/inbox/use-open-conversation'
 import { getHomeCardDmTargetUserId } from '@/features/home/project-card-targets'
 import { getHomeFeedActivityLabel } from '@/features/home/activity-labels'
 import {
+  type HomeFeedPage,
+  updateHomeFeedPayload,
+  updateLikedProjectIdsPayload,
+} from '@/features/home/cache'
+import {
   mapViewerLikedProjectIds,
   type ViewerLikedProjectIdsPayload,
 } from '@/features/contracts'
+import { toProjectCardData } from '@/features/project-card-preview'
 import { FeedRoutePending } from '@/components/app-shell/route-pending'
 import { getFreshExploreSearch } from '@/features/explore/state'
-
-function updateHomeFeedPayload(
-  payload:
-    | {
-        items: Array<Doc<'home_feed_items'>>
-        nextCursor: number | null
-      }
-    | undefined,
-  projectId: string,
-  currentlyLiked: boolean,
-  nextLiked: boolean,
-) {
-  if (!payload) {
-    return payload
-  }
-
-  return {
-    ...payload,
-    items: payload.items.map((item) => {
-      if (String(item.projectId) !== projectId) {
-        return item
-      }
-
-      const delta = nextLiked === currentlyLiked ? 0 : nextLiked ? 1 : -1
-
-      return {
-        ...item,
-        projectSnapshot: {
-          ...item.projectSnapshot,
-          likesCount: Math.max(0, item.projectSnapshot.likesCount + delta),
-        },
-      }
-    }),
-  }
-}
-
-function updateLikedProjectIdsPayload(
-  payload: ViewerLikedProjectIdsPayload | undefined,
-  projectId: Id<'projects'>,
-  nextLiked: boolean,
-) {
-  if (!payload) {
-    return payload
-  }
-
-  const likedProjectIds = new Set(payload.likedProjectIds)
-  if (nextLiked) {
-    likedProjectIds.add(projectId)
-  } else {
-    likedProjectIds.delete(projectId)
-  }
-
-  return {
-    ...payload,
-    likedProjectIds: [...likedProjectIds],
-  }
-}
 
 export const Route = createFileRoute('/_app/home')({
   loader: ({ context }) =>
@@ -112,12 +61,7 @@ function HomePage() {
   const likedProjectIds = new Set(
     viewerState?.likedProjectIds.map(String) ?? [],
   )
-  const items = (
-    feedData as {
-      items: Array<Doc<'home_feed_items'>>
-      nextCursor: number | null
-    }
-  ).items
+  const items = (feedData as HomeFeedPage).page
   const homeFeedQueryKey = homeFeedQueryOptions().queryKey
   const likedProjectIdsQueryKey = viewerLikedProjectIdsQueryOptions().queryKey
   const likeMutation = useMutation({
@@ -131,42 +75,38 @@ function HomePage() {
       currentlyLiked
         ? unlikeProject({ projectId })
         : likeProject({ projectId }),
-    onMutate: async ({ currentlyLiked, projectId }) => {
+    onMutate: async ({ projectId }) => {
       await Promise.all([
         queryClient.cancelQueries({ queryKey: homeFeedQueryKey }),
         queryClient.cancelQueries({ queryKey: likedProjectIdsQueryKey }),
       ])
 
-      const previousFeed = queryClient.getQueryData<{
-        items: Array<Doc<'home_feed_items'>>
-        nextCursor: number | null
-      }>(homeFeedQueryKey)
+      const previousFeed =
+        queryClient.getQueryData<HomeFeedPage>(homeFeedQueryKey)
       const previousLikedProjectIds =
         queryClient.getQueryData<ViewerLikedProjectIdsPayload>(
           likedProjectIdsQueryKey,
         )
+      const cachedLikedProjectIds = new Set(
+        previousLikedProjectIds?.likedProjectIds.map(String) ?? [],
+      )
+      const cachedCurrentlyLiked = cachedLikedProjectIds.has(String(projectId))
+      const nextLiked = !cachedCurrentlyLiked
 
       queryClient.setQueryData(
         homeFeedQueryKey,
-        (
-          current:
-            | {
-                items: Array<Doc<'home_feed_items'>>
-                nextCursor: number | null
-              }
-            | undefined,
-        ) =>
+        (current: HomeFeedPage | undefined) =>
           updateHomeFeedPayload(
             current,
             String(projectId),
-            currentlyLiked,
-            !currentlyLiked,
+            nextLiked,
+            cachedLikedProjectIds,
           ),
       )
       queryClient.setQueryData(
         likedProjectIdsQueryKey,
         (current: ViewerLikedProjectIdsPayload | undefined) =>
-          updateLikedProjectIdsPayload(current, projectId, !currentlyLiked),
+          updateLikedProjectIdsPayload(current, projectId, nextLiked),
       )
 
       return { previousFeed, previousLikedProjectIds }
@@ -189,16 +129,23 @@ function HomePage() {
     },
   })
 
-  const handleLike = async (
-    projectId: Id<'projects'>,
-    projectKey: string,
-    currentlyLiked: boolean,
-  ) => {
+  const handleLike = async (projectId: Id<'projects'>, projectKey: string) => {
     if (pendingLikes.has(projectKey)) return
     setPendingLikes((current) => new Set(current).add(projectKey))
 
     try {
-      await likeMutation.mutateAsync({ currentlyLiked, projectId })
+      const currentLikedProjectIds =
+        queryClient.getQueryData<ViewerLikedProjectIdsPayload>(
+          likedProjectIdsQueryKey,
+        )
+      await likeMutation.mutateAsync({
+        currentlyLiked: Boolean(
+          currentLikedProjectIds?.likedProjectIds
+            .map(String)
+            .includes(projectKey) ?? likedProjectIds.has(projectKey),
+        ),
+        projectId,
+      })
     } catch (error) {
       console.error('Like failed', error)
     } finally {
@@ -237,9 +184,6 @@ function HomePage() {
                 <span className="font-mono text-[11.5px] lowercase text-text-faint">
                   {'// activity from people you follow'}
                 </span>
-                <span className="font-mono text-[11px] text-text-faint">
-                  {items[0]?.createdAt ? relativeTime(items[0].createdAt) : ''}
-                </span>
               </div>
 
               <div className="flex flex-col gap-3.5">
@@ -259,24 +203,38 @@ function HomePage() {
                     viewerUserId: viewerState?.viewerId ?? null,
                   })
                   const liked = likedProjectIds.has(projectIdKey)
-
-                  const cardData: ProjectCardData = {
-                    id: projectIdKey,
-                    owner,
-                    repo,
-                    fullName: snapshot.fullName,
-                    description: snapshot.description,
-                    lang: snapshot.primaryLanguage,
-                    lastCommitLabel: undefined,
-                    githubStars: snapshot.stargazersCount,
-                    locaticLikes: snapshot.likesCount,
-                    commentsCount: snapshot.commentsCount,
-                    authorName: snapshot.ownerDisplayName,
-                    authorHandle: owner,
-                    authorAvatarUrl: snapshot.ownerAvatarUrl,
-                    city: snapshot.cityName,
-                    liked,
-                  }
+                  const project = item.project
+                  const cardData = item.projectPreview
+                    ? {
+                        ...toProjectCardData(item.projectPreview),
+                        liked,
+                      }
+                    : {
+                        id: projectIdKey,
+                        owner,
+                        repo,
+                        fullName: snapshot.fullName,
+                        description: snapshot.description,
+                        lang:
+                          project?.github.primaryLanguage ??
+                          snapshot.primaryLanguage,
+                        languages:
+                          project?.github.languages ?? snapshot.languages ?? [],
+                        lastCommitLabel: undefined,
+                        githubStars:
+                          project?.github.stargazersCount ??
+                          snapshot.stargazersCount,
+                        locaticLikes:
+                          project?.locatic.likesCount ?? snapshot.likesCount,
+                        commentsCount:
+                          project?.locatic.commentsCount ??
+                          snapshot.commentsCount,
+                        authorName: snapshot.ownerDisplayName,
+                        authorHandle: owner,
+                        authorAvatarUrl: snapshot.ownerAvatarUrl,
+                        city: snapshot.cityName,
+                        liked,
+                      }
 
                   return (
                     <div key={String(item._id)}>
@@ -290,9 +248,7 @@ function HomePage() {
                       </div>
                       <ProjectCard
                         project={cardData}
-                        onLike={() =>
-                          void handleLike(projectId, projectIdKey, liked)
-                        }
+                        onLike={() => void handleLike(projectId, projectIdKey)}
                         onAuthorClick={() =>
                           void navigate({
                             to: '/u/$username',

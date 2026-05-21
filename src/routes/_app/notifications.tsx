@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useSuspenseQuery } from '@tanstack/react-query'
+import { useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import type { Id } from '../../../convex/_generated/dataModel'
 import { notificationsQueryOptions } from '@/features/notifications/queries'
@@ -60,15 +60,23 @@ function notifText(notification: Doc<'notifications'>) {
 
 function NotificationsPage() {
   const navigate = Route.useNavigate()
+  const queryClient = useQueryClient()
   const { data } = useSuspenseQuery(notificationsQueryOptions())
   const backfillTargets = useBackfillNotificationTargets()
   const markRead = useMarkNotificationRead()
   const markAllRead = useMarkAllNotificationsRead()
   const [localReadIds, setLocalReadIds] = useState<Set<string>>(new Set())
   const [markingAll, setMarkingAll] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
 
-  const notifications =
-    mapNotifications(data as Array<NotificationRecord> | undefined) ?? []
+  const notificationsPage = data as
+    | {
+        page: Array<NotificationRecord>
+        continueCursor: string
+        isDone: boolean
+      }
+    | undefined
+  const notifications = mapNotifications(notificationsPage?.page) ?? []
   const unreadCount = notifications.filter(
     (notification) =>
       !notification.isRead && !localReadIds.has(String(notification._id)),
@@ -122,6 +130,46 @@ function NotificationsPage() {
         next.delete(notificationKey)
         return next
       })
+    }
+  }
+
+  const handleLoadMore = async () => {
+    if (loadingMore || notificationsPage?.isDone) {
+      return
+    }
+
+    setLoadingMore(true)
+    try {
+      const nextPage = (await queryClient.fetchQuery(
+        notificationsQueryOptions({
+          cursor: notificationsPage?.continueCursor ?? null,
+          numItems: 20,
+        }),
+      )) as {
+        page: Array<NotificationRecord>
+        continueCursor: string
+        isDone: boolean
+      }
+
+      queryClient.setQueryData(
+        notificationsQueryOptions().queryKey,
+        (
+          current:
+            | {
+                page: Array<NotificationRecord>
+                continueCursor: string
+                isDone: boolean
+              }
+            | undefined,
+        ) => ({
+          ...nextPage,
+          page: [...(current?.page ?? []), ...nextPage.page],
+        }),
+      )
+    } catch (error) {
+      console.error('Load notifications failed', error)
+    } finally {
+      setLoadingMore(false)
     }
   }
 
@@ -224,6 +272,20 @@ function NotificationsPage() {
               </button>
             )
           })}
+
+          {!notificationsPage?.isDone && (
+            <div className="py-5 text-center">
+              <Button
+                variant="monoOutline"
+                size="meta"
+                onClick={() => void handleLoadMore()}
+                disabled={loadingMore}
+                className="font-mono"
+              >
+                {loadingMore ? 'loading…' : 'load more'}
+              </Button>
+            </div>
+          )}
         </div>
       </div>
     </div>

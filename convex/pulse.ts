@@ -163,6 +163,7 @@ export const rebuildSnapshots = internalMutation({
             fullName: project.github.fullName,
             description: project.github.description,
             primaryLanguage: project.github.primaryLanguage,
+            languages: project.github.languages,
             likesCount: likesByProjectId.get(String(project._id)) ?? 0,
             commentsCount: commentsByProjectId.get(String(project._id)) ?? 0,
             stargazersCount: project.github.stargazersCount,
