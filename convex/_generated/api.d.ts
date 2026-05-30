@@ -39,6 +39,7 @@ import type * as lib_viewer from "../lib/viewer.js";
 import type * as notifications from "../notifications.js";
 import type * as projects from "../projects.js";
 import type * as pulse from "../pulse.js";
+import type * as reactionConfigSeed from "../reactionConfigSeed.js";
 import type * as reactions from "../reactions.js";
 import type * as updates from "../updates.js";
 import type * as users from "../users.js";
@@ -81,6 +82,7 @@ declare const fullApi: ApiFromModules<{
   notifications: typeof notifications;
   projects: typeof projects;
   pulse: typeof pulse;
+  reactionConfigSeed: typeof reactionConfigSeed;
   reactions: typeof reactions;
   updates: typeof updates;
   users: typeof users;

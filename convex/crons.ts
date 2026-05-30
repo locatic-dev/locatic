@@ -11,6 +11,12 @@ crons.interval(
   {},
 )
 crons.interval(
+  'seed default reactions once per day',
+  { hours: 24 },
+  internal.reactions.seedDefaultReactions,
+  {},
+)
+crons.interval(
   'rebuild pulse snapshots hourly',
   { hours: 1 },
   internal.pulse.rebuildSnapshots,

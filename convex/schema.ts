@@ -325,14 +325,18 @@ export default defineSchema({
     .index('by_created_at', ['createdAt']),
 
   reaction_config: defineTable({
+    key: v.optional(v.string()),
     label: v.string(),
     emoji: v.string(),
+    icon: v.optional(v.string()),
     targetTypes: v.array(reactionTargetTypeValidator),
     isActive: v.boolean(),
     sortOrder: v.number(),
     createdAt: v.number(),
     updatedAt: v.number(),
-  }).index('by_sort_order', ['sortOrder']),
+  })
+    .index('by_key', ['key'])
+    .index('by_sort_order', ['sortOrder']),
 
   reactions: defineTable({
     userId: v.id('users'),
@@ -350,6 +354,12 @@ export default defineSchema({
     ])
     .index('by_user', ['userId'])
     .index('by_user_target_type', ['userId', 'targetType', 'reactionType'])
+    .index('by_user_target_type_id_reaction', [
+      'userId',
+      'targetType',
+      'targetId',
+      'reactionType',
+    ])
     .index('by_user_target_reaction', ['userId', 'targetId', 'reactionType']),
 
   comments: defineTable({
@@ -366,6 +376,19 @@ export default defineSchema({
     createdAt: v.number(),
   })
     .index('by_target_parent', ['targetId', 'parentId'])
+    .index('by_target_parent_created', ['targetId', 'parentId', 'createdAt'])
+    .index('by_target_type_parent_created', [
+      'targetType',
+      'targetId',
+      'parentId',
+      'createdAt',
+    ])
+    .index('by_target_type_parent_likes', [
+      'targetType',
+      'targetId',
+      'parentId',
+      'likesCount',
+    ])
     .index('by_target_created', ['targetId', 'createdAt'])
     .index('by_target_likes', ['targetId', 'likesCount'])
     .index('by_author', ['authorId'])
