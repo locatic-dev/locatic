@@ -1,5 +1,6 @@
 import { internalMutation } from './_generated/server'
-import { deleteCleanupBatches, deleteMergedCleanupBatches } from './lib/cleanup'
+import { internal } from './_generated/api'
+import { deleteCleanupBatch, deleteMergedCleanupBatch } from './lib/cleanup'
 
 const CLEANUP_BATCH_SIZE = 100
 
@@ -12,67 +13,74 @@ export const runDailyCleanup = internalMutation({
     const absoluteNotificationRetentionMs = 90 * 24 * 60 * 60 * 1000
     const activityRetentionMs = 90 * 24 * 60 * 60 * 1000
 
-    const [deletedFeedItems, deletedNotifications, deletedActivities] =
-      await Promise.all([
-        deleteCleanupBatches({
-          batchSize: CLEANUP_BATCH_SIZE,
-          fetchBatch: () =>
+    const [feedItems, notifications, activities] = await Promise.all([
+      deleteCleanupBatch({
+        batchSize: CLEANUP_BATCH_SIZE,
+        fetchBatch: () =>
+          ctx.db
+            .query('home_feed_items')
+            .withIndex('by_created_at', (query) =>
+              query.lt('createdAt', now - feedRetentionMs),
+            )
+            .take(CLEANUP_BATCH_SIZE),
+        deleteBatch: (items) =>
+          Promise.all(items.map((item) => ctx.db.delete(item._id))).then(
+            () => undefined,
+          ),
+      }),
+      deleteMergedCleanupBatch({
+        batchSize: CLEANUP_BATCH_SIZE,
+        fetchBatches: () =>
+          Promise.all([
             ctx.db
-              .query('home_feed_items')
-              .withIndex('by_created_at', (query) =>
-                query.lt('createdAt', now - feedRetentionMs),
+              .query('notifications')
+              .withIndex('by_read_created', (query) =>
+                query
+                  .eq('isRead', true)
+                  .lt('createdAt', now - readNotificationRetentionMs),
               )
               .take(CLEANUP_BATCH_SIZE),
-          deleteBatch: (items) =>
-            Promise.all(items.map((item) => ctx.db.delete(item._id))).then(
-              () => undefined,
-            ),
-        }),
-        deleteMergedCleanupBatches({
-          batchSize: CLEANUP_BATCH_SIZE,
-          fetchBatches: () =>
-            Promise.all([
-              ctx.db
-                .query('notifications')
-                .withIndex('by_read_created', (query) =>
-                  query
-                    .eq('isRead', true)
-                    .lt('createdAt', now - readNotificationRetentionMs),
-                )
-                .take(CLEANUP_BATCH_SIZE),
-              ctx.db
-                .query('notifications')
-                .withIndex('by_created_at', (query) =>
-                  query.lt('createdAt', now - absoluteNotificationRetentionMs),
-                )
-                .take(CLEANUP_BATCH_SIZE),
-            ]),
-          getKey: (item) => String(item._id),
-          deleteBatch: (items) =>
-            Promise.all(items.map((item) => ctx.db.delete(item._id))).then(
-              () => undefined,
-            ),
-        }),
-        deleteCleanupBatches({
-          batchSize: CLEANUP_BATCH_SIZE,
-          fetchBatch: () =>
             ctx.db
-              .query('activity_events')
+              .query('notifications')
               .withIndex('by_created_at', (query) =>
-                query.lt('createdAt', now - activityRetentionMs),
+                query.lt('createdAt', now - absoluteNotificationRetentionMs),
               )
               .take(CLEANUP_BATCH_SIZE),
-          deleteBatch: (items) =>
-            Promise.all(items.map((item) => ctx.db.delete(item._id))).then(
-              () => undefined,
-            ),
-        }),
-      ])
+          ]),
+        getKey: (item) => String(item._id),
+        deleteBatch: (items) =>
+          Promise.all(items.map((item) => ctx.db.delete(item._id))).then(
+            () => undefined,
+          ),
+      }),
+      deleteCleanupBatch({
+        batchSize: CLEANUP_BATCH_SIZE,
+        fetchBatch: () =>
+          ctx.db
+            .query('activity_events')
+            .withIndex('by_created_at', (query) =>
+              query.lt('createdAt', now - activityRetentionMs),
+            )
+            .take(CLEANUP_BATCH_SIZE),
+        deleteBatch: (items) =>
+          Promise.all(items.map((item) => ctx.db.delete(item._id))).then(
+            () => undefined,
+          ),
+      }),
+    ])
+
+    const scheduledContinuation =
+      feedItems.hasMore || notifications.hasMore || activities.hasMore
+
+    if (scheduledContinuation) {
+      await ctx.scheduler.runAfter(0, internal.cleanup.runDailyCleanup, {})
+    }
 
     return {
-      deletedFeedItems,
-      deletedNotifications,
-      deletedActivities,
+      deletedFeedItems: feedItems.deletedCount,
+      deletedNotifications: notifications.deletedCount,
+      deletedActivities: activities.deletedCount,
+      scheduledContinuation,
     }
   },
 })

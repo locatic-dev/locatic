@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   buildOptimisticSelfProjectPreview,
   buildRepositoryManagerItems,
+  canPinRepositoryManagerItem,
   filterRepositoryManagerItems,
   getRepositoryViewQueryKeys,
   sortVisibleProjectPreviews,
@@ -101,6 +102,39 @@ describe('filterRepositoryManagerItems', () => {
     expect(filterRepositoryManagerItems(items, 'discover')).toHaveLength(1)
     expect(filterRepositoryManagerItems(items, 'typescript')).toHaveLength(1)
     expect(filterRepositoryManagerItems(items, 'missing')).toHaveLength(0)
+  })
+})
+
+describe('canPinRepositoryManagerItem', () => {
+  it('only exposes pinning for imported visible profile projects', () => {
+    expect(
+      canPinRepositoryManagerItem({
+        fullName: 'avinash/visible',
+        name: 'visible',
+        description: null,
+        primaryLanguage: null,
+        stargazersCount: 0,
+        projectId: 'project_visible' as any,
+        status: 'on_profile',
+        isPinned: false,
+        isMissingFromGithub: false,
+        updatedAt: 1,
+      }),
+    ).toBe(true)
+    expect(
+      canPinRepositoryManagerItem({
+        fullName: 'avinash/hidden',
+        name: 'hidden',
+        description: null,
+        primaryLanguage: null,
+        stargazersCount: 0,
+        projectId: 'project_hidden' as any,
+        status: 'hidden',
+        isPinned: false,
+        isMissingFromGithub: false,
+        updatedAt: 1,
+      }),
+    ).toBe(false)
   })
 })
 

@@ -539,7 +539,7 @@ function SettingsPage() {
                     buttonVariant="monoOutline"
                     buttonSize="meta"
                     title="Manage repositories"
-                    description="Search every public GitHub repo we can load for your account, then add, hide, restore, or pin the ones that belong on your Locatic profile."
+                    description="Search up to 1,000 public GitHub repos we can load for your account, then add, hide, restore, or pin the ones that belong on your Locatic profile."
                     emptyStateCopy="No imported or public GitHub repositories are available yet."
                     pinnedProjectIds={profile.viewer.pinnedProfileProjectIds}
                     profileUsername={profile.viewer.githubUsername}

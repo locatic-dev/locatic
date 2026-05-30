@@ -42,6 +42,74 @@ export type GithubRepositoryRecord = {
   readmePreview: string | null
 }
 
+const MAX_IMPORT_REPOSITORIES = 25
+const GITHUB_REPOSITORIES_PER_PAGE = 100
+const MAX_REPOSITORY_LIST_PAGES = 10
+const GITHUB_REPOSITORY_FULL_NAME_REGEX =
+  /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?\/[A-Za-z0-9._-]{1,100}$/
+
+export function normalizeRepositoryFullNames(fullNames: string[]) {
+  const normalized: string[] = []
+  const seen = new Set<string>()
+
+  for (const fullName of fullNames) {
+    const trimmed = fullName.trim()
+    if (!trimmed || !GITHUB_REPOSITORY_FULL_NAME_REGEX.test(trimmed)) {
+      throw new Error('Repository names must use owner/repo format')
+    }
+
+    const dedupeKey = trimmed.toLowerCase()
+    if (seen.has(dedupeKey)) {
+      continue
+    }
+
+    seen.add(dedupeKey)
+    normalized.push(trimmed)
+  }
+
+  if (normalized.length === 0) {
+    throw new Error('Select at least one repository to import')
+  }
+
+  if (normalized.length > MAX_IMPORT_REPOSITORIES) {
+    throw new Error(
+      `Select ${MAX_IMPORT_REPOSITORIES} or fewer repositories at a time`,
+    )
+  }
+
+  return normalized
+}
+
+export function encodeRepositoryFullNamePath(fullName: string) {
+  const [owner, repo] = fullName.split('/')
+  if (!owner || !repo) {
+    throw new Error('Repository names must use owner/repo format')
+  }
+
+  return `${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`
+}
+
+export async function listGithubRepositoryPages<T>(args: {
+  fetchPage: (page: number, perPage: number) => Promise<T[]>
+  maxPages?: number
+  perPage?: number
+}) {
+  const perPage = args.perPage ?? GITHUB_REPOSITORIES_PER_PAGE
+  const maxPages = args.maxPages ?? MAX_REPOSITORY_LIST_PAGES
+  const repositories: T[] = []
+
+  for (let page = 1; page <= maxPages; page += 1) {
+    const pageItems = await args.fetchPage(page, perPage)
+    repositories.push(...pageItems)
+
+    if (pageItems.length < perPage) {
+      break
+    }
+  }
+
+  return repositories
+}
+
 export function mapGithubLanguages(languages: GithubLanguages | null) {
   if (!languages) {
     return []

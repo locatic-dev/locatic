@@ -148,6 +148,10 @@ export function filterRepositoryManagerItems(
   })
 }
 
+export function canPinRepositoryManagerItem(item: RepositoryManagerItem) {
+  return item.status === 'on_profile' && item.projectId !== null
+}
+
 function compareVisibleProjects(
   left: ProjectCardPreview,
   right: ProjectCardPreview,

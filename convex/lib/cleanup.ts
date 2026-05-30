@@ -1,52 +1,49 @@
-export async function deleteCleanupBatches<T>(args: {
+export type CleanupBatchResult = {
+  deletedCount: number
+  hasMore: boolean
+}
+
+export async function deleteCleanupBatch<T>(args: {
   batchSize: number
   fetchBatch: () => Promise<T[]>
   deleteBatch: (batch: T[]) => Promise<void>
-}) {
-  let deletedCount = 0
+}): Promise<CleanupBatchResult> {
+  const batch = (await args.fetchBatch()).slice(0, args.batchSize)
+  if (batch.length === 0) {
+    return { deletedCount: 0, hasMore: false }
+  }
 
-  while (true) {
-    const batch = await args.fetchBatch()
-    if (batch.length === 0) {
-      return deletedCount
-    }
+  await args.deleteBatch(batch)
 
-    await args.deleteBatch(batch)
-    deletedCount += batch.length
-
-    if (batch.length < args.batchSize) {
-      return deletedCount
-    }
+  return {
+    deletedCount: batch.length,
+    hasMore: batch.length >= args.batchSize,
   }
 }
 
-export async function deleteMergedCleanupBatches<T>(args: {
+export async function deleteMergedCleanupBatch<T>(args: {
   batchSize: number
   fetchBatches: () => Promise<T[][]>
   getKey: (item: T) => string
   deleteBatch: (batch: T[]) => Promise<void>
-}) {
-  let deletedCount = 0
+}): Promise<CleanupBatchResult> {
+  const mergedBatch = new Map<string, T>()
 
-  while (true) {
-    const mergedBatch = new Map<string, T>()
-
-    for (const batch of await args.fetchBatches()) {
-      for (const item of batch) {
-        mergedBatch.set(args.getKey(item), item)
-      }
+  for (const batch of await args.fetchBatches()) {
+    for (const item of batch) {
+      mergedBatch.set(args.getKey(item), item)
     }
+  }
 
-    const items = [...mergedBatch.values()]
-    if (items.length === 0) {
-      return deletedCount
-    }
+  const items = [...mergedBatch.values()].slice(0, args.batchSize)
+  if (items.length === 0) {
+    return { deletedCount: 0, hasMore: false }
+  }
 
-    await args.deleteBatch(items)
-    deletedCount += items.length
+  await args.deleteBatch(items)
 
-    if (items.length < args.batchSize) {
-      return deletedCount
-    }
+  return {
+    deletedCount: items.length,
+    hasMore: items.length >= args.batchSize,
   }
 }
