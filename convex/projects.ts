@@ -17,70 +17,12 @@ import {
   buildProjectExploreOwner,
   buildProjectSnapshot,
 } from './lib/snapshots'
-import type { Doc } from './lib/types'
 
 function getCommitFrequency(lastCommitAt: number) {
   const ageDays = (Date.now() - lastCommitAt) / (24 * 60 * 60 * 1000)
   if (ageDays <= 7) return 'active' as const
   if (ageDays <= 30) return 'slow' as const
   return 'dormant' as const
-}
-
-type CommentTreeNode = Doc<'comments'> & {
-  viewerHasLiked: boolean
-  replies: CommentTreeNode[]
-}
-
-function buildCommentTree(
-  allComments: Array<Doc<'comments'>>,
-  commentLikeIds: Set<string>,
-) {
-  const nodesById = new Map<string, CommentTreeNode>()
-  const roots: CommentTreeNode[] = []
-
-  for (const comment of allComments) {
-    nodesById.set(String(comment._id), {
-      ...comment,
-      viewerHasLiked: commentLikeIds.has(String(comment._id)),
-      replies: [],
-    })
-  }
-
-  for (const comment of allComments) {
-    const node = nodesById.get(String(comment._id))
-    if (!node) {
-      continue
-    }
-
-    const parent = comment.parentId
-      ? nodesById.get(String(comment.parentId))
-      : null
-    if (parent) {
-      parent.replies.push(node)
-      continue
-    }
-
-    roots.push(node)
-  }
-
-  const sortReplies = (comment: CommentTreeNode) => {
-    comment.replies.sort((left, right) => left.createdAt - right.createdAt)
-    for (const reply of comment.replies) {
-      sortReplies(reply)
-    }
-  }
-
-  for (const root of roots) {
-    sortReplies(root)
-  }
-
-  return roots.sort((left, right) => {
-    if (right.likesCount !== left.likesCount) {
-      return right.likesCount - left.likesCount
-    }
-
-    return right.createdAt - left.createdAt
-  })
 }
 
 export const listMine = query({
@@ -129,13 +71,6 @@ export const getPublicByFullName = query({
       .withIndex('by_project', (query) => query.eq('projectId', project._id))
       .collect()
 
-    const allComments = await ctx.db
-      .query('comments')
-      .withIndex('by_target_created', (query) =>
-        query.eq('targetId', String(project._id)),
-      )
-      .collect()
-
     const viewerHasLiked = requester
       ? await ctx.db
           .query('reactions')
@@ -156,23 +91,6 @@ export const getPublicByFullName = query({
           )
           .unique()
       : null
-
-    const commentLikeIds = requester
-      ? new Set(
-          (
-            await ctx.db
-              .query('reactions')
-              .withIndex('by_user_target_type', (query) =>
-                query
-                  .eq('userId', requester._id)
-                  .eq('targetType', 'comment')
-                  .eq('reactionType', 'like'),
-              )
-              .collect()
-          ).map((reaction) => reaction.targetId),
-        )
-      : new Set<string>()
-    const comments = buildCommentTree(allComments, commentLikeIds)
 
     const likedByReactions = await ctx.db
       .query('reactions')
@@ -210,7 +128,7 @@ export const getPublicByFullName = query({
     return {
       project,
       updates,
-      comments,
+      comments: [],
       likedByPreview,
       viewerHasLiked: Boolean(viewerHasLiked),
       viewerFollowsOwner: Boolean(viewerFollowsOwner),
