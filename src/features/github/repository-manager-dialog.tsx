@@ -94,7 +94,7 @@ export function RepositoryManagerDialog({
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="w-[calc(100vw-1.5rem)] max-w-4xl gap-0 overflow-hidden border-line bg-surface p-0">
+        <DialogContent className="grid max-h-[calc(100dvh-2rem)] w-[calc(100vw-1.5rem)] max-w-4xl grid-rows-[auto_auto_minmax(0,1fr)_auto] gap-0 overflow-hidden border-line bg-surface p-0">
           <DialogHeader className="border-b border-line px-5 py-4 text-left">
             <DialogTitle className="font-mono text-[15px] text-text">
               {title}
@@ -130,7 +130,7 @@ export function RepositoryManagerDialog({
             </div>
           </div>
 
-          <div className="max-h-[70vh] overflow-y-auto px-5 py-4">
+          <div className="min-h-0 overflow-y-auto px-3 py-3 sm:px-5 sm:py-4">
             {githubError && (
               <div className="mb-4 rounded-card border border-danger/40 bg-danger/4 px-4 py-3">
                 <div className="font-sans text-[13px] leading-6 text-text-muted">
@@ -164,7 +164,7 @@ export function RepositoryManagerDialog({
                 </div>
               </div>
             ) : (
-              <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-2">
                 {filteredItems.map((item) => {
                   const selected = selectedRepoFullNames.includes(item.fullName)
                   const busy = busyRepoFullNames.has(item.fullName)
@@ -172,11 +172,11 @@ export function RepositoryManagerDialog({
                   return (
                     <div
                       key={item.fullName}
-                      className="rounded-card border border-line bg-canvas px-4 py-4 shadow-card"
+                      className="rounded-card border border-line bg-canvas px-3 py-3 transition-colors hover:border-line-strong sm:px-4"
                     >
-                      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
                         <div className="min-w-0 flex-1">
-                          <div className="mb-2 flex flex-wrap items-center gap-2.5">
+                          <div className="mb-1.5 flex flex-wrap items-center gap-2">
                             <div className="font-mono text-[13px] font-semibold text-text wrap-anywhere">
                               {item.fullName}
                             </div>
@@ -206,11 +206,11 @@ export function RepositoryManagerDialog({
                             )}
                           </div>
 
-                          <p className="m-0 font-sans text-[13px] leading-6 text-text-muted">
+                          <p className="m-0 line-clamp-2 font-sans text-[12.5px] leading-5 text-text-muted">
                             {item.description || 'No description provided.'}
                           </p>
 
-                          <div className="mt-3 flex flex-wrap items-center gap-3 font-mono text-[11px] text-text-faint">
+                          <div className="mt-2 flex flex-wrap items-center gap-3 font-mono text-[11px] text-text-faint">
                             {item.primaryLanguage && (
                               <span className="inline-flex items-center gap-1.5">
                                 <LangDot lang={item.primaryLanguage} />
@@ -224,7 +224,7 @@ export function RepositoryManagerDialog({
                           </div>
                         </div>
 
-                        <div className="flex shrink-0 flex-wrap items-center gap-2">
+                        <div className="flex shrink-0 flex-wrap items-center gap-2 lg:justify-end">
                           {item.status === 'available' && (
                             <Button
                               variant={selected ? 'brand' : 'monoOutline'}

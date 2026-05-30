@@ -21,6 +21,7 @@
     "ci:quality": "pnpm run check && pnpm run typecheck && pnpm run test",
     "ci:build": "pnpm run build",
     "cities:generate": "node scripts/geonames-to-cities-seed.mjs",
+    "reactions:generate": "node scripts/reactions-to-seed.mjs",
     "deploy:convex": "pnpm exec convex deploy",
     "deploy": "pnpm run build && wrangler deploy"
   },
