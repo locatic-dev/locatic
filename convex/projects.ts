@@ -10,14 +10,77 @@ import {
 import { internal } from './_generated/api'
 import { fanOutActivityEventToFollowers } from './lib/homeFeed'
 import { getViewerOrThrow } from './lib/auth'
-import { buildOwnerSnapshot, buildProjectSnapshot } from './lib/snapshots'
-import { resolvePinnedProfileProjectIds } from './lib/viewer'
+import { canPinProject } from './lib/project_pins'
+import { resolvePublicCityLabel } from './lib/project_previews'
+import {
+  buildOwnerSnapshot,
+  buildProjectExploreOwner,
+  buildProjectSnapshot,
+} from './lib/snapshots'
+import type { Doc } from './lib/types'
 
 function getCommitFrequency(lastCommitAt: number) {
   const ageDays = (Date.now() - lastCommitAt) / (24 * 60 * 60 * 1000)
   if (ageDays <= 7) return 'active' as const
   if (ageDays <= 30) return 'slow' as const
   return 'dormant' as const
+}
+
+type CommentTreeNode = Doc<'comments'> & {
+  viewerHasLiked: boolean
+  replies: CommentTreeNode[]
+}
+
+function buildCommentTree(
+  allComments: Array<Doc<'comments'>>,
+  commentLikeIds: Set<string>,
+) {
+  const nodesById = new Map<string, CommentTreeNode>()
+  const roots: CommentTreeNode[] = []
+
+  for (const comment of allComments) {
+    nodesById.set(String(comment._id), {
+      ...comment,
+      viewerHasLiked: commentLikeIds.has(String(comment._id)),
+      replies: [],
+    })
+  }
+
+  for (const comment of allComments) {
+    const node = nodesById.get(String(comment._id))
+    if (!node) {
+      continue
+    }
+
+    const parent = comment.parentId
+      ? nodesById.get(String(comment.parentId))
+      : null
+    if (parent) {
+      parent.replies.push(node)
+      continue
+    }
+
+    roots.push(node)
+  }
+
+  const sortReplies = (comment: CommentTreeNode) => {
+    comment.replies.sort((left, right) => left.createdAt - right.createdAt)
+    for (const reply of comment.replies) {
+      sortReplies(reply)
+    }
+  }
+
+  for (const root of roots) {
+    sortReplies(root)
+  }
+
+  return roots.sort((left, right) => {
+    if (right.likesCount !== left.likesCount) {
+      return right.likesCount - left.likesCount
+    }
+
+    return right.createdAt - left.createdAt
+  })
 }
 
 export const listMine = query({
@@ -109,43 +172,46 @@ export const getPublicByFullName = query({
           ).map((reaction) => reaction.targetId),
         )
       : new Set<string>()
-    const repliesByParentId = new Map(
-      allComments
-        .filter((comment) => comment.parentId === null)
-        .map((comment) => [String(comment._id), [] as typeof allComments]),
-    )
+    const comments = buildCommentTree(allComments, commentLikeIds)
 
-    for (const comment of allComments) {
-      if (!comment.parentId) {
-        continue
-      }
+    const likedByReactions = await ctx.db
+      .query('reactions')
+      .withIndex('by_target_reaction_created', (query) =>
+        query
+          .eq('targetType', 'project')
+          .eq('targetId', String(project._id))
+          .eq('reactionType', 'like'),
+      )
+      .order('desc')
+      .take(3)
 
-      const existingReplies = repliesByParentId.get(String(comment.parentId))
-      if (existingReplies) {
-        existingReplies.push(comment)
-      }
-    }
+    const likedByPreview = (
+      await Promise.all(
+        likedByReactions.map(async (reaction) => {
+          const user = await ctx.db.get(reaction.userId)
+          if (!user || user.deletedAt || user.deactivatedAt) {
+            return null
+          }
 
-    const comments = allComments
-      .filter((comment) => comment.parentId === null)
-      .sort((left, right) => right.createdAt - left.createdAt)
-      .map((comment) => ({
-        ...comment,
-        viewerHasLiked: commentLikeIds.has(String(comment._id)),
-        replies: (repliesByParentId.get(String(comment._id)) ?? [])
-          .sort((left, right) => left.createdAt - right.createdAt)
-          .map((reply) => ({
-            ...reply,
-            viewerHasLiked: commentLikeIds.has(String(reply._id)),
-          })),
-      }))
+          return {
+            userId: user._id,
+            githubUsername: user.github.username,
+            displayName: user.profile.displayName,
+            avatarUrl: user.profile.avatarUrl,
+          }
+        }),
+      )
+    ).filter(Boolean)
+
+    const ownerCity = owner.profile.cityId
+      ? await ctx.db.get(owner.profile.cityId)
+      : null
 
     return {
       project,
       updates,
-      comments: comments.sort(
-        (left, right) => right.likesCount - left.likesCount,
-      ),
+      comments,
+      likedByPreview,
       viewerHasLiked: Boolean(viewerHasLiked),
       viewerFollowsOwner: Boolean(viewerFollowsOwner),
       owner: {
@@ -155,7 +221,7 @@ export const getPublicByFullName = query({
         avatarUrl: owner.profile.avatarUrl,
         socialLinks: owner.profile.socialLinks,
         buildStatus: owner.profile.buildStatus,
-        city: owner.profile.cityId ? project.ownerSnapshot.cityName : null,
+        city: resolvePublicCityLabel(owner, ownerCity?.displayName ?? null),
       },
     }
   },
@@ -198,15 +264,42 @@ export const updateVisibility = mutation({
       throw new ConvexError('Project not found')
     }
 
+    const visibilityChanged = project.locatic.isVisible !== args.isVisible
+    const pinnedProjectIds = new Set(viewer.pinnedProfileProjectIds)
+    if (!args.isVisible) {
+      pinnedProjectIds.delete(project._id)
+    }
+
+    const nextProjectsCount = visibilityChanged
+      ? args.isVisible
+        ? viewer.stats.projectsCount + 1
+        : Math.max(0, viewer.stats.projectsCount - 1)
+      : viewer.stats.projectsCount
+
     await ctx.db.patch(project._id, {
       locatic: {
         ...project.locatic,
         isVisible: args.isVisible,
       },
+      exploreOwner: buildProjectExploreOwner(viewer, args.isVisible),
       updatedAt: Date.now(),
     })
 
-    return null
+    await ctx.db.patch(viewer._id, {
+      pinnedProfileProjectIds: [...pinnedProjectIds],
+      stats: {
+        ...viewer.stats,
+        projectsCount: nextProjectsCount,
+      },
+      updatedAt: Date.now(),
+    })
+
+    return {
+      projectId: project._id,
+      isVisible: args.isVisible,
+      pinnedProjectIds: [...pinnedProjectIds],
+      projectsCount: nextProjectsCount,
+    }
   },
 })
 
@@ -222,7 +315,11 @@ export const pinOwnedProject = mutation({
       throw new ConvexError('Project not found')
     }
 
-    const currentIds = new Set(resolvePinnedProfileProjectIds(viewer))
+    if (args.pinned && !canPinProject(project)) {
+      throw new ConvexError('Hidden projects cannot be pinned')
+    }
+
+    const currentIds = new Set(viewer.pinnedProfileProjectIds)
     if (args.pinned) {
       currentIds.add(args.projectId)
     } else {
@@ -235,7 +332,6 @@ export const pinOwnedProject = mutation({
     }
 
     await ctx.db.patch(viewer._id, {
-      pinnedOwnedProjectIds: nextPinnedProjects,
       pinnedProfileProjectIds: nextPinnedProjects,
       updatedAt: Date.now(),
     })
@@ -280,6 +376,12 @@ export const upsertImportedRepositories = internalMutation({
         githubUrl: v.string(),
         projectUrl: v.union(v.string(), v.null()),
         primaryLanguage: v.union(v.string(), v.null()),
+        languages: v.array(
+          v.object({
+            name: v.string(),
+            bytes: v.number(),
+          }),
+        ),
         topics: v.array(v.string()),
         stargazersCount: v.number(),
         lastCommitAt: v.number(),
@@ -321,6 +423,10 @@ export const upsertImportedRepositories = internalMutation({
           commentsCount: 0,
           updatesCount: 0,
         },
+        exploreOwner: buildProjectExploreOwner(
+          owner,
+          existing?.locatic.isVisible ?? true,
+        ),
         ownerSnapshot,
         topContributorsSnapshot: existing?.topContributorsSnapshot ?? [],
         contributorStats: existing?.contributorStats ?? {
@@ -384,7 +490,9 @@ export const upsertImportedRepositories = internalMutation({
         projectsCount: (
           await ctx.db
             .query('projects')
-            .withIndex('by_owner', (query) => query.eq('ownerId', owner._id))
+            .withIndex('by_owner_visible', (query) =>
+              query.eq('ownerId', owner._id).eq('locatic.isVisible', true),
+            )
             .collect()
         ).length,
       },

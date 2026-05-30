@@ -1,13 +1,85 @@
 import { v } from 'convex/values'
 
-import { mutation, query } from './_generated/server'
+import { mutation, query, type QueryCtx } from './_generated/server'
+import type { Doc, Id } from './_generated/dataModel'
 import { getViewerFromAuth, getViewerOrThrow } from './lib/auth'
 import {
-  matchesBuilderSearchQuery,
   mapBuilderSearchResult,
   mergeBuilderSearchCandidates,
 } from './lib/discoverability'
 import { buildExploreCandidates } from './lib/explore'
+import { buildProjectCardPreview } from './lib/project_previews'
+
+const EXPLORE_INDEXES = [
+  'by_explore_eligible_likes',
+  'by_explore_eligible_comments',
+  'by_explore_eligible_stars',
+  'by_explore_eligible_last_commit',
+  'by_explore_eligible_added',
+] as const
+
+const EXPLORE_CITY_INDEXES = [
+  'by_explore_city_likes',
+  'by_explore_city_comments',
+  'by_explore_city_stars',
+  'by_explore_city_last_commit',
+  'by_explore_city_added',
+] as const
+
+function uniqueProjects(projects: Array<Doc<'projects'>>) {
+  return [
+    ...new Map(
+      projects.map((project) => [String(project._id), project]),
+    ).values(),
+  ]
+}
+
+async function fetchGlobalExploreProjects(
+  ctx: QueryCtx,
+  perIndexLimit: number,
+) {
+  return uniqueProjects(
+    (
+      await Promise.all(
+        EXPLORE_INDEXES.map((indexName) =>
+          ctx.db
+            .query('projects')
+            .withIndex(indexName, (query) =>
+              query.eq('exploreOwner.isEligible', true),
+            )
+            .order('desc')
+            .take(perIndexLimit),
+        ),
+      )
+    ).flat(),
+  )
+}
+
+async function fetchCityExploreProjects(
+  ctx: QueryCtx,
+  cityIds: Array<Id<'cities'>>,
+  perIndexLimit: number,
+) {
+  return uniqueProjects(
+    (
+      await Promise.all(
+        cityIds.flatMap((cityId) =>
+          EXPLORE_CITY_INDEXES.map((indexName) =>
+            ctx.db
+              .query('projects')
+              .withIndex(indexName, (query) =>
+                query
+                  .eq('exploreOwner.cityId', cityId)
+                  .eq('exploreOwner.isEligible', true),
+              )
+              .order('desc')
+              .take(perIndexLimit),
+          ),
+        ),
+      )
+    ).flat(),
+  )
+}
 
 export const list = query({
   args: {
@@ -20,42 +92,6 @@ export const list = query({
   handler: async (ctx, args) => {
     const viewer = await getViewerOrThrow(ctx)
     const limit = Math.min(args.limit ?? 20, 50)
-    const users = await ctx.db.query('users').collect()
-    const usersById = new Map(users.map((user) => [String(user._id), user]))
-    const ownedProjects = await ctx.db
-      .query('projects')
-      .withIndex('by_owner', (query) => query.eq('ownerId', viewer._id))
-      .collect()
-
-    const projects = (await ctx.db.query('projects').collect()).filter(
-      (project) => {
-        const owner = usersById.get(String(project.ownerId))
-        if (!owner) {
-          return false
-        }
-
-        const ownerCityId = owner.profile.cityId ?? project.ownerSnapshot.cityId
-
-        return (
-          project.locatic.isVisible &&
-          project.ownerId !== viewer._id &&
-          ownerCityId !== null &&
-          owner.appearInExplore &&
-          !owner.deletedAt &&
-          !owner.deactivatedAt
-        )
-      },
-    )
-
-    const exploreHistory = await ctx.db
-      .query('explore_history')
-      .withIndex('by_user_last_seen', (query) => query.eq('userId', viewer._id))
-      .collect()
-    const dismissedProjectIds = new Set(
-      exploreHistory
-        .filter((item) => item.dismissedAt !== null)
-        .map((item) => String(item.projectId)),
-    )
 
     const scope = args.scope ?? 'default'
     const defaultCityIds =
@@ -70,13 +106,29 @@ export const list = query({
         : scope === 'custom'
           ? Array.from(new Set(args.selectedCityIds ?? []))
           : defaultCityIds
+    const perIndexLimit = Math.min(Math.max(limit * 2, 12), 40)
+    const [projects, ownedProjects, dismissedProjects] = await Promise.all([
+      selectedCityIds.length > 0
+        ? fetchCityExploreProjects(ctx, selectedCityIds, perIndexLimit)
+        : fetchGlobalExploreProjects(ctx, perIndexLimit),
+      ctx.db
+        .query('projects')
+        .withIndex('by_owner', (query) => query.eq('ownerId', viewer._id))
+        .collect(),
+      ctx.db
+        .query('explore_history')
+        .withIndex('by_user_dismissed', (query) =>
+          query.eq('userId', viewer._id).gt('dismissedAt', 0),
+        )
+        .collect(),
+    ])
+    const dismissedProjectIds = new Set(
+      dismissedProjects.map((item) => String(item.projectId)),
+    )
     const result = buildExploreCandidates({
       candidates: projects.map((project) => ({
         id: String(project._id),
-        cityId: String(
-          usersById.get(String(project.ownerId))?.profile.cityId ??
-            project.ownerSnapshot.cityId,
-        ),
+        cityId: String(project.exploreOwner.cityId),
         primaryLanguage: project.github.primaryLanguage,
         topics: project.github.topics,
         likesCount: project.locatic.likesCount,
@@ -99,15 +151,35 @@ export const list = query({
       projects.map((project) => [String(project._id), project]),
     )
 
-    const ranked = result
-      .map((candidate) => projectById.get(candidate.id))
-      .filter(Boolean)
+    const ranked = result.flatMap((candidate) => {
+      const project = projectById.get(candidate.id)
+      return project ? [project] : []
+    })
+    const ownerById = new Map(
+      (
+        await Promise.all(
+          [...new Set(ranked.map((project) => project.ownerId))].map(
+            async (ownerId) =>
+              [String(ownerId), await ctx.db.get(ownerId)] as const,
+          ),
+        )
+      ).filter((entry): entry is readonly [string, Doc<'users'>] =>
+        Boolean(entry[1]),
+      ),
+    )
 
     return {
       scope,
       appliedCityIds: selectedCityIds,
       isCityFiltered: selectedCityIds.length > 0,
-      projects: ranked,
+      projects: await Promise.all(
+        ranked.map((project) =>
+          buildProjectCardPreview(ctx.db, project, {
+            audience: 'public',
+            owner: ownerById.get(String(project.ownerId)),
+          }),
+        ),
+      ),
     }
   },
 })
@@ -146,30 +218,9 @@ export const searchBuilders = query({
       )
       .take(cityIds.length > 0 ? limit * 5 : limit * 3)
 
-    const fallbackMatches =
-      searchResults.length > 0
-        ? []
-        : (
-            await ctx.db
-              .query('users')
-              .filter((q) =>
-                q.and(
-                  q.eq(q.field('appearInExplore'), true),
-                  q.eq(q.field('deletedAt'), null),
-                  q.eq(q.field('deactivatedAt'), null),
-                ),
-              )
-              // Transitional rollout fallback for older rows whose search text
-              // has not been backfilled yet. Collect the full discoverable set
-              // so exact name matches are not lost to arbitrary table slices.
-              .collect()
-          ).filter((candidate) =>
-            matchesBuilderSearchQuery(candidate, normalizedQ),
-          )
-
     return mergeBuilderSearchCandidates({
       exactMatch,
-      searchResults: [...searchResults, ...fallbackMatches],
+      searchResults,
       viewerId: viewer._id,
       cityIds,
       limit,

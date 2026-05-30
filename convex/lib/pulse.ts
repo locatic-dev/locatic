@@ -9,6 +9,10 @@ export interface PulseProjectSnapshot {
   fullName: string
   description: string | null
   primaryLanguage: string | null
+  languages: Array<{
+    name: string
+    bytes: number
+  }>
   likesCount: number
   commentsCount: number
   stargazersCount: number

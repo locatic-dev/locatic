@@ -34,12 +34,28 @@ export async function buildOwnerSnapshot(db: Reader, user: Doc<'users'>) {
   }
 }
 
+export function buildProjectExploreOwner(
+  user: Doc<'users'>,
+  isVisible: boolean,
+) {
+  const isOwnerActive = !user.deletedAt && !user.deactivatedAt
+  const hasCity = user.profile.cityId !== null
+
+  return {
+    cityId: user.profile.cityId,
+    appearInExplore: user.appearInExplore,
+    isActive: isOwnerActive,
+    isEligible: isVisible && isOwnerActive && user.appearInExplore && hasCity,
+  }
+}
+
 export function buildProjectSnapshot(project: Doc<'projects'>) {
   return {
     name: project.github.name,
     fullName: project.github.fullName,
     description: project.github.description,
     primaryLanguage: project.github.primaryLanguage,
+    languages: project.github.languages,
     likesCount: project.locatic.likesCount,
     commentsCount: project.locatic.commentsCount,
     stargazersCount: project.github.stargazersCount,

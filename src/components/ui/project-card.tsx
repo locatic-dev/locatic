@@ -12,6 +12,7 @@ export interface ProjectCardData {
   fullName?: string
   description?: string | null
   lang?: string | null
+  languages?: Array<{ name: string; bytes: number }>
   lastCommitLabel?: string
   githubStars: number
   locaticLikes: number
@@ -64,12 +65,18 @@ export function ProjectCard({
 }: ProjectCardProps) {
   const compact = density === 'compact'
   const authorLabel = project.authorName || project.authorHandle
+  const languages =
+    project.languages && project.languages.length > 0
+      ? project.languages
+      : project.lang
+        ? [{ name: project.lang, bytes: 0 }]
+        : []
 
   return (
     <div
       className={cn(
         'lx-card lx-fade-up @container relative flex flex-col rounded-card border border-line bg-surface',
-        compact ? 'gap-2.5 px-4 py-3.5' : 'gap-3.5 px-5 py-[18px]',
+        compact ? 'gap-2.5 px-4 py-3.5' : 'gap-3.5 px-5 py-4.5',
         className,
       )}
     >
@@ -85,7 +92,7 @@ export function ProjectCard({
                   ? `Open ${project.fullName ?? `${project.owner}/${project.repo}`}`
                   : undefined
               }
-              className="max-w-full whitespace-normal border-none bg-transparent p-0 text-left font-mono text-[14.5px] font-semibold tracking-[-0.01em] text-text transition-colors [overflow-wrap:anywhere] leading-[1.35] disabled:cursor-default"
+              className="max-w-full whitespace-normal border-none bg-transparent p-0 text-left font-mono text-[14.5px] font-semibold tracking-[-0.01em] text-text transition-colors wrap-anywhere leading-[1.35] disabled:cursor-default"
               disabled={!onCardClick}
               type="button"
             >
@@ -96,7 +103,7 @@ export function ProjectCard({
             </button>
 
             {project.isRecommended && (
-              <span className="rounded-[2px] border border-[oklch(72%_0.17_185_/_0.3)] bg-brand-quiet px-1.5 py-0.5 font-mono text-[9.5px] leading-none whitespace-nowrap text-brand">
+              <span className="rounded-[2px] border border-[oklch(72%_0.17_185/0.3)] bg-brand-quiet px-1.5 py-0.5 font-mono text-[9.5px] leading-none whitespace-nowrap text-brand">
                 {project.matchPct
                   ? `${project.matchPct}% match`
                   : 'recommended'}
@@ -135,12 +142,15 @@ export function ProjectCard({
           compact ? 'gap-3' : 'gap-3.5',
         )}
       >
-        {project.lang && (
-          <span className="inline-flex items-center gap-1.5">
-            <LangDot lang={project.lang} />
-            {project.lang}
+        {languages.slice(0, 3).map((language) => (
+          <span
+            key={language.name}
+            className="inline-flex items-center gap-1.5"
+          >
+            <LangDot lang={language.name} />
+            {language.name}
           </span>
-        )}
+        ))}
         {project.lastCommitLabel && <span>{project.lastCommitLabel}</span>}
         <span className="inline-flex items-center gap-1">
           <Star size={11} strokeWidth={1.4} />
@@ -217,7 +227,7 @@ export function ProjectCard({
         </div>
 
         {showActions && (
-          <div className="flex flex-shrink-0 flex-wrap items-center gap-1.5">
+          <div className="flex shrink-0 flex-wrap items-center gap-1.5">
             {onFollow && (
               <Button
                 size="sm"
@@ -280,7 +290,7 @@ export function ProjectCardSkeleton({
     <div
       className={cn(
         'flex flex-col gap-3 rounded-card border border-line bg-surface',
-        compact ? 'px-4 py-3.5' : 'px-5 py-[18px]',
+        compact ? 'px-4 py-3.5' : 'px-5 py-4.5',
       )}
     >
       <div className="lx-skeleton h-3.5 w-3/5" />

@@ -7,7 +7,6 @@ import {
   buildConversationNotificationTarget,
   createNotificationIfEnabled,
 } from './lib/notifications'
-import { resolveUnreadMessagesCount } from './lib/viewer'
 
 export const list = query({
   args: {},
@@ -212,7 +211,7 @@ export const sendMessage = mutation({
     })
 
     await ctx.db.patch(recipient._id, {
-      unreadMessagesCount: resolveUnreadMessagesCount(recipient) + 1,
+      unreadMessagesCount: recipient.unreadMessagesCount + 1,
       updatedAt: sentAt,
     })
 
@@ -282,7 +281,7 @@ export const markRead = mutation({
       await ctx.db.patch(viewer._id, {
         unreadMessagesCount: Math.max(
           0,
-          resolveUnreadMessagesCount(viewer) - clearedUnreadCount,
+          viewer.unreadMessagesCount - clearedUnreadCount,
         ),
         updatedAt: readAt,
       })
