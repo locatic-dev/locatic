@@ -1,11 +1,9 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useSuspenseQuery } from '@tanstack/react-query'
-import { useEffect, useState } from 'react'
-import type { Id } from '../../../convex/_generated/dataModel'
-import {
-  conversationDetailQueryOptions,
-  conversationsQueryOptions,
-} from '@/features/inbox/queries'
+import { usePaginatedQuery } from 'convex/react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { api } from '../../../convex/_generated/api'
+import { conversationsQueryOptions } from '@/features/inbox/queries'
 import {
   useMarkConversationRead,
   useSendMessage,
@@ -16,7 +14,6 @@ import { Textarea } from '@/components/ui/textarea'
 import { relativeTime } from '@/lib/time'
 import { Inbox } from '@/lib/icons'
 import {
-  mapConversationDetail,
   mapConversationList,
   mapViewerBootstrap,
   type ConversationDetailPayload,
@@ -43,13 +40,7 @@ export const Route = createFileRoute('/_app/inbox')({
       context.queryClient.ensureQueryData(viewerQueryOptions()),
     ])
 
-    if (deps.conversationId) {
-      await context.queryClient.ensureQueryData(
-        conversationDetailQueryOptions(
-          deps.conversationId as Id<'conversations'>,
-        ),
-      )
-    }
+    void deps.conversationId
   },
   pendingComponent: InboxRoutePending,
   pendingMs: 250,
@@ -118,7 +109,7 @@ function InboxPage() {
   }
 
   return (
-    <div className="lx-page-shell min-h-0 overflow-hidden">
+    <div className="lx-page-shell h-[calc(100dvh-var(--lx-mobile-tab-height))] min-h-0 overflow-hidden md:h-dvh">
       <div className="shrink-0 border-b border-line">
         <div className="flex min-h-14 items-center px-[var(--lx-gutter)]">
           <h1 className="m-0 font-mono text-sm font-semibold text-text">
@@ -254,7 +245,7 @@ function InboxPage() {
           </div>
         </div>
 
-        <div className="flex flex-1 flex-col">
+        <div className="flex min-h-0 flex-1 flex-col">
           {!selectedConversation && (
             <div className="flex flex-1 flex-col items-center justify-center gap-3.5 text-text-faint">
               <Inbox size={36} strokeWidth={1.2} />
@@ -287,22 +278,57 @@ function SelectedConversationPanel({
   viewerId: string
 }) {
   const navigate = Route.useNavigate()
-  const { data } = useSuspenseQuery(
-    conversationDetailQueryOptions(selectedConversation._id),
-  )
-  const conversationDetail = mapConversationDetail(
-    data as ConversationDetailPayload | undefined,
-  )
   const sendMessage = useSendMessage()
   const [newMessage, setNewMessage] = useState('')
   const [sending, setSending] = useState(false)
+  const messagesScrollRef = useRef<HTMLDivElement | null>(null)
+  const messagesEndRef = useRef<HTMLDivElement | null>(null)
+  const previousScrollHeightRef = useRef<number | null>(null)
+  const openedConversationRef = useRef<string | null>(null)
+  const shouldStickToBottomRef = useRef(true)
+  const sentMessagePendingRef = useRef(false)
+  const lastMessageIdRef = useRef<string | null>(null)
+  const messagesPage = usePaginatedQuery(
+    api.conversations.messagesPage,
+    { conversationId: selectedConversation._id },
+    { initialNumItems: 30 },
+  )
 
-  const messages = conversationDetail?.messages ?? []
+  const messages = useMemo(
+    () =>
+      [
+        ...((messagesPage.results ??
+          []) as ConversationDetailPayload['messages']),
+      ].reverse(),
+    [messagesPage.results],
+  )
+
+  const scrollToBottom = () => {
+    requestAnimationFrame(() => {
+      messagesEndRef.current?.scrollIntoView({ block: 'end' })
+    })
+  }
+
+  const isNearBottom = () => {
+    const scrollElement = messagesScrollRef.current
+    if (!scrollElement) {
+      return true
+    }
+
+    return (
+      scrollElement.scrollHeight -
+        scrollElement.scrollTop -
+        scrollElement.clientHeight <
+      96
+    )
+  }
 
   const handleSend = async () => {
     if (!newMessage.trim() || sending) return
 
     setSending(true)
+    sentMessagePendingRef.current = true
+    shouldStickToBottomRef.current = true
     try {
       await sendMessage({
         conversationId: selectedConversation._id,
@@ -311,10 +337,69 @@ function SelectedConversationPanel({
       setNewMessage('')
     } catch (error) {
       console.error('Send failed', error)
+      sentMessagePendingRef.current = false
     } finally {
       setSending(false)
     }
   }
+
+  const handleLoadOlder = () => {
+    if (messagesPage.status !== 'CanLoadMore') {
+      return
+    }
+
+    const scrollElement = messagesScrollRef.current
+    previousScrollHeightRef.current = scrollElement?.scrollHeight ?? null
+    messagesPage.loadMore(30)
+  }
+
+  useEffect(() => {
+    openedConversationRef.current = null
+    previousScrollHeightRef.current = null
+    shouldStickToBottomRef.current = true
+    sentMessagePendingRef.current = false
+    lastMessageIdRef.current = null
+  }, [selectedConversation._id])
+
+  useLayoutEffect(() => {
+    const previousScrollHeight = previousScrollHeightRef.current
+    const scrollElement = messagesScrollRef.current
+    if (!scrollElement || messages.length === 0) {
+      return
+    }
+
+    if (previousScrollHeight !== null) {
+      const nextScrollHeight = scrollElement.scrollHeight
+      scrollElement.scrollTop += nextScrollHeight - previousScrollHeight
+      previousScrollHeightRef.current = null
+      return
+    }
+
+    const lastMessage = messages.at(-1)
+    const lastMessageId = lastMessage ? String(lastMessage._id) : null
+    const lastMessageChanged = lastMessageId !== lastMessageIdRef.current
+    const lastMessageIsMine =
+      lastMessage !== undefined && viewerId === String(lastMessage.senderId)
+
+    if (openedConversationRef.current !== String(selectedConversation._id)) {
+      scrollElement.scrollTop = scrollElement.scrollHeight
+      openedConversationRef.current = String(selectedConversation._id)
+      lastMessageIdRef.current = lastMessageId
+      return
+    }
+
+    if (
+      lastMessageChanged &&
+      (sentMessagePendingRef.current ||
+        shouldStickToBottomRef.current ||
+        lastMessageIsMine)
+    ) {
+      scrollToBottom()
+      sentMessagePendingRef.current = false
+    }
+
+    lastMessageIdRef.current = lastMessageId
+  }, [messages, selectedConversation._id, viewerId])
 
   const otherUsername = selectedConversation.otherUser?.githubUsername
   const otherDisplayName =
@@ -323,7 +408,7 @@ function SelectedConversationPanel({
     'Unknown user'
 
   return (
-    <>
+    <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex min-h-14 shrink-0 items-center gap-3 border-b border-line px-[var(--lx-gutter)]">
         <Button
           variant="ghost"
@@ -369,7 +454,28 @@ function SelectedConversationPanel({
         </button>
       </div>
 
-      <div className="flex flex-1 flex-col gap-3 overflow-y-auto px-[var(--lx-gutter)] pt-6 pb-8">
+      <div
+        ref={messagesScrollRef}
+        onScroll={() => {
+          shouldStickToBottomRef.current = isNearBottom()
+        }}
+        className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-[var(--lx-gutter)] pt-4 pb-8"
+      >
+        {messagesPage.status === 'CanLoadMore' && (
+          <Button
+            variant="monoOutline"
+            size="meta"
+            onClick={handleLoadOlder}
+            className="mx-auto mb-2 font-mono"
+          >
+            load older messages
+          </Button>
+        )}
+        {messagesPage.status === 'LoadingMore' && (
+          <div className="mx-auto mb-2 font-mono text-[11px] text-text-faint">
+            loading older messages…
+          </div>
+        )}
         {messages.map((message) => {
           const isMe = viewerId === String(message.senderId)
           return (
@@ -398,6 +504,7 @@ function SelectedConversationPanel({
             </div>
           )
         })}
+        <div ref={messagesEndRef} aria-hidden="true" />
       </div>
 
       <div className="flex shrink-0 flex-wrap items-end gap-3 border-t border-line px-[var(--lx-gutter)] pt-4 pb-5">
@@ -422,6 +529,6 @@ function SelectedConversationPanel({
           {sending ? 'sending…' : 'send'}
         </Button>
       </div>
-    </>
+    </div>
   )
 }

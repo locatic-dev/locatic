@@ -1,6 +1,10 @@
 import { ConvexError, v } from 'convex/values'
+import {
+  paginationOptsValidator,
+  paginationResultValidator,
+} from 'convex/server'
 
-import { mutation, query } from './_generated/server'
+import { mutation, query, type QueryCtx } from './_generated/server'
 import { getViewerOrThrow } from './lib/auth'
 import { fanOutActivityEventToFollowers } from './lib/homeFeed'
 import type { Doc } from './lib/types'
@@ -9,6 +13,118 @@ import {
   buildProjectNotificationTarget,
   createNotificationIfEnabled,
 } from './lib/notifications'
+import {
+  actorSnapshotValidator,
+  commentTargetSnapshotValidator,
+} from './lib/validators'
+
+const commentPageItemValidator = v.object({
+  _id: v.id('comments'),
+  _creationTime: v.number(),
+  targetType: v.union(v.literal('project'), v.literal('update')),
+  targetId: v.string(),
+  authorId: v.id('users'),
+  parentId: v.union(v.id('comments'), v.null()),
+  content: v.string(),
+  replyCount: v.number(),
+  likesCount: v.number(),
+  isDeleted: v.boolean(),
+  authorSnapshot: actorSnapshotValidator,
+  targetSnapshot: commentTargetSnapshotValidator,
+  createdAt: v.number(),
+  viewerHasLiked: v.boolean(),
+  replies: v.array(v.any()),
+  previewReplies: v.optional(v.array(v.any())),
+})
+
+async function getRequester(ctx: QueryCtx) {
+  const identity = await ctx.auth.getUserIdentity()
+  if (!identity) {
+    return null
+  }
+
+  return await ctx.db
+    .query('users')
+    .withIndex('by_clerk_id', (query) => query.eq('clerkId', identity.subject))
+    .unique()
+}
+
+async function getViewerReactionIds(
+  ctx: QueryCtx,
+  requester: Doc<'users'> | null,
+  comments: Array<Doc<'comments'>>,
+) {
+  if (!requester || comments.length === 0) {
+    return new Set<string>()
+  }
+
+  const reactions = await Promise.all(
+    comments.map((comment) =>
+      ctx.db
+        .query('reactions')
+        .withIndex('by_user_target_type_id_reaction', (query) =>
+          query
+            .eq('userId', requester._id)
+            .eq('targetType', 'comment')
+            .eq('targetId', String(comment._id))
+            .eq('reactionType', 'like'),
+        )
+        .unique(),
+    ),
+  )
+
+  return new Set(
+    reactions
+      .filter((reaction): reaction is Doc<'reactions'> => Boolean(reaction))
+      .map((reaction) => reaction.targetId),
+  )
+}
+
+function withViewerLikes(
+  comments: Array<Doc<'comments'>>,
+  viewerReactionIds: Set<string>,
+) {
+  return comments.map((comment) => ({
+    ...comment,
+    viewerHasLiked: viewerReactionIds.has(String(comment._id)),
+    replies: [],
+  }))
+}
+
+async function addPreviewReplies(
+  ctx: QueryCtx,
+  requester: Doc<'users'> | null,
+  comments: Array<Doc<'comments'>>,
+) {
+  const previewRepliesByParent = await Promise.all(
+    comments.map(async (comment) => {
+      if (comment.replyCount === 0) {
+        return [] as Array<Doc<'comments'>>
+      }
+
+      return await ctx.db
+        .query('comments')
+        .withIndex('by_target_type_parent_created', (query) =>
+          query
+            .eq('targetType', comment.targetType)
+            .eq('targetId', comment.targetId)
+            .eq('parentId', comment._id),
+        )
+        .order('asc')
+        .take(2)
+    }),
+  )
+  const allPreviewReplies = previewRepliesByParent.flat()
+  const viewerReactionIds = await getViewerReactionIds(
+    ctx,
+    requester,
+    allPreviewReplies,
+  )
+
+  return previewRepliesByParent.map((replies) =>
+    withViewerLikes(replies, viewerReactionIds),
+  )
+}
 
 function buildCommentTargetSnapshot(args: {
   project: Doc<'projects'> | null
@@ -91,6 +207,93 @@ export const listByTarget = query({
     return commentsWithReplies.sort(
       (left, right) => right.createdAt - left.createdAt,
     )
+  },
+})
+
+export const listRootsByTarget = query({
+  args: {
+    targetType: v.union(v.literal('project'), v.literal('update')),
+    targetId: v.string(),
+    sort: v.union(v.literal('newest'), v.literal('top')),
+    paginationOpts: paginationOptsValidator,
+  },
+  returns: paginationResultValidator(commentPageItemValidator),
+  handler: async (ctx, args) => {
+    const requester = await getRequester(ctx)
+    const page =
+      args.sort === 'top'
+        ? await ctx.db
+            .query('comments')
+            .withIndex('by_target_type_parent_likes', (query) =>
+              query
+                .eq('targetType', args.targetType)
+                .eq('targetId', args.targetId)
+                .eq('parentId', null),
+            )
+            .order('desc')
+            .paginate(args.paginationOpts)
+        : await ctx.db
+            .query('comments')
+            .withIndex('by_target_type_parent_created', (query) =>
+              query
+                .eq('targetType', args.targetType)
+                .eq('targetId', args.targetId)
+                .eq('parentId', null),
+            )
+            .order('desc')
+            .paginate(args.paginationOpts)
+    const viewerReactionIds = await getViewerReactionIds(
+      ctx,
+      requester,
+      page.page,
+    )
+    const previewReplies = await addPreviewReplies(ctx, requester, page.page)
+
+    return {
+      ...page,
+      page: withViewerLikes(page.page, viewerReactionIds).map(
+        (comment, index) => ({
+          ...comment,
+          previewReplies: previewReplies[index] ?? [],
+        }),
+      ),
+    }
+  },
+})
+
+export const listReplies = query({
+  args: {
+    parentId: v.id('comments'),
+    paginationOpts: paginationOptsValidator,
+  },
+  returns: paginationResultValidator(commentPageItemValidator),
+  handler: async (ctx, args) => {
+    const parent = await ctx.db.get(args.parentId)
+    if (!parent) {
+      throw new ConvexError('Comment not found')
+    }
+
+    const requester = await getRequester(ctx)
+    const page = await ctx.db
+      .query('comments')
+      .withIndex('by_target_type_parent_created', (query) =>
+        query
+          .eq('targetType', parent.targetType)
+          .eq('targetId', parent.targetId)
+          .eq('parentId', parent._id),
+      )
+      .order('asc')
+      .paginate(args.paginationOpts)
+    const viewerReactionIds = await getViewerReactionIds(
+      ctx,
+      requester,
+      page.page,
+    )
+
+    return {
+      ...page,
+      page: withViewerLikes(page.page, viewerReactionIds),
+    }
   },
 })
 

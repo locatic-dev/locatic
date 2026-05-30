@@ -1,4 +1,5 @@
 import { ConvexError, v } from 'convex/values'
+import { paginationOptsValidator } from 'convex/server'
 
 import { mutation, query } from './_generated/server'
 import { getViewerOrThrow } from './lib/auth'
@@ -105,6 +106,32 @@ export const get = query({
       },
       messages,
     }
+  },
+})
+
+export const messagesPage = query({
+  args: {
+    conversationId: v.id('conversations'),
+    paginationOpts: paginationOptsValidator,
+  },
+  handler: async (ctx, args) => {
+    const viewer = await getViewerOrThrow(ctx)
+    const conversation = await ctx.db.get(args.conversationId)
+    if (
+      !conversation ||
+      (conversation.participantLowId !== viewer._id &&
+        conversation.participantHighId !== viewer._id)
+    ) {
+      throw new ConvexError('Conversation not found')
+    }
+
+    return await ctx.db
+      .query('messages')
+      .withIndex('by_conversation_created', (query) =>
+        query.eq('conversationId', conversation._id),
+      )
+      .order('desc')
+      .paginate(args.paginationOpts)
   },
 })
 

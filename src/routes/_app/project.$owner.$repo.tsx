@@ -5,18 +5,21 @@ import {
   useQueryClient,
   useSuspenseQuery,
 } from '@tanstack/react-query'
+import { usePaginatedQuery } from 'convex/react'
 import {
   createFileRoute,
   useCanGoBack,
   useRouter,
 } from '@tanstack/react-router'
 import { useEffect, useRef, useState } from 'react'
+import { api } from '../../../convex/_generated/api'
 import type { Id } from '../../../convex/_generated/dataModel'
 import { projectDetailQueryOptions } from '@/features/projects/queries'
 import { LxAvatar } from '@/components/ui/lx-avatar'
 import { LangDot } from '@/components/ui/lang-dot'
 import { StatusPill } from '@/components/ui/status-pill'
 import { CityPill } from '@/components/ui/city-pill'
+import { BrandIcon } from '@/components/ui/brand-icon'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { relativeTime } from '@/lib/time'
@@ -27,8 +30,6 @@ import {
   MessageSquare,
   ArrowLeft,
   ExternalLink,
-  CornerUpLeft,
-  Trash2,
 } from '@/lib/icons'
 import {
   useLikeProject,
@@ -49,6 +50,12 @@ import {
 import { socialLinkHref } from '@/lib/social-links'
 import { useOpenConversation } from '@/features/inbox/use-open-conversation'
 import { viewerSummaryQueryOptions } from '@/features/viewer/queries'
+import { CommentThread } from '@/features/projects/comments/comment-thread'
+import { useCommentThreadState } from '@/features/projects/comments/use-comment-thread-state'
+import type {
+  ProjectCommentLikeOverride,
+  ProjectCommentView,
+} from '@/features/projects/comments/types'
 
 function updateProjectLikePayload(
   payload: ProjectDetailPayload | null | undefined,
@@ -84,48 +91,6 @@ function updateProjectFollowPayload(
   return {
     ...payload,
     viewerFollowsOwner: nextFollowed,
-  }
-}
-
-function updateCommentLikeState<
-  TComment extends {
-    _id: unknown
-    likesCount: number
-    viewerHasLiked: boolean
-  },
->(comment: TComment, targetId: string, nextLiked: boolean): TComment {
-  if (String(comment._id) !== targetId) {
-    return comment
-  }
-
-  const delta = nextLiked === comment.viewerHasLiked ? 0 : nextLiked ? 1 : -1
-
-  return {
-    ...comment,
-    likesCount: comment.likesCount + delta,
-    viewerHasLiked: nextLiked,
-  }
-}
-
-function updateCommentLikePayload(
-  payload: ProjectDetailPayload | null | undefined,
-  targetId: string,
-  nextLiked: boolean,
-) {
-  if (!payload) {
-    return payload
-  }
-
-  const updateComment = (
-    comment: ProjectDetailPayload['comments'][number],
-  ): ProjectDetailPayload['comments'][number] => ({
-    ...updateCommentLikeState(comment, targetId, nextLiked),
-    replies: comment.replies.map(updateComment),
-  })
-
-  return {
-    ...payload,
-    comments: payload.comments.map(updateComment),
   }
 }
 
@@ -175,8 +140,20 @@ function ProjectDetailPage() {
     data as ProjectDetailPayload | null | undefined,
   )
   const projectDetailQueryKey = projectDetailQueryOptions(fullName).queryKey
+  const commentRoots = usePaginatedQuery(
+    api.comments.listRootsByTarget,
+    detail
+      ? {
+          targetId: String(detail.project._id),
+          targetType: 'project',
+          sort: 'newest',
+        }
+      : 'skip',
+    { initialNumItems: 10 },
+  )
 
   const [comment, setComment] = useState('')
+  const [commentComposerOpen, setCommentComposerOpen] = useState(false)
   const [postingComment, setPostingComment] = useState(false)
   const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({})
   const [pendingDeleteIds, setPendingDeleteIds] = useState<Set<string>>(
@@ -184,7 +161,21 @@ function ProjectDetailPage() {
   )
   const [replyingToId, setReplyingToId] = useState<string | null>(null)
   const [hashCommentId, setHashCommentId] = useState<string | null>(null)
-  const commentRefs = useRef<Record<string, HTMLDivElement | null>>({})
+  const commentRefs = useRef<Record<string, HTMLElement | null>>({})
+  const {
+    expand: expandCommentThread,
+    expandedIds,
+    toggle: toggleCommentThread,
+  } = useCommentThreadState()
+  const [pendingReplies, setPendingReplies] = useState<
+    Record<string, ProjectCommentView[]>
+  >({})
+  const [commentLikeOverrides, setCommentLikeOverrides] = useState<
+    Record<string, ProjectCommentLikeOverride>
+  >({})
+  const [pendingCommentLikeId, setPendingCommentLikeId] = useState<
+    string | null
+  >(null)
 
   const likeMutation = useMutation({
     mutationFn: async ({
@@ -254,47 +245,6 @@ function ProjectDetailPage() {
     },
   })
 
-  const commentLikeMutation = useMutation({
-    mutationFn: async ({
-      commentId,
-      currentlyLiked,
-    }: {
-      commentId: string
-      currentlyLiked: boolean
-    }) =>
-      currentlyLiked
-        ? unreactFromTarget({
-            reactionType: 'like',
-            targetId: commentId,
-            targetType: 'comment',
-          })
-        : reactToTarget({
-            reactionType: 'like',
-            targetId: commentId,
-            targetType: 'comment',
-          }),
-    onMutate: async ({ commentId, currentlyLiked }) => {
-      await queryClient.cancelQueries({ queryKey: projectDetailQueryKey })
-      const previous = queryClient.getQueryData<ProjectDetailPayload | null>(
-        projectDetailQueryKey,
-      )
-
-      queryClient.setQueryData<ProjectDetailPayload | null>(
-        projectDetailQueryKey,
-        (current) =>
-          updateCommentLikePayload(current, commentId, !currentlyLiked) ?? null,
-      )
-
-      return { previous }
-    },
-    onError: (_error, _variables, context) => {
-      queryClient.setQueryData(projectDetailQueryKey, context?.previous ?? null)
-    },
-    onSettled: async () => {
-      await queryClient.invalidateQueries({ queryKey: projectDetailQueryKey })
-    },
-  })
-
   if (!detail) {
     return <div className="p-8 text-text-muted">project not found.</div>
   }
@@ -303,8 +253,9 @@ function ProjectDetailPage() {
   const followed = detail.viewerFollowsOwner
   const githubStars = detail.project.github.stargazersCount
   const locaticLikes = detail.project.locatic.likesCount
-  const comments = detail.comments.filter(
-    (commentItem) => !commentItem.isDeleted,
+  const comments = (commentRoots.results ?? []) as ProjectCommentView[]
+  const visibleRootComments = comments.filter(
+    (commentItem) => !commentItem.isDeleted || commentItem.replyCount > 0,
   )
   const description =
     detail.project.github.description || 'no project description provided yet.'
@@ -324,7 +275,6 @@ function ProjectDetailPage() {
     'website',
     detail.owner.socialLinks.website,
   )
-  const pendingCommentLikeId = commentLikeMutation.variables?.commentId ?? null
 
   const handleLike = async () => {
     if (likeMutation.isPending || !isSignedIn) {
@@ -371,6 +321,7 @@ function ProjectDetailPage() {
         targetType: 'project',
       })
       setComment('')
+      setCommentComposerOpen(false)
       await queryClient.invalidateQueries({
         queryKey: projectDetailQueryKey,
       })
@@ -384,11 +335,47 @@ function ProjectDetailPage() {
   const handleReply = async (parentId: Id<'comments'>) => {
     const parentKey = String(parentId)
     const draft = replyDrafts[parentKey]?.trim() ?? ''
-    if (!draft || replyingToId === parentKey || !isSignedIn) {
+    if (!draft || replyingToId === parentKey || !isSignedIn || !viewer) {
       return
     }
 
     setReplyingToId(parentKey)
+    expandCommentThread(parentKey)
+    const pendingReplyId = `pending-${parentKey}-${Date.now()}`
+    const pendingReply: ProjectCommentView = {
+      _creationTime: Date.now(),
+      _id: pendingReplyId,
+      authorId: viewer.id,
+      authorSnapshot: {
+        avatarUrl: '',
+        cityId: null,
+        cityName: null,
+        displayName: 'you',
+      },
+      content: draft,
+      createdAt: Date.now(),
+      isDeleted: false,
+      likesCount: 0,
+      parentId,
+      pending: true,
+      replyCount: 0,
+      replies: [],
+      targetId: String(detail.project._id),
+      targetSnapshot: {
+        projectFullName: detail.project.github.fullName,
+        projectOwner: owner,
+        projectRepo: repo,
+        targetLabel: detail.project.github.fullName,
+        updateTitle: null,
+      },
+      targetType: 'project',
+      viewerHasLiked: false,
+    }
+    setPendingReplies((current) => ({
+      ...current,
+      [parentKey]: [...(current[parentKey] ?? []), pendingReply],
+    }))
+
     try {
       await addComment({
         content: draft,
@@ -396,16 +383,26 @@ function ProjectDetailPage() {
         targetId: String(detail.project._id),
         targetType: 'project',
       })
-      setReplyDrafts((current) => ({
-        ...current,
-        [parentKey]: '',
-      }))
+      setReplyDrafts((current) => {
+        const next = { ...current }
+        delete next[parentKey]
+        return next
+      })
       await queryClient.invalidateQueries({
         queryKey: projectDetailQueryKey,
       })
     } catch (error) {
       console.error(error)
     } finally {
+      setPendingReplies((current) => {
+        const nextReplies = (current[parentKey] ?? []).filter(
+          (reply) => reply._id !== pendingReplyId,
+        )
+        return {
+          ...current,
+          [parentKey]: nextReplies,
+        }
+      })
       setReplyingToId(null)
     }
   }
@@ -413,21 +410,53 @@ function ProjectDetailPage() {
   const handleToggleCommentLike = async (
     commentId: string,
     currentlyLiked: boolean,
+    likesCount: number,
   ) => {
-    if (
-      !isSignedIn ||
-      (commentLikeMutation.isPending && pendingCommentLikeId === commentId)
-    ) {
+    if (!isSignedIn || pendingCommentLikeId === commentId) {
       return
     }
 
+    const nextLiked = !currentlyLiked
+    const nextLikesCount = Math.max(0, likesCount + (nextLiked ? 1 : -1))
+    setCommentLikeOverrides((current) => ({
+      ...current,
+      [commentId]: {
+        likesCount: nextLikesCount,
+        viewerHasLiked: nextLiked,
+      },
+    }))
+    setPendingCommentLikeId(commentId)
+
     try {
-      await commentLikeMutation.mutateAsync({
-        commentId,
-        currentlyLiked,
-      })
+      if (currentlyLiked) {
+        await unreactFromTarget({
+          reactionType: 'like',
+          targetId: commentId,
+          targetType: 'comment',
+        })
+      } else {
+        await reactToTarget({
+          reactionType: 'like',
+          targetId: commentId,
+          targetType: 'comment',
+        })
+      }
+      window.setTimeout(() => {
+        setCommentLikeOverrides((current) => {
+          const next = { ...current }
+          delete next[commentId]
+          return next
+        })
+      }, 1200)
     } catch (error) {
       console.error(error)
+      setCommentLikeOverrides((current) => {
+        const next = { ...current }
+        delete next[commentId]
+        return next
+      })
+    } finally {
+      setPendingCommentLikeId(null)
     }
   }
 
@@ -515,179 +544,6 @@ function ProjectDetailPage() {
         ? [{ name: detail.project.github.primaryLanguage, bytes: 0 }]
         : []
 
-  const renderComment = (
-    commentItem: ProjectDetailPayload['comments'][number],
-    depth = 0,
-  ) => {
-    if (commentItem.isDeleted && commentItem.replies.length === 0) {
-      return null
-    }
-
-    const commentId = String(commentItem._id)
-    const commentLiked = commentItem.viewerHasLiked
-    const commentLikes = commentItem.likesCount
-    const canDelete = viewer?.id === String(commentItem.authorId)
-    const visibleReplies = commentItem.replies.filter(
-      (reply) => !reply.isDeleted || reply.replies.length > 0,
-    )
-    const nested = depth > 0
-
-    return (
-      <div
-        key={commentId}
-        id={`comment-${commentId}`}
-        ref={(node) => {
-          commentRefs.current[commentId] = node
-        }}
-        className={`rounded-[6px] border border-line px-4 py-4 ${
-          activeHighlightedCommentId === commentId
-            ? 'bg-brand-quiet'
-            : nested
-              ? 'bg-surface'
-              : 'bg-transparent'
-        }`}
-      >
-        <div className="flex gap-3">
-          <LxAvatar
-            name={commentItem.authorSnapshot.displayName}
-            avatarUrl={commentItem.authorSnapshot.avatarUrl}
-            size={nested ? 28 : 32}
-          />
-          <div className="min-w-0 flex-1">
-            <div className="mb-1.5 flex flex-wrap items-center gap-2.5">
-              <span className="font-mono text-[12.5px] font-semibold text-text">
-                {commentItem.authorSnapshot.displayName}
-              </span>
-              {!nested && commentItem.authorSnapshot.cityName && (
-                <CityPill city={commentItem.authorSnapshot.cityName} />
-              )}
-              <span className="font-mono text-[11px] text-text-faint">
-                {relativeTime(commentItem.createdAt)}
-              </span>
-            </div>
-            <p className="m-0 font-sans text-[13.5px] leading-[1.6] text-text">
-              {commentItem.content}
-            </p>
-            <div className="mt-3 flex flex-wrap items-center gap-3 font-mono text-[11px] text-text-faint">
-              <button
-                type="button"
-                onClick={() =>
-                  void handleToggleCommentLike(commentId, commentLiked)
-                }
-                aria-label={commentLiked ? 'Unlike comment' : 'Like comment'}
-                aria-pressed={commentLiked}
-                disabled={
-                  (commentLikeMutation.isPending &&
-                    pendingCommentLikeId === commentId) ||
-                  !isSignedIn
-                }
-                className={`inline-flex min-h-11 items-center gap-1.5 rounded-md px-2 py-2 ${
-                  commentLiked ? 'text-brand' : 'text-inherit'
-                }`}
-              >
-                <Heart
-                  size={13}
-                  fill={commentLiked ? 'currentColor' : 'none'}
-                  strokeWidth={1.6}
-                />
-                <span>{commentLikes}</span>
-              </button>
-              <button
-                type="button"
-                onClick={() =>
-                  setReplyDrafts((current) => ({
-                    ...current,
-                    [commentId]: current[commentId] ?? '',
-                  }))
-                }
-                aria-label="Reply to comment"
-                className="inline-flex min-h-11 items-center gap-1.5 rounded-md px-2 py-2 text-inherit"
-              >
-                <CornerUpLeft size={13} strokeWidth={1.6} />
-                <span>reply</span>
-              </button>
-              {visibleReplies.length > 0 && (
-                <span>
-                  {visibleReplies.length}{' '}
-                  {visibleReplies.length === 1 ? 'reply' : 'replies'}
-                </span>
-              )}
-              {canDelete && (
-                <button
-                  type="button"
-                  onClick={() => void handleDeleteComment(commentItem._id)}
-                  disabled={pendingDeleteIds.has(commentId)}
-                  aria-label="Delete comment"
-                  className="inline-flex min-h-11 items-center gap-1.5 rounded-md px-2 py-2 text-inherit"
-                >
-                  <Trash2 size={13} strokeWidth={1.6} />
-                  <span>
-                    {pendingDeleteIds.has(commentId) ? 'deleting…' : 'delete'}
-                  </span>
-                </button>
-              )}
-            </div>
-
-            {replyDrafts[commentId] !== undefined && isSignedIn && (
-              <div className="mt-3 flex flex-wrap gap-3 rounded-[6px] border border-line bg-surface px-3 py-3">
-                <Textarea
-                  value={replyDrafts[commentId] ?? ''}
-                  onChange={(event) =>
-                    setReplyDrafts((current) => ({
-                      ...current,
-                      [commentId]: event.target.value,
-                    }))
-                  }
-                  rows={2}
-                  placeholder={`reply to ${commentItem.authorSnapshot.displayName}…`}
-                  className="min-h-18 flex-1 resize-none border-0 bg-transparent px-0 py-0 font-sans text-[13px] text-text shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
-                />
-                <div className="flex items-end gap-2">
-                  <Button
-                    variant="monoOutline"
-                    size="meta"
-                    onClick={() =>
-                      setReplyDrafts((current) => {
-                        const next = { ...current }
-                        delete next[commentId]
-                        return next
-                      })
-                    }
-                    className="font-mono"
-                  >
-                    cancel
-                  </Button>
-                  <Button
-                    variant="brand"
-                    size="meta"
-                    onClick={() => void handleReply(commentItem._id)}
-                    disabled={
-                      !(replyDrafts[commentId] ?? '').trim() ||
-                      replyingToId === commentId
-                    }
-                    className="font-mono"
-                  >
-                    {replyingToId === commentId ? 'posting…' : 'reply'}
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            {visibleReplies.length > 0 && (
-              <div
-                className={`mt-4 flex flex-col gap-3 border-l border-line ${
-                  depth >= 2 ? 'pl-3 sm:pl-4' : 'pl-4'
-                }`}
-              >
-                {visibleReplies.map((reply) => renderComment(reply, depth + 1))}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div className="lx-page-shell flex flex-col bg-canvas">
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-line bg-canvas px-(--lx-gutter) py-3">
@@ -748,6 +604,16 @@ function ProjectDetailPage() {
                   : 'follow'}
             </Button>
           )}
+          <a
+            href={githubHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex min-h-11 items-center gap-2 rounded-md border border-line bg-surface px-3 py-2 font-mono text-[12px] font-semibold text-text-muted no-underline transition-colors hover:border-line-strong hover:bg-surface-alt hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+          >
+            <BrandIcon name="github" size={14} />
+            GitHub
+            <ExternalLink size={12} strokeWidth={1.6} />
+          </a>
         </div>
       </div>
 
@@ -759,15 +625,9 @@ function ProjectDetailPage() {
                 <span className="font-mono text-[12px] text-text-faint">
                   {owner}
                 </span>
-                <a
-                  href={githubHref}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex min-h-11 items-center gap-1.5 px-0 py-2 font-mono text-[11.5px] text-text-muted no-underline transition-colors hover:text-text"
-                >
-                  <ExternalLink size={12} />
-                  view on GitHub
-                </a>
+                <span className="font-mono text-[12px] text-text-faint">
+                  imported from GitHub
+                </span>
               </div>
 
               <h1 className="mb-3 font-mono text-[clamp(30px,4vw,42px)] font-bold tracking-tight text-text wrap-anywhere">
@@ -949,7 +809,19 @@ function ProjectDetailPage() {
                   // comments · {detail.project.locatic.commentsCount}
                 </div>
 
-                {isSignedIn ? (
+                {isSignedIn && !commentComposerOpen ? (
+                  <Button
+                    variant="monoOutline"
+                    size="meta"
+                    onClick={() => setCommentComposerOpen(true)}
+                    className="mb-4 font-mono"
+                  >
+                    <MessageSquare size={13} />
+                    add comment
+                  </Button>
+                ) : null}
+
+                {isSignedIn && commentComposerOpen ? (
                   <div className="mb-4 flex flex-wrap gap-3 rounded-[6px] border border-line bg-surface px-3.5 py-3">
                     <Textarea
                       value={comment}
@@ -958,31 +830,86 @@ function ProjectDetailPage() {
                       rows={2}
                       className="min-h-18 flex-1 resize-none border-0 bg-transparent px-0 py-0 font-sans text-[13.5px] text-text shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
                     />
-                    <Button
-                      variant="brand"
-                      size="meta"
-                      onClick={() => void handlePostComment()}
-                      disabled={!comment.trim() || postingComment}
-                      className="self-end font-mono font-semibold"
-                    >
-                      {postingComment ? '…' : 'post'}
-                    </Button>
+                    <div className="flex items-end gap-2">
+                      <Button
+                        variant="monoOutline"
+                        size="meta"
+                        onClick={() => {
+                          setComment('')
+                          setCommentComposerOpen(false)
+                        }}
+                        className="font-mono"
+                      >
+                        cancel
+                      </Button>
+                      <Button
+                        variant="brand"
+                        size="meta"
+                        onClick={() => void handlePostComment()}
+                        disabled={!comment.trim() || postingComment}
+                        className="font-mono font-semibold"
+                      >
+                        {postingComment ? 'posting…' : 'post'}
+                      </Button>
+                    </div>
                   </div>
-                ) : (
+                ) : null}
+
+                {!isSignedIn ? (
                   <div className="mb-4 rounded-[6px] border border-line bg-surface px-3.5 py-3 font-mono text-[12.5px] text-text-faint">
                     <a href="/sign-in/$" className="text-brand no-underline">
                       sign in
                     </a>{' '}
                     to leave a comment.
                   </div>
-                )}
+                ) : null}
 
-                {comments.length === 0 ? (
+                {visibleRootComments.length === 0 &&
+                commentRoots.status !== 'LoadingFirstPage' ? (
                   <div className="py-4 font-sans text-sm text-text-muted">
                     no comments yet.
                   </div>
                 ) : (
-                  comments.map((commentItem) => renderComment(commentItem))
+                  <div className="flex flex-col gap-3">
+                    {visibleRootComments.map((commentItem) => (
+                      <CommentThread
+                        key={String(commentItem._id)}
+                        activeHighlightedCommentId={activeHighlightedCommentId}
+                        commentItem={commentItem}
+                        commentLikeOverrides={commentLikeOverrides}
+                        commentRefs={commentRefs}
+                        depth={0}
+                        expandedIds={expandedIds}
+                        handleDeleteComment={handleDeleteComment}
+                        handleReply={handleReply}
+                        handleToggleCommentLike={handleToggleCommentLike}
+                        isSignedIn={Boolean(isSignedIn)}
+                        onToggleReplies={toggleCommentThread}
+                        pendingCommentLikeId={pendingCommentLikeId}
+                        pendingDeleteIds={pendingDeleteIds}
+                        pendingReplies={pendingReplies}
+                        replyDrafts={replyDrafts}
+                        replyingToId={replyingToId}
+                        setReplyDrafts={setReplyDrafts}
+                        viewerId={viewer?.id ? String(viewer.id) : null}
+                      />
+                    ))}
+                    {commentRoots.status === 'CanLoadMore' && (
+                      <Button
+                        variant="monoOutline"
+                        size="meta"
+                        onClick={() => commentRoots.loadMore(10)}
+                        className="self-start font-mono"
+                      >
+                        load more comments
+                      </Button>
+                    )}
+                    {commentRoots.status === 'LoadingMore' && (
+                      <div className="font-mono text-[12px] text-text-faint">
+                        loading more comments…
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
             </div>
