@@ -10,6 +10,7 @@ import {
 import { internal } from './_generated/api'
 import { fanOutActivityEventToFollowers } from './lib/homeFeed'
 import { getViewerOrThrow } from './lib/auth'
+import { canPinProject } from './lib/project_pins'
 import { resolvePublicCityLabel } from './lib/project_previews'
 import {
   buildOwnerSnapshot,
@@ -312,6 +313,10 @@ export const pinOwnedProject = mutation({
     const project = await ctx.db.get(args.projectId)
     if (!project || project.ownerId !== viewer._id) {
       throw new ConvexError('Project not found')
+    }
+
+    if (args.pinned && !canPinProject(project)) {
+      throw new ConvexError('Hidden projects cannot be pinned')
     }
 
     const currentIds = new Set(viewer.pinnedProfileProjectIds)

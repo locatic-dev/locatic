@@ -29,6 +29,7 @@ import type * as lib_explore from "../lib/explore.js";
 import type * as lib_github from "../lib/github.js";
 import type * as lib_homeFeed from "../lib/homeFeed.js";
 import type * as lib_notifications from "../lib/notifications.js";
+import type * as lib_project_pins from "../lib/project_pins.js";
 import type * as lib_project_previews from "../lib/project_previews.js";
 import type * as lib_pulse from "../lib/pulse.js";
 import type * as lib_snapshots from "../lib/snapshots.js";
@@ -70,6 +71,7 @@ declare const fullApi: ApiFromModules<{
   "lib/github": typeof lib_github;
   "lib/homeFeed": typeof lib_homeFeed;
   "lib/notifications": typeof lib_notifications;
+  "lib/project_pins": typeof lib_project_pins;
   "lib/project_previews": typeof lib_project_previews;
   "lib/pulse": typeof lib_pulse;
   "lib/snapshots": typeof lib_snapshots;

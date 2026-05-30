@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
-import { deleteCleanupBatches, deleteMergedCleanupBatches } from '../cleanup'
+import { deleteCleanupBatch, deleteMergedCleanupBatch } from '../cleanup'
 
-describe('deleteCleanupBatches', () => {
-  it('drains more than one batch of expired rows', async () => {
+describe('deleteCleanupBatch', () => {
+  it('deletes one bounded batch and reports more work', async () => {
     const remaining = Array.from({ length: 205 }, (_, index) => index)
 
-    const deletedCount = await deleteCleanupBatches({
+    const result = await deleteCleanupBatch({
       batchSize: 100,
       fetchBatch: async () => remaining.slice(0, 100),
       deleteBatch: async (batch) => {
@@ -14,13 +14,13 @@ describe('deleteCleanupBatches', () => {
       },
     })
 
-    expect(deletedCount).toBe(205)
-    expect(remaining).toHaveLength(0)
+    expect(result).toEqual({ deletedCount: 100, hasMore: true })
+    expect(remaining).toHaveLength(105)
   })
 })
 
-describe('deleteMergedCleanupBatches', () => {
-  it('deduplicates merged notification batches while draining multiple passes', async () => {
+describe('deleteMergedCleanupBatch', () => {
+  it('deduplicates merged notification batches and caps unique deletes', async () => {
     const readNotifications = [
       { _id: 'shared_1' },
       { _id: 'shared_2' },
@@ -36,7 +36,7 @@ describe('deleteMergedCleanupBatches', () => {
       })),
     ]
 
-    const deletedCount = await deleteMergedCleanupBatches({
+    const result = await deleteMergedCleanupBatch({
       batchSize: 100,
       fetchBatches: async () => [
         readNotifications.slice(0, 100),
@@ -55,8 +55,7 @@ describe('deleteMergedCleanupBatches', () => {
       },
     })
 
-    expect(deletedCount).toBe(218)
-    expect(readNotifications).toHaveLength(0)
-    expect(absoluteNotifications).toHaveLength(0)
+    expect(result).toEqual({ deletedCount: 100, hasMore: true })
+    expect(readNotifications.length + absoluteNotifications.length).toBe(118)
   })
 })

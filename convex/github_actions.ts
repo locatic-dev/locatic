@@ -7,12 +7,21 @@ import { internal } from './_generated/api'
 import { action, internalAction } from './_generated/server'
 import { buildViewerSeedFromIdentity, requireIdentity } from './lib/auth'
 import {
+  encodeRepositoryFullNamePath,
   extractContributionCalendar,
+  listGithubRepositoryPages,
   mapGithubRepository,
   mapGithubRepositoryWithOptionalLanguages,
+  normalizeRepositoryFullNames,
   type GithubLanguages,
   type GithubRepository,
 } from './lib/github'
+
+class GitHubRequestError extends Error {
+  constructor(public status: number) {
+    super(`GitHub request failed: ${status}`)
+  }
+}
 
 async function getClerkClient() {
   if (!process.env.CLERK_SECRET_KEY) {
@@ -54,7 +63,7 @@ async function githubRequest<T>(
   })
 
   if (!response.ok) {
-    throw new ConvexError(`GitHub request failed: ${response.status}`)
+    throw new GitHubRequestError(response.status)
   }
 
   return (await response.json()) as T
@@ -144,10 +153,27 @@ export const listRepositories = action({
     }
 
     const { accessToken, scopes } = await getGithubAccessToken(identity.subject)
-    const repositories = await githubRequest<GithubRepository[]>(
-      '/user/repos?visibility=public&sort=updated&per_page=100',
-      accessToken,
-    )
+    let repositories: GithubRepository[] = []
+    try {
+      repositories = await listGithubRepositoryPages({
+        fetchPage: (page, perPage) =>
+          githubRequest<GithubRepository[]>(
+            `/user/repos?visibility=public&sort=updated&per_page=${perPage}&page=${page}`,
+            accessToken,
+          ),
+      })
+    } catch (error) {
+      if (error instanceof GitHubRequestError) {
+        await ctx.runMutation(internal.github.recordGithubTokenState, {
+          userId: viewer._id,
+          tokenStatus: error.status === 401 ? 'needs_reauth' : 'active',
+          scopes,
+          lastError: `GitHub request failed: ${error.status}`,
+        })
+      }
+
+      throw new ConvexError('Could not load GitHub repositories')
+    }
 
     await ctx.runMutation(internal.github.recordGithubTokenState, {
       userId: viewer._id,
@@ -184,28 +210,63 @@ export const importSelectedRepositories = action({
       throw new ConvexError('Viewer not found')
     }
 
+    let fullNames: string[]
+    try {
+      fullNames = normalizeRepositoryFullNames(args.fullNames)
+    } catch (error) {
+      throw new ConvexError(
+        error instanceof Error
+          ? error.message
+          : 'Repository selection is invalid',
+      )
+    }
+
     const { accessToken, scopes } = await getGithubAccessToken(identity.subject)
 
     const repositoryResults = await Promise.allSettled(
-      args.fullNames.map((fullName) =>
-        mapGithubRepositoryWithOptionalLanguages({
+      fullNames.map((fullName) => {
+        const repositoryPath = encodeRepositoryFullNamePath(fullName)
+
+        return mapGithubRepositoryWithOptionalLanguages({
           fetchRepository: () =>
-            githubRequest<GithubRepository>(`/repos/${fullName}`, accessToken),
-          fetchLanguages: () =>
-            githubRequest<GithubLanguages>(
-              `/repos/${fullName}/languages`,
+            githubRequest<GithubRepository>(
+              `/repos/${repositoryPath}`,
               accessToken,
             ),
-        }),
-      ),
+          fetchLanguages: () =>
+            githubRequest<GithubLanguages>(
+              `/repos/${repositoryPath}/languages`,
+              accessToken,
+            ),
+        })
+      }),
     )
 
     const repositories = repositoryResults.flatMap((result) =>
       result.status === 'fulfilled' ? [result.value] : [],
     )
     const skippedRepos = repositoryResults.flatMap((result, index) =>
-      result.status === 'rejected' ? [args.fullNames[index] ?? 'unknown'] : [],
+      result.status === 'rejected' ? [fullNames[index] ?? 'unknown'] : [],
     )
+    const requestFailure = repositoryResults.find(
+      (result): result is PromiseRejectedResult =>
+        result.status === 'rejected' &&
+        result.reason instanceof GitHubRequestError,
+    )
+
+    if (requestFailure) {
+      await ctx.runMutation(internal.github.recordGithubTokenState, {
+        userId: viewer._id,
+        tokenStatus:
+          requestFailure.reason.status === 401 ? 'needs_reauth' : 'active',
+        scopes,
+        lastError: `GitHub request failed: ${requestFailure.reason.status}`,
+      })
+
+      if (requestFailure.reason.status === 401) {
+        throw new ConvexError('Refresh your GitHub connection and try again')
+      }
+    }
 
     const result = await ctx.runMutation(
       internal.projects.upsertImportedRepositories,
@@ -215,12 +276,14 @@ export const importSelectedRepositories = action({
       },
     )
 
-    await ctx.runMutation(internal.github.recordGithubTokenState, {
-      userId: viewer._id,
-      tokenStatus: 'active',
-      scopes,
-      lastError: null,
-    })
+    if (!requestFailure) {
+      await ctx.runMutation(internal.github.recordGithubTokenState, {
+        userId: viewer._id,
+        tokenStatus: 'active',
+        scopes,
+        lastError: null,
+      })
+    }
 
     return result
       ? {
