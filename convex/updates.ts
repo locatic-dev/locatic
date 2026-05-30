@@ -54,6 +54,7 @@ export const create = mutation({
         name: project.github.name,
         fullName: project.github.fullName,
         primaryLanguage: project.github.primaryLanguage,
+        languages: project.github.languages,
       },
       createdAt: Date.now(),
     })

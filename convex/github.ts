@@ -173,6 +173,12 @@ export const patchProjectMetadata = internalMutation({
       githubUrl: v.string(),
       projectUrl: v.union(v.string(), v.null()),
       primaryLanguage: v.union(v.string(), v.null()),
+      languages: v.array(
+        v.object({
+          name: v.string(),
+          bytes: v.number(),
+        }),
+      ),
       topics: v.array(v.string()),
       stargazersCount: v.number(),
       lastCommitAt: v.number(),

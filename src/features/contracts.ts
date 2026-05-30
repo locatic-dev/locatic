@@ -26,8 +26,44 @@ export type ProfileSocialPreview = {
 }
 
 export type ContributedProjectPreview = {
-  project: Doc<'projects'>
+  project: ProjectCardPreview
   commitCount: number
+}
+
+export type ProfileCommentPreview = {
+  _id: Id<'comments'>
+  targetType: Doc<'comments'>['targetType']
+  targetId: string
+  content: string
+  replyCount: number
+  likesCount: number
+  createdAt: number
+  projectFullName: string | null
+  projectOwner: string | null
+  projectRepo: string | null
+  targetLabel: string
+  targetAvailability: 'available' | 'hidden' | 'deleted'
+}
+
+export type ProjectCardPreview = {
+  projectId: Id<'projects'>
+  ownerUserId: Id<'users'>
+  fullName: string
+  owner: string
+  repo: string
+  description: string | null
+  primaryLanguage: string | null
+  languages: Doc<'projects'>['github']['languages']
+  githubStars: number
+  locaticLikes: number
+  commentsCount: number
+  lastCommitAt: number
+  updatedAt: number
+  authorName: string
+  authorHandle: string
+  authorAvatarUrl: string | null
+  cityLabel: string | null
+  cityVisibilityState: 'exact_city' | 'region_only' | 'hidden' | 'unset'
 }
 
 export type ViewerBootstrapPayload = {
@@ -39,15 +75,15 @@ export type ViewerBootstrapPayload = {
 export type PrivateProfilePayload = {
   viewer: ViewerRecord
   cityName: string | null
-  projects: Array<Doc<'projects'>>
-  comments: Array<Doc<'comments'>>
+  projects: Array<ProjectCardPreview>
+  comments: Array<ProfileCommentPreview>
   contributions: Array<ContributedProjectPreview>
   followers: Array<ProfileSocialPreview>
   likedProjects: Array<{
     reactionId: Id<'reactions'>
     projectId: Id<'projects'>
     likedAt: number
-    project: Doc<'projects'>
+    project: ProjectCardPreview
   }>
   following: Array<ProfileSocialPreview>
 }
@@ -101,24 +137,15 @@ export type PublicProfilePayload = {
   }
   stats: Doc<'users'>['stats']
   githubContributions?: Doc<'users'>['githubContributions'] | null
-  projects: Array<Doc<'projects'>>
-  comments: Array<{
-    _id: Id<'comments'>
-    targetType: Doc<'comments'>['targetType']
-    targetId: string
-    content: string
-    replyCount: number
-    likesCount: number
-    createdAt: number
-  }>
+  projects: Array<ProjectCardPreview>
+  comments: Array<ProfileCommentPreview>
   contributions: Array<ContributedProjectPreview>
   followers: Array<ProfileSocialPreview>
   likedProjects: Array<{
     reactionId: Id<'reactions'>
     projectId: Id<'projects'>
-    fullName: string
-    name: string
     likedAt: number
+    project: ProjectCardPreview
   }>
   following: Array<ProfileSocialPreview>
   privacy: Doc<'users'>['privacy']
@@ -143,17 +170,19 @@ export type PublicProfileOverviewPayload = {
 
 export type ThreadedProjectComment = Doc<'comments'> & {
   viewerHasLiked: boolean
-  replies: Array<
-    Doc<'comments'> & {
-      viewerHasLiked: boolean
-    }
-  >
+  replies: ThreadedProjectComment[]
 }
 
 export type ProjectDetailPayload = {
   project: Doc<'projects'>
   updates: Array<Doc<'updates'>>
   comments: Array<ThreadedProjectComment>
+  likedByPreview: Array<{
+    userId: Id<'users'>
+    githubUsername: string
+    displayName: string
+    avatarUrl: string | null
+  }>
   viewerHasLiked: boolean
   viewerFollowsOwner: boolean
   owner: {
@@ -347,6 +376,7 @@ export function mapProjectDetail(
 
   return {
     comments: payload.comments,
+    likedByPreview: payload.likedByPreview,
     owner: payload.owner,
     project: payload.project,
     updates: payload.updates,

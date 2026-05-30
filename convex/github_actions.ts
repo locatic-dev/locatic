@@ -6,7 +6,22 @@ import { ConvexError, v } from 'convex/values'
 import { internal } from './_generated/api'
 import { action, internalAction } from './_generated/server'
 import { buildViewerSeedFromIdentity, requireIdentity } from './lib/auth'
-import { extractContributionCalendar } from './lib/github'
+import {
+  encodeRepositoryFullNamePath,
+  extractContributionCalendar,
+  listGithubRepositoryPages,
+  mapGithubRepository,
+  mapGithubRepositoryWithOptionalLanguages,
+  normalizeRepositoryFullNames,
+  type GithubLanguages,
+  type GithubRepository,
+} from './lib/github'
+
+class GitHubRequestError extends Error {
+  constructor(public status: number) {
+    super(`GitHub request failed: ${status}`)
+  }
+}
 
 async function getClerkClient() {
   if (!process.env.CLERK_SECRET_KEY) {
@@ -48,7 +63,7 @@ async function githubRequest<T>(
   })
 
   if (!response.ok) {
-    throw new ConvexError(`GitHub request failed: ${response.status}`)
+    throw new GitHubRequestError(response.status)
   }
 
   return (await response.json()) as T
@@ -123,37 +138,6 @@ const CONTRIBUTION_QUERY = `
   }
 `
 
-type GithubRepository = {
-  id: number
-  full_name: string
-  name: string
-  description: string | null
-  html_url: string
-  homepage: string | null
-  language: string | null
-  topics?: string[]
-  stargazers_count: number
-  pushed_at: string
-}
-
-function mapGithubRepository(repository: GithubRepository) {
-  const lastCommitAt = new Date(repository.pushed_at).getTime()
-  return {
-    repoId: repository.id,
-    fullName: repository.full_name,
-    name: repository.name,
-    description: repository.description,
-    githubUrl: repository.html_url,
-    projectUrl: repository.homepage,
-    primaryLanguage: repository.language,
-    topics: repository.topics ?? [],
-    stargazersCount: repository.stargazers_count,
-    lastCommitAt,
-    lastMetadataSyncedAt: Date.now(),
-    readmePreview: repository.description,
-  }
-}
-
 export const listRepositories = action({
   args: {},
   handler: async (ctx) => {
@@ -169,10 +153,27 @@ export const listRepositories = action({
     }
 
     const { accessToken, scopes } = await getGithubAccessToken(identity.subject)
-    const repositories = await githubRequest<GithubRepository[]>(
-      '/user/repos?visibility=public&sort=updated&per_page=100',
-      accessToken,
-    )
+    let repositories: GithubRepository[] = []
+    try {
+      repositories = await listGithubRepositoryPages({
+        fetchPage: (page, perPage) =>
+          githubRequest<GithubRepository[]>(
+            `/user/repos?visibility=public&sort=updated&per_page=${perPage}&page=${page}`,
+            accessToken,
+          ),
+      })
+    } catch (error) {
+      if (error instanceof GitHubRequestError) {
+        await ctx.runMutation(internal.github.recordGithubTokenState, {
+          userId: viewer._id,
+          tokenStatus: error.status === 401 ? 'needs_reauth' : 'active',
+          scopes,
+          lastError: `GitHub request failed: ${error.status}`,
+        })
+      }
+
+      throw new ConvexError('Could not load GitHub repositories')
+    }
 
     await ctx.runMutation(internal.github.recordGithubTokenState, {
       userId: viewer._id,
@@ -181,7 +182,7 @@ export const listRepositories = action({
       lastError: null,
     })
 
-    return repositories.map(mapGithubRepository)
+    return repositories.map((repository) => mapGithubRepository(repository))
   },
 })
 
@@ -209,30 +210,92 @@ export const importSelectedRepositories = action({
       throw new ConvexError('Viewer not found')
     }
 
+    let fullNames: string[]
+    try {
+      fullNames = normalizeRepositoryFullNames(args.fullNames)
+    } catch (error) {
+      throw new ConvexError(
+        error instanceof Error
+          ? error.message
+          : 'Repository selection is invalid',
+      )
+    }
+
     const { accessToken, scopes } = await getGithubAccessToken(identity.subject)
 
-    const repositories = await Promise.all(
-      args.fullNames.map((fullName) =>
-        githubRequest<GithubRepository>(`/repos/${fullName}`, accessToken),
-      ),
+    const repositoryResults = await Promise.allSettled(
+      fullNames.map((fullName) => {
+        const repositoryPath = encodeRepositoryFullNamePath(fullName)
+
+        return mapGithubRepositoryWithOptionalLanguages({
+          fetchRepository: () =>
+            githubRequest<GithubRepository>(
+              `/repos/${repositoryPath}`,
+              accessToken,
+            ),
+          fetchLanguages: () =>
+            githubRequest<GithubLanguages>(
+              `/repos/${repositoryPath}/languages`,
+              accessToken,
+            ),
+        })
+      }),
     )
+
+    const repositories = repositoryResults.flatMap((result) =>
+      result.status === 'fulfilled' ? [result.value] : [],
+    )
+    const skippedRepos = repositoryResults.flatMap((result, index) =>
+      result.status === 'rejected' ? [fullNames[index] ?? 'unknown'] : [],
+    )
+    const requestFailure = repositoryResults.find(
+      (result): result is PromiseRejectedResult =>
+        result.status === 'rejected' &&
+        result.reason instanceof GitHubRequestError,
+    )
+
+    if (requestFailure) {
+      await ctx.runMutation(internal.github.recordGithubTokenState, {
+        userId: viewer._id,
+        tokenStatus:
+          requestFailure.reason.status === 401 ? 'needs_reauth' : 'active',
+        scopes,
+        lastError: `GitHub request failed: ${requestFailure.reason.status}`,
+      })
+
+      if (requestFailure.reason.status === 401) {
+        throw new ConvexError('Refresh your GitHub connection and try again')
+      }
+    }
 
     const result = await ctx.runMutation(
       internal.projects.upsertImportedRepositories,
       {
         ownerId: viewer._id,
-        repositories: repositories.map(mapGithubRepository),
+        repositories,
       },
     )
 
-    await ctx.runMutation(internal.github.recordGithubTokenState, {
-      userId: viewer._id,
-      tokenStatus: 'active',
-      scopes,
-      lastError: null,
-    })
+    if (!requestFailure) {
+      await ctx.runMutation(internal.github.recordGithubTokenState, {
+        userId: viewer._id,
+        tokenStatus: 'active',
+        scopes,
+        lastError: null,
+      })
+    }
 
     return result
+      ? {
+          ...result,
+          skippedRepos: [...new Set([...result.skippedRepos, ...skippedRepos])],
+        }
+      : {
+          createdProjectIds: [],
+          reposNew: 0,
+          reposUpdated: 0,
+          skippedRepos,
+        }
   },
 })
 
@@ -271,42 +334,10 @@ export const likeProject = action({
       clerkId: identity.subject,
     })
 
-    if (!viewer.syncGithubStarsOnLike) {
-      return {
-        githubSyncAttempted: false,
-        githubSyncSucceeded: false,
-        githubSyncError: null,
-      }
-    }
-
-    try {
-      const { accessToken, scopes } = await getGithubAccessToken(
-        identity.subject,
-      )
-      await githubNoContentRequest(
-        `/user/starred/${project.github.fullName}`,
-        accessToken,
-        { method: 'PUT' },
-      )
-      await ctx.runMutation(internal.github.recordGithubTokenState, {
-        userId: viewer._id,
-        tokenStatus: 'active',
-        scopes,
-        lastError: null,
-      })
-
-      return {
-        githubSyncAttempted: true,
-        githubSyncSucceeded: true,
-        githubSyncError: null,
-      }
-    } catch (error) {
-      return {
-        githubSyncAttempted: true,
-        githubSyncSucceeded: false,
-        githubSyncError:
-          error instanceof Error ? error.message : 'GitHub star sync failed',
-      }
+    return {
+      githubSyncAttempted: false,
+      githubSyncSucceeded: false,
+      githubSyncError: null,
     }
   },
 })
@@ -346,42 +377,10 @@ export const unlikeProject = action({
       clerkId: identity.subject,
     })
 
-    if (!viewer.syncGithubStarsOnLike) {
-      return {
-        githubSyncAttempted: false,
-        githubSyncSucceeded: false,
-        githubSyncError: null,
-      }
-    }
-
-    try {
-      const { accessToken, scopes } = await getGithubAccessToken(
-        identity.subject,
-      )
-      await githubNoContentRequest(
-        `/user/starred/${project.github.fullName}`,
-        accessToken,
-        { method: 'DELETE' },
-      )
-      await ctx.runMutation(internal.github.recordGithubTokenState, {
-        userId: viewer._id,
-        tokenStatus: 'active',
-        scopes,
-        lastError: null,
-      })
-
-      return {
-        githubSyncAttempted: true,
-        githubSyncSucceeded: true,
-        githubSyncError: null,
-      }
-    } catch (error) {
-      return {
-        githubSyncAttempted: true,
-        githubSyncSucceeded: false,
-        githubSyncError:
-          error instanceof Error ? error.message : 'GitHub unstar sync failed',
-      }
+    return {
+      githubSyncAttempted: false,
+      githubSyncSucceeded: false,
+      githubSyncError: null,
     }
   },
 })
@@ -407,14 +406,22 @@ export const refreshProjectMetadata = internalAction({
     }
 
     const { accessToken, scopes } = await getGithubAccessToken(owner.clerkId)
-    const repository = await githubRequest<GithubRepository>(
-      `/repos/${project.github.fullName}`,
-      accessToken,
-    )
+    const repository = await mapGithubRepositoryWithOptionalLanguages({
+      fetchRepository: () =>
+        githubRequest<GithubRepository>(
+          `/repos/${project.github.fullName}`,
+          accessToken,
+        ),
+      fetchLanguages: () =>
+        githubRequest<GithubLanguages>(
+          `/repos/${project.github.fullName}/languages`,
+          accessToken,
+        ),
+    })
 
     await ctx.runMutation(internal.github.patchProjectMetadata, {
       projectId: project._id,
-      repository: mapGithubRepository(repository),
+      repository,
     })
 
     await ctx.runMutation(internal.github.recordGithubTokenState, {

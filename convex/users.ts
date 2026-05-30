@@ -22,14 +22,16 @@ import {
   requireIdentity,
 } from './lib/auth'
 import { buildDiscoverabilitySearchText } from './lib/discoverability'
-import { buildActorSnapshot, buildOwnerSnapshot } from './lib/snapshots'
 import {
-  createDefaultViewerProfile,
-  resolveOnboardingSelectedOwnedProjectIds,
-  resolvePinnedProfileProjectIds,
-  resolveSyncGithubStarsOnLike,
-  resolveUnreadMessagesCount,
-} from './lib/viewer'
+  buildProjectCardPreview,
+  resolvePublicCityLabel,
+} from './lib/project_previews'
+import {
+  buildActorSnapshot,
+  buildOwnerSnapshot,
+  buildProjectExploreOwner,
+} from './lib/snapshots'
+import { createDefaultViewerProfile } from './lib/viewer'
 
 function serializeViewer(
   viewer: NonNullable<Awaited<ReturnType<typeof getViewerFromAuth>>>,
@@ -43,11 +45,10 @@ function serializeViewer(
     exploreConfig: viewer.exploreConfig,
     privacy: viewer.privacy,
     notificationPrefs: viewer.notificationPrefs,
-    onboardingSelectedOwnedProjectIds:
-      resolveOnboardingSelectedOwnedProjectIds(viewer),
-    pinnedProfileProjectIds: resolvePinnedProfileProjectIds(viewer),
-    syncGithubStarsOnLike: resolveSyncGithubStarsOnLike(viewer),
-    unreadMessagesCount: resolveUnreadMessagesCount(viewer),
+    onboardingSelectedOwnedProjectIds: viewer.onboardingSelectedOwnedProjectIds,
+    pinnedProfileProjectIds: viewer.pinnedProfileProjectIds,
+    syncGithubStarsOnLike: viewer.syncGithubStarsOnLike,
+    unreadMessagesCount: viewer.unreadMessagesCount,
     onboardingCompletedAt: viewer.onboardingCompletedAt,
     appearInExplore: viewer.appearInExplore,
     githubContributions: viewer.githubContributions ?? null,
@@ -68,7 +69,7 @@ async function getViewerCityName(
   return city?.displayName ?? null
 }
 
-async function syncOwnedProjectOwnerSnapshots(
+async function syncOwnedProjectOwnerState(
   ctx: MutationCtx,
   user: Doc<'users'>,
 ) {
@@ -87,6 +88,7 @@ async function syncOwnedProjectOwnerSnapshots(
     ownedProjects.map((project) =>
       ctx.db.patch(project._id, {
         ownerSnapshot,
+        exploreOwner: buildProjectExploreOwner(user, project.locatic.isVisible),
       }),
     ),
   )
@@ -175,6 +177,7 @@ async function listFollowPreviewPage(
 async function listContributedProjects(
   ctx: QueryCtx,
   userId: Doc<'users'>['_id'],
+  audience: 'private' | 'public',
   limit = 24,
 ) {
   const rows = await ctx.db
@@ -190,7 +193,9 @@ async function listContributedProjects(
       }
 
       return {
-        project,
+        project: await buildProjectCardPreview(ctx.db, project, {
+          audience,
+        }),
         commitCount: row.commitCount,
       }
     }),
@@ -200,7 +205,7 @@ async function listContributedProjects(
     (
       project,
     ): project is {
-      project: Doc<'projects'>
+      project: Awaited<ReturnType<typeof buildProjectCardPreview>>
       commitCount: number
     } => Boolean(project),
   )
@@ -253,31 +258,7 @@ async function listPrivateProfileProjects(
   ctx: QueryCtx,
   viewer: NonNullable<Awaited<ReturnType<typeof getViewerFromAuth>>>,
 ) {
-  const pinnedProjectIds = new Set(
-    resolvePinnedProfileProjectIds(viewer).map(String),
-  )
-  const rawProjects = await ctx.db
-    .query('projects')
-    .withIndex('by_owner', (query) => query.eq('ownerId', viewer._id))
-    .collect()
-
-  return [...rawProjects].sort((left, right) => {
-    const leftPinned = pinnedProjectIds.has(String(left._id)) ? 1 : 0
-    const rightPinned = pinnedProjectIds.has(String(right._id)) ? 1 : 0
-    if (leftPinned !== rightPinned) {
-      return rightPinned - leftPinned
-    }
-    return right.updatedAt - left.updatedAt
-  })
-}
-
-async function listPublicProfileProjects(
-  ctx: QueryCtx,
-  viewer: NonNullable<Awaited<ReturnType<typeof getViewerByClerkId>>>,
-) {
-  const pinnedProjectIds = new Set(
-    resolvePinnedProfileProjectIds(viewer).map(String),
-  )
+  const pinnedProjectIds = new Set(viewer.pinnedProfileProjectIds.map(String))
   const rawProjects = await ctx.db
     .query('projects')
     .withIndex('by_owner_visible', (query) =>
@@ -285,7 +266,7 @@ async function listPublicProfileProjects(
     )
     .collect()
 
-  return [...rawProjects].sort((left, right) => {
+  const sortedProjects = [...rawProjects].sort((left, right) => {
     const leftPinned = pinnedProjectIds.has(String(left._id)) ? 1 : 0
     const rightPinned = pinnedProjectIds.has(String(right._id)) ? 1 : 0
     if (leftPinned !== rightPinned) {
@@ -293,16 +274,122 @@ async function listPublicProfileProjects(
     }
     return right.updatedAt - left.updatedAt
   })
+
+  return await Promise.all(
+    sortedProjects.map((project) =>
+      buildProjectCardPreview(ctx.db, project, {
+        audience: 'private',
+        owner: viewer,
+      }),
+    ),
+  )
+}
+
+async function listPublicProfileProjects(
+  ctx: QueryCtx,
+  viewer: NonNullable<Awaited<ReturnType<typeof getViewerByClerkId>>>,
+) {
+  const pinnedProjectIds = new Set(viewer.pinnedProfileProjectIds.map(String))
+  const rawProjects = await ctx.db
+    .query('projects')
+    .withIndex('by_owner_visible', (query) =>
+      query.eq('ownerId', viewer._id).eq('locatic.isVisible', true),
+    )
+    .collect()
+
+  const sortedProjects = [...rawProjects].sort((left, right) => {
+    const leftPinned = pinnedProjectIds.has(String(left._id)) ? 1 : 0
+    const rightPinned = pinnedProjectIds.has(String(right._id)) ? 1 : 0
+    if (leftPinned !== rightPinned) {
+      return rightPinned - leftPinned
+    }
+    return right.updatedAt - left.updatedAt
+  })
+
+  return await Promise.all(
+    sortedProjects.map((project) =>
+      buildProjectCardPreview(ctx.db, project, {
+        audience: 'public',
+        owner: viewer,
+      }),
+    ),
+  )
+}
+
+async function buildProfileCommentPreview(
+  ctx: QueryCtx,
+  comment: Doc<'comments'>,
+) {
+  let projectFullName = comment.targetSnapshot.projectFullName
+  let projectOwner = comment.targetSnapshot.projectOwner
+  let projectRepo = comment.targetSnapshot.projectRepo
+  let targetLabel = comment.targetSnapshot.targetLabel
+  let targetAvailability: 'available' | 'hidden' | 'deleted' = 'deleted'
+
+  if (comment.targetType === 'project') {
+    const projectId = ctx.db.normalizeId('projects', comment.targetId)
+    const project = projectId ? await ctx.db.get(projectId) : null
+    if (project) {
+      projectFullName = project.github.fullName
+      projectOwner = project.github.fullName.split('/')[0] ?? projectOwner
+      projectRepo = project.github.name
+      targetLabel = project.github.fullName
+      targetAvailability = project.locatic.isVisible ? 'available' : 'hidden'
+    }
+  }
+
+  if (comment.targetType === 'update') {
+    const updateId = ctx.db.normalizeId('updates', comment.targetId)
+    const update = updateId ? await ctx.db.get(updateId) : null
+    const project = update ? await ctx.db.get(update.projectId) : null
+    const fullName =
+      project?.github.fullName ?? update?.projectSnapshot.fullName
+
+    if (fullName) {
+      projectFullName = fullName
+      projectOwner = fullName.split('/')[0] ?? projectOwner
+      projectRepo = fullName.split('/')[1] ?? projectRepo
+      targetLabel = `${fullName}${update?.title ? ` update · ${update.title}` : ' update'}`
+      if (project?.locatic.isVisible) {
+        targetAvailability = 'available'
+      } else if (project) {
+        targetAvailability = 'hidden'
+      } else {
+        targetAvailability = 'deleted'
+      }
+    }
+  }
+
+  return {
+    _id: comment._id,
+    targetType: comment.targetType,
+    targetId: comment.targetId,
+    content: comment.content,
+    replyCount: comment.replyCount,
+    likesCount: comment.likesCount,
+    createdAt: comment.createdAt,
+    projectFullName,
+    projectOwner,
+    projectRepo,
+    targetLabel,
+    targetAvailability,
+  }
 }
 
 async function listPrivateProfileComments(
   ctx: QueryCtx,
   userId: Doc<'users'>['_id'],
 ) {
-  return await ctx.db
+  const comments = await ctx.db
     .query('comments')
     .withIndex('by_author', (query) => query.eq('authorId', userId))
     .collect()
+
+  return await Promise.all(
+    comments
+      .filter((comment) => !comment.isDeleted)
+      .map((comment) => buildProfileCommentPreview(ctx, comment)),
+  )
 }
 
 async function listPublicProfileComments(
@@ -313,22 +400,16 @@ async function listPublicProfileComments(
     return []
   }
 
-  return (
-    await ctx.db
-      .query('comments')
-      .withIndex('by_author', (query) => query.eq('authorId', viewer._id))
-      .collect()
+  const comments = await ctx.db
+    .query('comments')
+    .withIndex('by_author', (query) => query.eq('authorId', viewer._id))
+    .collect()
+
+  return await Promise.all(
+    comments
+      .filter((comment) => !comment.isDeleted)
+      .map((comment) => buildProfileCommentPreview(ctx, comment)),
   )
-    .filter((comment) => !comment.isDeleted)
-    .map((comment) => ({
-      _id: comment._id,
-      targetType: comment.targetType,
-      targetId: comment.targetId,
-      content: comment.content,
-      replyCount: comment.replyCount,
-      likesCount: comment.likesCount,
-      createdAt: comment.createdAt,
-    }))
 }
 
 async function listPrivateLikedProjects(
@@ -350,11 +431,17 @@ async function listPrivateLikedProjects(
       const projectId = ctx.db.normalizeId('projects', reaction.targetId)
       const project = projectId ? await ctx.db.get(projectId) : null
 
+      if (!project) {
+        return null
+      }
+
       return {
         reactionId: reaction._id,
         projectId,
         likedAt: reaction.createdAt,
-        project,
+        project: await buildProjectCardPreview(ctx.db, project, {
+          audience: 'private',
+        }),
       }
     }),
   )
@@ -363,11 +450,12 @@ async function listPrivateLikedProjects(
     (
       likedProject,
     ): likedProject is {
-      reactionId: typeof likedProject.reactionId
-      projectId: NonNullable<typeof likedProject.projectId>
+      reactionId: Id<'reactions'>
+      projectId: Id<'projects'>
       likedAt: number
-      project: NonNullable<typeof likedProject.project>
-    } => Boolean(likedProject.projectId && likedProject.project),
+      project: Awaited<ReturnType<typeof buildProjectCardPreview>>
+    } =>
+      Boolean(likedProject && likedProject.projectId && likedProject.project),
   )
 }
 
@@ -400,9 +488,10 @@ async function listPublicLikedProjects(
       return {
         reactionId: reaction._id,
         projectId,
-        fullName: project.github.fullName,
-        name: project.github.name,
         likedAt: reaction.createdAt,
+        project: await buildProjectCardPreview(ctx.db, project, {
+          audience: 'public',
+        }),
       }
     }),
   )
@@ -413,9 +502,8 @@ async function listPublicLikedProjects(
     ): project is {
       reactionId: Id<'reactions'>
       projectId: Id<'projects'>
-      fullName: string
-      name: string
       likedAt: number
+      project: Awaited<ReturnType<typeof buildProjectCardPreview>>
     } => Boolean(project),
   )
 }
@@ -433,21 +521,6 @@ function emptyFollowPreviewPage(cursor: string | null = null) {
     }>,
     pageStatus: null,
     splitCursor: null,
-  }
-}
-
-function resolvePublicCityLabel(
-  viewer: NonNullable<Awaited<ReturnType<typeof getViewerFromAuth>>>,
-  cityName: string | null,
-) {
-  switch (viewer.privacy.cityVisibility) {
-    case 'hidden':
-      return null
-    case 'region_only':
-      return cityName?.split(',').slice(1).join(',').trim() || null
-    case 'exact_city':
-    default:
-      return cityName
   }
 }
 
@@ -507,7 +580,7 @@ async function getPublicProfilePayload(
     listPublicProfileProjects(ctx, viewer),
     listPublicProfileComments(ctx, viewer),
     listPublicLikedProjects(ctx, viewer),
-    listContributedProjects(ctx, viewer._id),
+    listContributedProjects(ctx, viewer._id, 'public'),
     viewer.privacy.followGraphVisibility === 'public'
       ? listFollowPreviewSlice(ctx, {
           userId: viewer._id,
@@ -591,7 +664,7 @@ export const privateProfile = query({
       viewer.profile.cityId ? ctx.db.get(viewer.profile.cityId) : null,
       listPrivateProfileProjects(ctx, viewer),
       listPrivateProfileComments(ctx, viewer._id),
-      listContributedProjects(ctx, viewer._id),
+      listContributedProjects(ctx, viewer._id, 'private'),
       listFollowPreviewSlice(ctx, {
         userId: viewer._id,
         kind: 'followers',
@@ -645,7 +718,7 @@ export const privateProfileContributions = query({
   args: {},
   handler: async (ctx) => {
     const viewer = await getViewerOrThrow(ctx)
-    return await listContributedProjects(ctx, viewer._id)
+    return await listContributedProjects(ctx, viewer._id, 'private')
   },
 })
 
@@ -768,7 +841,7 @@ export const viewerInboxSummary = query({
 
     return {
       viewerId: viewer._id,
-      unreadMessages: resolveUnreadMessagesCount(viewer),
+      unreadMessages: viewer.unreadMessagesCount,
     }
   },
 })
@@ -879,7 +952,7 @@ export const publicProfileContributions = query({
       return null
     }
 
-    return await listContributedProjects(ctx, viewer._id)
+    return await listContributedProjects(ctx, viewer._id, 'public')
   },
 })
 
@@ -975,7 +1048,7 @@ export const updateProfile = mutation({
       },
       updatedAt: Date.now(),
     })
-    await syncOwnedProjectOwnerSnapshots(ctx, updatedViewer)
+    await syncOwnedProjectOwnerState(ctx, updatedViewer)
 
     return await ctx.db.get(viewer._id)
   },
@@ -1057,6 +1130,11 @@ export const updateExploreConfig = mutation({
       },
       appearInExplore: args.appearInExplore,
       updatedAt: Date.now(),
+    })
+
+    await syncOwnedProjectOwnerState(ctx, {
+      ...viewer,
+      appearInExplore: args.appearInExplore,
     })
 
     return null
@@ -1145,7 +1223,7 @@ export const completeOnboarding = mutation({
       onboardingCompletedAt: Date.now(),
       updatedAt: Date.now(),
     })
-    await syncOwnedProjectOwnerSnapshots(ctx, updatedViewer)
+    await syncOwnedProjectOwnerState(ctx, updatedViewer)
 
     return await ctx.db.get(viewer._id)
   },
@@ -1182,6 +1260,12 @@ export const deactivateAccount = mutation({
       updatedAt: now,
     })
 
+    await syncOwnedProjectOwnerState(ctx, {
+      ...viewer,
+      deactivatedAt: now,
+      appearInExplore: false,
+    })
+
     return null
   },
 })
@@ -1197,6 +1281,13 @@ export const deleteAccount = mutation({
       deactivatedAt: now,
       appearInExplore: false,
       updatedAt: now,
+    })
+
+    await syncOwnedProjectOwnerState(ctx, {
+      ...viewer,
+      deletedAt: now,
+      deactivatedAt: now,
+      appearInExplore: false,
     })
 
     await ctx.scheduler.runAfter(0, internal.users.finalizeDeletedAccount, {
@@ -1453,6 +1544,7 @@ export const scrubDeletedAccount = internalMutation({
           ...project.locatic,
           isVisible: false,
         },
+        exploreOwner: buildProjectExploreOwner(user, false),
         updatedAt: Date.now(),
       })
     }
@@ -1595,6 +1687,25 @@ export const upsertFromClerkWebhook = internalMutation({
       updatedAt: now,
     })
 
+    await syncOwnedProjectOwnerState(ctx, {
+      ...existingViewer,
+      email: args.email,
+      github: {
+        id: args.githubId,
+        username: args.githubUsername,
+      },
+      profile: {
+        ...existingViewer.profile,
+        displayName: args.displayName,
+        fullName: args.displayName,
+        avatarUrl: args.avatarUrl,
+        socialLinks: {
+          ...existingViewer.profile.socialLinks,
+          github: args.githubUrl,
+        },
+      },
+    })
+
     return await ctx.db.get(existingViewer._id)
   },
 })
@@ -1613,6 +1724,12 @@ export const deleteFromClerkWebhook = internalMutation({
       deletedAt: Date.now(),
       deactivatedAt: Date.now(),
       updatedAt: Date.now(),
+    })
+
+    await syncOwnedProjectOwnerState(ctx, {
+      ...viewer,
+      deletedAt: Date.now(),
+      deactivatedAt: Date.now(),
     })
 
     return null
@@ -1663,7 +1780,7 @@ export const ensureViewerFromIdentity = internalMutation({
         existingViewer.profile.displayName,
         existingViewer.profile.fullName ?? existingViewer.profile.displayName,
       )
-      if (existingViewer.discoverability?.searchText !== nextSearchText) {
+      if (existingViewer.discoverability.searchText !== nextSearchText) {
         await ctx.db.patch(existingViewer._id, {
           discoverability: {
             searchText: nextSearchText,
@@ -1693,36 +1810,6 @@ export const ensureViewerFromIdentity = internalMutation({
     }
 
     return viewer
-  },
-})
-
-export const backfillDiscoverability = internalMutation({
-  args: {},
-  handler: async (ctx) => {
-    const users = await ctx.db.query('users').collect()
-    let updatedCount = 0
-
-    for (const user of users) {
-      const nextSearchText = buildDiscoverabilitySearchText(
-        user.github.username,
-        user.profile.displayName,
-        user.profile.fullName ?? user.profile.displayName,
-      )
-
-      if (user.discoverability?.searchText === nextSearchText) {
-        continue
-      }
-
-      await ctx.db.patch(user._id, {
-        discoverability: {
-          searchText: nextSearchText,
-        },
-        updatedAt: Date.now(),
-      })
-      updatedCount++
-    }
-
-    return { updatedCount }
   },
 })
 

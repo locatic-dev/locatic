@@ -27,6 +27,8 @@ import {
   MessageSquare,
   ArrowLeft,
   ExternalLink,
+  CornerUpLeft,
+  Trash2,
 } from '@/lib/icons'
 import {
   useLikeProject,
@@ -65,7 +67,7 @@ function updateProjectLikePayload(
       ...payload.project,
       locatic: {
         ...payload.project.locatic,
-        likesCount: payload.project.locatic.likesCount + delta,
+        likesCount: Math.max(0, payload.project.locatic.likesCount + delta),
       },
     },
   }
@@ -114,14 +116,16 @@ function updateCommentLikePayload(
     return payload
   }
 
+  const updateComment = (
+    comment: ProjectDetailPayload['comments'][number],
+  ): ProjectDetailPayload['comments'][number] => ({
+    ...updateCommentLikeState(comment, targetId, nextLiked),
+    replies: comment.replies.map(updateComment),
+  })
+
   return {
     ...payload,
-    comments: payload.comments.map((comment) => ({
-      ...updateCommentLikeState(comment, targetId, nextLiked),
-      replies: comment.replies.map((reply) =>
-        updateCommentLikeState(reply, targetId, nextLiked),
-      ),
-    })),
+    comments: payload.comments.map(updateComment),
   }
 }
 
@@ -179,6 +183,7 @@ function ProjectDetailPage() {
     new Set(),
   )
   const [replyingToId, setReplyingToId] = useState<string | null>(null)
+  const [hashCommentId, setHashCommentId] = useState<string | null>(null)
   const commentRefs = useRef<Record<string, HTMLDivElement | null>>({})
 
   const likeMutation = useMutation({
@@ -450,11 +455,25 @@ function ProjectDetailPage() {
   }
 
   useEffect(() => {
-    if (!highlightedCommentId) {
+    const syncHashComment = () => {
+      const hash = window.location.hash.replace(/^#/, '')
+      setHashCommentId(hash.startsWith('comment-') ? hash.slice(8) : null)
+    }
+
+    syncHashComment()
+    window.addEventListener('hashchange', syncHashComment)
+
+    return () => window.removeEventListener('hashchange', syncHashComment)
+  }, [])
+
+  const activeHighlightedCommentId = highlightedCommentId ?? hashCommentId
+
+  useEffect(() => {
+    if (!activeHighlightedCommentId) {
       return
     }
 
-    const commentElement = commentRefs.current[highlightedCommentId]
+    const commentElement = commentRefs.current[activeHighlightedCommentId]
     if (!commentElement) {
       return
     }
@@ -463,7 +482,7 @@ function ProjectDetailPage() {
       behavior: 'smooth',
       block: 'center',
     })
-  }, [highlightedCommentId, comments.length])
+  }, [activeHighlightedCommentId, comments.length])
 
   const stats = [
     {
@@ -488,6 +507,186 @@ function ProjectDetailPage() {
       value: String(detail.project.locatic.commentsCount),
     },
   ]
+  const languages =
+    detail.project.github.languages &&
+    detail.project.github.languages.length > 0
+      ? detail.project.github.languages
+      : detail.project.github.primaryLanguage
+        ? [{ name: detail.project.github.primaryLanguage, bytes: 0 }]
+        : []
+
+  const renderComment = (
+    commentItem: ProjectDetailPayload['comments'][number],
+    depth = 0,
+  ) => {
+    if (commentItem.isDeleted && commentItem.replies.length === 0) {
+      return null
+    }
+
+    const commentId = String(commentItem._id)
+    const commentLiked = commentItem.viewerHasLiked
+    const commentLikes = commentItem.likesCount
+    const canDelete = viewer?.id === String(commentItem.authorId)
+    const visibleReplies = commentItem.replies.filter(
+      (reply) => !reply.isDeleted || reply.replies.length > 0,
+    )
+    const nested = depth > 0
+
+    return (
+      <div
+        key={commentId}
+        id={`comment-${commentId}`}
+        ref={(node) => {
+          commentRefs.current[commentId] = node
+        }}
+        className={`rounded-[6px] border border-line px-4 py-4 ${
+          activeHighlightedCommentId === commentId
+            ? 'bg-brand-quiet'
+            : nested
+              ? 'bg-surface'
+              : 'bg-transparent'
+        }`}
+      >
+        <div className="flex gap-3">
+          <LxAvatar
+            name={commentItem.authorSnapshot.displayName}
+            avatarUrl={commentItem.authorSnapshot.avatarUrl}
+            size={nested ? 28 : 32}
+          />
+          <div className="min-w-0 flex-1">
+            <div className="mb-1.5 flex flex-wrap items-center gap-2.5">
+              <span className="font-mono text-[12.5px] font-semibold text-text">
+                {commentItem.authorSnapshot.displayName}
+              </span>
+              {!nested && commentItem.authorSnapshot.cityName && (
+                <CityPill city={commentItem.authorSnapshot.cityName} />
+              )}
+              <span className="font-mono text-[11px] text-text-faint">
+                {relativeTime(commentItem.createdAt)}
+              </span>
+            </div>
+            <p className="m-0 font-sans text-[13.5px] leading-[1.6] text-text">
+              {commentItem.content}
+            </p>
+            <div className="mt-3 flex flex-wrap items-center gap-3 font-mono text-[11px] text-text-faint">
+              <button
+                type="button"
+                onClick={() =>
+                  void handleToggleCommentLike(commentId, commentLiked)
+                }
+                aria-label={commentLiked ? 'Unlike comment' : 'Like comment'}
+                aria-pressed={commentLiked}
+                disabled={
+                  (commentLikeMutation.isPending &&
+                    pendingCommentLikeId === commentId) ||
+                  !isSignedIn
+                }
+                className={`inline-flex min-h-11 items-center gap-1.5 rounded-md px-2 py-2 ${
+                  commentLiked ? 'text-brand' : 'text-inherit'
+                }`}
+              >
+                <Heart
+                  size={13}
+                  fill={commentLiked ? 'currentColor' : 'none'}
+                  strokeWidth={1.6}
+                />
+                <span>{commentLikes}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  setReplyDrafts((current) => ({
+                    ...current,
+                    [commentId]: current[commentId] ?? '',
+                  }))
+                }
+                aria-label="Reply to comment"
+                className="inline-flex min-h-11 items-center gap-1.5 rounded-md px-2 py-2 text-inherit"
+              >
+                <CornerUpLeft size={13} strokeWidth={1.6} />
+                <span>reply</span>
+              </button>
+              {visibleReplies.length > 0 && (
+                <span>
+                  {visibleReplies.length}{' '}
+                  {visibleReplies.length === 1 ? 'reply' : 'replies'}
+                </span>
+              )}
+              {canDelete && (
+                <button
+                  type="button"
+                  onClick={() => void handleDeleteComment(commentItem._id)}
+                  disabled={pendingDeleteIds.has(commentId)}
+                  aria-label="Delete comment"
+                  className="inline-flex min-h-11 items-center gap-1.5 rounded-md px-2 py-2 text-inherit"
+                >
+                  <Trash2 size={13} strokeWidth={1.6} />
+                  <span>
+                    {pendingDeleteIds.has(commentId) ? 'deleting…' : 'delete'}
+                  </span>
+                </button>
+              )}
+            </div>
+
+            {replyDrafts[commentId] !== undefined && isSignedIn && (
+              <div className="mt-3 flex flex-wrap gap-3 rounded-[6px] border border-line bg-surface px-3 py-3">
+                <Textarea
+                  value={replyDrafts[commentId] ?? ''}
+                  onChange={(event) =>
+                    setReplyDrafts((current) => ({
+                      ...current,
+                      [commentId]: event.target.value,
+                    }))
+                  }
+                  rows={2}
+                  placeholder={`reply to ${commentItem.authorSnapshot.displayName}…`}
+                  className="min-h-18 flex-1 resize-none border-0 bg-transparent px-0 py-0 font-sans text-[13px] text-text shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                />
+                <div className="flex items-end gap-2">
+                  <Button
+                    variant="monoOutline"
+                    size="meta"
+                    onClick={() =>
+                      setReplyDrafts((current) => {
+                        const next = { ...current }
+                        delete next[commentId]
+                        return next
+                      })
+                    }
+                    className="font-mono"
+                  >
+                    cancel
+                  </Button>
+                  <Button
+                    variant="brand"
+                    size="meta"
+                    onClick={() => void handleReply(commentItem._id)}
+                    disabled={
+                      !(replyDrafts[commentId] ?? '').trim() ||
+                      replyingToId === commentId
+                    }
+                    className="font-mono"
+                  >
+                    {replyingToId === commentId ? 'posting…' : 'reply'}
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {visibleReplies.length > 0 && (
+              <div
+                className={`mt-4 flex flex-col gap-3 border-l border-line ${
+                  depth >= 2 ? 'pl-3 sm:pl-4' : 'pl-4'
+                }`}
+              >
+                {visibleReplies.map((reply) => renderComment(reply, depth + 1))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="lx-page-shell flex flex-col bg-canvas">
@@ -554,66 +753,144 @@ function ProjectDetailPage() {
 
       <div className="lx-page-scroll flex-1">
         <div className="lx-page-width-detail pt-2">
-          <div className="mb-4 flex flex-wrap items-center gap-3">
-            <div className="font-mono text-[11.5px] text-text-faint">
-              <span className="text-text-muted">{owner}</span>
-              <span className="mx-1.5">/</span>
-              {repo}
-            </div>
-            <a
-              href={githubHref}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex min-h-11 items-center gap-1.5 rounded-control border border-line px-3 py-2 font-mono text-[11.5px] text-text-muted no-underline transition-colors hover:text-text"
-            >
-              <ExternalLink size={12} />
-              view on GitHub
-            </a>
-          </div>
-
-          <h1 className="mb-3 font-mono text-[clamp(28px,4vw,40px)] font-bold tracking-tight text-text">
-            <span className="font-normal text-text-faint">{owner}/</span>
-            {repo}
-          </h1>
-
-          <p className="mb-6 max-w-170 font-sans text-base leading-[1.55] text-text-muted">
-            {description}
-          </p>
-
-          <div className="mb-7 flex flex-wrap items-center gap-6 border-b border-line pb-6">
-            {stats.map((stat) => (
-              <div key={stat.label}>
-                <div className="flex items-baseline gap-1.5">
-                  <stat.icon
-                    size={14}
-                    strokeWidth={1.4}
-                    fill={stat.fill ? 'currentColor' : 'none'}
-                    className={stat.accent ? 'text-brand' : 'text-text-muted'}
-                  />
-                  <span className="font-mono text-[22px] font-semibold tracking-[-0.02em] text-text [font-variant-numeric:tabular-nums]">
-                    {stat.value}
-                  </span>
-                </div>
-                <div className="mt-0.5 font-mono text-[10.5px] lowercase text-text-faint">
-                  {stat.label}
-                </div>
+          <div className="mb-8 grid gap-6 border-b border-line pb-7 lg:grid-cols-[minmax(0,1.2fr)_320px] lg:items-start">
+            <div>
+              <div className="mb-3 flex flex-wrap items-center gap-3">
+                <span className="font-mono text-[12px] text-text-faint">
+                  {owner}
+                </span>
+                <a
+                  href={githubHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex min-h-11 items-center gap-1.5 px-0 py-2 font-mono text-[11.5px] text-text-muted no-underline transition-colors hover:text-text"
+                >
+                  <ExternalLink size={12} />
+                  view on GitHub
+                </a>
               </div>
-            ))}
 
-            <div className="flex w-full flex-wrap items-center gap-2.5 font-mono text-[11.5px] text-text-faint">
-              {detail.project.github.primaryLanguage && (
-                <LangDot
-                  lang={detail.project.github.primaryLanguage}
-                  showLabel
+              <h1 className="mb-3 font-mono text-[clamp(30px,4vw,42px)] font-bold tracking-tight text-text wrap-anywhere">
+                {repo}
+              </h1>
+
+              <p className="mb-6 max-w-170 font-sans text-base leading-[1.55] text-text-muted">
+                {description}
+              </p>
+
+              <div className="mb-5 flex flex-wrap items-center gap-6">
+                {stats.map((stat) => (
+                  <div key={stat.label}>
+                    <div className="flex items-baseline gap-1.5">
+                      <stat.icon
+                        size={14}
+                        strokeWidth={1.4}
+                        fill={stat.fill ? 'currentColor' : 'none'}
+                        className={
+                          stat.accent ? 'text-brand' : 'text-text-muted'
+                        }
+                      />
+                      <span className="font-mono text-[22px] font-semibold tracking-[-0.02em] text-text [font-variant-numeric:tabular-nums]">
+                        {stat.value}
+                      </span>
+                    </div>
+                    <div className="mt-0.5 font-mono text-[10.5px] lowercase text-text-faint">
+                      {stat.label}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2.5 font-mono text-[11.5px] text-text-faint">
+                {languages.map((language) => (
+                  <LangDot key={language.name} lang={language.name} showLabel />
+                ))}
+                <span>
+                  updated {relativeTime(detail.project.github.lastCommitAt)}
+                </span>
+              </div>
+            </div>
+
+            <div className="rounded-[6px] border border-line bg-surface p-4.5">
+              <button
+                type="button"
+                onClick={() =>
+                  void router.navigate({
+                    to: '/u/$username',
+                    params: {
+                      username: detail.owner.githubUsername,
+                    },
+                    search: { tab: 'projects' },
+                  })
+                }
+                className="mb-3.5 flex w-full items-center gap-3 border-0 bg-transparent p-0 text-left"
+              >
+                <LxAvatar
+                  name={detail.owner.displayName}
+                  avatarUrl={detail.owner.avatarUrl}
+                  size={48}
                 />
-              )}
-              <span>
-                updated {relativeTime(detail.project.github.lastCommitAt)}
-              </span>
+                <div className="min-w-0 flex-1">
+                  <div className="font-mono text-sm font-semibold text-text">
+                    {detail.owner.displayName}
+                  </div>
+                  <div className="font-mono text-[11.5px] text-text-faint">
+                    @{detail.owner.githubUsername}
+                  </div>
+                </div>
+              </button>
+
+              <div className="mb-3.5 flex flex-wrap gap-2.5">
+                <StatusPill status={detail.owner.buildStatus} size="md" />
+                {detail.owner.city && <CityPill city={detail.owner.city} />}
+              </div>
+
+              <div className="flex flex-wrap gap-2.5 font-mono text-[11.5px]">
+                {ownerGithubHref && (
+                  <a
+                    href={ownerGithubHref}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-text-muted no-underline"
+                  >
+                    github
+                  </a>
+                )}
+                {ownerXHref && (
+                  <a
+                    href={ownerXHref}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-text-muted no-underline"
+                  >
+                    x
+                  </a>
+                )}
+                {ownerLinkedinHref && (
+                  <a
+                    href={ownerLinkedinHref}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-text-muted no-underline"
+                  >
+                    linkedin
+                  </a>
+                )}
+                {ownerWebsiteHref && (
+                  <a
+                    href={ownerWebsiteHref}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-text-muted no-underline"
+                  >
+                    site
+                  </a>
+                )}
+              </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_280px]">
+          <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_300px]">
             <div>
               <div className="mb-8 overflow-hidden rounded-[6px] border border-line bg-surface">
                 <div className="flex items-center justify-between border-b border-line bg-surface-alt px-4 py-2.5 font-mono text-[11.5px]">
@@ -705,314 +982,42 @@ function ProjectDetailPage() {
                     no comments yet.
                   </div>
                 ) : (
-                  comments.map((commentItem) => {
-                    const commentId = String(commentItem._id)
-                    const commentLiked = commentItem.viewerHasLiked
-                    const commentLikes = commentItem.likesCount
-                    const canDelete =
-                      viewer?.id === String(commentItem.authorId)
-
-                    return (
-                      <div
-                        key={commentId}
-                        ref={(node) => {
-                          commentRefs.current[commentId] = node
-                        }}
-                        className={`rounded-[6px] border border-line px-4 py-4 ${
-                          highlightedCommentId === commentId
-                            ? 'bg-brand-quiet'
-                            : 'bg-transparent'
-                        }`}
-                      >
-                        <div className="flex gap-3">
-                          <LxAvatar
-                            name={commentItem.authorSnapshot.displayName}
-                            avatarUrl={commentItem.authorSnapshot.avatarUrl}
-                            size={32}
-                          />
-                          <div className="min-w-0 flex-1">
-                            <div className="mb-1.5 flex flex-wrap items-center gap-2.5">
-                              <span className="font-mono text-[12.5px] font-semibold text-text">
-                                {commentItem.authorSnapshot.displayName}
-                              </span>
-                              {commentItem.authorSnapshot.cityName && (
-                                <CityPill
-                                  city={commentItem.authorSnapshot.cityName}
-                                />
-                              )}
-                              <span className="font-mono text-[11px] text-text-faint">
-                                {relativeTime(commentItem.createdAt)}
-                              </span>
-                            </div>
-                            <p className="m-0 font-sans text-[13.5px] leading-[1.6] text-text">
-                              {commentItem.content}
-                            </p>
-                            <div className="mt-3 flex flex-wrap items-center gap-3 font-mono text-[11px] text-text-faint">
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  void handleToggleCommentLike(
-                                    commentId,
-                                    commentLiked,
-                                  )
-                                }
-                                disabled={
-                                  (commentLikeMutation.isPending &&
-                                    pendingCommentLikeId === commentId) ||
-                                  !isSignedIn
-                                }
-                                className="bg-transparent p-0 text-inherit"
-                              >
-                                {commentLikes}{' '}
-                                {commentLikes === 1 ? 'like' : 'likes'}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setReplyDrafts((current) => ({
-                                    ...current,
-                                    [commentId]: current[commentId] ?? '',
-                                  }))
-                                }
-                                className="bg-transparent p-0 text-inherit"
-                              >
-                                reply
-                              </button>
-                              <span>{commentItem.replyCount} replies</span>
-                              {canDelete && (
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    void handleDeleteComment(commentItem._id)
-                                  }
-                                  disabled={pendingDeleteIds.has(commentId)}
-                                  className="bg-transparent p-0 text-inherit"
-                                >
-                                  {pendingDeleteIds.has(commentId)
-                                    ? 'deleting…'
-                                    : 'delete'}
-                                </button>
-                              )}
-                            </div>
-
-                            {replyDrafts[commentId] !== undefined &&
-                              isSignedIn && (
-                                <div className="mt-3 flex flex-wrap gap-3 rounded-[6px] border border-line bg-surface px-3 py-3">
-                                  <Textarea
-                                    value={replyDrafts[commentId] ?? ''}
-                                    onChange={(event) =>
-                                      setReplyDrafts((current) => ({
-                                        ...current,
-                                        [commentId]: event.target.value,
-                                      }))
-                                    }
-                                    rows={2}
-                                    placeholder={`reply to ${commentItem.authorSnapshot.displayName}…`}
-                                    className="min-h-18 flex-1 resize-none border-0 bg-transparent px-0 py-0 font-sans text-[13px] text-text shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
-                                  />
-                                  <div className="flex items-end gap-2">
-                                    <Button
-                                      variant="monoOutline"
-                                      size="meta"
-                                      onClick={() =>
-                                        setReplyDrafts((current) => {
-                                          const next = { ...current }
-                                          delete next[commentId]
-                                          return next
-                                        })
-                                      }
-                                      className="font-mono"
-                                    >
-                                      cancel
-                                    </Button>
-                                    <Button
-                                      variant="brand"
-                                      size="meta"
-                                      onClick={() =>
-                                        void handleReply(commentItem._id)
-                                      }
-                                      disabled={
-                                        !(
-                                          replyDrafts[commentId] ?? ''
-                                        ).trim() || replyingToId === commentId
-                                      }
-                                      className="font-mono"
-                                    >
-                                      {replyingToId === commentId
-                                        ? 'posting…'
-                                        : 'reply'}
-                                    </Button>
-                                  </div>
-                                </div>
-                              )}
-
-                            {commentItem.replies.length > 0 && (
-                              <div className="mt-4 flex flex-col gap-3 border-l border-line pl-4">
-                                {commentItem.replies
-                                  .filter((reply) => !reply.isDeleted)
-                                  .map((reply) => {
-                                    const replyId = String(reply._id)
-                                    const replyLiked = reply.viewerHasLiked
-                                    const replyLikes = reply.likesCount
-                                    const canDeleteReply =
-                                      viewer?.id === String(reply.authorId)
-
-                                    return (
-                                      <div
-                                        key={replyId}
-                                        ref={(node) => {
-                                          commentRefs.current[replyId] = node
-                                        }}
-                                        className={`rounded-[6px] border border-line px-3 py-3 ${
-                                          highlightedCommentId === replyId
-                                            ? 'bg-brand-quiet'
-                                            : 'bg-surface'
-                                        }`}
-                                      >
-                                        <div className="mb-1.5 flex flex-wrap items-center gap-2.5">
-                                          <span className="font-mono text-[12px] font-semibold text-text">
-                                            {reply.authorSnapshot.displayName}
-                                          </span>
-                                          <span className="font-mono text-[11px] text-text-faint">
-                                            {relativeTime(reply.createdAt)}
-                                          </span>
-                                        </div>
-                                        <p className="m-0 font-sans text-[13px] leading-[1.6] text-text">
-                                          {reply.content}
-                                        </p>
-                                        <div className="mt-3 flex flex-wrap items-center gap-3 font-mono text-[11px] text-text-faint">
-                                          <button
-                                            type="button"
-                                            onClick={() =>
-                                              void handleToggleCommentLike(
-                                                replyId,
-                                                replyLiked,
-                                              )
-                                            }
-                                            disabled={
-                                              (commentLikeMutation.isPending &&
-                                                pendingCommentLikeId ===
-                                                  replyId) ||
-                                              !isSignedIn
-                                            }
-                                            className="bg-transparent p-0 text-inherit"
-                                          >
-                                            {replyLikes}{' '}
-                                            {replyLikes === 1
-                                              ? 'like'
-                                              : 'likes'}
-                                          </button>
-                                          {canDeleteReply && (
-                                            <button
-                                              type="button"
-                                              onClick={() =>
-                                                void handleDeleteComment(
-                                                  reply._id,
-                                                )
-                                              }
-                                              disabled={pendingDeleteIds.has(
-                                                replyId,
-                                              )}
-                                              className="bg-transparent p-0 text-inherit"
-                                            >
-                                              {pendingDeleteIds.has(replyId)
-                                                ? 'deleting…'
-                                                : 'delete'}
-                                            </button>
-                                          )}
-                                        </div>
-                                      </div>
-                                    )
-                                  })}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    )
-                  })
+                  comments.map((commentItem) => renderComment(commentItem))
                 )}
               </div>
             </div>
 
             <aside className="flex flex-col gap-5">
-              <div className="rounded-[6px] border border-line bg-surface p-4.5">
-                <button
-                  type="button"
-                  onClick={() =>
-                    void router.navigate({
-                      to: '/u/$username',
-                      params: {
-                        username: detail.owner.githubUsername,
-                      },
-                      search: { tab: 'projects' },
-                    })
-                  }
-                  className="mb-3.5 flex w-full items-center gap-3 border-0 bg-transparent p-0 text-left"
-                >
-                  <LxAvatar
-                    name={detail.owner.displayName}
-                    avatarUrl={detail.owner.avatarUrl}
-                    size={48}
-                  />
-                  <div className="min-w-0 flex-1">
-                    <div className="font-mono text-sm font-semibold text-text">
-                      {detail.owner.displayName}
-                    </div>
-                    <div className="font-mono text-[11.5px] text-text-faint">
-                      @{detail.owner.githubUsername}
-                    </div>
+              {detail.likedByPreview.length > 0 && (
+                <div className="rounded-[6px] border border-line bg-surface p-4.5">
+                  <div className="mb-3 font-mono text-[11px] uppercase tracking-[0.06em] text-text-faint">
+                    liked by
                   </div>
-                </button>
-
-                <div className="mb-3.5 flex flex-col gap-2.5">
-                  <StatusPill status={detail.owner.buildStatus} size="md" />
-                  {detail.owner.city && <CityPill city={detail.owner.city} />}
+                  <div className="flex flex-wrap gap-2">
+                    {detail.likedByPreview.map((user) => (
+                      <button
+                        key={String(user.userId)}
+                        type="button"
+                        onClick={() =>
+                          void router.navigate({
+                            to: '/u/$username',
+                            params: { username: user.githubUsername },
+                            search: { tab: 'projects' },
+                          })
+                        }
+                        className="inline-flex min-h-11 items-center gap-1.5 rounded-pill border border-line bg-canvas px-2.5 py-1.5 font-mono text-[11.5px] text-text-muted"
+                      >
+                        <LxAvatar
+                          name={user.displayName}
+                          avatarUrl={user.avatarUrl}
+                          size={18}
+                        />
+                        {user.displayName}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-
-                <div className="flex flex-wrap gap-2.5 font-mono text-[11.5px]">
-                  {ownerGithubHref && (
-                    <a
-                      href={ownerGithubHref}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-text-muted no-underline"
-                    >
-                      github
-                    </a>
-                  )}
-                  {ownerXHref && (
-                    <a
-                      href={ownerXHref}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-text-muted no-underline"
-                    >
-                      x
-                    </a>
-                  )}
-                  {ownerLinkedinHref && (
-                    <a
-                      href={ownerLinkedinHref}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-text-muted no-underline"
-                    >
-                      linkedin
-                    </a>
-                  )}
-                  {ownerWebsiteHref && (
-                    <a
-                      href={ownerWebsiteHref}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-text-muted no-underline"
-                    >
-                      site
-                    </a>
-                  )}
-                </div>
-              </div>
+              )}
 
               <div className="rounded-[6px] border border-line bg-surface p-4.5">
                 <div className="mb-3 font-mono text-[11px] uppercase tracking-[0.06em] text-text-faint">

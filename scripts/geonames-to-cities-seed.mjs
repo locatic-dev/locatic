@@ -166,6 +166,29 @@ function dedupeCities(cities) {
   return [...bySlug.values()]
 }
 
+function toConvexImportCity(city, timestamp) {
+  return {
+    slug: city.slug,
+    name: city.name,
+    displayName: city.displayName,
+    normalizedName: city.displayName.toLowerCase(),
+    region: city.region,
+    country: city.country,
+    countryCode: city.countryCode,
+    location: {
+      lat: city.lat,
+      lng: city.lng,
+    },
+    address: city.address,
+    aliases: city.aliases,
+    timezone: city.timezone,
+    searchText: [city.displayName, city.name, ...city.aliases].join(' '),
+    isActive: true,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  }
+}
+
 function formatSeedFile(cities) {
   const rows = cities.map(
     (city) => `  {
@@ -191,6 +214,26 @@ ${rows.join(',\n')}
 `
 }
 
+function formatOutput(cities, outputPath) {
+  const timestamp = Date.now()
+
+  if (outputPath.endsWith('.jsonl')) {
+    return cities
+      .map((city) => JSON.stringify(toConvexImportCity(city, timestamp)))
+      .join('\n')
+  }
+
+  if (outputPath.endsWith('.json')) {
+    return JSON.stringify(
+      cities.map((city) => toConvexImportCity(city, timestamp)),
+      null,
+      2,
+    )
+  }
+
+  return formatSeedFile(cities)
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2))
   const raw = await readFile(args.input, 'utf8')
@@ -214,7 +257,7 @@ async function main() {
   const outputPath =
     args.output || path.join(process.cwd(), 'scripts', 'generated-cities.ts')
 
-  await writeFile(outputPath, formatSeedFile(ranked), 'utf8')
+  await writeFile(outputPath, formatOutput(ranked, outputPath), 'utf8')
 
   process.stdout.write(`Wrote ${ranked.length} cities to ${outputPath}\n`)
 }

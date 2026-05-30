@@ -6,8 +6,6 @@ export type ExploreScope = (typeof EXPLORE_SCOPE_VALUES)[number]
 
 export type ExploreSearch = {
   scope: ExploreScope
-  builderQuery: string
-  cityQuery: string
   selectedCityIds: string[]
 }
 
@@ -21,8 +19,6 @@ type ExplorePrefsLike = {
 export function getFreshExploreSearch(): ExploreSearch {
   return {
     scope: 'default',
-    builderQuery: '',
-    cityQuery: '',
     selectedCityIds: [],
   }
 }
@@ -50,9 +46,6 @@ export function normalizeExploreSearch(
   return {
     scope:
       scope === 'custom' && selectedCityIds.length === 0 ? 'global' : scope,
-    builderQuery:
-      typeof search.builderQuery === 'string' ? search.builderQuery : '',
-    cityQuery: typeof search.cityQuery === 'string' ? search.cityQuery : '',
     selectedCityIds,
   }
 }

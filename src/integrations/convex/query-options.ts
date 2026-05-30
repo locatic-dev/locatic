@@ -83,8 +83,12 @@ export const publicFollowGraphQueryOptions = ({
     paginationOpts,
   })
 
-export const homeFeedQueryOptions = (cursor?: number, limit = 20) =>
-  convexQuery(api.home.list, { cursor, limit })
+export const homeFeedQueryOptions = (
+  paginationOpts: PaginationOptions = {
+    cursor: null,
+    numItems: 20,
+  },
+) => convexQuery(api.home.list, { paginationOpts })
 
 export const exploreFeedQueryOptions = ({
   limit = 20,
@@ -143,8 +147,12 @@ export const projectDetailQueryOptions = (fullName: string) =>
 export const mineProjectsQueryOptions = () =>
   convexQuery(api.projects.listMine, {})
 
-export const notificationsQueryOptions = () =>
-  convexQuery(api.notifications.list, {})
+export const notificationsQueryOptions = (
+  paginationOpts: PaginationOptions = {
+    cursor: null,
+    numItems: 20,
+  },
+) => convexQuery(api.notifications.list, { paginationOpts })
 
 export const notificationsUnreadCountQueryOptions = () =>
   convexQuery(api.notifications.unreadCount, {})
