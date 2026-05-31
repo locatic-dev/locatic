@@ -4,4 +4,50 @@
   "compatibility_date": "2025-09-02",
   "compatibility_flags": ["nodejs_compat"],
   "main": "@tanstack/react-start/server-entry",
+  "workers_dev": false,
+  "preview_urls": true,
+  "env": {
+    "development": {
+      "name": "locatic-development",
+      "workers_dev": false,
+      "preview_urls": true,
+      "routes": [
+        {
+          "pattern": "development.locatic.dev",
+          "custom_domain": true,
+        },
+      ],
+      "observability": {
+        "enabled": true,
+        "head_sampling_rate": 1,
+      },
+      "secrets": {
+        "required": ["CLERK_SECRET_KEY"],
+      },
+      "vars": {
+        "APP_ENV": "development",
+      },
+    },
+    "production": {
+      "name": "locatic",
+      "workers_dev": false,
+      "preview_urls": true,
+      "routes": [
+        {
+          "pattern": "locatic.dev",
+          "custom_domain": true,
+        },
+      ],
+      "observability": {
+        "enabled": true,
+        "head_sampling_rate": 0.1,
+      },
+      "secrets": {
+        "required": ["CLERK_SECRET_KEY"],
+      },
+      "vars": {
+        "APP_ENV": "production",
+      },
+    },
+  },
 }
