@@ -12,6 +12,8 @@
   "scripts": {
     "dev": "vite dev --port 3000",
     "build": "vite build",
+    "build:development": "CLOUDFLARE_ENV=development vite build --mode development",
+    "build:production": "CLOUDFLARE_ENV=production vite build --mode production",
     "preview": "vite preview",
     "test": "vitest run",
     "lint": "pnpm exec oxlint",
@@ -23,7 +25,11 @@
     "cities:generate": "node scripts/geonames-to-cities-seed.mjs",
     "reactions:generate": "node scripts/reactions-to-seed.mjs",
     "deploy:convex": "pnpm exec convex deploy",
-    "deploy": "pnpm run build && wrangler deploy"
+    "deploy:convex:development": "pnpm exec convex deploy",
+    "deploy:convex:production": "pnpm exec convex deploy",
+    "deploy:worker:development": "pnpm run build:development && pnpm exec wrangler deploy",
+    "deploy:worker:production": "pnpm run build:production && pnpm exec wrangler deploy",
+    "deploy": "pnpm run deploy:worker:production"
   },
   "dependencies": {
     "@clerk/backend": "3.4.4",
