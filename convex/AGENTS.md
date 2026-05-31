@@ -43,19 +43,19 @@ convex/
 
 ## WHERE TO LOOK
 
-| Task               | File                                       | Notes                                   |
-| ------------------ | ------------------------------------------ | --------------------------------------- |
-| Add DB table       | `schema.ts`                                | Use validators from `lib/validators.ts` |
-| Add query/mutation | New file or existing domain file           | `export const myQuery = query({...})`   |
-| Add HTTP endpoint  | `http.ts`                                  | Webhooks, external API callbacks        |
-| Add scheduled task | `crons.ts`                                 | Cron-triggered functions                |
-| Add validator      | `lib/validators.ts`                        | Used in schema definitions              |
-| GitHub integration | `github.ts`, `github_actions.ts`           | API sync, webhooks                      |
-| Viewer payloads    | `users.ts`, `lib/viewer.ts`                | Authenticated app bootstrap queries     |
-| Explore state      | `explore.ts`, `lib/explore.ts`             | Search scope / city defaults            |
-| Notification state | `notifications.ts`, `lib/notifications.ts` | Read state + backfill helpers           |
-| Conversation flow  | `conversations.ts`                         | Start/get DM threads                    |
-| Project sync       | `projects.ts`, `github_actions.ts`         | Repo metadata + sync orchestration      |
+| Task               | File                                       | Notes                                          |
+| ------------------ | ------------------------------------------ | ---------------------------------------------- |
+| Add DB table       | `schema.ts`                                | Use validators from `lib/validators.ts`        |
+| Add query/mutation | New file or existing domain file           | `export const myQuery = query({...})`          |
+| Add HTTP endpoint  | `http.ts`                                  | Webhooks, external API callbacks               |
+| Add scheduled task | `crons.ts`                                 | Cron-triggered functions                       |
+| Add validator      | `lib/validators.ts`                        | Used in schema definitions                     |
+| GitHub integration | `github.ts`, `github_actions.ts`           | API sync, webhooks                             |
+| Viewer/bootstrap   | `users.ts`, `lib/viewer.ts`                | Authenticated app payloads; preserve contracts |
+| Explore state      | `explore.ts`, `lib/explore.ts`             | Search scope / city defaults                   |
+| Notification state | `notifications.ts`, `lib/notifications.ts` | Read state + backfill helpers                  |
+| Conversation flow  | `conversations.ts`                         | Start/get DM threads                           |
+| Project sync       | `projects.ts`, `github_actions.ts`         | Repo metadata + sync orchestration             |
 
 ## CONVENTIONS
 
@@ -65,7 +65,8 @@ convex/
 - Use `query()` for reads, `mutation()` for writes, `action()` for external calls
 - `auth.config.ts` requires `CLERK_JWT_ISSUER_DOMAIN` — fails fast if missing
 - Convex tsconfig requires `"types": ["node"]` for Node.js type access
-- Viewer/bootstrap queries now feed route-prefetch flows; keep payload names stable when editing `users.ts` or `lib/viewer.ts`.
+- Viewer/bootstrap queries feed route-prefetch flows; keep payload names stable when editing `users.ts` or `lib/viewer.ts`.
+- `users.ts` is the largest backend domain file; avoid opportunistic refactors while changing auth/profile/bootstrap behavior.
 - Feature search/navigation helpers should stay aligned with Convex query args and payload shapes.
 
 ## ANTI-PATTERNS
