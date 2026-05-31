@@ -35,6 +35,7 @@ routes/
 | Modify root layout      | `__root.tsx`                                | Providers, SSR auth, meta tags    |
 | Modify auth layout      | `_app.tsx`                                  | Sidebar, header, navigation shell |
 | Modify route loading UX | `../components/app-shell/route-pending.tsx` | Shared pending fallback           |
+| Router generation       | `../routeTree.gen.ts`                       | Generated; do not edit manually   |
 
 ## CONVENTIONS
 
@@ -46,6 +47,7 @@ routes/
 - Auth is centralized in root — do NOT create per-route auth server functions
 - `_app.tsx` reuses `context.auth` from root for auth checks
 - App routes now use loader-prefetched suspense queries with route-pending fallbacks instead of ad-hoc loading states.
+- `routeTree.gen.ts` is generated from this directory; fix source route files, not the generated tree.
 - All routes use `.page-shell` class for responsive spacing and safe-area handling
 - Public routes (index, sign-in.$, sign-up.$, u.$username, onboarding): full-width mobile, centered desktop
 - `__root.tsx` includes skip link for keyboard accessibility
@@ -64,3 +66,4 @@ routes/
 - DO NOT use inline `style={{}}` for layout — use Tailwind utility classes
 - DO NOT use direct `var(--lx-*)` — use semantic Tailwind tokens (`bg-surface`, `text-text-muted`, etc.) unless the value is runtime-only
 - DO NOT normalize search params or destination maps inside routes when feature helpers exist
+- DO NOT edit `src/routeTree.gen.ts`; route source files regenerate it

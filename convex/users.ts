@@ -26,6 +26,7 @@ import {
   buildProjectCardPreview,
   resolvePublicCityLabel,
 } from './lib/project_previews'
+import { getExploreCityIdsAfterProfileCityChange } from './lib/explore'
 import {
   buildActorSnapshot,
   buildOwnerSnapshot,
@@ -1016,6 +1017,16 @@ export const updateProfile = mutation({
       throw new ConvexError('Viewer not found')
     }
 
+    const nextExploreCityIds = getExploreCityIdsAfterProfileCityChange({
+      previousExploreCityIds: viewer.exploreConfig.cityIds,
+      previousProfileCityId: viewer.profile.cityId,
+      nextProfileCityId: args.cityId,
+    })
+    const nextExploreConfig = {
+      ...viewer.exploreConfig,
+      cityIds: nextExploreCityIds,
+    }
+
     const updatedViewer = {
       ...viewer,
       profile: {
@@ -1027,6 +1038,7 @@ export const updateProfile = mutation({
         buildStatus: args.buildStatus,
         socialLinks: args.socialLinks,
       },
+      exploreConfig: nextExploreConfig,
     }
 
     await ctx.db.patch(viewer._id, {
@@ -1046,6 +1058,7 @@ export const updateProfile = mutation({
           args.displayName,
         ),
       },
+      exploreConfig: nextExploreConfig,
       updatedAt: Date.now(),
     })
     await syncOwnedProjectOwnerState(ctx, updatedViewer)

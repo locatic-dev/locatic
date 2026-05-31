@@ -1,8 +1,13 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
+import {
+  useQuery,
+  useQueryClient,
+  useSuspenseQuery,
+} from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import type { Doc, Id } from '../../../convex/_generated/dataModel'
 import { privateProfileOverviewQueryOptions } from '@/features/profile/queries'
+import { viewerExplorePrefsQueryOptions } from '@/features/viewer/queries'
 import {
   citiesSearchQueryOptions,
   popularCitiesQueryOptions,
@@ -76,6 +81,7 @@ const settingsRowClassName =
 function SettingsPage() {
   const { tab } = Route.useSearch()
   const navigate = Route.useNavigate()
+  const queryClient = useQueryClient()
   const { data } = useSuspenseQuery(privateProfileOverviewQueryOptions())
   const profile = mapPrivateProfileOverview(
     data as PrivateProfileOverviewPayload | undefined,
@@ -146,6 +152,14 @@ function SettingsPage() {
           website: normalizeSocialLinkValue('website', website),
         },
       })
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: privateProfileOverviewQueryOptions().queryKey,
+        }),
+        queryClient.invalidateQueries({
+          queryKey: viewerExplorePrefsQueryOptions().queryKey,
+        }),
+      ])
       setSaved(true)
       window.setTimeout(() => setSaved(false), 2000)
     } catch (error) {

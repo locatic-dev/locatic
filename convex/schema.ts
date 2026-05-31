@@ -154,6 +154,13 @@ export default defineSchema({
     .index('by_github_id', ['github.id'])
     .index('by_github_username', ['github.username'])
     .index('by_city_id', ['profile.cityId'])
+    .index('by_city_explore_rank', [
+      'profile.cityId',
+      'appearInExplore',
+      'deletedAt',
+      'deactivatedAt',
+      'stats.followersCount',
+    ])
     .index('by_created_at', ['createdAt'])
     .searchIndex('search_identity', {
       searchField: 'discoverability.searchText',

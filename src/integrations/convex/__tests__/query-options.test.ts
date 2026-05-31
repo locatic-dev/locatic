@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   exploreFeedQueryOptions,
+  nearbyBuildersQueryOptions,
   privateFollowGraphQueryOptions,
   publicFollowGraphQueryOptions,
 } from '../query-options'
@@ -16,6 +17,16 @@ describe('exploreFeedQueryOptions', () => {
     expect(query.queryKey[2]).toMatchObject({
       scope: 'global',
       selectedCityIds: [],
+    })
+  })
+})
+
+describe('nearbyBuildersQueryOptions', () => {
+  it('passes an explicit city id array so global scope cannot fall back', () => {
+    const query = nearbyBuildersQueryOptions()
+
+    expect(query.queryKey[2]).toMatchObject({
+      cityIds: [],
     })
   })
 })
