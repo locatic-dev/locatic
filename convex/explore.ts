@@ -7,7 +7,7 @@ import {
   mapBuilderSearchResult,
   mergeBuilderSearchCandidates,
 } from './lib/discoverability'
-import { buildExploreCandidates } from './lib/explore'
+import { buildExploreCandidates, rankNearbyBuilders } from './lib/explore'
 import { buildProjectCardPreview } from './lib/project_previews'
 
 const EXPLORE_INDEXES = [
@@ -231,60 +231,64 @@ export const searchBuilders = query({
 
 export const listNearbyBuilders = query({
   args: {
-    cityIds: v.optional(v.array(v.id('cities'))),
+    cityIds: v.array(v.id('cities')),
   },
+  returns: v.array(
+    v.object({
+      userId: v.id('users'),
+      displayName: v.string(),
+      avatarUrl: v.union(v.string(), v.null()),
+      githubUsername: v.string(),
+      cityId: v.union(v.id('cities'), v.null()),
+      cityName: v.union(v.string(), v.null()),
+      projectsCount: v.number(),
+      followersCount: v.number(),
+    }),
+  ),
   handler: async (ctx, args) => {
     const viewer = await getViewerOrThrow(ctx)
-    const cityIds = Array.from(
-      new Set(
-        args.cityIds && args.cityIds.length > 0
-          ? args.cityIds
-          : viewer.profile.cityId
-            ? [viewer.profile.cityId]
-            : [],
-      ),
-    )
+    const cityIds = Array.from(new Set(args.cityIds))
     if (cityIds.length === 0) return []
 
-    const usersById = new Map()
+    const usersById = new Map<string, Doc<'users'>>()
+    const cityEntries = await Promise.all(
+      cityIds.map(
+        async (cityId): Promise<readonly [string, Doc<'cities'> | null]> =>
+          [String(cityId), await ctx.db.get(cityId)] as const,
+      ),
+    )
+    const cityById = new Map(
+      cityEntries.filter(
+        (entry): entry is readonly [string, Doc<'cities'>] => entry[1] !== null,
+      ),
+    )
     const cityUsers = await Promise.all(
       cityIds.map((cityId) =>
         ctx.db
           .query('users')
-          .withIndex('by_city_id', (query) =>
-            query.eq('profile.cityId', cityId),
+          .withIndex('by_city_explore_rank', (query) =>
+            query
+              .eq('profile.cityId', cityId)
+              .eq('appearInExplore', true)
+              .eq('deletedAt', null)
+              .eq('deactivatedAt', null),
           )
-          .filter((query) =>
-            query.and(
-              query.neq(query.field('_id'), viewer._id),
-              query.eq(query.field('appearInExplore'), true),
-              query.eq(query.field('deletedAt'), null),
-              query.eq(query.field('deactivatedAt'), null),
-            ),
-          )
-          .take(8),
+          .order('desc')
+          .take(16),
       ),
     )
 
     for (const usersInCity of cityUsers) {
       for (const user of usersInCity) {
+        if (user._id === viewer._id) {
+          continue
+        }
+
         usersById.set(String(user._id), user)
       }
     }
 
-    const rankedUsers = [...usersById.values()]
-      .sort((left, right) => {
-        if (right.stats.followersCount !== left.stats.followersCount) {
-          return right.stats.followersCount - left.stats.followersCount
-        }
-
-        if (right.stats.projectsCount !== left.stats.projectsCount) {
-          return right.stats.projectsCount - left.stats.projectsCount
-        }
-
-        return left.github.username.localeCompare(right.github.username)
-      })
-      .slice(0, 8)
+    const rankedUsers = rankNearbyBuilders([...usersById.values()])
 
     return rankedUsers.map((u) => ({
       userId: u._id,
@@ -293,6 +297,10 @@ export const listNearbyBuilders = query({
       githubUsername: u.github.username,
       projectsCount: u.stats.projectsCount,
       followersCount: u.stats.followersCount,
+      cityId: u.profile.cityId,
+      cityName: u.profile.cityId
+        ? (cityById.get(String(u.profile.cityId))?.displayName ?? null)
+        : null,
     }))
   },
 })

@@ -16,6 +16,152 @@ type ExplorePrefsLike = {
   cityId: string | Id<'cities'> | null
 }
 
+export type ExploreCityLike = {
+  _id: string | Id<'cities'>
+  displayName?: string
+  normalizedName?: string
+  slug?: string
+}
+
+export function getExploreCityIdentity(city: ExploreCityLike): string {
+  return (
+    city.slug?.trim().toLowerCase() ||
+    city.normalizedName?.trim().toLowerCase() ||
+    city.displayName?.trim().toLowerCase() ||
+    String(city._id)
+  )
+}
+
+export function dedupeExploreCityIds(cityIds: string[]): string[] {
+  return Array.from(
+    new Set(
+      cityIds.filter(
+        (cityId) => typeof cityId === 'string' && cityId.length > 0,
+      ),
+    ),
+  )
+}
+
+export function dedupeExploreCities<TCity extends ExploreCityLike>(
+  cities: TCity[],
+): TCity[] {
+  const seenIds = new Set<string>()
+  const seenIdentities = new Set<string>()
+  const result: TCity[] = []
+
+  for (const city of cities) {
+    const id = String(city._id)
+    const identity = getExploreCityIdentity(city)
+
+    if (seenIds.has(id) || seenIdentities.has(identity)) {
+      continue
+    }
+
+    seenIds.add(id)
+    seenIdentities.add(identity)
+    result.push(city)
+  }
+
+  return result
+}
+
+export function dedupeExploreCityDocsForIds<TCity extends ExploreCityLike>(
+  cityIds: string[],
+  cities: TCity[],
+): TCity[] {
+  const cityById = new Map(cities.map((city) => [String(city._id), city]))
+  return dedupeExploreCities(
+    dedupeExploreCityIds(cityIds).flatMap((cityId) => {
+      const city = cityById.get(cityId)
+      return city ? [city] : []
+    }),
+  )
+}
+
+export function getCanonicalExploreCityIds<TCity extends ExploreCityLike>(
+  cityIds: string[],
+  cities: TCity[],
+): string[] {
+  const cityById = new Map(cities.map((city) => [String(city._id), city]))
+  const seenIdentities = new Set<string>()
+  const canonicalCityIds: string[] = []
+
+  for (const cityId of dedupeExploreCityIds(cityIds)) {
+    const city = cityById.get(cityId)
+    if (!city) {
+      canonicalCityIds.push(cityId)
+      continue
+    }
+
+    const identity = getExploreCityIdentity(city)
+    if (seenIdentities.has(identity)) {
+      continue
+    }
+
+    seenIdentities.add(identity)
+    canonicalCityIds.push(String(city._id))
+  }
+
+  return canonicalCityIds
+}
+
+export function areExploreCityIdsEqual(left: string[], right: string[]) {
+  return (
+    left.length === right.length &&
+    left.every((cityId, index) => cityId === right[index])
+  )
+}
+
+export function removeExploreCityId<TCity extends ExploreCityLike>({
+  cities,
+  cityId,
+  cityIds,
+}: {
+  cities: TCity[]
+  cityId: string
+  cityIds: string[]
+}): string[] {
+  const cityById = new Map(cities.map((city) => [String(city._id), city]))
+  const targetCity = cityById.get(cityId)
+
+  if (!targetCity) {
+    return dedupeExploreCityIds(cityIds).filter(
+      (selectedCityId) => selectedCityId !== cityId,
+    )
+  }
+
+  const targetIdentity = getExploreCityIdentity(targetCity)
+  return dedupeExploreCityIds(cityIds).filter((selectedCityId) => {
+    const selectedCity = cityById.get(selectedCityId)
+    return selectedCity
+      ? getExploreCityIdentity(selectedCity) !== targetIdentity
+      : selectedCityId !== cityId
+  })
+}
+
+export function isExploreUserFollowed({
+  followOverrides,
+  followedUserIds,
+  userId,
+}: {
+  followOverrides: Record<string, boolean>
+  followedUserIds: Set<string>
+  userId: string | Id<'users'>
+}) {
+  const userKey = String(userId)
+  return followOverrides[userKey] ?? followedUserIds.has(userKey)
+}
+
+export function getNearbyBuilderCityIds({
+  scope,
+  selectedCityIds,
+}: {
+  scope: ExploreScope
+  selectedCityIds: string[]
+}) {
+  return scope === 'global' ? [] : dedupeExploreCityIds(selectedCityIds)
+}
+
 export function getFreshExploreSearch(): ExploreSearch {
   return {
     scope: 'default',
@@ -27,12 +173,10 @@ export function normalizeExploreSearch(
   search: Record<string, unknown>,
 ): ExploreSearch {
   const selectedCityIds = Array.isArray(search.selectedCityIds)
-    ? Array.from(
-        new Set(
-          search.selectedCityIds.filter(
-            (value): value is string =>
-              typeof value === 'string' && value.length > 0,
-          ),
+    ? dedupeExploreCityIds(
+        search.selectedCityIds.filter(
+          (value): value is string =>
+            typeof value === 'string' && value.length > 0,
         ),
       )
     : []

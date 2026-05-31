@@ -35,9 +35,11 @@ export function CityCombobox({
   const rootRef = useRef<HTMLDivElement | null>(null)
   const [open, setOpen] = useState(false)
   const [activeIndex, setActiveIndex] = useState(-1)
+  const hasQuery = query.trim().length > 0
   const visibleCities = cities.slice(0, maxResults)
-  const showDropdown = open && visibleCities.length > 0
-  const activeCity = activeIndex >= 0 ? visibleCities[activeIndex] : null
+  const showDropdown = hasQuery && open && visibleCities.length > 0
+  const activeCity =
+    showDropdown && activeIndex >= 0 ? visibleCities[activeIndex] : null
 
   useEffect(() => {
     if (!showDropdown) {
@@ -74,7 +76,7 @@ export function CityCombobox({
       return
     }
 
-    if (visibleCities.length === 0) {
+    if (!hasQuery || visibleCities.length === 0) {
       return
     }
 
@@ -123,10 +125,11 @@ export function CityCombobox({
           placeholder={placeholder}
           value={query}
           onChange={(event) => {
-            setOpen(true)
-            onQueryChange(event.target.value)
+            const nextQuery = event.target.value
+            setOpen(nextQuery.trim().length > 0)
+            onQueryChange(nextQuery)
           }}
-          onFocus={() => setOpen(true)}
+          onFocus={() => setOpen(hasQuery)}
           onKeyDown={handleKeyDown}
           className={cn(
             'border-line bg-canvas pl-9 font-mono text-sm text-text placeholder:text-text-faint',
