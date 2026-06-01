@@ -32,6 +32,8 @@ const ACTIVE_CITIES = [
   { x: 0.3, y: 0.7, label: 'sao' },
 ]
 
+const DUR = '2.6s'
+
 export function DotMap({ width = 800, height = 360, className }: DotMapProps) {
   const dots: Array<{ x: number; y: number }> = []
   const cx = width / LAND_MASK[0].length
@@ -51,7 +53,7 @@ export function DotMap({ width = 800, height = 360, className }: DotMapProps) {
       height={height}
       viewBox={`0 0 ${width} ${height}`}
       className={className}
-      style={{ display: 'block' }}
+      style={{ display: 'block', overflow: 'visible' }}
       aria-hidden
     >
       {dots.map((d, i) => (
@@ -64,23 +66,24 @@ export function DotMap({ width = 800, height = 360, className }: DotMapProps) {
           opacity={0.35}
         />
       ))}
-      {ACTIVE_CITIES.map((c, i) => (
-        <g key={i}>
-          <circle
-            cx={c.x * width}
-            cy={c.y * height}
-            r={6}
-            fill="var(--lx-accent)"
-            opacity={0.18}
-          />
-          <circle
-            cx={c.x * width}
-            cy={c.y * height}
-            r={2.4}
-            fill="var(--lx-accent)"
-          />
-        </g>
-      ))}
+      {ACTIVE_CITIES.map((c, i) => {
+        const px = c.x * width
+        const py = c.y * height
+        const delay = `${i * 0.44}s`
+        return (
+          <g key={i}>
+            {/* ping ring — SVG-native animate so it always works */}
+            <circle cx={px} cy={py} r={3} fill="none" stroke="var(--lx-accent)" strokeWidth={1.2} opacity={0}>
+              <animate attributeName="r" from="3" to="18" dur={DUR} begin={delay} repeatCount="indefinite" />
+              <animate attributeName="opacity" values="0.6;0" dur={DUR} begin={delay} repeatCount="indefinite" />
+            </circle>
+            {/* glow halo */}
+            <circle cx={px} cy={py} r={6} fill="var(--lx-accent)" opacity={0.18} />
+            {/* solid dot */}
+            <circle cx={px} cy={py} r={2.4} fill="var(--lx-accent)" />
+          </g>
+        )
+      })}
     </svg>
   )
 }

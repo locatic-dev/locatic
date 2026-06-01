@@ -16,7 +16,7 @@
   --card-foreground: oklch(93% 0.005 230);
   --popover: oklch(17.5% 0.007 230);
   --popover-foreground: oklch(93% 0.005 230);
-  --primary: oklch(72% 0.17 185);
+  --primary: oklch(74% 0.16 152);
   --primary-foreground: oklch(14% 0.005 230);
   --secondary: oklch(21% 0.007 230);
   --secondary-foreground: oklch(93% 0.005 230);
@@ -28,9 +28,9 @@
   --destructive-foreground: oklch(93% 0.005 230);
   --border: oklch(28% 0.007 230);
   --input: oklch(28% 0.007 230);
-  --ring: oklch(72% 0.17 185);
+  --ring: oklch(74% 0.16 152);
   --radius: 0.25rem;
-  --chart-1: oklch(72% 0.17 185);
+  --chart-1: oklch(74% 0.16 152);
   --chart-2: oklch(70% 0.16 145);
   --chart-3: oklch(72% 0.18 75);
   --chart-4: oklch(68% 0.17 260);
@@ -46,7 +46,7 @@
   --lx-text-2: var(--muted-foreground);
   --lx-text-3: oklch(43% 0.005 230);
   --lx-accent: var(--primary);
-  --lx-accent-quiet: oklch(72% 0.17 185 / 0.14);
+  --lx-accent-quiet: oklch(74% 0.16 152 / 0.14);
   --lx-danger: var(--destructive);
   --lx-success: oklch(70% 0.16 145);
   --lx-warning: oklch(72% 0.18 75);
@@ -225,7 +225,7 @@ button {
 }
 
 .lx-fade-up {
-  animation: lx-fade-up 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: lx-fade-up 600ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -52,7 +52,7 @@ jobs:
         run: pnpm run build:development
 
       - name: Deploy development Worker
-        run: pnpm exec wrangler deploy
+        run: pnpm exec wrangler deploy --env development
 
   deploy-production:
     name: Deploy Worker Production
@@ -95,4 +95,4 @@ jobs:
         run: pnpm run build:production
 
       - name: Deploy production Worker
-        run: pnpm exec wrangler deploy
+        run: pnpm exec wrangler deploy --env production

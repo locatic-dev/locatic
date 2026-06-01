@@ -27,8 +27,8 @@
     "deploy:convex": "pnpm exec convex deploy",
     "deploy:convex:development": "pnpm exec convex deploy",
     "deploy:convex:production": "pnpm exec convex deploy",
-    "deploy:worker:development": "pnpm run build:development && pnpm exec wrangler deploy",
-    "deploy:worker:production": "pnpm run build:production && pnpm exec wrangler deploy",
+    "deploy:worker:development": "pnpm run build:development && pnpm exec wrangler deploy --env development",
+    "deploy:worker:production": "pnpm run build:production && pnpm exec wrangler deploy --env production",
     "deploy": "pnpm run deploy:worker:production"
   },
   "dependencies": {
