@@ -69,6 +69,7 @@ export type ProjectCardPreview = {
 export type ViewerBootstrapPayload = {
   isAuthenticated: boolean
   needsOnboarding: boolean
+  status?: 'unauthenticated' | 'missingViewer' | 'ready'
   viewer: ViewerRecord | null
 }
 
@@ -271,6 +272,13 @@ export function mapViewerBootstrap(
   return {
     isAuthenticated: payload.isAuthenticated,
     needsOnboarding: payload.needsOnboarding,
+    status:
+      payload.status ??
+      (payload.viewer
+        ? 'ready'
+        : payload.isAuthenticated
+          ? 'missingViewer'
+          : 'unauthenticated'),
     viewer: payload.viewer ? mapViewer(payload.viewer) : null,
   }
 }

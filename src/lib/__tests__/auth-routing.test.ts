@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   createClientRouteAuthStateGetter,
   isProjectDetailPath,
+  shouldPrefetchPrivateConvexQueries,
 } from '../auth-routing'
 
 describe('auth routing helpers', () => {
@@ -79,5 +80,15 @@ describe('auth routing helpers', () => {
     expect(isProjectDetailPath('/project/octocat/hello-world')).toBe(true)
     expect(isProjectDetailPath('/projects')).toBe(false)
     expect(isProjectDetailPath('/settings')).toBe(false)
+  })
+
+  it('prefetches private Convex queries only during SSR', () => {
+    expect(shouldPrefetchPrivateConvexQueries()).toBe(true)
+
+    vi.stubGlobal('window', {})
+
+    expect(shouldPrefetchPrivateConvexQueries()).toBe(false)
+
+    vi.unstubAllGlobals()
   })
 })

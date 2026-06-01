@@ -50,6 +50,7 @@ import {
 } from '@/features/project-card-preview'
 import { socialLinkHref } from '@/lib/social-links'
 import { Pin } from '@/lib/icons'
+import { shouldPrefetchPrivateConvexQueries } from '@/lib/auth-routing'
 
 function isCommentTargetOpenable(
   comment: ProfileCommentPreview,
@@ -85,8 +86,12 @@ export const Route = createFileRoute('/_app/profile')({
   loaderDeps: ({ search }) => ({
     network: search.network ?? 'followers',
   }),
-  loader: ({ context, deps }) =>
-    Promise.all([
+  loader: ({ context, deps }) => {
+    if (!shouldPrefetchPrivateConvexQueries()) {
+      return
+    }
+
+    return Promise.all([
       context.queryClient.ensureQueryData(privateProfileOverviewQueryOptions()),
       context.queryClient.ensureQueryData(
         privateFollowGraphQueryOptions({
@@ -97,7 +102,8 @@ export const Route = createFileRoute('/_app/profile')({
           },
         }),
       ),
-    ]),
+    ])
+  },
   pendingComponent: FormRoutePending,
   pendingMs: 250,
   component: ProfilePage,
