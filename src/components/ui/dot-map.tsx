@@ -73,12 +73,39 @@ export function DotMap({ width = 800, height = 360, className }: DotMapProps) {
         return (
           <g key={i}>
             {/* ping ring — SVG-native animate so it always works */}
-            <circle cx={px} cy={py} r={3} fill="none" stroke="var(--lx-accent)" strokeWidth={1.2} opacity={0}>
-              <animate attributeName="r" from="3" to="18" dur={DUR} begin={delay} repeatCount="indefinite" />
-              <animate attributeName="opacity" values="0.6;0" dur={DUR} begin={delay} repeatCount="indefinite" />
+            <circle
+              cx={px}
+              cy={py}
+              r={3}
+              fill="none"
+              stroke="var(--lx-accent)"
+              strokeWidth={1.2}
+              opacity={0}
+            >
+              <animate
+                attributeName="r"
+                from="3"
+                to="18"
+                dur={DUR}
+                begin={delay}
+                repeatCount="indefinite"
+              />
+              <animate
+                attributeName="opacity"
+                values="0.6;0"
+                dur={DUR}
+                begin={delay}
+                repeatCount="indefinite"
+              />
             </circle>
             {/* glow halo */}
-            <circle cx={px} cy={py} r={6} fill="var(--lx-accent)" opacity={0.18} />
+            <circle
+              cx={px}
+              cy={py}
+              r={6}
+              fill="var(--lx-accent)"
+              opacity={0.18}
+            />
             {/* solid dot */}
             <circle cx={px} cy={py} r={2.4} fill="var(--lx-accent)" />
           </g>
