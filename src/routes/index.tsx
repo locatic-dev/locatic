@@ -28,7 +28,7 @@ function LandingPage() {
       {/* Nav */}
       <header className="relative z-2 flex min-h-16 flex-wrap items-center justify-between gap-4 border-b border-line px-(--lx-gutter) py-4">
         <div className="flex items-center gap-2.5">
-          <Logo size={24} />
+          <Logo size={32} />
           <span className="font-mono text-base font-bold tracking-[-0.02em]">
             locatic
           </span>
@@ -47,7 +47,7 @@ function LandingPage() {
           </a>
           <Link
             to="/sign-in/$"
-            className="inline-flex min-h-11 items-center rounded-control border border-line bg-surface px-3.5 py-2 font-mono text-[12.5px] text-text no-underline transition-colors hover:border-line-strong hover:bg-surface-alt"
+            className="inline-flex min-h-11 items-center rounded-control border border-line-strong bg-surface-alt px-3.5 py-2 font-mono text-[12.5px] text-text no-underline transition-colors hover:border-line-strong hover:bg-surface"
           >
             sign in
           </Link>
@@ -69,7 +69,7 @@ function LandingPage() {
 
       {/* Hero */}
       <section className="relative z-1 mx-auto grid max-w-(--lx-public-max) grid-cols-1 items-center gap-8 px-(--lx-gutter) pt-12 md:grid-cols-[1fr_420px] md:gap-12 md:pt-20">
-        <div>
+        <div className="lx-fade-up">
           <h1 className="m-0 font-mono text-[clamp(56px,7vw,88px)] leading-[0.96] font-bold tracking-[-0.045em] text-text">
             GitHub
             <br />
@@ -84,7 +84,7 @@ function LandingPage() {
           <div className="mt-9 flex flex-wrap items-center gap-3">
             <Link
               to="/sign-in/$"
-              className="inline-flex min-h-11 items-center gap-2.5 rounded-[5px] border border-transparent bg-brand px-5.5 py-3.5 font-mono text-[13.5px] font-semibold text-brand-foreground no-underline shadow-card transition-colors hover:bg-brand/90 active:scale-[0.98]"
+              className="inline-flex min-h-11 items-center gap-2.5 rounded-[5px] border border-brand/30 bg-brand px-5.5 py-3.5 font-mono text-[13.5px] font-semibold text-white no-underline shadow-[0_4px_24px_oklch(74%_0.16_152_/_0.45)] transition-all hover:bg-brand/90 hover:shadow-[0_4px_32px_oklch(74%_0.16_152_/_0.6)] active:scale-[0.98]"
             >
               <BrandIcon name="github" size={16} />
               Sign in with GitHub
@@ -193,9 +193,9 @@ function LandingPage() {
 
       {/* Footer */}
       <footer className="px-(--lx-gutter) py-7 text-center font-mono text-[11.5px] text-text-faint">
-        <div>built with love for developers.</div>
+        <div>built with ❤️ for developers</div>
         <div className="mt-2 opacity-70">
-          locatic · {new Date().getFullYear()} · made in 7 cities
+          locatic · {new Date().getFullYear()}
         </div>
       </footer>
     </div>

@@ -80,7 +80,7 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
     meta: [
       { charSet: 'utf-8' },
       { name: 'viewport', content: 'width=device-width, initial-scale=1' },
-      { title: 'Locatic — GitHub with a map.' },
+      { title: 'Locatic · GitHub with a map' },
       {
         name: 'description',
         content:
@@ -89,7 +89,7 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
       { name: 'theme-color', content: '#0f141c' },
       { property: 'og:type', content: 'website' },
       { property: 'og:site_name', content: 'Locatic' },
-      { property: 'og:title', content: 'Locatic — GitHub with a map.' },
+      { property: 'og:title', content: 'Locatic · GitHub with a map' },
       {
         property: 'og:description',
         content:
@@ -100,7 +100,7 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
       { property: 'og:image:width', content: '1200' },
       { property: 'og:image:height', content: '630' },
       { name: 'twitter:card', content: 'summary_large_image' },
-      { name: 'twitter:title', content: 'Locatic — GitHub with a map.' },
+      { name: 'twitter:title', content: 'Locatic · GitHub with a map' },
       {
         name: 'twitter:description',
         content:
@@ -111,8 +111,9 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
     ],
     links: [
       { rel: 'stylesheet', href: appCss },
-      { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' },
-      { rel: 'shortcut icon', href: '/favicon.ico' },
+      { rel: 'icon', type: 'image/png', sizes: '32x32', href: '/favicon.png' },
+      { rel: 'apple-touch-icon', href: '/favicon.png' },
+      { rel: 'shortcut icon', href: '/favicon.png' },
       { rel: 'manifest', href: '/manifest.json' },
     ],
   }),
@@ -162,7 +163,7 @@ function RootErrorPage({ error, reset }: ErrorComponentProps) {
               reset()
               void router.invalidate()
             }}
-            className="min-h-11 rounded-[5px] bg-brand px-4 py-2.5 font-mono text-[12.5px] font-bold text-[#0d1117]"
+            className="min-h-11 rounded-[5px] bg-brand px-4 py-2.5 font-mono text-[12.5px] font-bold text-canvas"
             type="button"
           >
             Retry
@@ -221,7 +222,7 @@ function NotFoundPage() {
         <div className="flex flex-col items-center gap-6">
           <Link
             to="/"
-            className="inline-flex items-center gap-2 rounded-[5px] bg-brand px-5 py-2.75 font-mono text-[13px] font-semibold text-[#0d1117] no-underline"
+            className="inline-flex items-center gap-2 rounded-[5px] bg-brand px-5 py-2.75 font-mono text-[13px] font-semibold text-canvas no-underline"
           >
             <ArrowLeft size={14} />
             go home
