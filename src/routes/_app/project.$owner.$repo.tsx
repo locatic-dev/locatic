@@ -581,13 +581,13 @@ function ProjectDetailPage() {
             onClick={() => void handleLike()}
             disabled={likeMutation.isPending || !isSignedIn}
             className="font-mono"
+            aria-label={liked ? 'Unlike project' : 'Like project'}
           >
             <Heart
               size={13}
               fill={liked ? 'currentColor' : 'none'}
               strokeWidth={1.6}
             />
-            {liked ? 'liked' : 'like'}
           </Button>
           {!isOwnProject && (
             <Button
@@ -608,11 +608,11 @@ function ProjectDetailPage() {
             href={githubHref}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex min-h-11 items-center gap-2 rounded-md border border-line bg-surface px-3 py-2 font-mono text-[12px] font-semibold text-text-muted no-underline transition-colors hover:border-line-strong hover:bg-surface-alt hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+            className="inline-flex min-h-11 items-center gap-1.5 rounded-md border border-line bg-surface px-3 py-2 font-mono text-[12px] font-semibold text-text-muted no-underline transition-colors hover:border-line-strong hover:bg-surface-alt hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+            aria-label="View on GitHub"
           >
             <BrandIcon name="github" size={14} />
-            GitHub
-            <ExternalLink size={12} strokeWidth={1.6} />
+            <ExternalLink size={11} strokeWidth={1.6} />
           </a>
         </div>
       </div>
@@ -691,8 +691,21 @@ function ProjectDetailPage() {
                   size={48}
                 />
                 <div className="min-w-0 flex-1">
-                  <div className="font-mono text-sm font-semibold text-text">
-                    {detail.owner.displayName}
+                  <div className="flex items-center gap-1.5">
+                    <div className="font-mono text-sm font-semibold text-text">
+                      {detail.owner.displayName}
+                    </div>
+                    {ownerGithubHref && (
+                      <a
+                        href={ownerGithubHref}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-text-faint no-underline transition-colors hover:text-text-muted"
+                        aria-label="GitHub profile"
+                      >
+                        <BrandIcon name="github" size={13} />
+                      </a>
+                    )}
                   </div>
                   <div className="font-mono text-[11.5px] text-text-faint">
                     @{detail.owner.githubUsername}
@@ -706,16 +719,6 @@ function ProjectDetailPage() {
               </div>
 
               <div className="flex flex-wrap gap-2.5 font-mono text-[11.5px]">
-                {ownerGithubHref && (
-                  <a
-                    href={ownerGithubHref}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-text-muted no-underline"
-                  >
-                    github
-                  </a>
-                )}
                 {ownerXHref && (
                   <a
                     href={ownerXHref}
