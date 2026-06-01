@@ -6,6 +6,7 @@ import {
 } from '@tanstack/react-router'
 import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
 import { AppLayout } from '@/components/app-shell/app-layout'
+import { FormRoutePending } from '@/components/app-shell/route-pending'
 import {
   mapViewerBootstrap,
   type ViewerBootstrapPayload,
@@ -13,6 +14,7 @@ import {
 import { notificationsUnreadCountQueryOptions } from '@/features/notifications/queries'
 import { viewerQueryOptions } from '@/features/viewer/queries'
 import { isProjectDetailPath } from '@/lib/auth-routing'
+import { ConvexAuthReadyBoundary } from '@/integrations/convex/provider'
 
 export const Route = createFileRoute('/_app')({
   beforeLoad: async ({ context, location }) => {
@@ -36,30 +38,55 @@ export const Route = createFileRoute('/_app')({
 })
 
 function AuthenticatedApp() {
-  const { data: viewerData } = useSuspenseQuery(viewerQueryOptions())
-  const bootstrap = mapViewerBootstrap(
-    viewerData as ViewerBootstrapPayload | undefined,
-  )
   const currentPath = useRouterState({
     select: (state) => state.location.pathname,
   })
 
-  if (isProjectDetailPath(currentPath) && !bootstrap?.isAuthenticated) {
+  if (isProjectDetailPath(currentPath)) {
+    return <ProjectDetailAuthGate />
+  }
+
+  return (
+    <ConvexAuthReadyBoundary
+      fallback={<FormRoutePending />}
+      requireAuthenticated
+    >
+      <ShellApp />
+    </ConvexAuthReadyBoundary>
+  )
+}
+
+function ProjectDetailAuthGate() {
+  const { data: viewerData } = useSuspenseQuery(viewerQueryOptions())
+  const bootstrap = mapViewerBootstrap(
+    viewerData as ViewerBootstrapPayload | undefined,
+  )
+
+  if (!bootstrap?.isAuthenticated) {
     return <Outlet />
   }
 
-  return <ShellApp />
+  return (
+    <ConvexAuthReadyBoundary
+      fallback={<FormRoutePending />}
+      requireAuthenticated
+    >
+      <ShellApp />
+    </ConvexAuthReadyBoundary>
+  )
 }
 
 function ShellApp() {
   const { data } = useSuspenseQuery(viewerQueryOptions())
-  const { data: unreadNotificationsData } = useQuery({
-    ...notificationsUnreadCountQueryOptions(),
-    staleTime: 30_000,
-  })
   const bootstrap = mapViewerBootstrap(
     data as ViewerBootstrapPayload | undefined,
   )
+  const hasViewer = Boolean(bootstrap?.viewer)
+  const { data: unreadNotificationsData } = useQuery({
+    ...notificationsUnreadCountQueryOptions(),
+    enabled: hasViewer,
+    staleTime: 30_000,
+  })
 
   if (!bootstrap) {
     return <Outlet />
