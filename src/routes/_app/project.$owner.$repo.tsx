@@ -24,13 +24,7 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { relativeTime } from '@/lib/time'
 import { compactNumber } from '@/lib/format'
-import {
-  Star,
-  Heart,
-  MessageSquare,
-  ArrowLeft,
-  ExternalLink,
-} from '@/lib/icons'
+import { Star, Heart, MessageSquare, ArrowLeft } from '@/lib/icons'
 import {
   useLikeProject,
   useUnlikeProject,
@@ -612,7 +606,6 @@ function ProjectDetailPage() {
             aria-label="View on GitHub"
           >
             <BrandIcon name="github" size={14} />
-            <ExternalLink size={11} strokeWidth={1.6} />
           </a>
         </div>
       </div>
