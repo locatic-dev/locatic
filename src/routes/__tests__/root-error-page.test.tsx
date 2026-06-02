@@ -29,11 +29,11 @@ vi.mock('@clerk/tanstack-react-start/server', () => ({
   auth: vi.fn(),
 }))
 
-vi.mock('../integrations/clerk/provider', () => ({
+vi.mock('../../integrations/clerk/provider', () => ({
   default: ({ children }: { children: ReactNode }) => <>{children}</>,
 }))
 
-vi.mock('../integrations/convex/provider', () => ({
+vi.mock('../../integrations/convex/provider', () => ({
   default: ({ children }: { children: ReactNode }) => <>{children}</>,
 }))
 
