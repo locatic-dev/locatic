@@ -25,29 +25,31 @@ convex/lib/
 ├── topics.ts            # Topic/label extraction helpers
 ├── types.ts             # Shared TypeScript types
 ├── viewer.ts            # Current user context helpers
+├── posts.ts             # Post visibility helpers: `filterVisiblePosts`, `isPublicPostVisible`, `withCurrentProjectPostFields`, `getVisiblePostProject`
 └── __tests__/           # Library tests
 ```
 
 ## WHERE TO LOOK
 
-| Task                     | File                  | Notes                          |
-| ------------------------ | --------------------- | ------------------------------ |
-| Add schema validator     | `validators.ts`       | Import in `schema.ts`          |
-| Add auth helper          | `auth.ts`             | Backend auth logic             |
-| Add cleanup helper       | `cleanup.ts`          | Data cleanup, migrations       |
-| Add constant             | `constants.ts`        | Shared values                  |
-| Add conversation helper  | `conversation.ts`     | DM/thread helpers              |
-| Add discoverability      | `discoverability.ts`  | Search index, visibility logic |
-| Add explore helper       | `explore.ts`          | Search scope / city defaults   |
-| Add GitHub helper        | `github.ts`           | Repo data fetching helpers     |
-| Add feed helper          | `homeFeed.ts`         | Feed aggregation logic         |
-| Add notification helper  | `notifications.ts`    | Notification targets / state   |
-| Add pinning helper       | `project_pins.ts`     | Project pin/unpin helpers      |
-| Add preview helper       | `project_previews.ts` | Project preview/metadata       |
-| Add pulse/metrics helper | `pulse.ts`            | Activity metrics               |
-| Add snapshot helper      | `snapshots.ts`        | Denormalized data utilities    |
-| Add topic helper         | `topics.ts`           | Topic extraction / labels      |
-| Add viewer helper        | `viewer.ts`           | Bootstrap payloads             |
+| Task                     | File                  | Notes                                        |
+| ------------------------ | --------------------- | -------------------------------------------- |
+| Add schema validator     | `validators.ts`       | Import in `schema.ts`                        |
+| Add auth helper          | `auth.ts`             | Backend auth logic                           |
+| Post visibility check    | `posts.ts`            | Used by comments, explore, and posts queries |
+| Add cleanup helper       | `cleanup.ts`          | Data cleanup, migrations                     |
+| Add constant             | `constants.ts`        | Shared values                                |
+| Add conversation helper  | `conversation.ts`     | DM/thread helpers                            |
+| Add discoverability      | `discoverability.ts`  | Search index, visibility logic               |
+| Add explore helper       | `explore.ts`          | Search scope / city defaults                 |
+| Add GitHub helper        | `github.ts`           | Repo data fetching helpers                   |
+| Add feed helper          | `homeFeed.ts`         | Feed aggregation logic                       |
+| Add notification helper  | `notifications.ts`    | Notification targets / state                 |
+| Add pinning helper       | `project_pins.ts`     | Project pin/unpin helpers                    |
+| Add preview helper       | `project_previews.ts` | Project preview/metadata                     |
+| Add pulse/metrics helper | `pulse.ts`            | Activity metrics                             |
+| Add snapshot helper      | `snapshots.ts`        | Denormalized data utilities                  |
+| Add topic helper         | `topics.ts`           | Topic extraction / labels                    |
+| Add viewer helper        | `viewer.ts`           | Bootstrap payloads                           |
 
 ## CONVENTIONS
 

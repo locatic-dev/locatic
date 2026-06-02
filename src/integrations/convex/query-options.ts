@@ -108,8 +108,20 @@ export const exploreFeedQueryOptions = ({
 export const nearbyBuildersQueryOptions = (cityIds: Array<Id<'cities'>> = []) =>
   convexQuery(api.explore.listNearbyBuilders, { cityIds })
 
-export const builderSearchQueryOptions = (q: string) =>
-  convexQuery(api.explore.searchBuilders, { q })
+export const builderSearchQueryOptions = ({
+  cityIds = [],
+  limit = 10,
+  q,
+}: {
+  cityIds?: Array<Id<'cities'>>
+  limit?: number
+  q: string
+}) =>
+  convexQuery(api.explore.searchBuilders, {
+    cityIds,
+    limit,
+    q,
+  })
 
 export const projectPostSearchQueryOptions = ({
   cityIds = [],

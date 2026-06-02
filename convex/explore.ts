@@ -10,6 +10,78 @@ import {
 import { buildExploreCandidates, rankNearbyBuilders } from './lib/explore'
 import { buildProjectCardPreview } from './lib/project_previews'
 import { getProjectTopics } from './lib/topics'
+import { filterVisiblePosts } from './lib/posts'
+
+const projectSearchResultValidator = v.object({
+  projectId: v.id('projects'),
+  ownerUserId: v.id('users'),
+  fullName: v.string(),
+  owner: v.string(),
+  repo: v.string(),
+  description: v.union(v.string(), v.null()),
+  primaryLanguage: v.union(v.string(), v.null()),
+  languages: v.array(
+    v.object({
+      name: v.string(),
+      bytes: v.number(),
+    }),
+  ),
+  githubStars: v.number(),
+  locaticLikes: v.number(),
+  commentsCount: v.number(),
+  postsCount: v.number(),
+  topics: v.array(v.string()),
+  lastCommitAt: v.number(),
+  updatedAt: v.number(),
+  authorName: v.string(),
+  authorHandle: v.string(),
+  authorAvatarUrl: v.union(v.string(), v.null()),
+  cityLabel: v.union(v.string(), v.null()),
+  cityVisibilityState: v.union(
+    v.literal('exact_city'),
+    v.literal('region_only'),
+    v.literal('hidden'),
+    v.literal('unset'),
+  ),
+})
+
+const postSearchResultValidator = v.object({
+  _id: v.id('posts'),
+  _creationTime: v.number(),
+  projectId: v.id('projects'),
+  ownerId: v.id('users'),
+  actorId: v.id('users'),
+  authorRole: v.union(
+    v.literal('owner'),
+    v.literal('collaborator'),
+    v.literal('contributor'),
+  ),
+  body: v.string(),
+  reactionCounts: v.record(v.string(), v.number()),
+  commentsCount: v.number(),
+  projectCityId: v.union(v.id('cities'), v.null()),
+  projectTopics: v.array(v.string()),
+  actorSnapshot: v.object({
+    displayName: v.string(),
+    avatarUrl: v.string(),
+    cityId: v.union(v.id('cities'), v.null()),
+    cityName: v.union(v.string(), v.null()),
+  }),
+  projectSnapshot: v.object({
+    name: v.string(),
+    fullName: v.string(),
+    primaryLanguage: v.union(v.string(), v.null()),
+    languages: v.array(
+      v.object({
+        name: v.string(),
+        bytes: v.number(),
+      }),
+    ),
+  }),
+  createdAt: v.number(),
+  updatedAt: v.number(),
+  deletedAt: v.union(v.number(), v.null()),
+})
 
 const EXPLORE_INDEXES = [
   'by_explore_eligible_likes',
@@ -236,15 +308,20 @@ export const searchProjectsAndPosts = query({
     cityIds: v.optional(v.array(v.id('cities'))),
     limit: v.optional(v.number()),
   },
+  returns: v.object({
+    projectResultScope: v.literal('recent'),
+    projects: v.array(projectSearchResultValidator),
+    posts: v.array(postSearchResultValidator),
+  }),
   handler: async (ctx, args) => {
     const viewer = await getViewerFromAuth(ctx)
     if (!viewer) {
-      return { projects: [], posts: [] }
+      return { projectResultScope: 'recent' as const, projects: [], posts: [] }
     }
 
     const normalizedQ = args.q.trim().toLowerCase()
     if (!normalizedQ) {
-      return { projects: [], posts: [] }
+      return { projectResultScope: 'recent' as const, projects: [], posts: [] }
     }
 
     const limit = Math.min(args.limit ?? 10, 20)
@@ -279,19 +356,34 @@ export const searchProjectsAndPosts = query({
       })
       .slice(0, limit)
 
-    const posts = await ctx.db
-      .query('posts')
-      .withSearchIndex('search_body', (query) =>
-        query.search('body', normalizedQ).eq('deletedAt', null),
-      )
-      .take(cityIds.size > 0 ? limit * 4 : limit)
-    const matchingPosts = posts
-      .filter(
-        (post) =>
-          cityIds.size === 0 ||
-          (post.projectCityId && cityIds.has(String(post.projectCityId))),
-      )
-      .slice(0, limit)
+    const cityIdValues = [...cityIds].flatMap((cityId) => {
+      const normalizedCityId = ctx.db.normalizeId('cities', cityId)
+      return normalizedCityId ? [normalizedCityId] : []
+    })
+    const posts =
+      cityIdValues.length > 0
+        ? (
+            await Promise.all(
+              cityIdValues.map((cityId) =>
+                ctx.db
+                  .query('posts')
+                  .withSearchIndex('search_body', (query) =>
+                    query
+                      .search('body', normalizedQ)
+                      .eq('deletedAt', null)
+                      .eq('projectCityId', cityId),
+                  )
+                  .take(limit),
+              ),
+            )
+          ).flat()
+        : await ctx.db
+            .query('posts')
+            .withSearchIndex('search_body', (query) =>
+              query.search('body', normalizedQ).eq('deletedAt', null),
+            )
+            .take(limit)
+    const matchingPosts = (await filterVisiblePosts(ctx, posts)).slice(0, limit)
 
     const ownerById = new Map(
       (
@@ -307,6 +399,7 @@ export const searchProjectsAndPosts = query({
     )
 
     return {
+      projectResultScope: 'recent' as const,
       projects: await Promise.all(
         matchingProjects.map((project) =>
           buildProjectCardPreview(ctx.db, project, {

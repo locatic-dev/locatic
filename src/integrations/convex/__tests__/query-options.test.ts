@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   exploreFeedQueryOptions,
+  builderSearchQueryOptions,
   nearbyBuildersQueryOptions,
   privateFollowGraphQueryOptions,
   publicFollowGraphQueryOptions,
@@ -27,6 +28,21 @@ describe('nearbyBuildersQueryOptions', () => {
 
     expect(query.queryKey[2]).toMatchObject({
       cityIds: [],
+    })
+  })
+})
+
+describe('builderSearchQueryOptions', () => {
+  it('passes active city filters through to builder search', () => {
+    const query = builderSearchQueryOptions({
+      cityIds: ['city_1' as never],
+      q: 'react',
+    })
+
+    expect(query.queryKey[2]).toMatchObject({
+      cityIds: ['city_1'],
+      limit: 10,
+      q: 'react',
     })
   })
 })

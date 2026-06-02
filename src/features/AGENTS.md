@@ -19,7 +19,7 @@ features/
 ├── onboarding/       # New user onboarding flow, repo-derived prefs
 ├── profile/          # User profiles (public + private), tab/search state
 ├── project-card-preview.ts  # Project card preview logic (standalone)
-├── projects/         # Project management, repo linking, sync feedback
+├── projects/         # Project detail, repo linking, sync feedback, post feed (posts/)
 ├── settings/         # User settings, preferences
 ├── viewer/           # Current user context + bootstrap queries
 └── __tests__/        # Cross-feature tests
@@ -27,19 +27,21 @@ features/
 
 ## WHERE TO LOOK
 
-| Task               | Location                                             | Notes                                      |
-| ------------------ | ---------------------------------------------------- | ------------------------------------------ |
-| Add new feature    | `features/<name>/`                                   | Create dir with hooks, types, components   |
-| Shared types       | `contracts.ts`                                       | Cross-feature type definitions             |
-| Search state       | `explore/state.ts`, `profile/state.ts`               | Normalize route search params              |
-| Destination maps   | `notifications/navigation.ts`, `inbox/navigation.ts` | Keep route targets in one place            |
-| Feed copy          | `home/activity-labels.ts`                            | Activity labels and card copy              |
-| GitHub sync logic  | `github/`                                            | API calls, webhook handlers                |
-| City search        | `cities/`                                            | Geolocation, city data                     |
-| Current user data  | `viewer/`                                            | Authenticated user context, route payloads |
-| Onboarding helpers | `onboarding/helpers.ts`                              | Repo-derived stack prefs, owned projects   |
-| Profile network UI | `profile/network-section.tsx`                        | Follow graph section                       |
-| Sync feedback      | `projects/github-sync-feedback.ts`                   | Toasts for GitHub sync failures            |
+| Task               | Location                                             | Notes                                                               |
+| ------------------ | ---------------------------------------------------- | ------------------------------------------------------------------- |
+| Add new feature    | `features/<name>/`                                   | Create dir with hooks, types, components                            |
+| Shared types       | `contracts.ts`                                       | Cross-feature type definitions                                      |
+| Search state       | `explore/state.ts`, `profile/state.ts`               | Normalize route search params                                       |
+| Destination maps   | `notifications/navigation.ts`, `inbox/navigation.ts` | Keep route targets in one place                                     |
+| Feed copy          | `home/activity-labels.ts`                            | Activity labels and card copy                                       |
+| GitHub sync logic  | `github/`                                            | API calls, webhook handlers                                         |
+| City search        | `cities/`                                            | Geolocation, city data                                              |
+| Current user data  | `viewer/`                                            | Authenticated user context, route payloads                          |
+| Onboarding helpers | `onboarding/helpers.ts`                              | Repo-derived stack prefs, owned projects                            |
+| Profile network UI | `profile/network-section.tsx`                        | Follow graph section                                                |
+| Sync feedback      | `projects/github-sync-feedback.ts`                   | Toasts for GitHub sync failures                                     |
+| Project post feed  | `projects/posts/project-posts-section.tsx`           | Paginated post list via `usePaginatedQuery` on project detail       |
+| Explore post click | `explore/components/explore-feed.tsx`                | Post results click navigates to project page via `onOpenPostResult` |
 
 ## CONVENTIONS
 

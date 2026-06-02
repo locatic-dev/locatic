@@ -19,6 +19,7 @@ convex/
 │   ├── snapshots.ts    # Snapshot utilities
 │   ├── types.ts        # Shared TypeScript types
 │   ├── viewer.ts       # Viewer/bootstrap payload helpers
+│   ├── posts.ts        # Post visibility helpers (filterVisiblePosts, getVisiblePostProject)
 │   └── __tests__/      # Library tests
 ├── auth.config.ts      # Convex auth configuration (requires CLERK_JWT_ISSUER_DOMAIN)
 ├── users.ts            # User CRUD, profile management
@@ -45,21 +46,23 @@ convex/
 
 ## WHERE TO LOOK
 
-| Task                | File                                       | Notes                                          |
-| ------------------- | ------------------------------------------ | ---------------------------------------------- |
-| Add DB table        | `schema.ts`                                | Use validators from `lib/validators.ts`        |
-| Add query/mutation  | New file or existing domain file           | `export const myQuery = query({...})`          |
-| Add HTTP endpoint   | `http.ts`                                  | Webhooks, external API callbacks               |
-| Add scheduled task  | `crons.ts`                                 | Cron-triggered functions                       |
-| Add validator       | `lib/validators.ts`                        | Used in schema definitions                     |
-| GitHub integration  | `github.ts`, `github_actions.ts`           | API sync, webhooks                             |
-| Add post management | `posts.ts`                                 | Project posts / status updates                 |
-| Add seed data       | `citiesSeed.ts`, `reactionConfigSeed.ts`   | City + reaction seed data                      |
-| Viewer/bootstrap    | `users.ts`, `lib/viewer.ts`                | Authenticated app payloads; preserve contracts |
-| Explore state       | `explore.ts`, `lib/explore.ts`             | Search scope / city defaults                   |
-| Notification state  | `notifications.ts`, `lib/notifications.ts` | Read state + backfill helpers                  |
-| Conversation flow   | `conversations.ts`                         | Start/get DM threads                           |
-| Project sync        | `projects.ts`, `github_actions.ts`         | Repo metadata + sync orchestration             |
+| Task                | File                                       | Notes                                                                                  |
+| ------------------- | ------------------------------------------ | -------------------------------------------------------------------------------------- |
+| Add DB table        | `schema.ts`                                | Use validators from `lib/validators.ts`                                                |
+| Add query/mutation  | New file or existing domain file           | `export const myQuery = query({...})`                                                  |
+| Add HTTP endpoint   | `http.ts`                                  | Webhooks, external API callbacks                                                       |
+| Post visibility     | `lib/posts.ts`                             | Used by `posts.ts`, `comments.ts`, `explore.ts`                                        |
+| Explore result      | `explore.ts`                               | Explicit validators for `projectSearchResultValidator` and `postSearchResultValidator` |
+| Add scheduled task  | `crons.ts`                                 | Cron-triggered functions                                                               |
+| Add validator       | `lib/validators.ts`                        | Used in schema definitions                                                             |
+| GitHub integration  | `github.ts`, `github_actions.ts`           | API sync, webhooks                                                                     |
+| Add post management | `posts.ts`                                 | Project posts / status updates                                                         |
+| Add seed data       | `citiesSeed.ts`, `reactionConfigSeed.ts`   | City + reaction seed data                                                              |
+| Viewer/bootstrap    | `users.ts`, `lib/viewer.ts`                | Authenticated app payloads; preserve contracts                                         |
+| Explore state       | `explore.ts`, `lib/explore.ts`             | Search scope / city defaults                                                           |
+| Notification state  | `notifications.ts`, `lib/notifications.ts` | Read state + backfill helpers                                                          |
+| Conversation flow   | `conversations.ts`                         | Start/get DM threads                                                                   |
+| Project sync        | `projects.ts`, `github_actions.ts`         | Repo metadata + sync orchestration                                                     |
 
 ## CONVENTIONS
 

@@ -31,6 +31,8 @@ _app/
 - Intent preloading stays off for sidebar/tab routes to avoid fast-switch crashes.
 - Explore/profile routes should use feature search-state helpers; inbox/notifications should use feature navigation helpers.
 - Shared Convex query options live in `src/integrations/convex/query-options.ts`; use them for loader prefetches.
+- `project.$owner.$repo.tsx` delegates post creation and listing to `ProjectPostsSection` component in `src/features/projects/posts/`.
+- `explore.tsx` search results navigate with function-form `search: (current) => ({...current, ...next})` — keep existing search params when updating.
 
 ## ANTI-PATTERNS
 
