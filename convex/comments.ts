@@ -17,6 +17,7 @@ import {
   actorSnapshotValidator,
   commentTargetSnapshotValidator,
 } from './lib/validators'
+import { isPublicPostVisible } from './lib/posts'
 
 const commentPageItemValidator = v.object({
   _id: v.id('comments'),
@@ -40,6 +41,14 @@ const commentPageItemValidator = v.object({
   replies: v.array(v.any()),
   previewReplies: v.optional(v.array(v.any())),
 })
+
+const emptyCommentPage = {
+  continueCursor: '',
+  isDone: true,
+  page: [],
+  pageStatus: null,
+  splitCursor: null,
+}
 
 async function getRequester(ctx: QueryCtx) {
   const identity = await ctx.auth.getUserIdentity()
@@ -239,6 +248,18 @@ export const listRootsByTarget = query({
   returns: paginationResultValidator(commentPageItemValidator),
   handler: async (ctx, args) => {
     const requester = await getRequester(ctx)
+    if (args.targetType === 'post') {
+      const postId = ctx.db.normalizeId('posts', args.targetId)
+      const post = postId ? await ctx.db.get(postId) : null
+      if (
+        !post ||
+        post.deletedAt !== null ||
+        !(await isPublicPostVisible(ctx, post))
+      ) {
+        return emptyCommentPage
+      }
+    }
+
     const page =
       args.sort === 'top'
         ? await ctx.db
@@ -291,6 +312,17 @@ export const listReplies = query({
     if (!parent) {
       throw new ConvexError('Comment not found')
     }
+    if (parent.targetType === 'post') {
+      const postId = ctx.db.normalizeId('posts', parent.targetId)
+      const post = postId ? await ctx.db.get(postId) : null
+      if (
+        !post ||
+        post.deletedAt !== null ||
+        !(await isPublicPostVisible(ctx, post))
+      ) {
+        return emptyCommentPage
+      }
+    }
 
     const requester = await getRequester(ctx)
     const page = await ctx.db
@@ -327,6 +359,7 @@ export const create = mutation({
     parentId: v.union(v.id('comments'), v.null()),
     content: v.string(),
   },
+  returns: v.union(commentPageItemValidator, v.null()),
   handler: async (ctx, args) => {
     const viewer = await getViewerOrThrow(ctx)
     const actorSnapshot = await buildActorSnapshot(ctx.db, viewer)
@@ -347,7 +380,11 @@ export const create = mutation({
     if (args.targetType === 'post') {
       const postId = ctx.db.normalizeId('posts', args.targetId)
       postTarget = postId ? await ctx.db.get(postId) : null
-      if (postTarget?.deletedAt !== null) {
+      if (
+        !postTarget ||
+        postTarget.deletedAt !== null ||
+        !(await isPublicPostVisible(ctx, postTarget))
+      ) {
         postTarget = null
       }
     }
@@ -527,7 +564,14 @@ export const create = mutation({
       }
     }
 
-    return await ctx.db.get(commentId)
+    const comment = await ctx.db.get(commentId)
+    return comment
+      ? {
+          ...comment,
+          replies: [],
+          viewerHasLiked: false,
+        }
+      : null
   },
 })
 
@@ -535,6 +579,7 @@ export const remove = mutation({
   args: {
     commentId: v.id('comments'),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const viewer = await getViewerOrThrow(ctx)
     const comment = await ctx.db.get(args.commentId)

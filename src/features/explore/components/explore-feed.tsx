@@ -24,6 +24,7 @@ export function ExploreFeed({
   onLikeProject,
   onMessageUser,
   onOpenBuilderProfile,
+  onOpenPostResult,
   onOpenProject,
   onOpenProjectOwner,
   pendingFollows,
@@ -52,6 +53,11 @@ export function ExploreFeed({
   onLikeProject: (projectId: Id<'projects'>, projectKey: string) => void
   onMessageUser: (userId: Id<'users'>) => void
   onOpenBuilderProfile: (builder: BuilderPreview) => void
+  onOpenPostResult: (target: {
+    owner: string
+    postId: Id<'posts'>
+    repo: string
+  }) => void
   onOpenProject: (project: ProjectCardPreview) => void
   onOpenProjectOwner: (project: ProjectCardPreview) => void
   pendingFollows: Set<string>
@@ -166,27 +172,10 @@ export function ExploreFeed({
                   key={String(post._id)}
                   type="button"
                   onClick={() =>
-                    onOpenProject({
-                      projectId: post.projectId,
-                      ownerUserId: post.ownerId,
-                      fullName: post.projectSnapshot.fullName,
+                    onOpenPostResult({
                       owner,
+                      postId: post._id,
                       repo,
-                      description: post.body,
-                      primaryLanguage: post.projectSnapshot.primaryLanguage,
-                      languages: post.projectSnapshot.languages,
-                      githubStars: 0,
-                      locaticLikes: post.reactionCounts.like ?? 0,
-                      commentsCount: post.commentsCount,
-                      postsCount: 0,
-                      topics: post.projectTopics,
-                      lastCommitAt: post.createdAt,
-                      updatedAt: post.updatedAt,
-                      authorName: post.actorSnapshot.displayName,
-                      authorHandle: owner,
-                      authorAvatarUrl: post.actorSnapshot.avatarUrl,
-                      cityLabel: post.actorSnapshot.cityName,
-                      cityVisibilityState: 'exact_city',
                     })
                   }
                   className="rounded-[6px] border border-line bg-surface px-4 py-3 text-left transition-colors hover:border-line-strong hover:bg-surface-alt"

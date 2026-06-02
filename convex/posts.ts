@@ -14,6 +14,7 @@ import {
   buildProjectSnapshot,
 } from './lib/snapshots'
 import { getProjectTopics } from './lib/topics'
+import { filterVisiblePosts, withCurrentProjectPostFields } from './lib/posts'
 
 const postPageItemValidator = v.object({
   _id: v.id('posts'),
@@ -53,6 +54,14 @@ const postPageItemValidator = v.object({
   deletedAt: v.union(v.number(), v.null()),
   viewerHasLiked: v.boolean(),
 })
+
+const emptyPostPage = {
+  continueCursor: '',
+  isDone: true,
+  page: [],
+  pageStatus: null,
+  splitCursor: null,
+}
 
 async function getViewerLikeTargetIds(
   ctx: QueryCtx,
@@ -103,6 +112,16 @@ export const listByProject = query({
   returns: paginationResultValidator(postPageItemValidator),
   handler: async (ctx, args) => {
     const viewer = await getViewerFromAuth(ctx)
+    const project = await ctx.db.get(args.projectId)
+    if (!project?.locatic.isVisible || !project.exploreOwner.isEligible) {
+      return emptyPostPage
+    }
+
+    const owner = await ctx.db.get(project.ownerId)
+    if (!owner || owner.deletedAt !== null || owner.deactivatedAt !== null) {
+      return emptyPostPage
+    }
+
     const page = await ctx.db
       .query('posts')
       .withIndex('by_project_deleted_created', (query) =>
@@ -110,15 +129,16 @@ export const listByProject = query({
       )
       .order('desc')
       .paginate(args.paginationOpts)
+    const visiblePage = await filterVisiblePosts(ctx, page.page)
     const viewerLikeTargetIds = await getViewerLikeTargetIds(
       ctx,
       viewer,
-      page.page,
+      visiblePage,
     )
 
     return {
       ...page,
-      page: withViewerPostLikes(page.page, viewerLikeTargetIds),
+      page: withViewerPostLikes(visiblePage, viewerLikeTargetIds),
     }
   },
 })
@@ -129,6 +149,7 @@ export const search = query({
     cityIds: v.optional(v.array(v.id('cities'))),
     limit: v.optional(v.number()),
   },
+  returns: v.array(postPageItemValidator),
   handler: async (ctx, args) => {
     const normalizedQ = args.q.trim().toLowerCase()
     if (!normalizedQ) {
@@ -138,19 +159,34 @@ export const search = query({
     const limit = Math.min(args.limit ?? 8, 20)
     const cityIds = new Set((args.cityIds ?? []).map(String))
     const viewer = await getViewerFromAuth(ctx)
-    const posts = await ctx.db
-      .query('posts')
-      .withSearchIndex('search_body', (query) =>
-        query.search('body', normalizedQ).eq('deletedAt', null),
-      )
-      .take(cityIds.size > 0 ? limit * 4 : limit)
-    const filtered = posts
-      .filter(
-        (post) =>
-          cityIds.size === 0 ||
-          (post.projectCityId && cityIds.has(String(post.projectCityId))),
-      )
-      .slice(0, limit)
+    const cityIdValues = [...cityIds].flatMap((cityId) => {
+      const normalizedCityId = ctx.db.normalizeId('cities', cityId)
+      return normalizedCityId ? [normalizedCityId] : []
+    })
+    const posts =
+      cityIdValues.length > 0
+        ? (
+            await Promise.all(
+              cityIdValues.map((cityId) =>
+                ctx.db
+                  .query('posts')
+                  .withSearchIndex('search_body', (query) =>
+                    query
+                      .search('body', normalizedQ)
+                      .eq('deletedAt', null)
+                      .eq('projectCityId', cityId),
+                  )
+                  .take(limit),
+              ),
+            )
+          ).flat()
+        : await ctx.db
+            .query('posts')
+            .withSearchIndex('search_body', (query) =>
+              query.search('body', normalizedQ).eq('deletedAt', null),
+            )
+            .take(limit)
+    const filtered = (await filterVisiblePosts(ctx, posts)).slice(0, limit)
     const viewerLikeTargetIds = await getViewerLikeTargetIds(
       ctx,
       viewer,
@@ -166,6 +202,7 @@ export const create = mutation({
     projectId: v.id('projects'),
     body: v.string(),
   },
+  returns: v.union(postPageItemValidator, v.null()),
   handler: async (ctx, args) => {
     const viewer = await getViewerOrThrow(ctx)
     const project = await ctx.db.get(args.projectId)
@@ -246,6 +283,7 @@ export const update = mutation({
     postId: v.id('posts'),
     body: v.string(),
   },
+  returns: v.union(postPageItemValidator, v.null()),
   handler: async (ctx, args) => {
     const viewer = await getViewerOrThrow(ctx)
     const post = await ctx.db.get(args.postId)
@@ -263,7 +301,18 @@ export const update = mutation({
       updatedAt: Date.now(),
     })
 
-    return await ctx.db.get(post._id)
+    const updatedPost = await ctx.db.get(post._id)
+    if (!updatedPost) {
+      return null
+    }
+
+    const visiblePost = await withCurrentProjectPostFields(ctx, updatedPost)
+    return visiblePost
+      ? {
+          ...visiblePost,
+          viewerHasLiked: false,
+        }
+      : null
   },
 })
 
@@ -271,6 +320,7 @@ export const remove = mutation({
   args: {
     postId: v.id('posts'),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const viewer = await getViewerOrThrow(ctx)
     const post = await ctx.db.get(args.postId)

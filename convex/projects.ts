@@ -264,6 +264,7 @@ export const updateTopics = mutation({
     projectId: v.id('projects'),
     topics: v.array(v.string()),
   },
+  returns: v.array(v.string()),
   handler: async (ctx, args) => {
     const viewer = await getViewerOrThrow(ctx)
     const project = await ctx.db.get(args.projectId)

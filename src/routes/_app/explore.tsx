@@ -199,10 +199,10 @@ function ExplorePage() {
       if (nextQuery !== search.q) {
         void navigate({
           to: '/explore',
-          search: {
-            ...search,
+          search: (current) => ({
+            ...current,
             q: nextQuery,
-          },
+          }),
           replace: true,
           resetScroll: false,
         })
@@ -223,8 +223,16 @@ function ExplorePage() {
   })
   const builderSearchQuery = useQuery(
     currentMode === 'builders' && debouncedSearchQuery.length > 0
-      ? builderSearchQueryOptions(debouncedSearchQuery)
-      : disabledQuery(builderSearchQueryOptions('')),
+      ? builderSearchQueryOptions({
+          cityIds: queryCityIds,
+          q: debouncedSearchQuery,
+        })
+      : disabledQuery(
+          builderSearchQueryOptions({
+            cityIds: [],
+            q: '',
+          }),
+        ),
   )
   const projectSearchQuery = useQuery(
     currentMode === 'projects' && debouncedSearchQuery.length > 0
@@ -359,7 +367,11 @@ function ExplorePage() {
   const builderResults =
     (builderSearchQuery.data as Array<BuilderPreview> | undefined) ?? []
   const projectSearchData = projectSearchQuery.data as
-    | { projects: ExploreFeedPayload['projects']; posts: Array<Doc<'posts'>> }
+    | {
+        projectResultScope: 'recent'
+        projects: ExploreFeedPayload['projects']
+        posts: Array<Doc<'posts'>>
+      }
     | undefined
   const isBuilderSearchActive =
     currentMode === 'builders' && debouncedSearchQuery.length > 0
@@ -399,10 +411,10 @@ function ExplorePage() {
     (next: Partial<typeof search>) => {
       void navigate({
         to: '/explore',
-        search: {
-          ...search,
+        search: (current) => ({
+          ...current,
           ...next,
-        },
+        }),
         replace: true,
         resetScroll: false,
       })
@@ -563,11 +575,11 @@ function ExplorePage() {
         onModeChange={(mode) =>
           void navigate({
             to: '/explore',
-            search: {
-              ...search,
+            search: (current) => ({
+              ...current,
               mode,
               q: '',
-            },
+            }),
             replace: true,
             resetScroll: false,
           })
@@ -611,6 +623,13 @@ function ExplorePage() {
                     username: builder.githubUsername,
                   },
                   search: { tab: 'projects' },
+                })
+              }
+              onOpenPostResult={(postTarget) =>
+                void navigate({
+                  to: '/project/$owner/$repo',
+                  params: { owner: postTarget.owner, repo: postTarget.repo },
+                  search: { comment: null },
                 })
               }
               onOpenProject={(project) =>

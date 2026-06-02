@@ -8,6 +8,7 @@ import {
 } from './_generated/server'
 import { getViewerOrThrow } from './lib/auth'
 import { createNotificationIfEnabled } from './lib/notifications'
+import { isPublicPostVisible } from './lib/posts'
 import type { Doc } from './lib/types'
 import { DEFAULT_REACTIONS } from './reactionConfigSeed'
 
@@ -108,6 +109,7 @@ export const reactToTarget = mutation({
     targetId: v.string(),
     reactionType: v.string(),
   },
+  returns: v.any(),
   handler: async (ctx, args): Promise<unknown> => {
     const viewer = await getViewerOrThrow(ctx)
     await assertConfiguredReaction(ctx, args)
@@ -134,7 +136,11 @@ export const reactToTarget = mutation({
     if (args.targetType === 'post') {
       const postId = ctx.db.normalizeId('posts', args.targetId)
       postTarget = postId ? await ctx.db.get(postId) : null
-      if (!postTarget || postTarget.deletedAt !== null) {
+      if (
+        !postTarget ||
+        postTarget.deletedAt !== null ||
+        !(await isPublicPostVisible(ctx, postTarget))
+      ) {
         throw new ConvexError('Post not found')
       }
     }
@@ -239,6 +245,7 @@ export const unreactFromTarget = mutation({
     targetId: v.string(),
     reactionType: v.string(),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const viewer = await getViewerOrThrow(ctx)
     const existing = await ctx.db
@@ -292,7 +299,11 @@ export const unreactFromTarget = mutation({
     if (args.targetType === 'post') {
       const postId = ctx.db.normalizeId('posts', args.targetId)
       const post = postId ? await ctx.db.get(postId) : null
-      if (post) {
+      if (
+        post &&
+        post.deletedAt === null &&
+        (await isPublicPostVisible(ctx, post))
+      ) {
         const nextCount = Math.max(
           0,
           (post.reactionCounts[args.reactionType] ?? 0) - 1,

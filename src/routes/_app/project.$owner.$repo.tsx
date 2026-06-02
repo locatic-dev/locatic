@@ -42,7 +42,6 @@ import {
   useDeleteComment,
   useReactToTarget,
   useUnreactFromTarget,
-  useCreatePost,
   useUpdateProjectTopics,
 } from '@/features/projects/mutations'
 import { showGithubSyncFeedback } from '@/features/projects/github-sync-feedback'
@@ -62,7 +61,7 @@ import type {
   ProjectCommentLikeOverride,
   ProjectCommentView,
 } from '@/features/projects/comments/types'
-import { ProjectPostCard } from '@/features/projects/posts/project-post-card'
+import { ProjectPostsSection } from '@/features/projects/posts/project-posts-section'
 
 function updateProjectLikePayload(
   payload: ProjectDetailPayload | null | undefined,
@@ -130,7 +129,6 @@ function ProjectDetailPage() {
   const deleteComment = useDeleteComment()
   const reactToTarget = useReactToTarget()
   const unreactFromTarget = useUnreactFromTarget()
-  const createPost = useCreatePost()
   const updateProjectTopics = useUpdateProjectTopics()
   const followUser = useFollowUser()
   const unfollowUser = useUnfollowUser()
@@ -160,15 +158,8 @@ function ProjectDetailPage() {
       : 'skip',
     { initialNumItems: 10 },
   )
-  const projectPosts = usePaginatedQuery(
-    api.posts.listByProject,
-    detail ? { projectId: detail.project._id } : 'skip',
-    { initialNumItems: 8 },
-  )
 
   const [comment, setComment] = useState('')
-  const [postBody, setPostBody] = useState('')
-  const [postingRepoPost, setPostingRepoPost] = useState(false)
   const [topicDraft, setTopicDraft] = useState('')
   const [pendingTopics, setPendingTopics] = useState(false)
   const [commentComposerOpen, setCommentComposerOpen] = useState(false)
@@ -286,7 +277,6 @@ function ProjectDetailPage() {
     detail.project.locatic.tags.length > 0
       ? detail.project.locatic.tags
       : detail.project.github.topics
-  const posts = projectPosts.results ?? []
   const githubHref = `https://github.com/${detail.project.github.fullName}`
   const ownerGithubHref = socialLinkHref('github', detail.owner.githubUsername)
   const ownerXHref = socialLinkHref('x', detail.owner.socialLinks.x)
@@ -311,27 +301,6 @@ function ProjectDetailPage() {
       })
     } catch (error) {
       console.error(error)
-    }
-  }
-
-  const handleCreatePost = async () => {
-    const body = postBody.trim()
-    if (!body || postingRepoPost || !isOwnProject) {
-      return
-    }
-
-    setPostingRepoPost(true)
-    try {
-      await createPost({
-        body,
-        projectId: detail.project._id,
-      })
-      setPostBody('')
-      await queryClient.invalidateQueries({ queryKey: projectDetailQueryKey })
-    } catch (error) {
-      console.error(error)
-    } finally {
-      setPostingRepoPost(false)
     }
   }
 
@@ -906,62 +875,13 @@ function ProjectDetailPage() {
             </div>
 
             <TabsContent value="posts" className="mt-0">
-              <div className="flex flex-col gap-4">
-                {isOwnProject && (
-                  <div className="rounded-[6px] border border-line bg-surface px-4 py-4">
-                    <div className="mb-3 font-mono text-[11px] uppercase tracking-[0.06em] text-text-faint">
-                      repo post
-                    </div>
-                    <Textarea
-                      value={postBody}
-                      onChange={(event) => setPostBody(event.target.value)}
-                      placeholder="share what changed, what you learned, or what help this repo needs..."
-                      rows={4}
-                      className="min-h-30 resize-none border-0 bg-canvas px-3 py-3 font-sans text-sm text-text shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
-                    />
-                    <div className="mt-3 flex justify-end">
-                      <Button
-                        variant="brand"
-                        size="meta"
-                        onClick={() => void handleCreatePost()}
-                        disabled={!postBody.trim() || postingRepoPost}
-                        className="font-mono"
-                      >
-                        {postingRepoPost ? 'posting...' : 'post to repo'}
-                      </Button>
-                    </div>
-                  </div>
-                )}
-
-                {posts.length === 0 &&
-                projectPosts.status !== 'LoadingFirstPage' ? (
-                  <div className="rounded-[6px] border border-line bg-surface px-4 py-5 font-sans text-sm text-text-muted">
-                    no repo posts yet.
-                  </div>
-                ) : (
-                  posts.map((post) => (
-                    <ProjectPostCard
-                      key={String(post._id)}
-                      isOwner={isOwnProject}
-                      isSignedIn={Boolean(isSignedIn)}
-                      post={post}
-                      projectDetailQueryKey={projectDetailQueryKey}
-                      viewerId={viewer?.id ? String(viewer.id) : null}
-                    />
-                  ))
-                )}
-
-                {projectPosts.status === 'CanLoadMore' && (
-                  <Button
-                    variant="monoOutline"
-                    size="meta"
-                    onClick={() => projectPosts.loadMore(8)}
-                    className="self-start font-mono"
-                  >
-                    load more posts
-                  </Button>
-                )}
-              </div>
+              <ProjectPostsSection
+                detail={detail}
+                isOwnProject={isOwnProject}
+                isSignedIn={Boolean(isSignedIn)}
+                projectDetailQueryKey={projectDetailQueryKey}
+                viewerId={viewer?.id ? String(viewer.id) : null}
+              />
             </TabsContent>
 
             <TabsContent value="readme" className="mt-0">
