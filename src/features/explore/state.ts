@@ -1,10 +1,14 @@
 import type { Id } from '../../../convex/_generated/dataModel'
 
 export const EXPLORE_SCOPE_VALUES = ['default', 'global', 'custom'] as const
+export const EXPLORE_MODE_VALUES = ['builders', 'projects'] as const
 
 export type ExploreScope = (typeof EXPLORE_SCOPE_VALUES)[number]
+export type ExploreMode = (typeof EXPLORE_MODE_VALUES)[number]
 
 export type ExploreSearch = {
+  mode: ExploreMode
+  q: string
   scope: ExploreScope
   selectedCityIds: string[]
 }
@@ -164,6 +168,8 @@ export function getNearbyBuilderCityIds({
 
 export function getFreshExploreSearch(): ExploreSearch {
   return {
+    mode: 'projects',
+    q: '',
     scope: 'default',
     selectedCityIds: [],
   }
@@ -186,8 +192,14 @@ export function normalizeExploreSearch(
     rawScope === 'global' || rawScope === 'custom' || rawScope === 'default'
       ? rawScope
       : 'default'
+  const rawMode = search.mode
+  const mode =
+    rawMode === 'builders' || rawMode === 'projects' ? rawMode : 'projects'
+  const q = typeof search.q === 'string' ? search.q : ''
 
   return {
+    mode,
+    q,
     scope:
       scope === 'custom' && selectedCityIds.length === 0 ? 'global' : scope,
     selectedCityIds,
@@ -213,7 +225,7 @@ export function deriveDefaultExploreCityIds(
 }
 
 export function getExploreProjectCityIds(
-  search: ExploreSearch,
+  search: Pick<ExploreSearch, 'scope' | 'selectedCityIds'>,
   defaultCityIds: string[],
 ): string[] {
   switch (search.scope) {

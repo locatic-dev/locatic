@@ -26,7 +26,9 @@ Locatic — "GitHub with a map." Developer activity platform: discover projects,
 ├── docs/                   # PRD, issue tracker, plans, screenshots
 │   ├── assets/             # Captured UI artifacts and references
 │   └── plans/              # Implementation plans and RCAs
-└── public/                 # Static assets
+├── scripts/                # Seed data generation, geonames processing
+├── public/                 # Static assets
+└── .github/workflows/      # CI / deploy workflows
 ```
 
 ## WHERE TO LOOK
@@ -120,9 +122,15 @@ pnpm typecheck        # tsc --noEmit
 pnpm format           # oxfmt + oxlint --fix
 pnpm check            # oxfmt --check + oxlint
 pnpm ci:quality       # check + typecheck + test
-pnpm ci:build         # build only
-pnpm deploy:convex    # Deploy Convex backend
-pnpm deploy           # Build + wrangler deploy
+pnpm ci:build                     # build only
+pnpm build:development            # Development-mode Vite build
+pnpm build:production             # Production-mode Vite build
+pnpm deploy:convex                # Deploy Convex backend
+pnpm deploy:convex:development    # Deploy Convex (dev)
+pnpm deploy:convex:production     # Deploy Convex (prod)
+pnpm deploy:worker:development    # Build + wrangler deploy (dev)
+pnpm deploy:worker:production     # Build + wrangler deploy (prod)
+pnpm deploy                       # Build + wrangler deploy (prod)
 pnpm cities:generate  # Regenerate city seed data
 pnpm reactions:generate # Regenerate reaction seed data
 ```

@@ -111,6 +111,21 @@ export const nearbyBuildersQueryOptions = (cityIds: Array<Id<'cities'>> = []) =>
 export const builderSearchQueryOptions = (q: string) =>
   convexQuery(api.explore.searchBuilders, { q })
 
+export const projectPostSearchQueryOptions = ({
+  cityIds = [],
+  limit = 10,
+  q,
+}: {
+  cityIds?: Array<Id<'cities'>>
+  limit?: number
+  q: string
+}) =>
+  convexQuery(api.explore.searchProjectsAndPosts, {
+    cityIds,
+    limit,
+    q,
+  })
+
 export const citiesSearchQueryOptions = (query: string, limit = 10) =>
   convexQuery(api.cities.search, { query, limit })
 

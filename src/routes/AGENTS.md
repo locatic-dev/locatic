@@ -9,6 +9,7 @@ File-based routing via TanStack Router. `_app/` prefix = authenticated layout ro
 ```
 routes/
 ├── __root.tsx          # Root route — Clerk SSR auth, provider tree, head config
+├── __tests__/          # Route-level tests (root error page, etc.)
 ├── _app.tsx            # Authenticated layout wrapper
 ├── _app/               # Protected routes (require login)
 │   ├── home.tsx        # Main feed

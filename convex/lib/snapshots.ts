@@ -76,3 +76,11 @@ export function buildUpdateSnapshot(update: Doc<'updates'>) {
     commentsCount: update.commentsCount,
   }
 }
+
+export function buildPostSnapshot(post: Doc<'posts'>) {
+  return {
+    body: post.body,
+    reactionCounts: post.reactionCounts,
+    commentsCount: post.commentsCount,
+  }
+}

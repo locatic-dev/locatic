@@ -12,7 +12,8 @@ app-shell/
 ├── sidebar-nav.tsx      # Collapsible nav (hidden mobile, visible desktop)
 ├── page-header.tsx      # Header with wrapped actions, safe-area padding
 ├── route-pending.tsx    # Shared suspense/pending fallback UI
-└── mobile-tab-bar.tsx   # Bottom tab navigation (mobile only, hidden md+)
+├── mobile-tab-bar.tsx   # Bottom tab navigation (mobile only, hidden md+)
+└── __tests__/           # Shell component tests
 ```
 
 ## WHERE TO LOOK

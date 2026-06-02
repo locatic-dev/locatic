@@ -11,6 +11,7 @@ import {
   builderSearchQueryOptions,
   exploreFeedQueryOptions,
   nearbyBuildersQueryOptions,
+  projectPostSearchQueryOptions,
 } from '@/features/explore/queries'
 import { followingQueryOptions } from '@/features/follows/queries'
 import {
@@ -138,6 +139,7 @@ function ExplorePage() {
   const selectedCityIds = effectiveSelectedCityIds as Array<Id<'cities'>>
   const viewerId = explorePrefs?.viewerId
   const currentScope = search.scope
+  const currentMode = search.mode
   const isGlobalFeed = isExploreProjectFeedGlobal(currentScope)
 
   const selectedCitiesQuery = useQuery({
@@ -186,26 +188,56 @@ function ExplorePage() {
   const [selectedCityLabels, setSelectedCityLabels] = useState<
     Record<string, string>
   >({})
-  const [builderQuery, setBuilderQuery] = useState('')
   const [cityQuery, setCityQuery] = useState('')
-  const [debouncedBuilderQuery, setDebouncedBuilderQuery] = useState('')
+  const [localSearchQuery, setLocalSearchQuery] = useState(search.q)
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState(search.q)
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
-      setDebouncedBuilderQuery(builderQuery.trim())
+      const nextQuery = localSearchQuery.trim()
+      setDebouncedSearchQuery(nextQuery)
+      if (nextQuery !== search.q) {
+        void navigate({
+          to: '/explore',
+          search: {
+            ...search,
+            q: nextQuery,
+          },
+          replace: true,
+          resetScroll: false,
+        })
+      }
     }, 250)
 
     return () => window.clearTimeout(timeout)
-  }, [builderQuery])
+  }, [localSearchQuery, navigate, search])
+
+  useEffect(() => {
+    setLocalSearchQuery(search.q)
+    setDebouncedSearchQuery(search.q)
+  }, [search.q])
 
   const citySearchResultsQuery = useQuery({
     ...citiesSearchQueryOptions(cityQuery.trim() || 'unused'),
     enabled: cityQuery.trim().length > 0,
   })
   const builderSearchQuery = useQuery(
-    debouncedBuilderQuery.length > 0
-      ? builderSearchQueryOptions(debouncedBuilderQuery)
+    currentMode === 'builders' && debouncedSearchQuery.length > 0
+      ? builderSearchQueryOptions(debouncedSearchQuery)
       : disabledQuery(builderSearchQueryOptions('')),
+  )
+  const projectSearchQuery = useQuery(
+    currentMode === 'projects' && debouncedSearchQuery.length > 0
+      ? projectPostSearchQueryOptions({
+          cityIds: queryCityIds,
+          q: debouncedSearchQuery,
+        })
+      : disabledQuery(
+          projectPostSearchQueryOptions({
+            cityIds: [],
+            q: '',
+          }),
+        ),
   )
   const feedQueryKey = exploreFeedQueryOptions({
     scope: currentScope,
@@ -326,7 +358,16 @@ function ExplorePage() {
     (nearbyBuildersData as Array<BuilderPreview> | undefined) ?? []
   const builderResults =
     (builderSearchQuery.data as Array<BuilderPreview> | undefined) ?? []
-  const isBuilderSearchActive = debouncedBuilderQuery.length > 0
+  const projectSearchData = projectSearchQuery.data as
+    | { projects: ExploreFeedPayload['projects']; posts: Array<Doc<'posts'>> }
+    | undefined
+  const isBuilderSearchActive =
+    currentMode === 'builders' && debouncedSearchQuery.length > 0
+  const isProjectSearchActive =
+    currentMode === 'projects' && debouncedSearchQuery.length > 0
+  const displayedItems = isProjectSearchActive
+    ? (projectSearchData?.projects ?? [])
+    : items
   const hasSelectedCities = canonicalSelectedCityIds.length > 0
   const canonicalSelectedCities = dedupeExploreCities(selectedCities)
   const selectedCityIdentities = new Set(
@@ -515,11 +556,22 @@ function ExplorePage() {
     <div className="lx-page-shell">
       <ExploreHeader
         availableCities={availableCities}
-        builderQuery={builderQuery}
         cityQuery={cityQuery}
         currentScope={currentScope}
-        onBuilderQueryChange={setBuilderQuery}
+        mode={currentMode}
         onCityQueryChange={setCityQuery}
+        onModeChange={(mode) =>
+          void navigate({
+            to: '/explore',
+            search: {
+              ...search,
+              mode,
+              q: '',
+            },
+            replace: true,
+            resetScroll: false,
+          })
+        }
         onRemoveCity={removeCityById}
         onSelectCity={(city) =>
           void persistCityIds(
@@ -527,7 +579,9 @@ function ExplorePage() {
             [...selectedCities, city],
           )
         }
+        onSearchQueryChange={setLocalSearchQuery}
         pendingCityIds={pendingCityIds}
+        searchQuery={localSearchQuery}
         selectedCityChips={selectedCityChips}
       />
 
@@ -537,13 +591,14 @@ function ExplorePage() {
             <ExploreFeed
               builderResults={builderResults}
               builderSearchLoading={builderSearchQuery.isLoading}
-              debouncedBuilderQuery={debouncedBuilderQuery}
+              debouncedBuilderQuery={debouncedSearchQuery}
               dismissedIds={dismissedIds}
               followOverrides={followOverrides}
               followedUserIds={followedUserIds}
               isBuilderSearchActive={isBuilderSearchActive}
               isGlobalFeed={isGlobalFeed}
-              items={items}
+              isProjectSearchActive={isProjectSearchActive}
+              items={displayedItems}
               likedProjectIds={likedProjectIds}
               onDismissProject={handleDismiss}
               onFollowUser={handleFollow}
@@ -575,6 +630,7 @@ function ExplorePage() {
               pendingFollows={pendingFollows}
               pendingLikes={pendingLikes}
               pendingUserId={pendingUserId}
+              postResults={projectSearchData?.posts ?? []}
               viewerId={viewerId}
             />
 

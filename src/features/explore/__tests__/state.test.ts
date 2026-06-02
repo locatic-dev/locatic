@@ -19,6 +19,8 @@ import {
 describe('explore state helpers', () => {
   it('defaults a fresh explore visit to default scope', () => {
     expect(getFreshExploreSearch()).toEqual({
+      mode: 'projects',
+      q: '',
       scope: 'default',
       selectedCityIds: [],
     })
@@ -27,12 +29,14 @@ describe('explore state helpers', () => {
   it('normalizes route search params into a typed explore state', () => {
     expect(
       normalizeExploreSearch({
+        mode: 'builders',
+        q: '  avinash  ',
         scope: 'custom',
-        builderQuery: '  avinash  ',
-        cityQuery: 'banga',
         selectedCityIds: ['city_1', 'city_1', '', 123],
       }),
     ).toEqual({
+      mode: 'builders',
+      q: '  avinash  ',
       scope: 'custom',
       selectedCityIds: ['city_1'],
     })
@@ -45,6 +49,8 @@ describe('explore state helpers', () => {
         selectedCityIds: [],
       }),
     ).toEqual({
+      mode: 'projects',
+      q: '',
       scope: 'global',
       selectedCityIds: [],
     })

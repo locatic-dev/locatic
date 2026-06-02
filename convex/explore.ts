@@ -9,6 +9,7 @@ import {
 } from './lib/discoverability'
 import { buildExploreCandidates, rankNearbyBuilders } from './lib/explore'
 import { buildProjectCardPreview } from './lib/project_previews'
+import { getProjectTopics } from './lib/topics'
 
 const EXPLORE_INDEXES = [
   'by_explore_eligible_likes',
@@ -130,7 +131,7 @@ export const list = query({
         id: String(project._id),
         cityId: String(project.exploreOwner.cityId),
         primaryLanguage: project.github.primaryLanguage,
-        topics: project.github.topics,
+        topics: getProjectTopics(project),
         likesCount: project.locatic.likesCount,
         commentsCount: project.locatic.commentsCount,
         stargazersCount: project.github.stargazersCount,
@@ -226,6 +227,96 @@ export const searchBuilders = query({
       limit,
       excludeViewerId: false,
     }).map(mapBuilderSearchResult)
+  },
+})
+
+export const searchProjectsAndPosts = query({
+  args: {
+    q: v.string(),
+    cityIds: v.optional(v.array(v.id('cities'))),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const viewer = await getViewerFromAuth(ctx)
+    if (!viewer) {
+      return { projects: [], posts: [] }
+    }
+
+    const normalizedQ = args.q.trim().toLowerCase()
+    if (!normalizedQ) {
+      return { projects: [], posts: [] }
+    }
+
+    const limit = Math.min(args.limit ?? 10, 20)
+    const cityIds = new Set((args.cityIds ?? []).map(String))
+    const projects = await ctx.db
+      .query('projects')
+      .withIndex('by_explore_eligible_added', (query) =>
+        query.eq('exploreOwner.isEligible', true),
+      )
+      .order('desc')
+      .take(cityIds.size > 0 ? limit * 8 : limit * 5)
+    const matchingProjects = projects
+      .filter((project) => {
+        if (
+          cityIds.size > 0 &&
+          (!project.exploreOwner.cityId ||
+            !cityIds.has(String(project.exploreOwner.cityId)))
+        ) {
+          return false
+        }
+
+        const searchText = [
+          project.github.fullName,
+          project.github.description ?? '',
+          project.github.primaryLanguage ?? '',
+          ...getProjectTopics(project),
+        ]
+          .join(' ')
+          .toLowerCase()
+
+        return searchText.includes(normalizedQ)
+      })
+      .slice(0, limit)
+
+    const posts = await ctx.db
+      .query('posts')
+      .withSearchIndex('search_body', (query) =>
+        query.search('body', normalizedQ).eq('deletedAt', null),
+      )
+      .take(cityIds.size > 0 ? limit * 4 : limit)
+    const matchingPosts = posts
+      .filter(
+        (post) =>
+          cityIds.size === 0 ||
+          (post.projectCityId && cityIds.has(String(post.projectCityId))),
+      )
+      .slice(0, limit)
+
+    const ownerById = new Map(
+      (
+        await Promise.all(
+          [...new Set(matchingProjects.map((project) => project.ownerId))].map(
+            async (ownerId) =>
+              [String(ownerId), await ctx.db.get(ownerId)] as const,
+          ),
+        )
+      ).filter((entry): entry is readonly [string, Doc<'users'>] =>
+        Boolean(entry[1]),
+      ),
+    )
+
+    return {
+      projects: await Promise.all(
+        matchingProjects.map((project) =>
+          buildProjectCardPreview(ctx.db, project, {
+            audience: 'public',
+            owner: ownerById.get(String(project.ownerId)),
+          }),
+        ),
+      ),
+      posts: matchingPosts,
+    }
   },
 })
 

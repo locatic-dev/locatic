@@ -9,6 +9,7 @@ Feature modules encapsulating domain logic, hooks, and types. Each feature is se
 ```
 features/
 ├── cities/           # City-based developer discovery
+├── contracts.ts      # Shared type contracts between features
 ├── explore/          # Discover developers/projects by location; scope/search state
 ├── follows/          # Follow/unfollow developers
 ├── github/           # GitHub API integration, repo sync
@@ -17,10 +18,10 @@ features/
 ├── notifications/    # Notification system, read state, routing
 ├── onboarding/       # New user onboarding flow, repo-derived prefs
 ├── profile/          # User profiles (public + private), tab/search state
+├── project-card-preview.ts  # Project card preview logic (standalone)
 ├── projects/         # Project management, repo linking, sync feedback
 ├── settings/         # User settings, preferences
 ├── viewer/           # Current user context + bootstrap queries
-├── contracts.ts      # Shared type contracts between features
 └── __tests__/        # Cross-feature tests
 ```
 
