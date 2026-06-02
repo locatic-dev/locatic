@@ -26,6 +26,10 @@ vi.mock('@clerk/tanstack-react-start', () => ({
   useAuth: vi.fn(),
 }))
 
+vi.mock('../client', () => ({
+  convexClient: {},
+}))
+
 import { ConvexAuthReadyBoundary } from '../provider'
 
 describe('ConvexAuthReadyBoundary', () => {
