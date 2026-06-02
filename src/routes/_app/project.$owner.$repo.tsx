@@ -22,9 +22,19 @@ import { CityPill } from '@/components/ui/city-pill'
 import { BrandIcon } from '@/components/ui/brand-icon'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
+import { Input } from '@/components/ui/input'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { relativeTime } from '@/lib/time'
 import { compactNumber } from '@/lib/format'
-import { Star, Heart, MessageSquare, ArrowLeft } from '@/lib/icons'
+import {
+  Star,
+  Heart,
+  MessageSquare,
+  ArrowLeft,
+  ExternalLink,
+  Plus,
+  X,
+} from '@/lib/icons'
 import {
   useLikeProject,
   useUnlikeProject,
@@ -32,6 +42,8 @@ import {
   useDeleteComment,
   useReactToTarget,
   useUnreactFromTarget,
+  useCreatePost,
+  useUpdateProjectTopics,
 } from '@/features/projects/mutations'
 import { showGithubSyncFeedback } from '@/features/projects/github-sync-feedback'
 import { useFollowUser, useUnfollowUser } from '@/features/follows/mutations'
@@ -50,6 +62,7 @@ import type {
   ProjectCommentLikeOverride,
   ProjectCommentView,
 } from '@/features/projects/comments/types'
+import { ProjectPostCard } from '@/features/projects/posts/project-post-card'
 
 function updateProjectLikePayload(
   payload: ProjectDetailPayload | null | undefined,
@@ -117,6 +130,8 @@ function ProjectDetailPage() {
   const deleteComment = useDeleteComment()
   const reactToTarget = useReactToTarget()
   const unreactFromTarget = useUnreactFromTarget()
+  const createPost = useCreatePost()
+  const updateProjectTopics = useUpdateProjectTopics()
   const followUser = useFollowUser()
   const unfollowUser = useUnfollowUser()
   const { openConversation, pendingUserId } = useOpenConversation()
@@ -145,8 +160,17 @@ function ProjectDetailPage() {
       : 'skip',
     { initialNumItems: 10 },
   )
+  const projectPosts = usePaginatedQuery(
+    api.posts.listByProject,
+    detail ? { projectId: detail.project._id } : 'skip',
+    { initialNumItems: 8 },
+  )
 
   const [comment, setComment] = useState('')
+  const [postBody, setPostBody] = useState('')
+  const [postingRepoPost, setPostingRepoPost] = useState(false)
+  const [topicDraft, setTopicDraft] = useState('')
+  const [pendingTopics, setPendingTopics] = useState(false)
   const [commentComposerOpen, setCommentComposerOpen] = useState(false)
   const [postingComment, setPostingComment] = useState(false)
   const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({})
@@ -258,6 +282,11 @@ function ProjectDetailPage() {
     description ||
     `# ${detail.project.github.name}`
   const isOwnProject = viewer?.id === String(detail.owner.userId)
+  const projectTopics =
+    detail.project.locatic.tags.length > 0
+      ? detail.project.locatic.tags
+      : detail.project.github.topics
+  const posts = projectPosts.results ?? []
   const githubHref = `https://github.com/${detail.project.github.fullName}`
   const ownerGithubHref = socialLinkHref('github', detail.owner.githubUsername)
   const ownerXHref = socialLinkHref('x', detail.owner.socialLinks.x)
@@ -282,6 +311,68 @@ function ProjectDetailPage() {
       })
     } catch (error) {
       console.error(error)
+    }
+  }
+
+  const handleCreatePost = async () => {
+    const body = postBody.trim()
+    if (!body || postingRepoPost || !isOwnProject) {
+      return
+    }
+
+    setPostingRepoPost(true)
+    try {
+      await createPost({
+        body,
+        projectId: detail.project._id,
+      })
+      setPostBody('')
+      await queryClient.invalidateQueries({ queryKey: projectDetailQueryKey })
+    } catch (error) {
+      console.error(error)
+    } finally {
+      setPostingRepoPost(false)
+    }
+  }
+
+  const handleAddTopic = async () => {
+    const topic = topicDraft.trim()
+    if (!topic || pendingTopics || !isOwnProject) {
+      return
+    }
+
+    const nextTopics = [...projectTopics, topic]
+    setPendingTopics(true)
+    try {
+      await updateProjectTopics({
+        projectId: detail.project._id,
+        topics: nextTopics,
+      })
+      setTopicDraft('')
+      await queryClient.invalidateQueries({ queryKey: projectDetailQueryKey })
+    } catch (error) {
+      console.error(error)
+    } finally {
+      setPendingTopics(false)
+    }
+  }
+
+  const handleRemoveTopic = async (topic: string) => {
+    if (pendingTopics || !isOwnProject) {
+      return
+    }
+
+    setPendingTopics(true)
+    try {
+      await updateProjectTopics({
+        projectId: detail.project._id,
+        topics: projectTopics.filter((item) => item !== topic),
+      })
+      await queryClient.invalidateQueries({ queryKey: projectDetailQueryKey })
+    } catch (error) {
+      console.error(error)
+    } finally {
+      setPendingTopics(false)
     }
   }
 
@@ -507,29 +598,6 @@ function ProjectDetailPage() {
     })
   }, [activeHighlightedCommentId, comments.length])
 
-  const stats = [
-    {
-      accent: false,
-      fill: false,
-      icon: Star,
-      label: 'github stars',
-      value: compactNumber(githubStars),
-    },
-    {
-      accent: true,
-      fill: liked,
-      icon: Heart,
-      label: 'likes',
-      value: compactNumber(locaticLikes),
-    },
-    {
-      accent: false,
-      fill: false,
-      icon: MessageSquare,
-      label: 'comments',
-      value: String(detail.project.locatic.commentsCount),
-    },
-  ]
   const languages =
     detail.project.github.languages &&
     detail.project.github.languages.length > 0
@@ -554,60 +622,6 @@ function ProjectDetailPage() {
         >
           <ArrowLeft size={14} /> back
         </button>
-
-        <div className="flex flex-wrap gap-2">
-          {!isOwnProject && (
-            <Button
-              variant="monoOutline"
-              size="meta"
-              onClick={() => void openConversation(detail.owner.userId)}
-              disabled={pendingUserId === String(detail.owner.userId)}
-              className="font-mono"
-            >
-              {pendingUserId === String(detail.owner.userId)
-                ? 'opening…'
-                : 'message'}
-            </Button>
-          )}
-          <Button
-            variant={liked ? 'brand' : 'monoOutline'}
-            size="meta"
-            onClick={() => void handleLike()}
-            disabled={likeMutation.isPending || !isSignedIn}
-            className="font-mono"
-            aria-label={liked ? 'Unlike project' : 'Like project'}
-          >
-            <Heart
-              size={13}
-              fill={liked ? 'currentColor' : 'none'}
-              strokeWidth={1.6}
-            />
-          </Button>
-          {!isOwnProject && (
-            <Button
-              variant="monoOutline"
-              size="meta"
-              onClick={() => void handleFollow()}
-              disabled={followMutation.isPending || !isSignedIn}
-              className="font-mono"
-            >
-              {followMutation.isPending
-                ? 'working…'
-                : followed
-                  ? 'following'
-                  : 'follow'}
-            </Button>
-          )}
-          <a
-            href={githubHref}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex min-h-11 items-center gap-1.5 rounded-md border border-line bg-surface px-3 py-2 font-mono text-[12px] font-semibold text-text-muted no-underline transition-colors hover:border-line-strong hover:bg-surface-alt hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
-            aria-label="View on GitHub"
-          >
-            <BrandIcon name="github" size={14} />
-          </a>
-        </div>
       </div>
 
       <div className="lx-page-scroll flex-1">
@@ -631,27 +645,117 @@ function ProjectDetailPage() {
                 {description}
               </p>
 
-              <div className="mb-5 flex flex-wrap items-center gap-6">
-                {stats.map((stat) => (
-                  <div key={stat.label}>
-                    <div className="flex items-baseline gap-1.5">
-                      <stat.icon
-                        size={14}
-                        strokeWidth={1.4}
-                        fill={stat.fill ? 'currentColor' : 'none'}
-                        className={
-                          stat.accent ? 'text-brand' : 'text-text-muted'
-                        }
+              <div className="mb-5 flex flex-wrap items-center gap-2">
+                <a
+                  href={githubHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex min-h-11 items-center gap-2 rounded-md border border-line bg-surface px-3 py-2 font-mono text-[12px] text-text-muted no-underline transition-colors hover:border-line-strong hover:bg-surface-alt hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                  aria-label="View project on GitHub"
+                >
+                  <BrandIcon name="github" size={14} />
+                  <Star size={13} strokeWidth={1.4} />
+                  {compactNumber(githubStars)}
+                  <ExternalLink size={12} />
+                </a>
+                <Button
+                  variant={liked ? 'brand' : 'monoOutline'}
+                  size="meta"
+                  onClick={() => void handleLike()}
+                  disabled={likeMutation.isPending || !isSignedIn}
+                  className="font-mono"
+                  aria-label={liked ? 'Unlike project' : 'Like project'}
+                >
+                  <Heart
+                    size={13}
+                    fill={liked ? 'currentColor' : 'none'}
+                    strokeWidth={1.6}
+                  />
+                  {compactNumber(locaticLikes)}
+                </Button>
+                <a
+                  href="#project-discussion"
+                  className="inline-flex min-h-11 items-center gap-2 rounded-md border border-line bg-surface px-3 py-2 font-mono text-[12px] text-text-muted no-underline transition-colors hover:border-line-strong hover:bg-surface-alt hover:text-text"
+                >
+                  <MessageSquare size={13} strokeWidth={1.5} />
+                  {detail.project.locatic.commentsCount}
+                </a>
+              </div>
+
+              {detail.likedByPreview.length > 0 && (
+                <div className="mb-5 flex flex-wrap items-center gap-2 font-mono text-[11px] text-text-faint">
+                  <span>liked by</span>
+                  {detail.likedByPreview.map((user) => (
+                    <button
+                      key={String(user.userId)}
+                      type="button"
+                      onClick={() =>
+                        void router.navigate({
+                          to: '/u/$username',
+                          params: { username: user.githubUsername },
+                          search: { tab: 'projects' },
+                        })
+                      }
+                      className="inline-flex min-h-8 items-center gap-1.5 rounded-pill border border-line bg-surface px-2 py-1 text-text-muted"
+                    >
+                      <LxAvatar
+                        name={user.displayName}
+                        avatarUrl={user.avatarUrl}
+                        size={16}
                       />
-                      <span className="font-mono text-[22px] font-semibold tracking-[-0.02em] text-text [font-variant-numeric:tabular-nums]">
-                        {stat.value}
-                      </span>
-                    </div>
-                    <div className="mt-0.5 font-mono text-[10.5px] lowercase text-text-faint">
-                      {stat.label}
-                    </div>
-                  </div>
+                      {user.displayName}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              <div className="mb-5 flex flex-wrap items-center gap-2">
+                {projectTopics.map((topic) => (
+                  <span
+                    key={topic}
+                    className="inline-flex min-h-8 items-center gap-1 rounded-[3px] border border-line bg-surface px-2.5 py-1 font-mono text-[11.5px] text-text-muted"
+                  >
+                    #{topic}
+                    {isOwnProject && (
+                      <button
+                        type="button"
+                        onClick={() => void handleRemoveTopic(topic)}
+                        disabled={pendingTopics}
+                        className="-mr-1 inline-flex min-h-6 min-w-6 items-center justify-center rounded-sm bg-transparent text-text-faint transition-colors hover:text-text"
+                        aria-label={`Remove ${topic}`}
+                      >
+                        <X size={12} />
+                      </button>
+                    )}
+                  </span>
                 ))}
+                {isOwnProject && (
+                  <form
+                    className="flex min-w-0 flex-wrap items-center gap-2"
+                    onSubmit={(event) => {
+                      event.preventDefault()
+                      void handleAddTopic()
+                    }}
+                  >
+                    <Input
+                      value={topicDraft}
+                      onChange={(event) => setTopicDraft(event.target.value)}
+                      placeholder="add topic"
+                      className="h-9 w-36 border-line bg-surface font-mono text-[12px]"
+                    />
+                    <Button
+                      type="submit"
+                      variant="monoOutline"
+                      size="compact"
+                      disabled={!topicDraft.trim() || pendingTopics}
+                      className="font-mono"
+                      aria-label="Add topic"
+                    >
+                      <Plus size={13} />
+                      topic
+                    </Button>
+                  </form>
+                )}
               </div>
 
               <div className="flex flex-wrap items-center gap-2.5 font-mono text-[11.5px] text-text-faint">
@@ -711,6 +815,38 @@ function ProjectDetailPage() {
                 {detail.owner.city && <CityPill city={detail.owner.city} />}
               </div>
 
+              {!isOwnProject && (
+                <div className="mb-3.5 flex flex-wrap gap-2">
+                  <Button
+                    variant="monoOutline"
+                    size="meta"
+                    onClick={() => void openConversation(detail.owner.userId)}
+                    disabled={
+                      pendingUserId === String(detail.owner.userId) ||
+                      !isSignedIn
+                    }
+                    className="font-mono"
+                  >
+                    {pendingUserId === String(detail.owner.userId)
+                      ? 'opening...'
+                      : 'message'}
+                  </Button>
+                  <Button
+                    variant="monoOutline"
+                    size="meta"
+                    onClick={() => void handleFollow()}
+                    disabled={followMutation.isPending || !isSignedIn}
+                    className="font-mono"
+                  >
+                    {followMutation.isPending
+                      ? 'working...'
+                      : followed
+                        ? 'following'
+                        : 'follow'}
+                  </Button>
+                </div>
+              )}
+
               <div className="flex flex-wrap gap-2.5 font-mono text-[11.5px]">
                 {ownerXHref && (
                   <a
@@ -746,9 +882,90 @@ function ProjectDetailPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_300px]">
-            <div>
-              <div className="mb-8 overflow-hidden rounded-[6px] border border-line bg-surface">
+          <Tabs defaultValue="posts" className="pb-12">
+            <div className="mb-5 overflow-x-auto overflow-y-hidden border-b border-line">
+              <TabsList className="h-auto min-w-max justify-start rounded-none bg-transparent p-0">
+                {[
+                  ['posts', `posts ${detail.project.locatic.postsCount ?? 0}`],
+                  ['readme', 'README'],
+                  ['updates', `updates ${detail.updates.length}`],
+                  [
+                    'discussion',
+                    `discussion ${detail.project.locatic.commentsCount}`,
+                  ],
+                ].map(([value, label]) => (
+                  <TabsTrigger
+                    key={value}
+                    value={value}
+                    className="min-h-11 rounded-none border-b-2 border-transparent bg-transparent px-3.5 py-3 font-mono text-[12px] text-text-faint shadow-none data-[state=active]:border-brand data-[state=active]:bg-transparent data-[state=active]:text-text data-[state=active]:shadow-none"
+                  >
+                    {label}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </div>
+
+            <TabsContent value="posts" className="mt-0">
+              <div className="flex flex-col gap-4">
+                {isOwnProject && (
+                  <div className="rounded-[6px] border border-line bg-surface px-4 py-4">
+                    <div className="mb-3 font-mono text-[11px] uppercase tracking-[0.06em] text-text-faint">
+                      repo post
+                    </div>
+                    <Textarea
+                      value={postBody}
+                      onChange={(event) => setPostBody(event.target.value)}
+                      placeholder="share what changed, what you learned, or what help this repo needs..."
+                      rows={4}
+                      className="min-h-30 resize-none border-0 bg-canvas px-3 py-3 font-sans text-sm text-text shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                    />
+                    <div className="mt-3 flex justify-end">
+                      <Button
+                        variant="brand"
+                        size="meta"
+                        onClick={() => void handleCreatePost()}
+                        disabled={!postBody.trim() || postingRepoPost}
+                        className="font-mono"
+                      >
+                        {postingRepoPost ? 'posting...' : 'post to repo'}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {posts.length === 0 &&
+                projectPosts.status !== 'LoadingFirstPage' ? (
+                  <div className="rounded-[6px] border border-line bg-surface px-4 py-5 font-sans text-sm text-text-muted">
+                    no repo posts yet.
+                  </div>
+                ) : (
+                  posts.map((post) => (
+                    <ProjectPostCard
+                      key={String(post._id)}
+                      isOwner={isOwnProject}
+                      isSignedIn={Boolean(isSignedIn)}
+                      post={post}
+                      projectDetailQueryKey={projectDetailQueryKey}
+                      viewerId={viewer?.id ? String(viewer.id) : null}
+                    />
+                  ))
+                )}
+
+                {projectPosts.status === 'CanLoadMore' && (
+                  <Button
+                    variant="monoOutline"
+                    size="meta"
+                    onClick={() => projectPosts.loadMore(8)}
+                    className="self-start font-mono"
+                  >
+                    load more posts
+                  </Button>
+                )}
+              </div>
+            </TabsContent>
+
+            <TabsContent value="readme" className="mt-0">
+              <div className="overflow-hidden rounded-[6px] border border-line bg-surface">
                 <div className="flex items-center justify-between border-b border-line bg-surface-alt px-4 py-2.5 font-mono text-[11.5px]">
                   <span className="text-text-muted">README.md</span>
                   <span className="text-text-faint">repo overview</span>
@@ -799,12 +1016,39 @@ function ProjectDetailPage() {
                   })}
                 </div>
               </div>
+            </TabsContent>
 
+            <TabsContent value="updates" className="mt-0">
+              <div className="rounded-[6px] border border-line bg-surface p-4.5">
+                {detail.updates.length === 0 ? (
+                  <div className="font-sans text-[13px] text-text-muted">
+                    no release updates yet.
+                  </div>
+                ) : (
+                  detail.updates.map((update) => (
+                    <div
+                      key={String(update._id)}
+                      className="border-b border-line py-4 last:border-b-0"
+                    >
+                      <div className="mb-1 font-mono text-xs font-semibold text-text">
+                        {update.versionTag ? `${update.versionTag} · ` : ''}
+                        {update.title}
+                      </div>
+                      <div className="font-sans text-[13px] leading-6 text-text-muted">
+                        {update.description}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </TabsContent>
+
+            <TabsContent
+              id="project-discussion"
+              value="discussion"
+              className="mt-0"
+            >
               <div>
-                <div className="mb-3.5 font-mono text-[11px] uppercase tracking-[0.06em] text-text-faint">
-                  // comments · {detail.project.locatic.commentsCount}
-                </div>
-
                 {isSignedIn && !commentComposerOpen ? (
                   <Button
                     variant="monoOutline"
@@ -813,7 +1057,7 @@ function ProjectDetailPage() {
                     className="mb-4 font-mono"
                   >
                     <MessageSquare size={13} />
-                    add comment
+                    add project comment
                   </Button>
                 ) : null}
 
@@ -822,7 +1066,7 @@ function ProjectDetailPage() {
                     <Textarea
                       value={comment}
                       onChange={(event) => setComment(event.target.value)}
-                      placeholder="say something thoughtful…"
+                      placeholder="say something thoughtful..."
                       rows={2}
                       className="min-h-18 flex-1 resize-none border-0 bg-transparent px-0 py-0 font-sans text-[13.5px] text-text shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
                     />
@@ -845,7 +1089,7 @@ function ProjectDetailPage() {
                         disabled={!comment.trim() || postingComment}
                         className="font-mono font-semibold"
                       >
-                        {postingComment ? 'posting…' : 'post'}
+                        {postingComment ? 'posting...' : 'post'}
                       </Button>
                     </div>
                   </div>
@@ -863,7 +1107,7 @@ function ProjectDetailPage() {
                 {visibleRootComments.length === 0 &&
                 commentRoots.status !== 'LoadingFirstPage' ? (
                   <div className="py-4 font-sans text-sm text-text-muted">
-                    no comments yet.
+                    no project comments yet.
                   </div>
                 ) : (
                   <div className="flex flex-col gap-3">
@@ -902,74 +1146,14 @@ function ProjectDetailPage() {
                     )}
                     {commentRoots.status === 'LoadingMore' && (
                       <div className="font-mono text-[12px] text-text-faint">
-                        loading more comments…
+                        loading more comments...
                       </div>
                     )}
                   </div>
                 )}
               </div>
-            </div>
-
-            <aside className="flex flex-col gap-5">
-              {detail.likedByPreview.length > 0 && (
-                <div className="rounded-[6px] border border-line bg-surface p-4.5">
-                  <div className="mb-3 font-mono text-[11px] uppercase tracking-[0.06em] text-text-faint">
-                    liked by
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {detail.likedByPreview.map((user) => (
-                      <button
-                        key={String(user.userId)}
-                        type="button"
-                        onClick={() =>
-                          void router.navigate({
-                            to: '/u/$username',
-                            params: { username: user.githubUsername },
-                            search: { tab: 'projects' },
-                          })
-                        }
-                        className="inline-flex min-h-11 items-center gap-1.5 rounded-pill border border-line bg-canvas px-2.5 py-1.5 font-mono text-[11.5px] text-text-muted"
-                      >
-                        <LxAvatar
-                          name={user.displayName}
-                          avatarUrl={user.avatarUrl}
-                          size={18}
-                        />
-                        {user.displayName}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <div className="rounded-[6px] border border-line bg-surface p-4.5">
-                <div className="mb-3 font-mono text-[11px] uppercase tracking-[0.06em] text-text-faint">
-                  recent updates
-                </div>
-
-                {detail.updates.length === 0 ? (
-                  <div className="font-sans text-[13px] text-text-muted">
-                    no updates yet.
-                  </div>
-                ) : (
-                  detail.updates.slice(0, 4).map((update) => (
-                    <div
-                      key={String(update._id)}
-                      className="mt-3 border-t border-line pt-3"
-                    >
-                      <div className="mb-1 font-mono text-xs font-semibold text-text">
-                        {update.versionTag ? `${update.versionTag} · ` : ''}
-                        {update.title}
-                      </div>
-                      <div className="font-sans text-[12.5px] leading-normal text-text-muted">
-                        {update.description}
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </aside>
-          </div>
+            </TabsContent>
+          </Tabs>
         </div>
       </div>
     </div>

@@ -18,6 +18,8 @@ import {
   optionalStringValidator,
   optionalTimestampValidator,
   ownerSnapshotValidator,
+  postAuthorRoleValidator,
+  postSnapshotValidator,
   profileVisibilityValidator,
   projectSnapshotValidator,
   pulseScopeTypeValidator,
@@ -196,6 +198,8 @@ export default defineSchema({
       likesCount: v.number(),
       commentsCount: v.number(),
       updatesCount: v.number(),
+      postsCount: v.optional(v.number()),
+      topicsEditedAt: v.optional(v.number()),
     }),
     exploreOwner: v.object({
       cityId: cityReferenceValidator,
@@ -331,6 +335,50 @@ export default defineSchema({
     .index('by_owner', ['ownerId'])
     .index('by_created_at', ['createdAt']),
 
+  posts: defineTable({
+    projectId: v.id('projects'),
+    ownerId: v.id('users'),
+    actorId: v.id('users'),
+    authorRole: postAuthorRoleValidator,
+    body: v.string(),
+    reactionCounts: v.record(v.string(), v.number()),
+    commentsCount: v.number(),
+    projectCityId: cityReferenceValidator,
+    projectTopics: v.array(v.string()),
+    actorSnapshot: actorSnapshotValidator,
+    projectSnapshot: v.object({
+      name: v.string(),
+      fullName: v.string(),
+      primaryLanguage: optionalStringValidator,
+      languages: v.array(
+        v.object({
+          name: v.string(),
+          bytes: v.number(),
+        }),
+      ),
+    }),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    deletedAt: optionalTimestampValidator,
+  })
+    .index('by_project_deleted_created', [
+      'projectId',
+      'deletedAt',
+      'createdAt',
+    ])
+    .index('by_actor_deleted_created', ['actorId', 'deletedAt', 'createdAt'])
+    .index('by_owner_deleted_created', ['ownerId', 'deletedAt', 'createdAt'])
+    .index('by_city_deleted_created', [
+      'projectCityId',
+      'deletedAt',
+      'createdAt',
+    ])
+    .index('by_deleted_created', ['deletedAt', 'createdAt'])
+    .searchIndex('search_body', {
+      searchField: 'body',
+      filterFields: ['deletedAt', 'projectCityId'],
+    }),
+
   reaction_config: defineTable({
     key: v.optional(v.string()),
     label: v.string(),
@@ -415,10 +463,12 @@ export default defineSchema({
     eventType: eventTypeValidator,
     projectId: v.id('projects'),
     updateId: v.union(v.id('updates'), v.null()),
+    postId: v.optional(v.union(v.id('posts'), v.null())),
     commentId: v.union(v.id('comments'), v.null()),
     actorSnapshot: actorSnapshotValidator,
     projectSnapshot: projectSnapshotValidator,
     updateSnapshot: updateSnapshotValidator,
+    postSnapshot: v.optional(postSnapshotValidator),
     createdAt: v.number(),
   })
     .index('by_actor', ['actorId'])
@@ -435,9 +485,11 @@ export default defineSchema({
     eventType: eventTypeValidator,
     projectId: v.id('projects'),
     updateId: v.union(v.id('updates'), v.null()),
+    postId: v.optional(v.union(v.id('posts'), v.null())),
     actorSnapshot: actorSnapshotValidator,
     projectSnapshot: projectSnapshotValidator,
     updateSnapshot: updateSnapshotValidator,
+    postSnapshot: v.optional(postSnapshotValidator),
     createdAt: v.number(),
   })
     .index('by_user_priority', ['userId', 'priority'])
@@ -481,6 +533,7 @@ export default defineSchema({
     type: notificationTypeValidator,
     projectId: v.union(v.id('projects'), v.null()),
     updateId: v.union(v.id('updates'), v.null()),
+    postId: v.optional(v.union(v.id('posts'), v.null())),
     commentId: v.union(v.id('comments'), v.null()),
     actorSnapshot: v.object({
       displayName: v.string(),

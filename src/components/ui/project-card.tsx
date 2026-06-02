@@ -17,6 +17,8 @@ export interface ProjectCardData {
   githubStars: number
   locaticLikes: number
   commentsCount: number
+  postsCount?: number
+  topics?: string[]
   forksCount?: number
   authorName: string
   authorHandle: string
@@ -152,6 +154,14 @@ export function ProjectCard({
           </span>
         ))}
         {project.lastCommitLabel && <span>{project.lastCommitLabel}</span>}
+        {project.topics?.slice(0, 4).map((topic) => (
+          <span
+            key={topic}
+            className="rounded-[2px] border border-line bg-canvas px-1.5 py-0.5 text-[10.5px] text-text-muted"
+          >
+            #{topic}
+          </span>
+        ))}
         <span className="inline-flex items-center gap-1">
           <Star size={11} strokeWidth={1.4} />
           {project.githubStars.toLocaleString()}
@@ -179,6 +189,11 @@ export function ProjectCard({
           <MessageSquare size={11} strokeWidth={1.4} />
           {project.commentsCount}
         </button>
+        {project.postsCount !== undefined && project.postsCount > 0 && (
+          <span className="inline-flex items-center gap-1">
+            {project.postsCount} posts
+          </span>
+        )}
         {project.forksCount !== undefined && (
           <span className="inline-flex items-center gap-1">
             <GitFork size={11} strokeWidth={1.4} />

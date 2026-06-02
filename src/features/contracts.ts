@@ -57,6 +57,8 @@ export type ProjectCardPreview = {
   githubStars: number
   locaticLikes: number
   commentsCount: number
+  postsCount?: number
+  topics?: string[]
   lastCommitAt: number
   updatedAt: number
   authorName: string

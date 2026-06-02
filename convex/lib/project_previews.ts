@@ -17,6 +17,8 @@ export type ProjectCardPreviewRecord = {
   githubStars: number
   locaticLikes: number
   commentsCount: number
+  postsCount: number
+  topics: string[]
   lastCommitAt: number
   updatedAt: number
   authorName: string
@@ -96,6 +98,8 @@ export async function buildProjectCardPreview(
     githubStars: project.github.stargazersCount,
     locaticLikes: project.locatic.likesCount,
     commentsCount: project.locatic.commentsCount,
+    postsCount: project.locatic.postsCount ?? 0,
+    topics: project.locatic.tags,
     lastCommitAt: project.github.lastCommitAt,
     updatedAt: project.updatedAt,
     authorName: ownerDisplayName,

@@ -21,7 +21,11 @@ import {
 const commentPageItemValidator = v.object({
   _id: v.id('comments'),
   _creationTime: v.number(),
-  targetType: v.union(v.literal('project'), v.literal('update')),
+  targetType: v.union(
+    v.literal('project'),
+    v.literal('update'),
+    v.literal('post'),
+  ),
   targetId: v.string(),
   authorId: v.id('users'),
   parentId: v.union(v.id('comments'), v.null()),
@@ -129,23 +133,30 @@ async function addPreviewReplies(
 function buildCommentTargetSnapshot(args: {
   project: Doc<'projects'> | null
   update: Doc<'updates'> | null
+  post: Doc<'posts'> | null
 }) {
   const projectFullName =
-    args.project?.github.fullName ?? args.update?.projectSnapshot.fullName
+    args.project?.github.fullName ??
+    args.update?.projectSnapshot.fullName ??
+    args.post?.projectSnapshot.fullName
   if (!projectFullName) {
     throw new ConvexError('Comment target snapshot could not be created')
   }
 
   const projectOwner = projectFullName.split('/')[0]
   const projectRepo =
-    args.project?.github.name ?? args.update?.projectSnapshot.name
+    args.project?.github.name ??
+    args.update?.projectSnapshot.name ??
+    args.post?.projectSnapshot.name
   if (!projectOwner || !projectRepo) {
     throw new ConvexError('Comment target snapshot is incomplete')
   }
 
   const targetLabel = args.update
     ? `${projectFullName} update`
-    : projectFullName
+    : args.post
+      ? `${projectFullName} post`
+      : projectFullName
 
   return {
     projectFullName,
@@ -158,7 +169,11 @@ function buildCommentTargetSnapshot(args: {
 
 export const listByTarget = query({
   args: {
-    targetType: v.union(v.literal('project'), v.literal('update')),
+    targetType: v.union(
+      v.literal('project'),
+      v.literal('update'),
+      v.literal('post'),
+    ),
     targetId: v.string(),
     sort: v.union(v.literal('newest'), v.literal('top')),
   },
@@ -212,7 +227,11 @@ export const listByTarget = query({
 
 export const listRootsByTarget = query({
   args: {
-    targetType: v.union(v.literal('project'), v.literal('update')),
+    targetType: v.union(
+      v.literal('project'),
+      v.literal('update'),
+      v.literal('post'),
+    ),
     targetId: v.string(),
     sort: v.union(v.literal('newest'), v.literal('top')),
     paginationOpts: paginationOptsValidator,
@@ -299,7 +318,11 @@ export const listReplies = query({
 
 export const create = mutation({
   args: {
-    targetType: v.union(v.literal('project'), v.literal('update')),
+    targetType: v.union(
+      v.literal('project'),
+      v.literal('update'),
+      v.literal('post'),
+    ),
     targetId: v.string(),
     parentId: v.union(v.id('comments'), v.null()),
     content: v.string(),
@@ -309,6 +332,7 @@ export const create = mutation({
     const actorSnapshot = await buildActorSnapshot(ctx.db, viewer)
     let projectTarget: Doc<'projects'> | null = null
     let updateTarget: Doc<'updates'> | null = null
+    let postTarget: Doc<'posts'> | null = null
 
     if (args.targetType === 'project') {
       const projectId = ctx.db.normalizeId('projects', args.targetId)
@@ -320,7 +344,15 @@ export const create = mutation({
       updateTarget = updateId ? await ctx.db.get(updateId) : null
     }
 
-    if (!projectTarget && !updateTarget) {
+    if (args.targetType === 'post') {
+      const postId = ctx.db.normalizeId('posts', args.targetId)
+      postTarget = postId ? await ctx.db.get(postId) : null
+      if (postTarget?.deletedAt !== null) {
+        postTarget = null
+      }
+    }
+
+    if (!projectTarget && !updateTarget && !postTarget) {
       throw new ConvexError('Comment target not found')
     }
 
@@ -352,6 +384,7 @@ export const create = mutation({
       targetSnapshot: buildCommentTargetSnapshot({
         project: projectTarget,
         update: updateTarget,
+        post: postTarget,
       }),
       createdAt: Date.now(),
     })
@@ -437,6 +470,35 @@ export const create = mutation({
       }
     }
 
+    if (args.targetType === 'post') {
+      const post = postTarget
+      if (post) {
+        await ctx.db.patch(post._id, {
+          commentsCount: post.commentsCount + 1,
+          updatedAt: Date.now(),
+        })
+
+        const owner = await ctx.db.get(post.ownerId)
+        if (owner) {
+          await createNotificationIfEnabled(ctx, {
+            recipient: owner,
+            actor: viewer,
+            type: 'post_commented',
+            projectId: post.projectId,
+            postId: post._id,
+            commentId,
+            projectName: post.projectSnapshot.name,
+            target: buildProjectNotificationTarget(
+              post.projectSnapshot.fullName,
+              {
+                commentId,
+              },
+            ),
+          })
+        }
+      }
+    }
+
     if (args.parentId) {
       const parent = await ctx.db.get(args.parentId)
       if (parent) {
@@ -444,12 +506,18 @@ export const create = mutation({
         if (parentAuthor) {
           const projectFullName =
             projectTarget?.github.fullName ??
-            updateTarget?.projectSnapshot.fullName
+            updateTarget?.projectSnapshot.fullName ??
+            postTarget?.projectSnapshot.fullName
           await createNotificationIfEnabled(ctx, {
             recipient: parentAuthor,
             actor: viewer,
             type: 'comment_replied',
-            projectId: projectTarget?._id ?? updateTarget?.projectId ?? null,
+            projectId:
+              projectTarget?._id ??
+              updateTarget?.projectId ??
+              postTarget?.projectId ??
+              null,
+            postId: postTarget?._id ?? null,
             commentId,
             target: projectFullName
               ? buildProjectNotificationTarget(projectFullName, { commentId })
@@ -495,12 +563,21 @@ export const remove = mutation({
           updatedAt: Date.now(),
         })
       }
-    } else {
+    } else if (comment.targetType === 'update') {
       const updateId = ctx.db.normalizeId('updates', comment.targetId)
       const update = updateId ? await ctx.db.get(updateId) : null
       if (update) {
         await ctx.db.patch(update._id, {
           commentsCount: Math.max(0, update.commentsCount - 1),
+        })
+      }
+    } else {
+      const postId = ctx.db.normalizeId('posts', comment.targetId)
+      const post = postId ? await ctx.db.get(postId) : null
+      if (post) {
+        await ctx.db.patch(post._id, {
+          commentsCount: Math.max(0, post.commentsCount - 1),
+          updatedAt: Date.now(),
         })
       }
     }

@@ -14,7 +14,7 @@ import { DEFAULT_REACTIONS } from './reactionConfigSeed'
 async function upsertReaction(
   ctx: MutationCtx,
   viewerId: Awaited<ReturnType<typeof getViewerOrThrow>>['_id'],
-  targetType: 'project' | 'update' | 'comment',
+  targetType: 'project' | 'update' | 'post' | 'comment',
   targetId: string,
   reactionType: string,
 ): Promise<{
@@ -50,7 +50,7 @@ async function upsertReaction(
 async function assertConfiguredReaction(
   ctx: MutationCtx,
   args: {
-    targetType: 'project' | 'update' | 'comment'
+    targetType: 'project' | 'update' | 'post' | 'comment'
     reactionType: string
   },
 ) {
@@ -75,7 +75,12 @@ async function assertConfiguredReaction(
 export const listConfig = query({
   args: {
     targetType: v.optional(
-      v.union(v.literal('project'), v.literal('update'), v.literal('comment')),
+      v.union(
+        v.literal('project'),
+        v.literal('update'),
+        v.literal('post'),
+        v.literal('comment'),
+      ),
     ),
   },
   handler: async (ctx, args) => {
@@ -97,6 +102,7 @@ export const reactToTarget = mutation({
     targetType: v.union(
       v.literal('project'),
       v.literal('update'),
+      v.literal('post'),
       v.literal('comment'),
     ),
     targetId: v.string(),
@@ -107,6 +113,7 @@ export const reactToTarget = mutation({
     await assertConfiguredReaction(ctx, args)
     let projectTarget: Doc<'projects'> | null = null
     let updateTarget: Doc<'updates'> | null = null
+    let postTarget: Doc<'posts'> | null = null
     let commentTarget: Doc<'comments'> | null = null
     if (args.targetType === 'project') {
       const projectId = ctx.db.normalizeId('projects', args.targetId)
@@ -121,6 +128,14 @@ export const reactToTarget = mutation({
       updateTarget = updateId ? await ctx.db.get(updateId) : null
       if (!updateTarget) {
         throw new ConvexError('Update not found')
+      }
+    }
+
+    if (args.targetType === 'post') {
+      const postId = ctx.db.normalizeId('posts', args.targetId)
+      postTarget = postId ? await ctx.db.get(postId) : null
+      if (!postTarget || postTarget.deletedAt !== null) {
+        throw new ConvexError('Post not found')
       }
     }
 
@@ -178,6 +193,31 @@ export const reactToTarget = mutation({
       }
     }
 
+    if (postTarget) {
+      const reactionCounts = {
+        ...postTarget.reactionCounts,
+        [args.reactionType]:
+          (postTarget.reactionCounts[args.reactionType] ?? 0) + 1,
+      }
+
+      await ctx.db.patch(postTarget._id, {
+        reactionCounts,
+        updatedAt: Date.now(),
+      })
+
+      const owner = await ctx.db.get(postTarget.ownerId)
+      if (owner) {
+        await createNotificationIfEnabled(ctx, {
+          recipient: owner,
+          actor: viewer,
+          type: 'post_reacted',
+          projectId: postTarget.projectId,
+          postId: postTarget._id,
+          projectName: postTarget.projectSnapshot.name,
+        })
+      }
+    }
+
     if (commentTarget) {
       await ctx.db.patch(commentTarget._id, {
         likesCount: commentTarget.likesCount + 1,
@@ -193,6 +233,7 @@ export const unreactFromTarget = mutation({
     targetType: v.union(
       v.literal('project'),
       v.literal('update'),
+      v.literal('post'),
       v.literal('comment'),
     ),
     targetId: v.string(),
@@ -244,6 +285,24 @@ export const unreactFromTarget = mutation({
             ...update.reactionCounts,
             [args.reactionType]: nextCount,
           },
+        })
+      }
+    }
+
+    if (args.targetType === 'post') {
+      const postId = ctx.db.normalizeId('posts', args.targetId)
+      const post = postId ? await ctx.db.get(postId) : null
+      if (post) {
+        const nextCount = Math.max(
+          0,
+          (post.reactionCounts[args.reactionType] ?? 0) - 1,
+        )
+        await ctx.db.patch(post._id, {
+          reactionCounts: {
+            ...post.reactionCounts,
+            [args.reactionType]: nextCount,
+          },
+          updatedAt: Date.now(),
         })
       }
     }

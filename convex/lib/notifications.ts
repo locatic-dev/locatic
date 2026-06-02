@@ -13,7 +13,9 @@ type NotificationTarget = {
 const NOTIFICATION_PREF_MAP = {
   project_liked: 'projectLikes',
   update_reacted: 'updateLikes',
+  post_reacted: 'updateLikes',
   project_commented: 'comments',
+  post_commented: 'comments',
   comment_replied: 'commentReplies',
   followed: 'newFollowers',
   dm_received: 'dms',
@@ -26,6 +28,7 @@ interface CreateNotificationArgs {
   type: keyof typeof NOTIFICATION_PREF_MAP
   projectId?: Doc<'projects'>['_id'] | null
   updateId?: Doc<'updates'>['_id'] | null
+  postId?: Doc<'posts'>['_id'] | null
   commentId?: Doc<'comments'>['_id'] | null
   conversationId?: Doc<'conversations'>['_id'] | null
   projectName?: string | null
@@ -83,6 +86,7 @@ export async function createNotificationIfEnabled(
     type,
     projectId = null,
     updateId = null,
+    postId = null,
     commentId = null,
     conversationId = null,
     projectName = null,
@@ -104,6 +108,7 @@ export async function createNotificationIfEnabled(
     type,
     projectId,
     updateId,
+    postId,
     commentId,
     actorSnapshot: {
       displayName: actor.profile.displayName,

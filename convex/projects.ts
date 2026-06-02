@@ -17,6 +17,7 @@ import {
   buildProjectExploreOwner,
   buildProjectSnapshot,
 } from './lib/snapshots'
+import { normalizeProjectTopics } from './lib/topics'
 
 function getCommitFrequency(lastCommitAt: number) {
   const ageDays = (Date.now() - lastCommitAt) / (24 * 60 * 60 * 1000)
@@ -258,6 +259,34 @@ export const pinOwnedProject = mutation({
   },
 })
 
+export const updateTopics = mutation({
+  args: {
+    projectId: v.id('projects'),
+    topics: v.array(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const viewer = await getViewerOrThrow(ctx)
+    const project = await ctx.db.get(args.projectId)
+    if (!project || project.ownerId !== viewer._id) {
+      throw new ConvexError('Project not found')
+    }
+
+    const topics = normalizeProjectTopics(args.topics)
+    const now = Date.now()
+
+    await ctx.db.patch(project._id, {
+      locatic: {
+        ...project.locatic,
+        tags: topics,
+        topicsEditedAt: now,
+      },
+      updatedAt: now,
+    })
+
+    return topics
+  },
+})
+
 export const refreshMetadata = action({
   args: {
     projectId: v.id('projects'),
@@ -336,10 +365,11 @@ export const upsertImportedRepositories = internalMutation({
         },
         locatic: existing?.locatic ?? {
           isVisible: true,
-          tags: repository.topics,
+          tags: normalizeProjectTopics(repository.topics),
           likesCount: 0,
           commentsCount: 0,
           updatesCount: 0,
+          postsCount: 0,
         },
         exploreOwner: buildProjectExploreOwner(
           owner,
@@ -384,6 +414,7 @@ export const upsertImportedRepositories = internalMutation({
         eventType: 'project_posted',
         projectId,
         updateId: null,
+        postId: null,
         commentId: null,
         actorSnapshot: {
           displayName: owner.profile.displayName,
@@ -393,6 +424,7 @@ export const upsertImportedRepositories = internalMutation({
         },
         projectSnapshot: buildProjectSnapshot(project),
         updateSnapshot: null,
+        postSnapshot: null,
         createdAt: now,
       })
 
