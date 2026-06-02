@@ -223,7 +223,12 @@ export function ProjectCard({
               </span>
             </div>
           )}
-          {project.city && <CityPill city={project.city} />}
+          {project.city && (
+            <CityPill
+              city={project.city}
+              className="basis-full sm:basis-auto"
+            />
+          )}
         </div>
 
         {showActions && (

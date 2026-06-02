@@ -13,6 +13,23 @@ export type AuthIdentity = Record<string, unknown> & {
   subject: string
 }
 
+export type ViewerAuthState =
+  | {
+      kind: 'unauthenticated'
+      identity: null
+      viewer: null
+    }
+  | {
+      kind: 'missingViewer'
+      identity: AuthIdentity
+      viewer: null
+    }
+  | {
+      kind: 'ready'
+      identity: AuthIdentity
+      viewer: NonNullable<ViewerRecord>
+    }
+
 export async function requireIdentity(ctx: AuthCapableCtx) {
   const identity = await ctx.auth.getUserIdentity()
   if (!identity) {
@@ -35,23 +52,55 @@ export async function getViewerByClerkId(
 export async function getViewerFromAuth(
   ctx: Pick<QueryCtx, 'auth' | 'db'> | Pick<MutationCtx, 'auth' | 'db'>,
 ) {
-  const identity = await ctx.auth.getUserIdentity()
-  if (!identity) {
+  const state = await getViewerAuthState(ctx)
+  if (state.kind !== 'ready') {
     return null
   }
 
-  return await getViewerByClerkId(ctx, identity.subject)
+  return state.viewer
+}
+
+export async function getViewerAuthState(
+  ctx: Pick<QueryCtx, 'auth' | 'db'> | Pick<MutationCtx, 'auth' | 'db'>,
+): Promise<ViewerAuthState> {
+  const identity = (await ctx.auth.getUserIdentity()) as AuthIdentity | null
+  if (!identity) {
+    return {
+      kind: 'unauthenticated',
+      identity: null,
+      viewer: null,
+    }
+  }
+
+  const viewer = await getViewerByClerkId(ctx, identity.subject)
+  if (!viewer) {
+    return {
+      kind: 'missingViewer',
+      identity,
+      viewer: null,
+    }
+  }
+
+  return {
+    kind: 'ready',
+    identity,
+    viewer,
+  }
 }
 
 export async function getViewerOrThrow(
   ctx: Pick<QueryCtx, 'auth' | 'db'> | Pick<MutationCtx, 'auth' | 'db'>,
 ) {
-  const viewer = await getViewerFromAuth(ctx)
-  if (!viewer) {
+  const state = await getViewerAuthState(ctx)
+  if (state.kind === 'unauthenticated') {
+    throw new ConvexError('Unauthorized')
+  }
+
+  if (state.kind === 'missingViewer') {
     throw new ConvexError('Viewer not found')
   }
 
-  return viewer
+  return state.viewer
 }
 
 function getIdentityEmail(identity: Record<string, unknown>): string {

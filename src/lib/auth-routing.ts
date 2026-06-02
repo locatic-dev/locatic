@@ -23,3 +23,7 @@ export function createClientRouteAuthStateGetter(
 export function isProjectDetailPath(pathname: string) {
   return pathname.startsWith('/project/')
 }
+
+export function shouldPrefetchPrivateConvexQueries() {
+  return typeof window === 'undefined'
+}

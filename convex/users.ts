@@ -16,6 +16,7 @@ import type { Id } from './_generated/dataModel'
 import type { Doc } from './lib/types'
 import {
   getOrCreateViewer,
+  getViewerAuthState,
   getViewerByClerkId,
   getViewerFromAuth,
   getViewerOrThrow,
@@ -33,6 +34,103 @@ import {
   buildProjectExploreOwner,
 } from './lib/snapshots'
 import { createDefaultViewerProfile } from './lib/viewer'
+import {
+  buildStatusValidator,
+  cityReferenceValidator,
+  cityVisibilityValidator,
+  optionalStringValidator,
+  optionalTimestampValidator,
+  profileVisibilityValidator,
+  socialLinksValidator,
+  tabVisibilityValidator,
+} from './lib/validators'
+
+const viewerBootstrapStatusValidator = v.union(
+  v.literal('unauthenticated'),
+  v.literal('missingViewer'),
+  v.literal('ready'),
+)
+
+const serializedViewerValidator = v.object({
+  _id: v.id('users'),
+  email: v.string(),
+  github: v.object({
+    id: v.union(v.number(), v.null()),
+    username: v.string(),
+  }),
+  profile: v.object({
+    displayName: v.string(),
+    fullName: optionalStringValidator,
+    avatarUrl: v.string(),
+    bio: v.string(),
+    cityId: cityReferenceValidator,
+    buildStatus: buildStatusValidator,
+    primaryLanguages: v.array(v.string()),
+    socialLinks: socialLinksValidator,
+  }),
+  stats: v.object({
+    followersCount: v.number(),
+    followingCount: v.number(),
+    projectsCount: v.number(),
+    contributionsCount: v.number(),
+    commentsCount: v.number(),
+    likedCount: v.number(),
+  }),
+  exploreConfig: v.object({
+    cityIds: v.array(v.id('cities')),
+    stackPrefs: v.array(v.string()),
+  }),
+  privacy: v.object({
+    profileVisibility: profileVisibilityValidator,
+    followGraphVisibility: tabVisibilityValidator,
+    commentHistoryVisibility: tabVisibilityValidator,
+    likedProjectsVisibility: tabVisibilityValidator,
+    cityVisibility: cityVisibilityValidator,
+    appearInPulse: v.boolean(),
+  }),
+  notificationPrefs: v.object({
+    projectLikes: v.boolean(),
+    updateLikes: v.boolean(),
+    comments: v.boolean(),
+    commentReplies: v.boolean(),
+    newFollowers: v.boolean(),
+    dms: v.boolean(),
+    weeklyDigest: v.boolean(),
+    contributorRecognized: v.boolean(),
+  }),
+  onboardingSelectedOwnedProjectIds: v.array(v.id('projects')),
+  pinnedProfileProjectIds: v.array(v.id('projects')),
+  syncGithubStarsOnLike: v.boolean(),
+  unreadMessagesCount: v.number(),
+  onboardingCompletedAt: optionalTimestampValidator,
+  appearInExplore: v.boolean(),
+  githubContributions: v.union(
+    v.object({
+      totalContributions: v.number(),
+      weeks: v.array(
+        v.object({
+          days: v.array(
+            v.object({
+              date: v.string(),
+              count: v.number(),
+            }),
+          ),
+        }),
+      ),
+      syncedAt: v.number(),
+    }),
+    v.null(),
+  ),
+  deactivatedAt: optionalTimestampValidator,
+  deletedAt: optionalTimestampValidator,
+})
+
+const viewerBootstrapValidator = v.object({
+  isAuthenticated: v.boolean(),
+  needsOnboarding: v.boolean(),
+  status: viewerBootstrapStatusValidator,
+  viewer: v.union(serializedViewerValidator, v.null()),
+})
 
 function serializeViewer(
   viewer: NonNullable<Awaited<ReturnType<typeof getViewerFromAuth>>>,
@@ -53,8 +151,8 @@ function serializeViewer(
     onboardingCompletedAt: viewer.onboardingCompletedAt,
     appearInExplore: viewer.appearInExplore,
     githubContributions: viewer.githubContributions ?? null,
-    deactivatedAt: viewer.deactivatedAt,
-    deletedAt: viewer.deletedAt,
+    deactivatedAt: viewer.deactivatedAt ?? null,
+    deletedAt: viewer.deletedAt ?? null,
   }
 }
 
@@ -622,29 +720,32 @@ async function getPublicProfilePayload(
 
 export const viewerBootstrap = query({
   args: {},
+  returns: viewerBootstrapValidator,
   handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity()
-    if (!identity) {
+    const viewerState = await getViewerAuthState(ctx)
+    if (viewerState.kind === 'unauthenticated') {
       return {
         isAuthenticated: false,
         needsOnboarding: false,
+        status: 'unauthenticated' as const,
         viewer: null,
       }
     }
 
-    const viewer = await getViewerFromAuth(ctx)
-    if (!viewer) {
+    if (viewerState.kind === 'missingViewer') {
       return {
         isAuthenticated: true,
         needsOnboarding: true,
+        status: 'missingViewer' as const,
         viewer: null,
       }
     }
 
     return {
       isAuthenticated: true,
-      needsOnboarding: viewer.onboardingCompletedAt === null,
-      viewer: serializeViewer(viewer),
+      needsOnboarding: viewerState.viewer.onboardingCompletedAt === null,
+      status: 'ready' as const,
+      viewer: serializeViewer(viewerState.viewer),
     }
   },
 })
