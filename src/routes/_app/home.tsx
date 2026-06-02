@@ -28,14 +28,20 @@ import {
 } from '@/features/contracts'
 import { toProjectCardData } from '@/features/project-card-preview'
 import { FeedRoutePending } from '@/components/app-shell/route-pending'
+import { shouldPrefetchPrivateConvexQueries } from '@/lib/auth-routing'
 import { getFreshExploreSearch } from '@/features/explore/state'
 
 export const Route = createFileRoute('/_app/home')({
-  loader: ({ context }) =>
-    Promise.all([
+  loader: ({ context }) => {
+    if (!shouldPrefetchPrivateConvexQueries()) {
+      return
+    }
+
+    return Promise.all([
       context.queryClient.ensureQueryData(homeFeedQueryOptions()),
       context.queryClient.ensureQueryData(viewerLikedProjectIdsQueryOptions()),
-    ]),
+    ])
+  },
   pendingComponent: FeedRoutePending,
   pendingMs: 250,
   component: HomePage,

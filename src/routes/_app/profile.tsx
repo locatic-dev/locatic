@@ -4,6 +4,7 @@ import {
   useQueryClient,
   useSuspenseQuery,
 } from '@tanstack/react-query'
+import { useClerk } from '@clerk/tanstack-react-start'
 import { useEffect, useState, useTransition } from 'react'
 import { useAction } from 'convex/react'
 import { api } from '../../../convex/_generated/api'
@@ -21,6 +22,8 @@ import {
   type ProfileContentTab,
   type ProfileNetworkTab,
 } from '@/features/profile/state'
+import { ProfileContentTabs } from '@/features/profile/content-tabs'
+import { ProfileMobileAccountActions } from '@/features/profile/mobile-account-actions'
 import { ProfileNetworkSection } from '@/features/profile/network-section'
 import { LxAvatar } from '@/components/ui/lx-avatar'
 import { StatusPill } from '@/components/ui/status-pill'
@@ -50,6 +53,7 @@ import {
 } from '@/features/project-card-preview'
 import { socialLinkHref } from '@/lib/social-links'
 import { Pin } from '@/lib/icons'
+import { shouldPrefetchPrivateConvexQueries } from '@/lib/auth-routing'
 
 function isCommentTargetOpenable(
   comment: ProfileCommentPreview,
@@ -85,8 +89,12 @@ export const Route = createFileRoute('/_app/profile')({
   loaderDeps: ({ search }) => ({
     network: search.network ?? 'followers',
   }),
-  loader: ({ context, deps }) =>
-    Promise.all([
+  loader: ({ context, deps }) => {
+    if (!shouldPrefetchPrivateConvexQueries()) {
+      return
+    }
+
+    return Promise.all([
       context.queryClient.ensureQueryData(privateProfileOverviewQueryOptions()),
       context.queryClient.ensureQueryData(
         privateFollowGraphQueryOptions({
@@ -97,7 +105,8 @@ export const Route = createFileRoute('/_app/profile')({
           },
         }),
       ),
-    ]),
+    ])
+  },
   pendingComponent: FormRoutePending,
   pendingMs: 250,
   component: ProfilePage,
@@ -130,6 +139,7 @@ function emptySocialPage(): ProfileSocialPagePayload {
 function ProfilePage() {
   const { tab, network = 'followers' } = Route.useSearch()
   const navigate = Route.useNavigate()
+  const { signOut } = useClerk()
   const queryClient = useQueryClient()
   const [isRoutePending, startRouteTransition] = useTransition()
   const { data } = useSuspenseQuery(privateProfileOverviewQueryOptions())
@@ -268,21 +278,25 @@ function ProfilePage() {
     {
       id: 'projects',
       label: 'projects',
+      mobileLabel: 'projects',
       count: overview.viewer.stats.projectsCount,
     },
     {
       id: 'contributions',
       label: 'contributions',
+      mobileLabel: 'contrib',
       count: overview.viewer.stats.contributionsCount,
     },
     {
       id: 'comments',
       label: 'comments',
+      mobileLabel: 'comments',
       count: overview.viewer.stats.commentsCount,
     },
     {
       id: 'liked',
       label: 'liked',
+      mobileLabel: 'liked',
       count: overview.viewer.stats.likedCount,
     },
   ] as const
@@ -559,6 +573,9 @@ function ProfilePage() {
                   edit profile
                 </Button>
               </div>
+              <ProfileMobileAccountActions
+                onSignOut={() => void signOut({ redirectUrl: '/' })}
+              />
             </div>
 
             <div className="mt-7">
@@ -619,34 +636,15 @@ function ProfilePage() {
             </aside>
 
             <section>
-              <div className="overflow-x-auto overflow-y-hidden border-b border-line">
-                <div className="flex min-w-max items-stretch gap-1">
-                  {tabs.map((tabItem) => (
-                    <button
-                      key={tabItem.id}
-                      onClick={() => {
-                        void prefetchTab(tabItem.id)
-                        navigateSearch({ tab: tabItem.id })
-                      }}
-                      className={`relative inline-flex min-h-11 min-w-24 shrink-0 flex-1 items-center justify-center gap-1.75 px-3 py-3.5 text-center font-mono text-[12.5px] ${
-                        tab === tabItem.id
-                          ? 'font-semibold text-text'
-                          : 'text-text-faint'
-                      }`}
-                      type="button"
-                      aria-busy={isRoutePending && tab === tabItem.id}
-                    >
-                      {tabItem.label}
-                      <span className="rounded-pill bg-surface-alt px-1.5 py-px text-[10.5px] leading-[1.3] text-text-faint">
-                        {tabItem.count}
-                      </span>
-                      {tab === tabItem.id && (
-                        <div className="absolute bottom-0 left-3 right-3 h-0.5 bg-brand" />
-                      )}
-                    </button>
-                  ))}
-                </div>
-              </div>
+              <ProfileContentTabs
+                activeTab={tab}
+                isRoutePending={isRoutePending}
+                tabs={tabs}
+                onSelectTab={(nextTab) => {
+                  void prefetchTab(nextTab)
+                  navigateSearch({ tab: nextTab })
+                }}
+              />
 
               <div className="pt-7">
                 {contentIsLoading && (
@@ -658,8 +656,8 @@ function ProfilePage() {
                 {!contentIsLoading && tab === 'projects' && (
                   <div className="flex flex-col gap-3.5">
                     <div className="rounded-card border border-line bg-surface px-4 py-4 shadow-card">
-                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                        <div>
+                      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                        <div className="min-w-0">
                           <div className="mb-1 font-mono text-[12px] text-text">
                             Missing a repo on your profile?
                           </div>
@@ -678,6 +676,7 @@ function ProfilePage() {
                             overview.viewer.pinnedProfileProjectIds
                           }
                           profileUsername={overview.viewer.githubUsername}
+                          buttonClassName="w-full md:w-auto"
                         />
                       </div>
                     </div>
@@ -699,8 +698,8 @@ function ProfilePage() {
                           key={projectId}
                           className="rounded-card border border-line bg-transparent"
                         >
-                          <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
-                            <div className="font-mono text-[11px] text-text-faint">
+                          <div className="flex flex-col items-stretch gap-3 border-b border-line px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                            <div className="min-w-0 font-mono text-[11px] text-text-faint">
                               {isPinned
                                 ? 'pinned on profile'
                                 : 'visible on profile'}
@@ -716,14 +715,21 @@ function ProfilePage() {
                                 )
                               }
                               disabled={pinPendingId === projectKey}
-                              className="font-mono"
+                              className="self-start font-mono sm:self-auto"
                             >
                               <Pin size={12} />
-                              {pinPendingId === projectKey
-                                ? 'saving…'
-                                : isPinned
-                                  ? 'unpinned'
-                                  : 'pin to profile'}
+                              {pinPendingId === projectKey ? (
+                                'saving…'
+                              ) : (
+                                <>
+                                  <span className="sm:hidden">
+                                    {isPinned ? 'unpin' : 'pin'}
+                                  </span>
+                                  <span className="hidden sm:inline">
+                                    {isPinned ? 'unpinned' : 'pin to profile'}
+                                  </span>
+                                </>
+                              )}
                             </Button>
                           </div>
                           <ProjectCard

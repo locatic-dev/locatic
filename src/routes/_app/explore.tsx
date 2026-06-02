@@ -54,6 +54,7 @@ import {
   updateExploreFeedPayload,
   updateLikedProjectIdsPayload,
 } from '@/features/explore/cache'
+import { shouldPrefetchPrivateConvexQueries } from '@/lib/auth-routing'
 import type {
   BuilderPreview,
   ExploreFeedPayload,
@@ -63,6 +64,10 @@ export const Route = createFileRoute('/_app/explore')({
   validateSearch: normalizeExploreSearch,
   loaderDeps: ({ search }) => normalizeExploreSearch(search),
   loader: async ({ context, deps }) => {
+    if (!shouldPrefetchPrivateConvexQueries()) {
+      return
+    }
+
     const [explorePrefsData] = await Promise.all([
       context.queryClient.ensureQueryData(viewerExplorePrefsQueryOptions()),
       context.queryClient.ensureQueryData(viewerLikedProjectIdsQueryOptions()),

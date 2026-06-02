@@ -12,9 +12,39 @@ import {
   mapViewerLikedProjectIds,
   mapViewerSummary,
   mapViewer,
+  mapViewerBootstrap,
 } from '../contracts'
 
 describe('contract mappers', () => {
+  it('maps explicit and legacy viewer bootstrap auth states', () => {
+    expect(
+      mapViewerBootstrap({
+        isAuthenticated: false,
+        needsOnboarding: false,
+        status: 'unauthenticated',
+        viewer: null,
+      }),
+    ).toMatchObject({
+      isAuthenticated: false,
+      needsOnboarding: false,
+      status: 'unauthenticated',
+      viewer: null,
+    })
+
+    expect(
+      mapViewerBootstrap({
+        isAuthenticated: true,
+        needsOnboarding: true,
+        viewer: null,
+      }),
+    ).toMatchObject({
+      isAuthenticated: true,
+      needsOnboarding: true,
+      status: 'missingViewer',
+      viewer: null,
+    })
+  })
+
   it('falls back to the github username when display name is blank', () => {
     const mapped = mapViewer(
       {

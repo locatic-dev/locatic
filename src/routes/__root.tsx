@@ -15,6 +15,7 @@ import { Logo } from '@/components/ui/logo'
 import { DotMap } from '@/components/ui/dot-map'
 import { ArrowLeft } from '@/lib/icons'
 import { createClientRouteAuthStateGetter } from '@/lib/auth-routing'
+import { getUserFacingErrorCopy } from '@/lib/error-display'
 import {
   enableSkipLinkKeyboardMode,
   isSkipLinkKeyboardTrigger,
@@ -122,15 +123,9 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
   shellComponent: RootDocument,
 })
 
-function RootErrorPage({ error, reset }: ErrorComponentProps) {
+export function RootErrorPage({ error, reset }: ErrorComponentProps) {
   const router = useRouter()
-  const message =
-    error instanceof Error
-      ? error.message
-      : 'Something went wrong while loading this page.'
-  const isAuthConfigError =
-    message.includes('NoAuthProvider') ||
-    message.includes('issuer and audience match')
+  const errorCopy = getUserFacingErrorCopy(error)
 
   return (
     <div className="flex min-h-dvh items-center justify-center bg-canvas px-6 text-text">
@@ -141,21 +136,17 @@ function RootErrorPage({ error, reset }: ErrorComponentProps) {
         </div>
 
         <div className="flex flex-col gap-2">
-          <h1 className="m-0 font-mono text-lg font-bold">
-            {isAuthConfigError
-              ? 'Authentication needs one more sync'
-              : 'Something interrupted this page'}
-          </h1>
+          <h1 className="m-0 font-mono text-lg font-bold">{errorCopy.title}</h1>
           <p className="m-0 text-sm leading-6 text-text-muted">
-            {isAuthConfigError
-              ? 'Locatic reached Clerk, but the token used for this request was not the Convex-scoped token. Retrying after refresh usually clears it once auth finishes syncing.'
-              : 'The route hit an unexpected error. You can retry this request or head back to sign in.'}
+            {errorCopy.description}
           </p>
         </div>
 
-        <div className="overflow-wrap-anywhere rounded-control border border-line bg-canvas px-3 py-2.5 font-mono text-[11.5px] text-text-faint wrap-anywhere whitespace-pre-wrap">
-          {message}
-        </div>
+        {errorCopy.detail ? (
+          <div className="overflow-wrap-anywhere rounded-control border border-line bg-canvas px-3 py-2.5 font-mono text-[11.5px] text-text-faint wrap-anywhere whitespace-pre-wrap">
+            {errorCopy.detail}
+          </div>
+        ) : null}
 
         <div className="flex flex-wrap items-center gap-3">
           <button

@@ -69,7 +69,7 @@ export function MobileTabBar({
             preload={false}
             aria-current={isActive ? 'page' : undefined}
             aria-label={item.label}
-            className="relative flex min-h-11 flex-1 flex-col items-center justify-center gap-1 px-3 py-1.5 no-underline"
+            className="relative flex min-h-11 min-w-0 flex-1 flex-col items-center justify-center gap-1 px-1.5 py-1.5 no-underline"
           >
             {isActive && (
               <div
@@ -97,8 +97,8 @@ export function MobileTabBar({
             <span
               className={
                 isActive
-                  ? 'font-mono text-[9.5px] text-text'
-                  : 'font-mono text-[9.5px] text-text-faint'
+                  ? 'sr-only min-[380px]:not-sr-only min-[380px]:max-w-full min-[380px]:truncate min-[380px]:whitespace-nowrap min-[380px]:font-mono min-[380px]:text-[9px] min-[380px]:leading-none min-[380px]:text-text'
+                  : 'sr-only min-[380px]:not-sr-only min-[380px]:max-w-full min-[380px]:truncate min-[380px]:whitespace-nowrap min-[380px]:font-mono min-[380px]:text-[9px] min-[380px]:leading-none min-[380px]:text-text-faint'
               }
             >
               {item.label}
