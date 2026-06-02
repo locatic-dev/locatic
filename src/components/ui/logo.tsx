@@ -9,7 +9,7 @@ export function Logo({
   size = 24,
   className,
   alt = '',
-  src = '/favicon.svg',
+  src = '/logo.svg',
 }: LogoProps) {
   return (
     <img
