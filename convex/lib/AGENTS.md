@@ -17,8 +17,9 @@ convex/lib/
 ├── explore.ts           # Discovery query helpers
 ├── github.ts            # GitHub API helpers
 ├── homeFeed.ts          # Feed generation / aggregation logic
-├── notifications.ts     # Notification helpers
+├── notifications.ts     # Notification helpers (buildProjectNotificationTarget, etc.)
 ├── project_pins.ts      # Project pinning helpers
+├── project_route.ts     # Project route key normalization & owner login resolution
 ├── project_previews.ts  # Project preview / metadata helpers
 ├── pulse.ts             # Activity pulse / metrics helpers
 ├── snapshots.ts         # Snapshot utilities for denormalized data
@@ -46,6 +47,7 @@ convex/lib/
 | Add notification helper  | `notifications.ts`    | Notification targets / state                                       |
 | Add pinning helper       | `project_pins.ts`     | Project pin/unpin helpers                                          |
 | Add preview helper       | `project_previews.ts` | Project preview/metadata                                           |
+| Add route helper         | `project_route.ts`    | Route-safe key normalization, owner login resolution               |
 | Add pulse/metrics helper | `pulse.ts`            | Activity metrics                                                   |
 | Add snapshot helper      | `snapshots.ts`        | Denormalized data utilities                                        |
 | Add topic helper         | `topics.ts`           | Topic extraction / labels                                          |

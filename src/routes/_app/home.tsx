@@ -27,7 +27,11 @@ import {
   type ViewerLikedProjectIdsPayload,
 } from '@/features/contracts'
 import { toProjectCardData } from '@/features/project-card-preview'
-import { FeedRoutePending } from '@/components/app-shell/route-pending'
+import {
+  FeedRoutePending,
+  ROUTE_PENDING_MIN_MS,
+  ROUTE_PENDING_MS,
+} from '@/components/app-shell/route-pending'
 import { shouldPrefetchPrivateConvexQueries } from '@/lib/auth-routing'
 import { getFreshExploreSearch } from '@/features/explore/state'
 
@@ -43,7 +47,8 @@ export const Route = createFileRoute('/_app/home')({
     ])
   },
   pendingComponent: FeedRoutePending,
-  pendingMs: 250,
+  pendingMs: ROUTE_PENDING_MS,
+  pendingMinMs: ROUTE_PENDING_MIN_MS,
   component: HomePage,
 })
 
@@ -167,7 +172,7 @@ function HomePage() {
     <div className="lx-page-shell">
       <PageHeader title="home" />
 
-      <div className="lx-page-scroll">
+      <div className="lx-page-scroll" data-scroll-restoration-id="home-feed">
         <div className="lx-page-width-feed">
           {items.length === 0 && (
             <EmptyState
@@ -195,7 +200,7 @@ function HomePage() {
               <div className="flex flex-col gap-3.5">
                 {items.map((item) => {
                   const snapshot = item.projectSnapshot
-                  const owner = snapshot.fullName.split('/')[0] ?? ''
+                  const owner = snapshot.ownerLogin
                   const repo = snapshot.name
                   const projectId = item.projectId
                   const projectIdKey = String(item.projectId)
@@ -255,20 +260,8 @@ function HomePage() {
                       <ProjectCard
                         project={cardData}
                         onLike={() => void handleLike(projectId, projectIdKey)}
-                        onAuthorClick={() =>
-                          void navigate({
-                            to: '/u/$username',
-                            params: { username: owner },
-                            search: { tab: 'projects' },
-                          })
-                        }
-                        onCardClick={() =>
-                          void navigate({
-                            to: '/project/$owner/$repo',
-                            params: { owner, repo },
-                            search: { comment: null },
-                          })
-                        }
+                        authorLink={{ username: cardData.authorHandle }}
+                        projectLink={{ owner, repo }}
                         onDM={
                           dmTargetUserId
                             ? () => void openConversation(dmTargetUserId)

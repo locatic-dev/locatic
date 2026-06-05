@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { Id } from '../../../../../convex/_generated/dataModel'
+import type { PropsWithChildren } from 'react'
 import { ExploreFeed } from '../explore-feed'
 import type { BuilderPreview, ExplorePostPreview } from '../../types'
 import type { ProjectCardPreview } from '@/features/contracts'
@@ -9,6 +10,17 @@ import type { ProjectCardPreview } from '@/features/contracts'
 vi.mock('@/components/ui/project-card', () => ({
   ProjectCard: ({ project }: { project: { fullName: string } }) => (
     <article>{project.fullName}</article>
+  ),
+}))
+
+vi.mock('@tanstack/react-router', () => ({
+  Link: ({
+    children,
+    ...props
+  }: PropsWithChildren<Record<string, unknown>>) => (
+    <a href="#" {...props}>
+      {children}
+    </a>
   ),
 }))
 
@@ -73,6 +85,7 @@ const post = {
   projectSnapshot: {
     name: 'app',
     fullName: 'locatic/app',
+    ownerLogin: 'locatic',
     primaryLanguage: 'TypeScript',
     languages: [],
   },
@@ -104,9 +117,6 @@ function renderFeed(
     onLikeProject: vi.fn(),
     onMessageUser: vi.fn(),
     onOpenBuilderProfile: vi.fn(),
-    onOpenPostResult: vi.fn(),
-    onOpenProject: vi.fn(),
-    onOpenProjectOwner: vi.fn(),
     pendingFollows: new Set<string>(),
     pendingLikes: new Set<string>(),
     pendingUserId: null,
@@ -158,22 +168,14 @@ describe('ExploreFeed', () => {
     expect(screen.queryByText('Mira Builder')).toBeNull()
   })
 
-  it('passes post identity when opening a post search result', () => {
-    const onOpenPostResult = vi.fn()
+  it('renders post search results as project links', () => {
     renderFeed({
       isPostSearchActive: true,
       isPostsMode: true,
-      onOpenPostResult,
       postResults: [post],
     })
 
-    fireEvent.click(screen.getByRole('button', { name: /locatic\/app/i }))
-
-    expect(onOpenPostResult).toHaveBeenCalledWith({
-      owner: 'locatic',
-      postId: post._id,
-      repo: 'app',
-    })
+    expect(screen.getByRole('link', { name: /locatic\/app/i })).toBeTruthy()
   })
 
   it('shows post loading before no-results copy', () => {

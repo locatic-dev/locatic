@@ -18,22 +18,24 @@ lib/
 ├── query.ts          # Query key / option helpers
 ├── sidebar-layout.ts # Sidebar collapse storage helpers
 ├── skip-link.ts      # Keyboard modality / focus helpers
+├── linkify.tsx       # URL detection & safe external link rendering
 └── __tests__/        # Utility tests
 ```
 
 ## WHERE TO LOOK
 
-| Task                  | File                | Notes                        |
-| --------------------- | ------------------- | ---------------------------- |
-| Add utility           | `utils.ts`          | General-purpose helpers      |
-| Add formatter         | `format.ts`         | Display formatting           |
-| Add icon              | `icons.ts`          | Icon components, mappings    |
-| Add time helper       | `time.ts`           | Date/time utilities          |
-| Add auth route helper | `auth-routing.ts`   | Login redirect targets       |
-| Add error display     | `error-display.ts`  | Error boundary / fallback UI |
-| Add query helper      | `query.ts`          | Query key/option helpers     |
-| Add sidebar helper    | `sidebar-layout.ts` | Sidebar collapse storage     |
-| Add skip-link helper  | `skip-link.ts`      | Keyboard modality / blur     |
+| Task                  | File                | Notes                         |
+| --------------------- | ------------------- | ----------------------------- |
+| Add utility           | `utils.ts`          | General-purpose helpers       |
+| Add formatter         | `format.ts`         | Display formatting            |
+| Add icon              | `icons.ts`          | Icon components, mappings     |
+| Add time helper       | `time.ts`           | Date/time utilities           |
+| Add auth route helper | `auth-routing.ts`   | Login redirect targets        |
+| Add error display     | `error-display.ts`  | Error boundary / fallback UI  |
+| Add query helper      | `query.ts`          | Query key/option helpers      |
+| Add sidebar helper    | `sidebar-layout.ts` | Sidebar collapse storage      |
+| Add skip-link helper  | `skip-link.ts`      | Keyboard modality / blur      |
+| Add linkify utility   | `linkify.tsx`       | URL→anchor conversion in text |
 
 ## CONVENTIONS
 

@@ -25,7 +25,11 @@ import { CityCombobox } from '@/components/ui/city-combobox'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 import { BrandIcon } from '@/components/ui/brand-icon'
-import { FormRoutePending } from '@/components/app-shell/route-pending'
+import {
+  FormRoutePending,
+  ROUTE_PENDING_MIN_MS,
+  ROUTE_PENDING_MS,
+} from '@/components/app-shell/route-pending'
 import { CheckCircle2 } from '@/lib/icons'
 import { RepositoryManagerDialog } from '@/features/github/repository-manager-dialog'
 import {
@@ -59,7 +63,8 @@ export const Route = createFileRoute('/_app/settings')({
   loader: ({ context }) =>
     context.queryClient.ensureQueryData(privateProfileOverviewQueryOptions()),
   pendingComponent: FormRoutePending,
-  pendingMs: 250,
+  pendingMs: ROUTE_PENDING_MS,
+  pendingMinMs: ROUTE_PENDING_MIN_MS,
   component: SettingsPage,
 })
 

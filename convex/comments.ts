@@ -14,6 +14,10 @@ import {
   createNotificationIfEnabled,
 } from './lib/notifications'
 import {
+  resolveProjectOwnerLogin,
+  resolveProjectSnapshotOwnerLogin,
+} from './lib/project_route'
+import {
   actorSnapshotValidator,
   commentTargetSnapshotValidator,
 } from './lib/validators'
@@ -152,7 +156,13 @@ function buildCommentTargetSnapshot(args: {
     throw new ConvexError('Comment target snapshot could not be created')
   }
 
-  const projectOwner = projectFullName.split('/')[0]
+  const projectOwner = args.project
+    ? resolveProjectOwnerLogin(args.project)
+    : args.update
+      ? resolveProjectSnapshotOwnerLogin(args.update.projectSnapshot)
+      : args.post
+        ? resolveProjectSnapshotOwnerLogin(args.post.projectSnapshot)
+        : null
   const projectRepo =
     args.project?.github.name ??
     args.update?.projectSnapshot.name ??
@@ -454,9 +464,16 @@ export const create = mutation({
             projectId: project._id,
             commentId,
             projectName: project.github.name,
-            target: buildProjectNotificationTarget(project.github.fullName, {
-              commentId,
-            }),
+            target: buildProjectNotificationTarget(
+              {
+                fullName: project.github.fullName,
+                owner: resolveProjectOwnerLogin(project),
+                repo: project.github.name,
+              },
+              {
+                commentId,
+              },
+            ),
           })
         }
 
@@ -497,7 +514,11 @@ export const create = mutation({
             commentId,
             projectName: update.projectSnapshot.name,
             target: buildProjectNotificationTarget(
-              update.projectSnapshot.fullName,
+              {
+                fullName: update.projectSnapshot.fullName,
+                owner: resolveProjectSnapshotOwnerLogin(update.projectSnapshot),
+                repo: update.projectSnapshot.name,
+              },
               {
                 commentId,
               },
@@ -526,7 +547,11 @@ export const create = mutation({
             commentId,
             projectName: post.projectSnapshot.name,
             target: buildProjectNotificationTarget(
-              post.projectSnapshot.fullName,
+              {
+                fullName: post.projectSnapshot.fullName,
+                owner: resolveProjectSnapshotOwnerLogin(post.projectSnapshot),
+                repo: post.projectSnapshot.name,
+              },
               {
                 commentId,
               },
@@ -541,10 +566,29 @@ export const create = mutation({
       if (parent) {
         const parentAuthor = await ctx.db.get(parent.authorId)
         if (parentAuthor) {
-          const projectFullName =
-            projectTarget?.github.fullName ??
-            updateTarget?.projectSnapshot.fullName ??
-            postTarget?.projectSnapshot.fullName
+          const projectRouteTarget = projectTarget
+            ? {
+                fullName: projectTarget.github.fullName,
+                owner: resolveProjectOwnerLogin(projectTarget),
+                repo: projectTarget.github.name,
+              }
+            : updateTarget
+              ? {
+                  fullName: updateTarget.projectSnapshot.fullName,
+                  owner: resolveProjectSnapshotOwnerLogin(
+                    updateTarget.projectSnapshot,
+                  ),
+                  repo: updateTarget.projectSnapshot.name,
+                }
+              : postTarget
+                ? {
+                    fullName: postTarget.projectSnapshot.fullName,
+                    owner: resolveProjectSnapshotOwnerLogin(
+                      postTarget.projectSnapshot,
+                    ),
+                    repo: postTarget.projectSnapshot.name,
+                  }
+                : null
           await createNotificationIfEnabled(ctx, {
             recipient: parentAuthor,
             actor: viewer,
@@ -556,8 +600,10 @@ export const create = mutation({
               null,
             postId: postTarget?._id ?? null,
             commentId,
-            target: projectFullName
-              ? buildProjectNotificationTarget(projectFullName, { commentId })
+            target: projectRouteTarget
+              ? buildProjectNotificationTarget(projectRouteTarget, {
+                  commentId,
+                })
               : null,
           })
         }

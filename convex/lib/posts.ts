@@ -1,6 +1,7 @@
 import type { QueryCtx, MutationCtx } from '../_generated/server'
 import type { Doc } from './types'
 import { getProjectTopics } from './topics'
+import { resolveProjectOwnerLogin } from './project_route'
 
 type DbCtx = Pick<QueryCtx | MutationCtx, 'db'>
 
@@ -68,6 +69,7 @@ export async function withCurrentProjectPostFields(
     projectSnapshot: {
       name: project.github.name,
       fullName: project.github.fullName,
+      ownerLogin: resolveProjectOwnerLogin(project),
       primaryLanguage: project.github.primaryLanguage,
       languages: project.github.languages,
     },

@@ -5,6 +5,8 @@ type NotificationTarget = {
   kind: 'profile' | 'project' | 'conversation'
   username: string | null
   projectFullName: string | null
+  projectOwner?: string | null
+  projectRepo?: string | null
   conversationId: Doc<'conversations'>['_id'] | null
   inboxTab?: 'inbox' | 'requests' | null
   commentId: Doc<'comments'>['_id'] | null
@@ -42,6 +44,8 @@ export function buildProfileNotificationTarget(
     kind: 'profile',
     username,
     projectFullName: null,
+    projectOwner: null,
+    projectRepo: null,
     conversationId: null,
     inboxTab: null,
     commentId: null,
@@ -49,7 +53,11 @@ export function buildProfileNotificationTarget(
 }
 
 export function buildProjectNotificationTarget(
-  projectFullName: string,
+  project: {
+    fullName: string
+    owner: string
+    repo: string
+  },
   options?: {
     commentId?: Doc<'comments'>['_id'] | null
   },
@@ -57,7 +65,9 @@ export function buildProjectNotificationTarget(
   return {
     kind: 'project',
     username: null,
-    projectFullName,
+    projectFullName: project.fullName,
+    projectOwner: project.owner,
+    projectRepo: project.repo,
     conversationId: null,
     inboxTab: null,
     commentId: options?.commentId ?? null,
@@ -72,6 +82,8 @@ export function buildConversationNotificationTarget(
     kind: 'conversation',
     username: null,
     projectFullName: null,
+    projectOwner: null,
+    projectRepo: null,
     conversationId,
     inboxTab: isRequest ? 'requests' : 'inbox',
     commentId: null,

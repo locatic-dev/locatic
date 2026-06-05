@@ -68,6 +68,7 @@ const postSearchResultValidator = v.object({
   projectSnapshot: v.object({
     name: v.string(),
     fullName: v.string(),
+    ownerLogin: v.string(),
     primaryLanguage: v.union(v.string(), v.null()),
     languages: v.array(
       v.object({

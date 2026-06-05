@@ -22,9 +22,7 @@ Locatic — "GitHub with a map." Developer activity platform: discover projects,
 ├── convex/                 # Backend (Convex serverless functions + schema)
 │   ├── lib/                # Shared backend utilities
 │   └── _generated/         # Auto-generated Convex types (DO NOT EDIT)
-├── docs/                   # PRD, issue tracker, plans, screenshots
-│   ├── assets/             # Captured UI artifacts and references
-│   └── plans/              # Implementation plans and RCAs
+├── docs/                   # Product docs (PRD, design notes, issue trackers)
 ├── scripts/                # Seed data generation, geonames processing
 ├── public/                 # Static assets
 └── .github/workflows/      # CI / deploy workflows
@@ -32,28 +30,36 @@ Locatic — "GitHub with a map." Developer activity platform: discover projects,
 
 ## WHERE TO LOOK
 
-| Task                 | Location                                                                      | Notes                                                                                 |
-| -------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| Add route            | `src/routes/`                                                                 | File-based routing, `_app/` = auth-required                                           |
-| Add feature          | `src/features/`                                                               | Domain logic, hooks, types per feature                                                |
-| Add UI component     | `src/components/ui/`                                                          | shadcn/ui components                                                                  |
-| Add route pending UI | `src/components/app-shell/route-pending.tsx`                                  | Shared suspense fallback for auth routes                                              |
-| Add Convex function  | `convex/`                                                                     | Queries, mutations, HTTP endpoints                                                    |
-| Add DB table         | `convex/schema.ts`                                                            | Define table + validators in `convex/lib/validators.ts`                               |
-| Add product doc      | `docs/`                                                                       | PRDs, design notes, issue trackers, plans                                             |
-| Add plan / RCA       | `docs/plans/`                                                                 | Implementation plans, remediation notes                                               |
-| Auth logic           | `src/routes/__root.tsx` + `src/lib/auth-routing.ts` + `convex/auth.config.ts` | SSR auth centralized in root, route-target helpers, Convex JWT issuer config          |
-| Request middleware   | `src/start.ts`                                                                | CSRF filtered to server functions, Clerk middleware                                   |
-| Router setup         | `src/router.tsx` + `src/routeTree.gen.ts`                                     | Router factory + generated route tree                                                 |
-| API integrations     | `convex/github.ts`                                                            | GitHub API sync, webhooks                                                             |
-| App shell/layout     | `src/components/app-shell/`                                                   | Sidebar, header, navigation                                                           |
-| Vite config          | `vite.config.ts`                                                              | Code splitting groups, plugins                                                        |
-| Post visibility      | `convex/lib/posts.ts`                                                         | Helpers: `filterVisiblePosts`, `normalizePostSearchQuery`, `buildPostSearchText`      |
-| Project posts feed   | `src/features/projects/posts/`                                                | `ProjectPostsSection` — paginated list, supports `highlightedPostId` scroll-into-view |
-| Project search       | `src/integrations/convex/query-options.ts`                                    | `projectSearchQueryOptions` (replaces old `projectPostSearchQueryOptions`)            |
-| Post search          | `src/integrations/convex/query-options.ts`                                    | `postSearchQueryOptions` — separate from project search                               |
-| Builder search       | `src/integrations/convex/query-options.ts`                                    | `builderSearchQueryOptions` takes `{cityIds, limit, q}`; results include city name    |
-| Debounced search     | `src/features/explore/use-debounced-route-search.ts`                          | Hook for debounced input with route query sync; handles rapid clear/backspace         |
+| Task                            | Location                                                                      | Notes                                                                                      |
+| ------------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| Add route                       | `src/routes/`                                                                 | File-based routing, `_app/` = auth-required                                                |
+| Add feature                     | `src/features/`                                                               | Domain logic, hooks, types per feature                                                     |
+| Add UI component                | `src/components/ui/`                                                          | shadcn/ui components                                                                       |
+| Add route pending UI            | `src/components/app-shell/route-pending.tsx`                                  | Shared suspense fallback for auth routes                                                   |
+| Add Convex function             | `convex/`                                                                     | Queries, mutations, HTTP endpoints                                                         |
+| Add DB table                    | `convex/schema.ts`                                                            | Define table + validators in `convex/lib/validators.ts`                                    |
+| Add project route helper        | `convex/lib/project_route.ts`                                                 | `normalizeProjectRouteKey`, `resolveProjectOwnerLogin`, `resolveProjectSnapshotOwnerLogin` |
+| Add backend notification helper | `convex/lib/notifications.ts`                                                 | `buildProjectNotificationTarget`, `buildProfileNotificationTarget`, etc.                   |
+| Auth logic                      | `src/routes/__root.tsx` + `src/lib/auth-routing.ts` + `convex/auth.config.ts` | SSR auth centralized in root, route-target helpers, Convex JWT issuer config               |
+| Request middleware              | `src/start.ts`                                                                | CSRF filtered to server functions, Clerk middleware                                        |
+| Router setup                    | `src/router.tsx` + `src/routeTree.gen.ts`                                     | Router factory + generated route tree                                                      |
+| API integrations                | `convex/github.ts`                                                            | GitHub API sync, webhooks                                                                  |
+| App shell/layout                | `src/components/app-shell/`                                                   | Sidebar, header, navigation                                                                |
+| Vite config                     | `vite.config.ts`                                                              | Code splitting groups, plugins                                                             |
+| Post visibility                 | `convex/lib/posts.ts`                                                         | Helpers: `filterVisiblePosts`, `normalizePostSearchQuery`, `buildPostSearchText`           |
+| Project posts feed              | `src/features/projects/posts/`                                                | `ProjectPostsSection` — paginated list, supports `highlightedPostId` scroll-into-view      |
+| Project search                  | `src/integrations/convex/query-options.ts`                                    | `projectSearchQueryOptions` (replaces old `projectPostSearchQueryOptions`)                 |
+| Post search                     | `src/integrations/convex/query-options.ts`                                    | `postSearchQueryOptions` — separate from project search                                    |
+| Builder search                  | `src/integrations/convex/query-options.ts`                                    | `builderSearchQueryOptions` takes `{cityIds, limit, q}`; results include city name         |
+| Debounced search                | `src/features/explore/use-debounced-route-search.ts`                          | Hook for debounced input with route query sync; handles rapid clear/backspace              |
+| Project card render             | `src/components/ui/project-card.tsx`                                          | `ProjectCard` — card component with `<Link>` nav, keyboard, preload, action passthrough    |
+| Project card preview model      | `src/features/project-card-preview.ts`                                        | `toProjectCardData`, `getProjectCardRouteParams` — maps preview → card data                |
+| Shared feature types            | `src/features/contracts.ts`                                                   | `ProjectCardPreview`, `NotificationTarget`, `ViewerRecord`, `ProfileCommentPreview`        |
+| Liked-by summary                | `src/features/projects/likes/liked-by-summary.tsx`                            | Avatar stack + count + expandable dialog with paginated likers                             |
+| Notification routing            | `src/features/notifications/navigation.ts`                                    | `getNotificationDestination` — converts notification target to router dest                 |
+| Linkify text                    | `src/lib/linkify.tsx`                                                         | `linkify()`, `splitLinkParts()` — renders URLs in text as safe external links              |
+| Route pending UI                | `src/components/app-shell/route-pending.tsx`                                  | Shared suspense fallback (`FeedRoutePending`, `FormRoutePending`, etc.)                    |
+| Nav progress bar                | `src/components/app-shell/route-navigation-progress.tsx`                      | Top-of-screen pulse bar during route loads                                                 |
 
 ## CONVENTIONS
 
@@ -71,6 +77,11 @@ Locatic — "GitHub with a map." Developer activity platform: discover projects,
 - Auth route targeting now flows through `src/lib/auth-routing.ts`; keep route names aligned with `_app` and sign-in/out redirects.
 - Explore route uses 3 tab modes (`projects`/`posts`/`builders`) with `getExploreLoaderDeps` for stable loader deps; avoids re-fetching on query-only changes.
 - Search input uses `useDebouncedRouteSearch` for route-synced debounced input; keeps local state independent of route query to avoid stale restore during rapid clear/backspace.
+- Project detail query options use `{owner, repo}` (not `fullName`); see `projectDetailQueryOptions` in `src/integrations/convex/query-options.ts`.
+- Project route key normalization lives in `convex/lib/project_route.ts`; use `normalizeProjectRouteKey` for route-param-safe keys, `resolveProjectOwnerLogin` to resolve owner login from project/snapshot data.
+- Notification targets now carry `projectOwner`+`projectRepo` for direct project linking; routing via `getNotificationDestination` in `src/features/notifications/navigation.ts`.
+- `ProjectCard` navigation uses `<Link>` components and `router.preloadRoute` instead of click callbacks; passes `projectLink`/`authorLink` props instead of `onCardClick`/`onOpenAuthor`.
+- Project card preview mapping is centralized in `src/features/project-card-preview.ts` (`toProjectCardData`).
 
 ## ANTI-PATTERNS (THIS PROJECT)
 
@@ -100,7 +111,6 @@ Locatic — "GitHub with a map." Developer activity platform: discover projects,
 - Semantic Tailwind tokens: `--color-*`, `--radius-*`, `--shadow-*` registered via `@theme` in `styles.css` — use utility classes like `bg-surface`, `text-text-muted`, `rounded-card`, `shadow-card` instead of direct `var(--lx-*)`
 - Auth routes use splat pattern: `sign-in.$.tsx`, `sign-up.$.tsx` (not flat `sign-in.tsx`)
 - `routeTree.gen.ts` is generated by TanStack Router and contains type suppressions from the generator; never hand-edit it.
-- Docs live in `docs/`: PRD, database design, UI issue tracker, implementation plans, screenshots.
 
 ## ENV / RUNTIME BOUNDARIES
 

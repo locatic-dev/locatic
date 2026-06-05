@@ -8,6 +8,7 @@ import {
 import { usePaginatedQuery } from 'convex/react'
 import {
   createFileRoute,
+  redirect,
   useCanGoBack,
   useRouter,
 } from '@tanstack/react-router'
@@ -26,15 +27,8 @@ import { Input } from '@/components/ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { relativeTime } from '@/lib/time'
 import { compactNumber } from '@/lib/format'
-import {
-  Star,
-  Heart,
-  MessageSquare,
-  ArrowLeft,
-  ExternalLink,
-  Plus,
-  X,
-} from '@/lib/icons'
+import { linkify } from '@/lib/linkify'
+import { Star, Heart, MessageSquare, ArrowLeft, Plus, X } from '@/lib/icons'
 import {
   useLikeProject,
   useUnlikeProject,
@@ -62,6 +56,12 @@ import type {
   ProjectCommentView,
 } from '@/features/projects/comments/types'
 import { ProjectPostsSection } from '@/features/projects/posts/project-posts-section'
+import { LikedBySummary } from '@/features/projects/likes/liked-by-summary'
+import {
+  ProjectRoutePending,
+  ROUTE_PENDING_MIN_MS,
+  ROUTE_PENDING_MS,
+} from '@/components/app-shell/route-pending'
 
 function updateProjectLikePayload(
   payload: ProjectDetailPayload | null | undefined,
@@ -105,15 +105,43 @@ export const Route = createFileRoute('/_app/project/$owner/$repo')({
     comment: typeof search.comment === 'string' ? search.comment : null,
     ...(typeof search.post === 'string' ? { post: search.post } : {}),
   }),
-  loader: async ({ context, params }) => {
-    await context.queryClient.ensureQueryData(
-      projectDetailQueryOptions(`${params.owner}/${params.repo}`),
+  loader: async ({ context, location, params }) => {
+    const payload = await context.queryClient.ensureQueryData(
+      projectDetailQueryOptions({
+        owner: params.owner,
+        repo: params.repo,
+      }),
     )
 
     if (context.auth.isAuthenticated) {
-      await context.queryClient.ensureQueryData(viewerSummaryQueryOptions())
+      void context.queryClient.prefetchQuery(viewerSummaryQueryOptions())
+    }
+
+    const detail = payload as ProjectDetailPayload | null | undefined
+    const canonicalRoute = detail?.canonicalRoute
+    if (
+      canonicalRoute &&
+      (canonicalRoute.owner !== params.owner ||
+        canonicalRoute.repo !== params.repo)
+    ) {
+      const search = location.search as {
+        comment?: string | null
+        post?: string
+      }
+      throw redirect({
+        hash: location.hash,
+        params: canonicalRoute,
+        search: {
+          comment: search.comment ?? null,
+          ...(search.post ? { post: search.post } : {}),
+        },
+        to: '/project/$owner/$repo',
+      })
     }
   },
+  pendingComponent: ProjectRoutePending,
+  pendingMs: ROUTE_PENDING_MS,
+  pendingMinMs: ROUTE_PENDING_MIN_MS,
   component: ProjectDetailPage,
 })
 
@@ -138,8 +166,8 @@ function ProjectDetailPage() {
   const unfollowUser = useUnfollowUser()
   const { openConversation, pendingUserId } = useOpenConversation()
 
-  const fullName = `${owner}/${repo}`
-  const { data } = useSuspenseQuery(projectDetailQueryOptions(fullName))
+  const projectRoute = { owner, repo }
+  const { data } = useSuspenseQuery(projectDetailQueryOptions(projectRoute))
   const viewerSummaryQuery = useQuery({
     ...viewerSummaryQueryOptions(),
     enabled: isSignedIn,
@@ -150,7 +178,7 @@ function ProjectDetailPage() {
   const detail = mapProjectDetail(
     data as ProjectDetailPayload | null | undefined,
   )
-  const projectDetailQueryKey = projectDetailQueryOptions(fullName).queryKey
+  const projectDetailQueryKey = projectDetailQueryOptions(projectRoute).queryKey
   const commentRoots = usePaginatedQuery(
     api.comments.listRootsByTarget,
     detail
@@ -600,7 +628,10 @@ function ProjectDetailPage() {
         </button>
       </div>
 
-      <div className="lx-page-scroll flex-1">
+      <div
+        className="lx-page-scroll flex-1"
+        data-scroll-restoration-id="project-detail"
+      >
         <div className="lx-page-width-detail pt-2">
           <div className="mb-8 grid gap-6 border-b border-line pb-7 lg:grid-cols-[minmax(0,1.2fr)_320px] lg:items-start">
             <div>
@@ -617,8 +648,8 @@ function ProjectDetailPage() {
                 {repo}
               </h1>
 
-              <p className="mb-6 max-w-170 font-sans text-base leading-[1.55] text-text-muted">
-                {description}
+              <p className="mb-6 max-w-170 font-sans text-base leading-[1.55] text-text-muted wrap-anywhere">
+                {linkify(description)}
               </p>
 
               <div className="mb-5 flex flex-wrap items-center gap-2">
@@ -632,7 +663,6 @@ function ProjectDetailPage() {
                   <BrandIcon name="github" size={14} />
                   <Star size={13} strokeWidth={1.4} />
                   {compactNumber(githubStars)}
-                  <ExternalLink size={12} />
                 </a>
                 <Button
                   variant={liked ? 'brand' : 'monoOutline'}
@@ -649,41 +679,20 @@ function ProjectDetailPage() {
                   />
                   {compactNumber(locaticLikes)}
                 </Button>
-                <a
-                  href="#project-discussion"
-                  className="inline-flex min-h-11 items-center gap-2 rounded-md border border-line bg-surface px-3 py-2 font-mono text-[12px] text-text-muted no-underline transition-colors hover:border-line-strong hover:bg-surface-alt hover:text-text"
-                >
-                  <MessageSquare size={13} strokeWidth={1.5} />
-                  {detail.project.locatic.commentsCount}
-                </a>
               </div>
 
-              {detail.likedByPreview.length > 0 && (
-                <div className="mb-5 flex flex-wrap items-center gap-2 font-mono text-[11px] text-text-faint">
-                  <span>liked by</span>
-                  {detail.likedByPreview.map((user) => (
-                    <button
-                      key={String(user.userId)}
-                      type="button"
-                      onClick={() =>
-                        void router.navigate({
-                          to: '/u/$username',
-                          params: { username: user.githubUsername },
-                          search: { tab: 'projects' },
-                        })
-                      }
-                      className="inline-flex min-h-8 items-center gap-1.5 rounded-pill border border-line bg-surface px-2 py-1 text-text-muted"
-                    >
-                      <LxAvatar
-                        name={user.displayName}
-                        avatarUrl={user.avatarUrl}
-                        size={16}
-                      />
-                      {user.displayName}
-                    </button>
-                  ))}
-                </div>
-              )}
+              <LikedBySummary
+                projectId={detail.project._id}
+                likedByPreview={detail.likedByPreview}
+                likesCount={locaticLikes}
+                onOpenProfile={(username) =>
+                  void router.navigate({
+                    to: '/u/$username',
+                    params: { username },
+                    search: { tab: 'projects' },
+                  })
+                }
+              />
 
               <div className="mb-5 flex flex-wrap items-center gap-2">
                 {projectTopics.map((topic) => (
@@ -936,9 +945,9 @@ function ProjectDetailPage() {
                     return (
                       <p
                         key={index}
-                        className="m-0 font-sans text-sm leading-[1.65] text-text-muted"
+                        className="m-0 font-sans text-sm leading-[1.65] text-text-muted wrap-anywhere"
                       >
-                        {block}
+                        {linkify(block)}
                       </p>
                     )
                   })}

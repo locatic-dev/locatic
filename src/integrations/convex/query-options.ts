@@ -183,8 +183,13 @@ export const pulseQueryOptions = ({
     page,
   })
 
-export const projectDetailQueryOptions = (fullName: string) =>
-  convexQuery(api.projects.getPublicByFullName, { fullName })
+export const projectDetailQueryOptions = ({
+  owner,
+  repo,
+}: {
+  owner: string
+  repo: string
+}) => convexQuery(api.projects.getPublicByRoute, { owner, repo })
 
 export const mineProjectsQueryOptions = () =>
   convexQuery(api.projects.listMine, {})

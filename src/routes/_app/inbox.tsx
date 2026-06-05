@@ -21,7 +21,11 @@ import {
   type ViewerBootstrapPayload,
 } from '@/features/contracts'
 import { viewerQueryOptions } from '@/features/viewer/queries'
-import { InboxRoutePending } from '@/components/app-shell/route-pending'
+import {
+  InboxRoutePending,
+  ROUTE_PENDING_MIN_MS,
+  ROUTE_PENDING_MS,
+} from '@/components/app-shell/route-pending'
 
 export const Route = createFileRoute('/_app/inbox')({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -43,7 +47,8 @@ export const Route = createFileRoute('/_app/inbox')({
     void deps.conversationId
   },
   pendingComponent: InboxRoutePending,
-  pendingMs: 250,
+  pendingMs: ROUTE_PENDING_MS,
+  pendingMinMs: ROUTE_PENDING_MIN_MS,
   component: InboxPage,
 })
 

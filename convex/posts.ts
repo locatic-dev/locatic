@@ -12,6 +12,7 @@ import {
 } from './_generated/server'
 import { getViewerFromAuth, getViewerOrThrow } from './lib/auth'
 import { fanOutActivityEventToFollowers } from './lib/homeFeed'
+import { resolveProjectOwnerLogin } from './lib/project_route'
 import type { Doc, Id } from './_generated/dataModel'
 import {
   buildActorSnapshot,
@@ -52,6 +53,7 @@ const postPageItemValidator = v.object({
   projectSnapshot: v.object({
     name: v.string(),
     fullName: v.string(),
+    ownerLogin: v.string(),
     primaryLanguage: v.union(v.string(), v.null()),
     languages: v.array(
       v.object({
@@ -248,6 +250,7 @@ export const create = mutation({
       projectSnapshot: {
         name: project.github.name,
         fullName: project.github.fullName,
+        ownerLogin: resolveProjectOwnerLogin(project),
         primaryLanguage: project.github.primaryLanguage,
         languages: project.github.languages,
       },

@@ -77,6 +77,9 @@ describe('mapGithubRepositoryWithOptionalLanguages', () => {
         id: 1,
         full_name: 'avinash/locatic',
         name: 'locatic',
+        owner: {
+          login: 'avinash',
+        },
         description: 'Map-based discovery',
         html_url: 'https://github.com/avinash/locatic',
         homepage: 'https://locatic.dev',
@@ -92,6 +95,9 @@ describe('mapGithubRepositoryWithOptionalLanguages', () => {
 
     expect(repository.languages).toEqual([])
     expect(repository.fullName).toBe('avinash/locatic')
+    expect(repository.ownerLogin).toBe('avinash')
+    expect(repository.ownerLoginKey).toBe('avinash')
+    expect(repository.nameKey).toBe('locatic')
     expect(repository.primaryLanguage).toBe('TypeScript')
   })
 })

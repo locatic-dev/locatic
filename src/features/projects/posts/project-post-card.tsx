@@ -188,7 +188,10 @@ export function ProjectPostCard({
       targetId: String(post._id),
       targetSnapshot: {
         projectFullName: post.projectSnapshot.fullName,
-        projectOwner: post.projectSnapshot.fullName.split('/')[0] ?? '',
+        projectOwner:
+          post.projectSnapshot.ownerLogin ??
+          post.projectSnapshot.fullName.split('/')[0] ??
+          post.projectSnapshot.fullName,
         projectRepo: post.projectSnapshot.name,
         targetLabel: `${post.projectSnapshot.fullName} post`,
         updateTitle: null,

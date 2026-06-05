@@ -2,6 +2,7 @@ import { v } from 'convex/values'
 
 import { internalMutation, query } from './_generated/server'
 import { buildPulseSnapshotRows } from './lib/pulse'
+import { resolveProjectOwnerLogin } from './lib/project_route'
 
 function getWindowStart(now: number, timeWindow: 'day' | 'week' | 'month') {
   switch (timeWindow) {
@@ -161,6 +162,7 @@ export const rebuildSnapshots = internalMutation({
           projectSnapshot: {
             name: project.github.name,
             fullName: project.github.fullName,
+            ownerLogin: resolveProjectOwnerLogin(project),
             description: project.github.description,
             primaryLanguage: project.github.primaryLanguage,
             languages: project.github.languages,
