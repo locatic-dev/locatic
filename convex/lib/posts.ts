@@ -4,6 +4,28 @@ import { getProjectTopics } from './topics'
 
 type DbCtx = Pick<QueryCtx | MutationCtx, 'db'>
 
+export function buildPostSearchText({
+  body,
+  projectFullName,
+  topics,
+}: {
+  body: string
+  projectFullName: string
+  topics: string[]
+}) {
+  return [
+    body,
+    projectFullName,
+    ...topics.flatMap((topic) => [topic, `#${topic}`]),
+  ]
+    .join(' ')
+    .toLowerCase()
+}
+
+export function normalizePostSearchQuery(query: string) {
+  return query.trim().toLowerCase().replace(/^#+/, '')
+}
+
 export async function getVisiblePostProject(
   ctx: DbCtx,
   post: Doc<'posts'>,
@@ -38,6 +60,11 @@ export async function withCurrentProjectPostFields(
     ...post,
     projectCityId: project.exploreOwner.cityId,
     projectTopics: getProjectTopics(project),
+    searchText: buildPostSearchText({
+      body: post.body,
+      projectFullName: project.github.fullName,
+      topics: getProjectTopics(project),
+    }),
     projectSnapshot: {
       name: project.github.name,
       fullName: project.github.fullName,

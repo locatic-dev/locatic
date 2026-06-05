@@ -6,6 +6,7 @@ import {
   dedupeExploreCityIds,
   deriveDefaultExploreCityIds,
   getCanonicalExploreCityIds,
+  getExploreLoaderDeps,
   getExploreProjectCityIds,
   getExploreScopeStatusCopy,
   getFreshExploreSearch,
@@ -40,6 +41,39 @@ describe('explore state helpers', () => {
       scope: 'custom',
       selectedCityIds: ['city_1'],
     })
+  })
+
+  it('accepts posts as a first-class explore mode', () => {
+    expect(
+      normalizeExploreSearch({
+        mode: 'posts',
+        q: '#react',
+        scope: 'global',
+      }),
+    ).toEqual({
+      mode: 'posts',
+      q: '#react',
+      scope: 'global',
+      selectedCityIds: [],
+    })
+  })
+
+  it('keeps loader deps stable across query-only changes', () => {
+    expect(
+      getExploreLoaderDeps({
+        mode: 'posts',
+        q: 'react',
+        scope: 'custom',
+        selectedCityIds: ['city_1'],
+      }),
+    ).toEqual(
+      getExploreLoaderDeps({
+        mode: 'posts',
+        q: 'maps',
+        scope: 'custom',
+        selectedCityIds: ['city_1'],
+      }),
+    )
   })
 
   it('converts empty custom selections into an explicit global scope', () => {
@@ -216,7 +250,7 @@ describe('explore state helpers', () => {
     expect(isExploreProjectFeedGlobal('global')).toBe(true)
   })
 
-  it('uses active city ids for the nearby builders rail', () => {
+  it('uses active city ids for the builders tab directory', () => {
     expect(
       getNearbyBuilderCityIds({
         scope: 'default',

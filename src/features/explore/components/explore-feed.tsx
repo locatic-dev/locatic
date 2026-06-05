@@ -1,8 +1,12 @@
-import type { Doc, Id } from '../../../../convex/_generated/dataModel'
+import type { Id } from '../../../../convex/_generated/dataModel'
 import { EmptyState } from '@/components/ui/empty-state'
 import { ProjectCard } from '@/components/ui/project-card'
 import { isExploreUserFollowed } from '@/features/explore/state'
-import type { BuilderPreview } from '@/features/explore/types'
+import { relativeTime } from '@/lib/time'
+import type {
+  BuilderPreview,
+  ExplorePostPreview,
+} from '@/features/explore/types'
 import type { ProjectCardPreview } from '@/features/contracts'
 import { toProjectCardData } from '@/features/project-card-preview'
 import { NearbyBuilderRow } from './nearby-builder-row'
@@ -10,12 +14,15 @@ import { NearbyBuilderRow } from './nearby-builder-row'
 export function ExploreFeed({
   builderResults,
   builderSearchLoading,
-  debouncedBuilderQuery,
+  debouncedSearchQuery,
   dismissedIds,
   followOverrides,
   followedUserIds,
   isBuilderSearchActive,
+  isBuildersMode,
   isGlobalFeed,
+  isPostSearchActive,
+  isPostsMode,
   isProjectSearchActive,
   items,
   likedProjectIds,
@@ -30,17 +37,21 @@ export function ExploreFeed({
   pendingFollows,
   pendingLikes,
   pendingUserId,
+  postSearchLoading,
   postResults,
   viewerId,
 }: {
   builderResults: BuilderPreview[]
   builderSearchLoading: boolean
-  debouncedBuilderQuery: string
+  debouncedSearchQuery: string
   dismissedIds: Set<string>
   followOverrides: Record<string, boolean>
   followedUserIds: Set<string>
   isBuilderSearchActive: boolean
+  isBuildersMode: boolean
   isGlobalFeed: boolean
+  isPostSearchActive: boolean
+  isPostsMode: boolean
   isProjectSearchActive: boolean
   items: ProjectCardPreview[]
   likedProjectIds: Set<string>
@@ -63,7 +74,8 @@ export function ExploreFeed({
   pendingFollows: Set<string>
   pendingLikes: Set<string>
   pendingUserId: string | null
-  postResults: Array<Doc<'posts'>>
+  postSearchLoading: boolean
+  postResults: ExplorePostPreview[]
   viewerId?: Id<'users'>
 }) {
   const visibleItems = items.filter(
@@ -78,7 +90,8 @@ export function ExploreFeed({
 
   return (
     <>
-      {!isBuilderSearchActive &&
+      {!isBuildersMode &&
+        !isPostsMode &&
         !isProjectSearchActive &&
         !isGlobalFeed &&
         visibleItems.length === 0 && (
@@ -90,7 +103,8 @@ export function ExploreFeed({
           </div>
         )}
 
-      {!isBuilderSearchActive &&
+      {!isBuildersMode &&
+        !isPostsMode &&
         !isProjectSearchActive &&
         isGlobalFeed &&
         visibleItems.length === 0 && (
@@ -102,16 +116,16 @@ export function ExploreFeed({
           </div>
         )}
 
-      {isBuilderSearchActive && builderSearchLoading && (
+      {isBuildersMode && builderSearchLoading && (
         <div className="py-5 text-center font-mono text-[12.5px] text-text-faint">
           searching builders…
         </div>
       )}
 
-      {isBuilderSearchActive && builderResults.length > 0 && (
+      {isBuildersMode && builderResults.length > 0 && (
         <div className="mb-8">
           <div className="mb-3 font-mono text-[10.5px] uppercase tracking-[0.06em] text-text-faint">
-            matching builders
+            {isBuilderSearchActive ? 'matching builders' : 'builders'}
           </div>
           <div className="flex flex-col gap-2">
             {builderResults.map((builder) => (
@@ -141,31 +155,60 @@ export function ExploreFeed({
         </div>
       )}
 
-      {isBuilderSearchActive &&
+      {isBuildersMode &&
         builderResults.length === 0 &&
         !builderSearchLoading && (
           <div className="py-5 text-center font-mono text-[12.5px] text-text-faint">
-            no builders found for &ldquo;{debouncedBuilderQuery}&rdquo;
+            {isBuilderSearchActive
+              ? `no builders found for "${debouncedSearchQuery}"`
+              : 'no builders found for this city context.'}
           </div>
         )}
 
-      {isProjectSearchActive &&
-        visibleItems.length === 0 &&
-        postResults.length === 0 && (
+      {!isBuildersMode &&
+        !isPostsMode &&
+        isProjectSearchActive &&
+        visibleItems.length === 0 && (
           <div className="py-5 text-center font-mono text-[12.5px] text-text-faint">
-            no projects or posts found.
+            no projects found.
           </div>
         )}
 
-      {isProjectSearchActive && postResults.length > 0 && (
+      {isPostsMode && !isPostSearchActive && (
+        <div className="py-10">
+          <EmptyState
+            title="search posts by body or topic."
+            description="Try a phrase from an update, or search a project topic with or without a hash."
+          />
+        </div>
+      )}
+
+      {isPostsMode && postSearchLoading && (
+        <div className="py-5 text-center font-mono text-[12.5px] text-text-faint">
+          searching posts…
+        </div>
+      )}
+
+      {isPostsMode &&
+        isPostSearchActive &&
+        postResults.length === 0 &&
+        !postSearchLoading && (
+          <div className="py-5 text-center font-mono text-[12.5px] text-text-faint">
+            no posts found for &ldquo;{debouncedSearchQuery}&rdquo;
+          </div>
+        )}
+
+      {isPostsMode && !postSearchLoading && postResults.length > 0 && (
         <div className="mb-8">
           <div className="mb-3 font-mono text-[10.5px] uppercase tracking-[0.06em] text-text-faint">
-            matching repo posts
+            matching posts
           </div>
           <div className="flex flex-col gap-2">
             {postResults.map((post) => {
-              const [owner = '', repo = post.projectSnapshot.name] =
+              const [rawOwner = '', rawRepo = post.projectSnapshot.name] =
                 post.projectSnapshot.fullName.split('/')
+              const owner = rawOwner || post.projectSnapshot.fullName
+              const repo = rawRepo || post.projectSnapshot.name
 
               return (
                 <button
@@ -180,12 +223,30 @@ export function ExploreFeed({
                   }
                   className="rounded-[6px] border border-line bg-surface px-4 py-3 text-left transition-colors hover:border-line-strong hover:bg-surface-alt"
                 >
-                  <div className="mb-1 font-mono text-[12px] font-semibold text-text">
-                    {post.projectSnapshot.fullName}
+                  <div className="mb-2 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[11px] text-text-faint">
+                    <span className="font-semibold text-text">
+                      {post.projectSnapshot.fullName}
+                    </span>
+                    <span>{relativeTime(post.createdAt)}</span>
+                    {post.actorSnapshot.displayName && (
+                      <span>by {post.actorSnapshot.displayName}</span>
+                    )}
                   </div>
                   <p className="m-0 line-clamp-2 font-sans text-[13px] leading-6 text-text-muted">
                     {post.body}
                   </p>
+                  {post.projectTopics.length > 0 && (
+                    <div className="mt-3 flex flex-wrap gap-1.5">
+                      {post.projectTopics.slice(0, 4).map((topic) => (
+                        <span
+                          key={topic}
+                          className="rounded-pill border border-line px-2 py-1 font-mono text-[10.5px] text-text-faint"
+                        >
+                          #{topic}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </button>
               )
             })}
@@ -193,7 +254,7 @@ export function ExploreFeed({
         </div>
       )}
 
-      {!isBuilderSearchActive && visibleItems.length > 0 && (
+      {!isBuildersMode && !isPostsMode && visibleItems.length > 0 && (
         <div className="flex flex-col gap-3.5">
           {visibleItems.map((item, index) => {
             const projectId = item.projectId

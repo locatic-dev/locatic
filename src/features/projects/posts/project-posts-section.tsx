@@ -1,6 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { usePaginatedQuery } from 'convex/react'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { api } from '../../../../convex/_generated/api'
 import { Button } from '@/components/ui/button'
@@ -11,12 +11,14 @@ import { ProjectPostCard } from './project-post-card'
 
 export function ProjectPostsSection({
   detail,
+  highlightedPostId,
   isOwnProject,
   isSignedIn,
   projectDetailQueryKey,
   viewerId,
 }: {
   detail: ProjectDetailPayload
+  highlightedPostId: string | null
   isOwnProject: boolean
   isSignedIn: boolean
   projectDetailQueryKey: readonly unknown[]
@@ -26,12 +28,29 @@ export function ProjectPostsSection({
   const createPost = useCreatePost()
   const [postBody, setPostBody] = useState('')
   const [postingRepoPost, setPostingRepoPost] = useState(false)
+  const postRefs = useRef<Record<string, HTMLElement | null>>({})
   const projectPosts = usePaginatedQuery(
     api.posts.listByProject,
     { projectId: detail.project._id },
     { initialNumItems: 8 },
   )
   const posts = projectPosts.results ?? []
+
+  useEffect(() => {
+    if (!highlightedPostId) {
+      return
+    }
+
+    const postElement = postRefs.current[highlightedPostId]
+    if (!postElement) {
+      return
+    }
+
+    postElement.scrollIntoView({
+      behavior: 'smooth',
+      block: 'center',
+    })
+  }, [highlightedPostId, posts.length])
 
   const handleCreatePost = async () => {
     const body = postBody.trim()
@@ -87,16 +106,33 @@ export function ProjectPostsSection({
           no repo posts yet.
         </div>
       ) : (
-        posts.map((post) => (
-          <ProjectPostCard
-            key={String(post._id)}
-            isOwner={isOwnProject}
-            isSignedIn={isSignedIn}
-            post={post}
-            projectDetailQueryKey={projectDetailQueryKey}
-            viewerId={viewerId}
-          />
-        ))
+        posts.map((post) => {
+          const postKey = String(post._id)
+          const highlighted = highlightedPostId === postKey
+
+          return (
+            <div
+              key={postKey}
+              id={`post-${postKey}`}
+              ref={(element) => {
+                postRefs.current[postKey] = element
+              }}
+              className={
+                highlighted
+                  ? 'rounded-[7px] ring-2 ring-brand ring-offset-2 ring-offset-canvas'
+                  : undefined
+              }
+            >
+              <ProjectPostCard
+                isOwner={isOwnProject}
+                isSignedIn={isSignedIn}
+                post={post}
+                projectDetailQueryKey={projectDetailQueryKey}
+                viewerId={viewerId}
+              />
+            </div>
+          )
+        })
       )}
 
       {projectPosts.status === 'CanLoadMore' && (

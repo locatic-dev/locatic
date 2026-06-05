@@ -4,7 +4,12 @@ import {
 } from 'convex/server'
 import { ConvexError, v } from 'convex/values'
 
-import { mutation, query, type QueryCtx } from './_generated/server'
+import {
+  internalMutation,
+  mutation,
+  query,
+  type QueryCtx,
+} from './_generated/server'
 import { getViewerFromAuth, getViewerOrThrow } from './lib/auth'
 import { fanOutActivityEventToFollowers } from './lib/homeFeed'
 import type { Doc, Id } from './_generated/dataModel'
@@ -14,7 +19,12 @@ import {
   buildProjectSnapshot,
 } from './lib/snapshots'
 import { getProjectTopics } from './lib/topics'
-import { filterVisiblePosts, withCurrentProjectPostFields } from './lib/posts'
+import {
+  buildPostSearchText,
+  filterVisiblePosts,
+  normalizePostSearchQuery,
+  withCurrentProjectPostFields,
+} from './lib/posts'
 
 const postPageItemValidator = v.object({
   _id: v.id('posts'),
@@ -28,6 +38,7 @@ const postPageItemValidator = v.object({
     v.literal('contributor'),
   ),
   body: v.string(),
+  searchText: v.optional(v.string()),
   reactionCounts: v.record(v.string(), v.number()),
   commentsCount: v.number(),
   projectCityId: v.union(v.id('cities'), v.null()),
@@ -151,7 +162,7 @@ export const search = query({
   },
   returns: v.array(postPageItemValidator),
   handler: async (ctx, args) => {
-    const normalizedQ = args.q.trim().toLowerCase()
+    const normalizedQ = normalizePostSearchQuery(args.q)
     if (!normalizedQ) {
       return []
     }
@@ -170,9 +181,9 @@ export const search = query({
               cityIdValues.map((cityId) =>
                 ctx.db
                   .query('posts')
-                  .withSearchIndex('search_body', (query) =>
+                  .withSearchIndex('search_text', (query) =>
                     query
-                      .search('body', normalizedQ)
+                      .search('searchText', normalizedQ)
                       .eq('deletedAt', null)
                       .eq('projectCityId', cityId),
                   )
@@ -182,8 +193,8 @@ export const search = query({
           ).flat()
         : await ctx.db
             .query('posts')
-            .withSearchIndex('search_body', (query) =>
-              query.search('body', normalizedQ).eq('deletedAt', null),
+            .withSearchIndex('search_text', (query) =>
+              query.search('searchText', normalizedQ).eq('deletedAt', null),
             )
             .take(limit)
     const filtered = (await filterVisiblePosts(ctx, posts)).slice(0, limit)
@@ -217,16 +228,22 @@ export const create = mutation({
 
     const now = Date.now()
     const actorSnapshot = await buildActorSnapshot(ctx.db, viewer)
+    const projectTopics = getProjectTopics(project)
     const postId = await ctx.db.insert('posts', {
       projectId: project._id,
       ownerId: project.ownerId,
       actorId: viewer._id,
       authorRole: 'owner',
       body,
+      searchText: buildPostSearchText({
+        body,
+        projectFullName: project.github.fullName,
+        topics: projectTopics,
+      }),
       reactionCounts: {},
       commentsCount: 0,
       projectCityId: project.exploreOwner.cityId,
-      projectTopics: getProjectTopics(project),
+      projectTopics,
       actorSnapshot,
       projectSnapshot: {
         name: project.github.name,
@@ -298,6 +315,11 @@ export const update = mutation({
 
     await ctx.db.patch(post._id, {
       body,
+      searchText: buildPostSearchText({
+        body,
+        projectFullName: post.projectSnapshot.fullName,
+        topics: post.projectTopics,
+      }),
       updatedAt: Date.now(),
     })
 
@@ -346,6 +368,48 @@ export const remove = mutation({
     }
 
     return null
+  },
+})
+
+export const backfillSearchText = internalMutation({
+  args: {
+    limit: v.optional(v.number()),
+  },
+  returns: v.number(),
+  handler: async (ctx, args) => {
+    const limit = Math.min(args.limit ?? 100, 500)
+    const posts = await ctx.db
+      .query('posts')
+      .withIndex('by_deleted_created', (query) => query.eq('deletedAt', null))
+      .take(limit)
+    let patched = 0
+
+    for (const post of posts) {
+      const project = await ctx.db.get(post.projectId)
+      const topics = project ? getProjectTopics(project) : post.projectTopics
+      const projectFullName =
+        project?.github.fullName ?? post.projectSnapshot.fullName
+      const searchText = buildPostSearchText({
+        body: post.body,
+        projectFullName,
+        topics,
+      })
+
+      if (
+        post.searchText === searchText &&
+        post.projectTopics.join('\0') === topics.join('\0')
+      ) {
+        continue
+      }
+
+      await ctx.db.patch(post._id, {
+        projectTopics: topics,
+        searchText,
+      })
+      patched += 1
+    }
+
+    return patched
   },
 })
 

@@ -163,6 +163,12 @@ export default defineSchema({
       'deactivatedAt',
       'stats.followersCount',
     ])
+    .index('by_explore_rank', [
+      'appearInExplore',
+      'deletedAt',
+      'deactivatedAt',
+      'stats.followersCount',
+    ])
     .index('by_created_at', ['createdAt'])
     .searchIndex('search_identity', {
       searchField: 'discoverability.searchText',
@@ -341,6 +347,7 @@ export default defineSchema({
     actorId: v.id('users'),
     authorRole: postAuthorRoleValidator,
     body: v.string(),
+    searchText: v.optional(v.string()),
     reactionCounts: v.record(v.string(), v.number()),
     commentsCount: v.number(),
     projectCityId: cityReferenceValidator,
@@ -376,6 +383,10 @@ export default defineSchema({
     .index('by_deleted_created', ['deletedAt', 'createdAt'])
     .searchIndex('search_body', {
       searchField: 'body',
+      filterFields: ['deletedAt', 'projectCityId'],
+    })
+    .searchIndex('search_text', {
+      searchField: 'searchText',
       filterFields: ['deletedAt', 'projectCityId'],
     }),
 
