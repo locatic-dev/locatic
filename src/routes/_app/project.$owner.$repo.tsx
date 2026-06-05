@@ -103,6 +103,7 @@ function updateProjectFollowPayload(
 export const Route = createFileRoute('/_app/project/$owner/$repo')({
   validateSearch: (search: Record<string, unknown>) => ({
     comment: typeof search.comment === 'string' ? search.comment : null,
+    ...(typeof search.post === 'string' ? { post: search.post } : {}),
   }),
   loader: async ({ context, params }) => {
     await context.queryClient.ensureQueryData(
@@ -118,7 +119,10 @@ export const Route = createFileRoute('/_app/project/$owner/$repo')({
 
 function ProjectDetailPage() {
   const { owner, repo } = Route.useParams()
-  const { comment: highlightedCommentId } = Route.useSearch()
+  const routeSearch = Route.useSearch()
+  const highlightedCommentId = routeSearch.comment
+  const highlightedPostId =
+    'post' in routeSearch ? (routeSearch.post ?? null) : null
   const router = useRouter()
   const canGoBack = useCanGoBack()
   const { isSignedIn } = useAuth()
@@ -170,6 +174,7 @@ function ProjectDetailPage() {
   )
   const [replyingToId, setReplyingToId] = useState<string | null>(null)
   const [hashCommentId, setHashCommentId] = useState<string | null>(null)
+  const [hashPostId, setHashPostId] = useState<string | null>(null)
   const commentRefs = useRef<Record<string, HTMLElement | null>>({})
   const {
     expand: expandCommentThread,
@@ -541,6 +546,7 @@ function ProjectDetailPage() {
     const syncHashComment = () => {
       const hash = window.location.hash.replace(/^#/, '')
       setHashCommentId(hash.startsWith('comment-') ? hash.slice(8) : null)
+      setHashPostId(hash.startsWith('post-') ? hash.slice(5) : null)
     }
 
     syncHashComment()
@@ -550,6 +556,7 @@ function ProjectDetailPage() {
   }, [])
 
   const activeHighlightedCommentId = highlightedCommentId ?? hashCommentId
+  const activeHighlightedPostId = highlightedPostId ?? hashPostId
 
   useEffect(() => {
     if (!activeHighlightedCommentId) {
@@ -879,6 +886,7 @@ function ProjectDetailPage() {
                 detail={detail}
                 isOwnProject={isOwnProject}
                 isSignedIn={Boolean(isSignedIn)}
+                highlightedPostId={activeHighlightedPostId}
                 projectDetailQueryKey={projectDetailQueryKey}
                 viewerId={viewer?.id ? String(viewer.id) : null}
               />

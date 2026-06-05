@@ -9,6 +9,21 @@ import {
 } from '../state'
 import type { ExploreCityChip } from '../types'
 
+const EXPLORE_MODE_CONFIG = {
+  builders: {
+    ariaLabel: 'Search builders',
+    placeholder: 'search builders by username or name',
+  },
+  posts: {
+    ariaLabel: 'Search posts',
+    placeholder: 'search posts by body or topic',
+  },
+  projects: {
+    ariaLabel: 'Search projects',
+    placeholder: 'search projects by repo or topic',
+  },
+} satisfies Record<ExploreMode, { ariaLabel: string; placeholder: string }>
+
 export function ExploreHeader({
   availableCities,
   cityQuery,
@@ -36,12 +51,14 @@ export function ExploreHeader({
   searchQuery: string
   selectedCityChips: ExploreCityChip[]
 }) {
+  const modeConfig = EXPLORE_MODE_CONFIG[mode]
+
   return (
     <header className="shrink-0 border-b border-line px-(--lx-gutter) py-5">
       <div className="mb-3 flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="mb-1.5 font-mono text-[11px] lowercase text-text-faint">
-            // discover {mode === 'builders' ? 'builders' : 'projects'} nearby
+            // discover {mode} nearby
           </div>
           <h1 className="font-mono text-[22px] font-semibold tracking-[-0.02em] text-text">
             explore
@@ -53,21 +70,37 @@ export function ExploreHeader({
         </div>
       </div>
 
-      {selectedCityChips.length > 0 && (
-        <div className="mb-4 flex flex-wrap gap-2">
-          {selectedCityChips.map((city) => (
-            <CityPill
-              key={city.id}
-              city={city.name}
-              className="shrink-0"
-              onRemove={() => onRemoveCity(city.id)}
-            />
-          ))}
+      <div className="mb-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.55fr)]">
+        <CityCombobox
+          id="explore-city"
+          label="Search and add city filters"
+          query={cityQuery}
+          onQueryChange={onCityQueryChange}
+          cities={availableCities}
+          onSelectCity={onSelectCity}
+          placeholder="search and add city filters"
+        />
+
+        <div className="flex min-h-11 flex-wrap items-center gap-2">
+          {selectedCityChips.length > 0 ? (
+            selectedCityChips.map((city) => (
+              <CityPill
+                key={city.id}
+                city={city.name}
+                className="shrink-0"
+                onRemove={() => onRemoveCity(city.id)}
+              />
+            ))
+          ) : (
+            <span className="font-mono text-[11.5px] text-text-faint">
+              all cities
+            </span>
+          )}
         </div>
-      )}
+      </div>
 
       <div className="mb-3 flex flex-wrap gap-2">
-        {(['projects', 'builders'] as const).map((nextMode) => (
+        {(['projects', 'builders', 'posts'] as const).map((nextMode) => (
           <button
             key={nextMode}
             type="button"
@@ -83,30 +116,14 @@ export function ExploreHeader({
         ))}
       </div>
 
-      <div className="grid gap-3 md:grid-cols-2">
+      <div>
         <Input
           type="text"
-          placeholder={
-            mode === 'builders'
-              ? 'search builders by username or name'
-              : 'search projects by repo, topic, or post'
-          }
+          placeholder={modeConfig.placeholder}
           value={searchQuery}
           onChange={(event) => onSearchQueryChange(event.target.value)}
           className="border-line bg-canvas font-mono text-sm text-text placeholder:text-text-faint"
-          aria-label={
-            mode === 'builders' ? 'Search builders' : 'Search projects'
-          }
-        />
-
-        <CityCombobox
-          id="explore-city"
-          label="Search and add city filters"
-          query={cityQuery}
-          onQueryChange={onCityQueryChange}
-          cities={availableCities}
-          onSelectCity={onSelectCity}
-          placeholder="search and add city filters"
+          aria-label={modeConfig.ariaLabel}
         />
       </div>
     </header>

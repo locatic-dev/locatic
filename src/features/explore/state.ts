@@ -1,7 +1,7 @@
 import type { Id } from '../../../convex/_generated/dataModel'
 
 export const EXPLORE_SCOPE_VALUES = ['default', 'global', 'custom'] as const
-export const EXPLORE_MODE_VALUES = ['builders', 'projects'] as const
+export const EXPLORE_MODE_VALUES = ['builders', 'projects', 'posts'] as const
 
 export type ExploreScope = (typeof EXPLORE_SCOPE_VALUES)[number]
 export type ExploreMode = (typeof EXPLORE_MODE_VALUES)[number]
@@ -12,6 +12,11 @@ export type ExploreSearch = {
   scope: ExploreScope
   selectedCityIds: string[]
 }
+
+export type ExploreLoaderDeps = Pick<
+  ExploreSearch,
+  'mode' | 'scope' | 'selectedCityIds'
+>
 
 type ExplorePrefsLike = {
   exploreConfig: {
@@ -194,7 +199,9 @@ export function normalizeExploreSearch(
       : 'default'
   const rawMode = search.mode
   const mode =
-    rawMode === 'builders' || rawMode === 'projects' ? rawMode : 'projects'
+    rawMode === 'builders' || rawMode === 'projects' || rawMode === 'posts'
+      ? rawMode
+      : 'projects'
   const q = typeof search.q === 'string' ? search.q : ''
 
   return {
@@ -203,6 +210,17 @@ export function normalizeExploreSearch(
     scope:
       scope === 'custom' && selectedCityIds.length === 0 ? 'global' : scope,
     selectedCityIds,
+  }
+}
+
+export function getExploreLoaderDeps(
+  search: Record<string, unknown>,
+): ExploreLoaderDeps {
+  const normalizedSearch = normalizeExploreSearch(search)
+  return {
+    mode: normalizedSearch.mode,
+    scope: normalizedSearch.scope,
+    selectedCityIds: normalizedSearch.selectedCityIds,
   }
 }
 

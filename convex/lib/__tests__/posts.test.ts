@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
-import { getVisiblePostProject } from '../posts'
+import {
+  buildPostSearchText,
+  getVisiblePostProject,
+  normalizePostSearchQuery,
+} from '../posts'
 
 function createDb(docs: Record<string, unknown>) {
   return {
@@ -27,6 +31,20 @@ const post = {
 }
 
 describe('post visibility helpers', () => {
+  it('builds post search text from body, project, and hashtag topics', () => {
+    expect(
+      buildPostSearchText({
+        body: 'Shipping the local graph',
+        projectFullName: 'locatic/app',
+        topics: ['React', 'maps'],
+      }),
+    ).toContain('react #react maps #maps')
+  })
+
+  it('normalizes hash-prefixed post search queries', () => {
+    expect(normalizePostSearchQuery('  ##React  ')).toBe('react')
+  })
+
   it('allows posts whose project and owner are public and active', async () => {
     await expect(
       getVisiblePostProject(

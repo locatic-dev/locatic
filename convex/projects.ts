@@ -10,6 +10,7 @@ import {
 import { internal } from './_generated/api'
 import { fanOutActivityEventToFollowers } from './lib/homeFeed'
 import { getViewerOrThrow } from './lib/auth'
+import { buildPostSearchText } from './lib/posts'
 import { canPinProject } from './lib/project_pins'
 import { resolvePublicCityLabel } from './lib/project_previews'
 import {
@@ -283,6 +284,26 @@ export const updateTopics = mutation({
       },
       updatedAt: now,
     })
+
+    const posts = await ctx.db
+      .query('posts')
+      .withIndex('by_project_deleted_created', (query) =>
+        query.eq('projectId', project._id).eq('deletedAt', null),
+      )
+      .collect()
+
+    await Promise.all(
+      posts.map((post) =>
+        ctx.db.patch(post._id, {
+          projectTopics: topics,
+          searchText: buildPostSearchText({
+            body: post.body,
+            projectFullName: project.github.fullName,
+            topics,
+          }),
+        }),
+      ),
+    )
 
     return topics
   },
