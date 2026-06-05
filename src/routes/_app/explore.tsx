@@ -25,7 +25,11 @@ import { useFollowUser, useUnfollowUser } from '@/features/follows/mutations'
 import { useDismissExploreProject } from '@/features/explore/mutations'
 import { useOpenConversation } from '@/features/inbox/use-open-conversation'
 import { disabledQuery } from '@/lib/query'
-import { FeedRoutePending } from '@/components/app-shell/route-pending'
+import {
+  FeedRoutePending,
+  ROUTE_PENDING_MIN_MS,
+  ROUTE_PENDING_MS,
+} from '@/components/app-shell/route-pending'
 import {
   mapViewerExplorePrefs,
   mapViewerLikedProjectIds,
@@ -116,7 +120,8 @@ export const Route = createFileRoute('/_app/explore')({
     ])
   },
   pendingComponent: FeedRoutePending,
-  pendingMs: 250,
+  pendingMs: ROUTE_PENDING_MS,
+  pendingMinMs: ROUTE_PENDING_MIN_MS,
   component: ExplorePage,
 })
 
@@ -612,7 +617,7 @@ function ExplorePage() {
         selectedCityChips={selectedCityChips}
       />
 
-      <div className="lx-page-scroll">
+      <div className="lx-page-scroll" data-scroll-restoration-id="explore-feed">
         <div className="lx-page-width-detail min-w-0">
           <ExploreFeed
             builderResults={builderResults}
@@ -639,28 +644,6 @@ function ExplorePage() {
                 params: {
                   username: builder.githubUsername,
                 },
-                search: { tab: 'projects' },
-              })
-            }
-            onOpenPostResult={(postTarget) =>
-              void navigate({
-                to: '/project/$owner/$repo',
-                params: { owner: postTarget.owner, repo: postTarget.repo },
-                search: { comment: null, post: String(postTarget.postId) },
-                hash: `post-${String(postTarget.postId)}`,
-              })
-            }
-            onOpenProject={(project) =>
-              void navigate({
-                to: '/project/$owner/$repo',
-                params: { owner: project.owner, repo: project.repo },
-                search: { comment: null },
-              })
-            }
-            onOpenProjectOwner={(project) =>
-              void navigate({
-                to: '/u/$username',
-                params: { username: project.owner },
                 search: { tab: 'projects' },
               })
             }

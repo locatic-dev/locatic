@@ -1,5 +1,6 @@
 import type { DatabaseReader, DatabaseWriter } from '../_generated/server'
 import type { Doc } from './types'
+import { resolveProjectOwnerLogin } from './project_route'
 
 type Reader = DatabaseReader | DatabaseWriter
 
@@ -69,6 +70,7 @@ export async function buildProjectCardPreview(
   }
 
   const ownerHandle = owner.github.username
+  const routeOwner = resolveProjectOwnerLogin(project)
   const ownerDisplayName = owner.profile.displayName
   const currentCityName = await getCurrentCityName(db, owner)
 
@@ -90,7 +92,7 @@ export async function buildProjectCardPreview(
     projectId: project._id,
     ownerUserId: project.ownerId,
     fullName: project.github.fullName,
-    owner: ownerHandle,
+    owner: routeOwner,
     repo: project.github.name,
     description: project.github.description,
     primaryLanguage: project.github.primaryLanguage,

@@ -11,6 +11,7 @@ function createProject(
     projectSnapshot: partial.projectSnapshot ?? {
       name: partial.projectId,
       fullName: `owner/${partial.projectId}`,
+      ownerLogin: 'owner',
       description: null,
       primaryLanguage: 'TypeScript',
       languages: [],

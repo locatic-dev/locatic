@@ -180,7 +180,10 @@ export default defineSchema({
     github: v.object({
       repoId: v.number(),
       fullName: v.string(),
+      ownerLogin: v.string(),
+      ownerLoginKey: v.string(),
       name: v.string(),
+      nameKey: v.string(),
       description: optionalStringValidator,
       githubUrl: v.string(),
       projectUrl: optionalStringValidator,
@@ -232,6 +235,11 @@ export default defineSchema({
   })
     .index('by_github_repo_id', ['github.repoId'])
     .index('by_full_name', ['github.fullName'])
+    .index('by_github_route_visible', [
+      'github.ownerLoginKey',
+      'github.nameKey',
+      'locatic.isVisible',
+    ])
     .index('by_owner', ['ownerId'])
     .index('by_owner_visible', ['ownerId', 'locatic.isVisible'])
     .index('by_explore_eligible_added', [
@@ -327,6 +335,7 @@ export default defineSchema({
     projectSnapshot: v.object({
       name: v.string(),
       fullName: v.string(),
+      ownerLogin: v.string(),
       primaryLanguage: optionalStringValidator,
       languages: v.array(
         v.object({
@@ -356,6 +365,7 @@ export default defineSchema({
     projectSnapshot: v.object({
       name: v.string(),
       fullName: v.string(),
+      ownerLogin: v.string(),
       primaryLanguage: optionalStringValidator,
       languages: v.array(
         v.object({

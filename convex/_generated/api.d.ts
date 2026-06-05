@@ -32,6 +32,7 @@ import type * as lib_notifications from "../lib/notifications.js";
 import type * as lib_posts from "../lib/posts.js";
 import type * as lib_project_pins from "../lib/project_pins.js";
 import type * as lib_project_previews from "../lib/project_previews.js";
+import type * as lib_project_route from "../lib/project_route.js";
 import type * as lib_pulse from "../lib/pulse.js";
 import type * as lib_snapshots from "../lib/snapshots.js";
 import type * as lib_topics from "../lib/topics.js";
@@ -78,6 +79,7 @@ declare const fullApi: ApiFromModules<{
   "lib/posts": typeof lib_posts;
   "lib/project_pins": typeof lib_project_pins;
   "lib/project_previews": typeof lib_project_previews;
+  "lib/project_route": typeof lib_project_route;
   "lib/pulse": typeof lib_pulse;
   "lib/snapshots": typeof lib_snapshots;
   "lib/topics": typeof lib_topics;

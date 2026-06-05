@@ -25,8 +25,11 @@ export function getNotificationDestination(
     }
   }
 
-  if (target.kind === 'project' && target.projectFullName) {
-    const [owner, repo] = target.projectFullName.split('/')
+  if (target.kind === 'project') {
+    const [fallbackOwner, fallbackRepo] =
+      target.projectFullName?.split('/') ?? []
+    const owner = target.projectOwner ?? fallbackOwner
+    const repo = target.projectRepo ?? fallbackRepo
     if (!owner || !repo) {
       return null
     }

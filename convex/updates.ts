@@ -8,6 +8,7 @@ import {
   buildProjectSnapshot,
   buildUpdateSnapshot,
 } from './lib/snapshots'
+import { resolveProjectOwnerLogin } from './lib/project_route'
 
 export const listByProject = query({
   args: {
@@ -53,6 +54,7 @@ export const create = mutation({
       projectSnapshot: {
         name: project.github.name,
         fullName: project.github.fullName,
+        ownerLogin: resolveProjectOwnerLogin(project),
         primaryLanguage: project.github.primaryLanguage,
         languages: project.github.languages,
       },

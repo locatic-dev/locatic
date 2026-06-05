@@ -15,6 +15,11 @@ import { ContributionGraph } from '@/components/ui/contribution-graph'
 import { Button } from '@/components/ui/button'
 import { Logo } from '@/components/ui/logo'
 import { AppLayout } from '@/components/app-shell/app-layout'
+import {
+  ProfileRoutePending,
+  ROUTE_PENDING_MIN_MS,
+  ROUTE_PENDING_MS,
+} from '@/components/app-shell/route-pending'
 import { compactNumber } from '@/lib/format'
 import { relativeTime } from '@/lib/time'
 import { ProjectCard } from '@/components/ui/project-card'
@@ -89,22 +94,27 @@ export const Route = createFileRoute('/u/$username')({
   loaderDeps: ({ search }) => ({
     network: search.network ?? 'followers',
   }),
-  loader: ({ context, deps, params }) =>
-    Promise.all([
-      context.queryClient.ensureQueryData(
-        publicProfileOverviewQueryOptions(params.username),
-      ),
-      context.queryClient.ensureQueryData(
-        publicFollowGraphQueryOptions({
-          username: params.username,
-          kind: deps.network,
-          paginationOpts: {
-            cursor: null,
-            numItems: SOCIAL_PAGE_SIZE,
-          },
-        }),
-      ),
-    ]),
+  loader: async ({ context, deps, params }) => {
+    const overview = await context.queryClient.ensureQueryData(
+      publicProfileOverviewQueryOptions(params.username),
+    )
+
+    void context.queryClient.prefetchQuery(
+      publicFollowGraphQueryOptions({
+        username: params.username,
+        kind: deps.network,
+        paginationOpts: {
+          cursor: null,
+          numItems: SOCIAL_PAGE_SIZE,
+        },
+      }),
+    )
+
+    return overview
+  },
+  pendingComponent: ProfileRoutePending,
+  pendingMs: ROUTE_PENDING_MS,
+  pendingMinMs: ROUTE_PENDING_MIN_MS,
   component: PublicProfilePage,
 })
 
@@ -872,20 +882,11 @@ function PublicProfileContent({
                         <ProjectCard
                           key={getProjectCardId(project)}
                           project={toProjectCardData(project)}
-                          onAuthorClick={() =>
-                            void navigate({
-                              to: '/u/$username',
-                              params: { username: owner },
-                              search: { tab: 'projects', network: 'followers' },
-                            })
-                          }
-                          onCardClick={() =>
-                            void navigate({
-                              to: '/project/$owner/$repo',
-                              params: { owner, repo },
-                              search: { comment: null },
-                            })
-                          }
+                          authorLink={{
+                            username: project.authorHandle,
+                            search: { tab: 'projects' },
+                          }}
+                          projectLink={{ owner, repo }}
                           showActions={false}
                         />
                       )
@@ -916,23 +917,11 @@ function PublicProfileContent({
                           </div>
                           <ProjectCard
                             project={toProjectCardData(entry.project)}
-                            onAuthorClick={() =>
-                              void navigate({
-                                to: '/u/$username',
-                                params: { username: owner },
-                                search: {
-                                  tab: 'projects',
-                                  network: 'followers',
-                                },
-                              })
-                            }
-                            onCardClick={() =>
-                              void navigate({
-                                to: '/project/$owner/$repo',
-                                params: { owner, repo },
-                                search: { comment: null },
-                              })
-                            }
+                            authorLink={{
+                              username: entry.project.authorHandle,
+                              search: { tab: 'projects' },
+                            }}
+                            projectLink={{ owner, repo }}
                             showActions={false}
                             className="rounded-none border-0"
                           />
@@ -1009,20 +998,13 @@ function PublicProfileContent({
                       const owner = getProjectCardOwner(project.project)
                       const repo = getProjectCardRepo(project.project)
                       return (
-                        <button
+                        <Link
                           key={String(project.reactionId)}
-                          onClick={() =>
-                            void navigate({
-                              to: '/project/$owner/$repo',
-                              params: {
-                                owner: owner ?? overview.githubUsername,
-                                repo,
-                              },
-                              search: { comment: null },
-                            })
-                          }
+                          to="/project/$owner/$repo"
+                          params={{ owner, repo }}
+                          search={{ comment: null }}
+                          preload="intent"
                           className="rounded-[6px] border border-line bg-surface px-4 py-3.5 text-left"
-                          type="button"
                         >
                           <div className="mb-1 font-mono text-[13px] font-semibold text-text">
                             {getProjectCardFullName(project.project)}
@@ -1030,7 +1012,7 @@ function PublicProfileContent({
                           <div className="font-mono text-[11px] text-text-faint">
                             liked {relativeTime(project.likedAt)}
                           </div>
-                        </button>
+                        </Link>
                       )
                     })
                   )}

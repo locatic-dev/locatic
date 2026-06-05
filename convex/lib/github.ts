@@ -14,6 +14,9 @@ export type GithubRepository = {
   id: number
   full_name: string
   name: string
+  owner: {
+    login: string
+  }
   description: string | null
   html_url: string
   homepage: string | null
@@ -26,7 +29,10 @@ export type GithubRepository = {
 export type GithubRepositoryRecord = {
   repoId: number
   fullName: string
+  ownerLogin: string
+  ownerLoginKey: string
   name: string
+  nameKey: string
   description: string | null
   githubUrl: string
   projectUrl: string | null
@@ -127,11 +133,15 @@ export function mapGithubRepository(
   languages: GithubLanguages | null = null,
 ): GithubRepositoryRecord {
   const lastCommitAt = new Date(repository.pushed_at).getTime()
+  const ownerLogin = repository.owner.login
 
   return {
     repoId: repository.id,
     fullName: repository.full_name,
+    ownerLogin,
+    ownerLoginKey: ownerLogin.trim().toLowerCase(),
     name: repository.name,
+    nameKey: repository.name.trim().toLowerCase(),
     description: repository.description,
     githubUrl: repository.html_url,
     projectUrl: repository.homepage,

@@ -1,3 +1,5 @@
+import { Link, useRouter } from '@tanstack/react-router'
+import type { KeyboardEvent, MouseEvent } from 'react'
 import { Star, Heart, MessageSquare, X, GitFork } from '@/lib/icons'
 import { LxAvatar } from './lx-avatar'
 import { LangDot } from './lang-dot'
@@ -32,9 +34,28 @@ export interface ProjectCardData {
   matchPct?: number
 }
 
+type ProjectCardProjectLink = {
+  owner: string
+  repo: string
+  search?: {
+    comment: string | null
+    post?: string
+  }
+  hash?: string
+}
+
+type ProjectCardAuthorLink = {
+  username: string
+  search?: {
+    tab: 'projects'
+  }
+}
+
 interface ProjectCardProps {
   project: ProjectCardData
   density?: 'cozy' | 'compact'
+  projectLink?: ProjectCardProjectLink
+  authorLink?: ProjectCardAuthorLink
   onLike?: () => void
   onComment?: () => void
   onDM?: () => void
@@ -52,6 +73,8 @@ interface ProjectCardProps {
 export function ProjectCard({
   project,
   density = 'cozy',
+  projectLink,
+  authorLink,
   onLike,
   onComment,
   onDM,
@@ -65,6 +88,7 @@ export function ProjectCard({
   className,
   showActions = true,
 }: ProjectCardProps) {
+  const router = useRouter()
   const compact = density === 'compact'
   const authorLabel = project.authorName || project.authorHandle
   const languages =
@@ -73,11 +97,66 @@ export function ProjectCard({
       : project.lang
         ? [{ name: project.lang, bytes: 0 }]
         : []
+  const projectNavigateOptions = projectLink
+    ? {
+        to: '/project/$owner/$repo' as const,
+        params: { owner: projectLink.owner, repo: projectLink.repo },
+        search: projectLink.search ?? { comment: null },
+        hash: projectLink.hash,
+      }
+    : null
+  const projectLabel = project.fullName ?? `${project.owner}/${project.repo}`
+
+  const preloadProjectRoute = () => {
+    if (!projectNavigateOptions) return
+    void router.preloadRoute(projectNavigateOptions)
+  }
+
+  const isInteractiveTarget = (target: EventTarget | null) =>
+    target instanceof Element &&
+    Boolean(
+      target.closest(
+        'a,button,input,textarea,select,[role="button"],[data-project-card-action]',
+      ),
+    )
+
+  const handleCardClick = (event: MouseEvent<HTMLDivElement>) => {
+    if (isInteractiveTarget(event.target)) return
+
+    if (projectNavigateOptions) {
+      void router.navigate(projectNavigateOptions)
+      return
+    }
+
+    onCardClick?.()
+  }
+
+  const handleCardKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (
+      !projectNavigateOptions ||
+      event.currentTarget !== event.target ||
+      (event.key !== 'Enter' && event.key !== ' ')
+    ) {
+      return
+    }
+
+    event.preventDefault()
+    void router.navigate(projectNavigateOptions)
+  }
 
   return (
     <div
+      tabIndex={projectNavigateOptions ? 0 : undefined}
+      aria-label={projectNavigateOptions ? `Open ${projectLabel}` : undefined}
+      onClick={handleCardClick}
+      onFocus={preloadProjectRoute}
+      onKeyDown={handleCardKeyDown}
+      onPointerEnter={preloadProjectRoute}
+      onTouchStart={preloadProjectRoute}
       className={cn(
-        'lx-card lx-fade-up @container relative flex flex-col rounded-card border border-line bg-surface',
+        'lx-card @container relative flex flex-col rounded-card border border-line bg-surface',
+        projectNavigateOptions &&
+          'cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-canvas',
         compact ? 'gap-2.5 px-4 py-3.5' : 'gap-3.5 px-5 py-4.5',
         className,
       )}
@@ -87,22 +166,35 @@ export function ProjectCard({
         <div className="min-w-0 flex-1">
           <div className="mb-1 flex items-center gap-2">
             {/* Repo name */}
-            <button
-              onClick={onCardClick}
-              aria-label={
-                onCardClick
-                  ? `Open ${project.fullName ?? `${project.owner}/${project.repo}`}`
-                  : undefined
-              }
-              className="max-w-full whitespace-normal border-none bg-transparent p-0 text-left font-mono text-[14.5px] font-semibold tracking-[-0.01em] text-text transition-colors wrap-anywhere leading-[1.35] disabled:cursor-default"
-              disabled={!onCardClick}
-              type="button"
-            >
-              <span className="font-normal text-text-faint">
-                {project.owner}/
-              </span>
-              {project.repo}
-            </button>
+            {projectLink ? (
+              <Link
+                to="/project/$owner/$repo"
+                params={{ owner: projectLink.owner, repo: projectLink.repo }}
+                search={projectLink.search ?? { comment: null }}
+                hash={projectLink.hash}
+                preload="intent"
+                aria-label={`Open ${projectLabel}`}
+                className="max-w-full whitespace-normal border-none bg-transparent p-0 text-left font-mono text-[14.5px] font-semibold tracking-[-0.01em] text-text transition-colors wrap-anywhere leading-[1.35]"
+              >
+                <span className="font-normal text-text-faint">
+                  {project.owner}/
+                </span>
+                {project.repo}
+              </Link>
+            ) : (
+              <button
+                onClick={onCardClick}
+                aria-label={onCardClick ? `Open ${projectLabel}` : undefined}
+                className="max-w-full whitespace-normal border-none bg-transparent p-0 text-left font-mono text-[14.5px] font-semibold tracking-[-0.01em] text-text transition-colors wrap-anywhere leading-[1.35] disabled:cursor-default"
+                disabled={!onCardClick}
+                type="button"
+              >
+                <span className="font-normal text-text-faint">
+                  {project.owner}/
+                </span>
+                {project.repo}
+              </button>
+            )}
 
             {project.isRecommended && (
               <span className="rounded-[2px] border border-[oklch(72%_0.17_185/0.3)] bg-brand-quiet px-1.5 py-0.5 font-mono text-[9.5px] leading-none whitespace-nowrap text-brand">
@@ -131,6 +223,7 @@ export function ProjectCard({
             aria-label="Dismiss"
             className="-mr-1 -mt-0.5 flex shrink-0 rounded-sm border-none bg-transparent p-1 text-text-faint transition-colors hover:text-text"
             type="button"
+            data-project-card-action
           >
             <X size={12} />
           </button>
@@ -185,6 +278,7 @@ export function ProjectCard({
           className="inline-flex items-center gap-1 border-none bg-transparent p-0 text-inherit"
           disabled={!onComment}
           type="button"
+          data-project-card-action
         >
           <MessageSquare size={11} strokeWidth={1.4} />
           {project.commentsCount}
@@ -210,7 +304,25 @@ export function ProjectCard({
         )}
       >
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-          {onAuthorClick ? (
+          {authorLink ? (
+            <Link
+              to="/u/$username"
+              params={{ username: authorLink.username }}
+              search={authorLink.search ?? { tab: 'projects' }}
+              preload="intent"
+              aria-label={`Open ${authorLabel}'s profile`}
+              className="flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-md bg-transparent px-0 py-2 text-left transition-colors hover:text-text"
+            >
+              <LxAvatar
+                name={project.authorHandle}
+                avatarUrl={project.authorAvatarUrl}
+                size={22}
+              />
+              <span className="truncate font-sans text-[12.5px] font-medium text-text-muted">
+                {authorLabel}
+              </span>
+            </Link>
+          ) : onAuthorClick ? (
             <button
               type="button"
               onClick={onAuthorClick}

@@ -180,6 +180,7 @@ export const commentTargetSnapshotValidator = v.object({
 export const projectSnapshotValidator = v.object({
   name: v.string(),
   fullName: v.string(),
+  ownerLogin: v.string(),
   description: optionalStringValidator,
   primaryLanguage: optionalStringValidator,
   languages: v.array(
@@ -222,6 +223,8 @@ export const notificationTargetValidator = v.object({
   kind: notificationTargetKindValidator,
   username: optionalStringValidator,
   projectFullName: optionalStringValidator,
+  projectOwner: v.optional(optionalStringValidator),
+  projectRepo: v.optional(optionalStringValidator),
   conversationId: v.union(v.id('conversations'), v.null()),
   inboxTab: v.optional(v.union(inboxTabValidator, v.null())),
   commentId: v.union(v.id('comments'), v.null()),

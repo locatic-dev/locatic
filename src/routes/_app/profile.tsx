@@ -33,7 +33,11 @@ import { Button } from '@/components/ui/button'
 import { compactNumber } from '@/lib/format'
 import { relativeTime } from '@/lib/time'
 import { ProjectCard } from '@/components/ui/project-card'
-import { FormRoutePending } from '@/components/app-shell/route-pending'
+import {
+  FormRoutePending,
+  ROUTE_PENDING_MIN_MS,
+  ROUTE_PENDING_MS,
+} from '@/components/app-shell/route-pending'
 import { usePinOwnedProject } from '@/features/projects/mutations'
 import { RepositoryManagerDialog } from '@/features/github/repository-manager-dialog'
 import {
@@ -108,7 +112,8 @@ export const Route = createFileRoute('/_app/profile')({
     ])
   },
   pendingComponent: FormRoutePending,
-  pendingMs: 250,
+  pendingMs: ROUTE_PENDING_MS,
+  pendingMinMs: ROUTE_PENDING_MIN_MS,
   component: ProfilePage,
 })
 
@@ -739,23 +744,11 @@ function ProfilePage() {
                             }}
                             showActions={false}
                             className="rounded-none border-0"
-                            onAuthorClick={() =>
-                              void navigate({
-                                to: '/u/$username',
-                                params: { username: owner },
-                                search: {
-                                  tab: 'projects',
-                                  network: 'followers',
-                                },
-                              })
-                            }
-                            onCardClick={() =>
-                              void navigate({
-                                to: '/project/$owner/$repo',
-                                params: { owner, repo },
-                                search: { comment: null },
-                              })
-                            }
+                            authorLink={{
+                              username: project.authorHandle,
+                              search: { tab: 'projects' },
+                            }}
+                            projectLink={{ owner, repo }}
                           />
                         </div>
                       )
@@ -787,23 +780,11 @@ function ProfilePage() {
                             project={toProjectCardData(entry.project)}
                             showActions={false}
                             className="rounded-none border-0"
-                            onAuthorClick={() =>
-                              void navigate({
-                                to: '/u/$username',
-                                params: { username: owner },
-                                search: {
-                                  tab: 'projects',
-                                  network: 'followers',
-                                },
-                              })
-                            }
-                            onCardClick={() =>
-                              void navigate({
-                                to: '/project/$owner/$repo',
-                                params: { owner, repo },
-                                search: { comment: null },
-                              })
-                            }
+                            authorLink={{
+                              username: entry.project.authorHandle,
+                              search: { tab: 'projects' },
+                            }}
+                            projectLink={{ owner, repo }}
                           />
                         </div>
                       )
@@ -876,20 +857,11 @@ function ProfilePage() {
                             liked: true,
                           }}
                           showActions={false}
-                          onAuthorClick={() =>
-                            void navigate({
-                              to: '/u/$username',
-                              params: { username: owner },
-                              search: { tab: 'projects', network: 'followers' },
-                            })
-                          }
-                          onCardClick={() =>
-                            void navigate({
-                              to: '/project/$owner/$repo',
-                              params: { owner, repo },
-                              search: { comment: null },
-                            })
-                          }
+                          authorLink={{
+                            username: likedProject.project.authorHandle,
+                            search: { tab: 'projects' },
+                          }}
+                          projectLink={{ owner, repo }}
                         />
                       )
                     })}

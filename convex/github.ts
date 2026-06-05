@@ -7,6 +7,10 @@ import {
   buildProjectNotificationTarget,
 } from './lib/notifications'
 import { buildActorSnapshot, buildProjectSnapshot } from './lib/snapshots'
+import {
+  normalizeProjectRouteKey,
+  resolveProjectOwnerLogin,
+} from './lib/project_route'
 
 export const applyProjectLike = internalMutation({
   args: {
@@ -76,7 +80,11 @@ export const applyProjectLike = internalMutation({
           type: 'project_liked',
           projectId: project._id,
           projectName: project.github.name,
-          target: buildProjectNotificationTarget(project.github.fullName),
+          target: buildProjectNotificationTarget({
+            fullName: project.github.fullName,
+            owner: resolveProjectOwnerLogin(project),
+            repo: project.github.name,
+          }),
         })
       }
     }
@@ -168,7 +176,10 @@ export const patchProjectMetadata = internalMutation({
     repository: v.object({
       repoId: v.number(),
       fullName: v.string(),
+      ownerLogin: v.string(),
+      ownerLoginKey: v.string(),
       name: v.string(),
+      nameKey: v.string(),
       description: v.union(v.string(), v.null()),
       githubUrl: v.string(),
       projectUrl: v.union(v.string(), v.null()),
@@ -196,6 +207,8 @@ export const patchProjectMetadata = internalMutation({
       github: {
         ...project.github,
         ...args.repository,
+        ownerLoginKey: normalizeProjectRouteKey(args.repository.ownerLogin),
+        nameKey: normalizeProjectRouteKey(args.repository.name),
         commitFrequency:
           Date.now() - args.repository.lastCommitAt <= 7 * 24 * 60 * 60 * 1000
             ? 'active'

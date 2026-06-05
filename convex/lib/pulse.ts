@@ -7,6 +7,7 @@ export type PulseSort = 'locatic_likes' | 'comments' | 'github_stars'
 export interface PulseProjectSnapshot {
   name: string
   fullName: string
+  ownerLogin: string
   description: string | null
   primaryLanguage: string | null
   languages: Array<{

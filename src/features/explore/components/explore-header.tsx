@@ -2,6 +2,7 @@ import type { Doc } from '../../../../convex/_generated/dataModel'
 import { CityCombobox } from '@/components/ui/city-combobox'
 import { CityPill } from '@/components/ui/city-pill'
 import { Input } from '@/components/ui/input'
+import { Search } from '@/lib/icons'
 import {
   getExploreScopeStatusCopy,
   type ExploreMode,
@@ -70,36 +71,22 @@ export function ExploreHeader({
         </div>
       </div>
 
-      <div className="mb-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.55fr)]">
-        <CityCombobox
-          id="explore-city"
-          label="Search and add city filters"
-          query={cityQuery}
-          onQueryChange={onCityQueryChange}
-          cities={availableCities}
-          onSelectCity={onSelectCity}
-          placeholder="search and add city filters"
+      <div className="relative mb-3">
+        <Search
+          size={16}
+          className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-text-faint"
         />
-
-        <div className="flex min-h-11 flex-wrap items-center gap-2">
-          {selectedCityChips.length > 0 ? (
-            selectedCityChips.map((city) => (
-              <CityPill
-                key={city.id}
-                city={city.name}
-                className="shrink-0"
-                onRemove={() => onRemoveCity(city.id)}
-              />
-            ))
-          ) : (
-            <span className="font-mono text-[11.5px] text-text-faint">
-              all cities
-            </span>
-          )}
-        </div>
+        <Input
+          type="text"
+          placeholder={modeConfig.placeholder}
+          value={searchQuery}
+          onChange={(event) => onSearchQueryChange(event.target.value)}
+          className="h-11 border-line bg-canvas pl-9 font-mono text-sm text-text placeholder:text-text-faint"
+          aria-label={modeConfig.ariaLabel}
+        />
       </div>
 
-      <div className="mb-3 flex flex-wrap gap-2">
+      <div className="mb-4 flex flex-wrap gap-2">
         {(['projects', 'builders', 'posts'] as const).map((nextMode) => (
           <button
             key={nextMode}
@@ -116,15 +103,37 @@ export function ExploreHeader({
         ))}
       </div>
 
-      <div>
-        <Input
-          type="text"
-          placeholder={modeConfig.placeholder}
-          value={searchQuery}
-          onChange={(event) => onSearchQueryChange(event.target.value)}
-          className="border-line bg-canvas font-mono text-sm text-text placeholder:text-text-faint"
-          aria-label={modeConfig.ariaLabel}
-        />
+      <div className="grid gap-2 sm:grid-cols-[auto_minmax(0,1fr)] sm:items-start">
+        <span className="pt-2 font-mono text-[11px] lowercase text-text-faint">
+          near
+        </span>
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          {selectedCityChips.length > 0 ? (
+            selectedCityChips.map((city) => (
+              <CityPill
+                key={city.id}
+                city={city.name}
+                className="max-w-full shrink sm:max-w-64"
+                onRemove={() => onRemoveCity(city.id)}
+              />
+            ))
+          ) : (
+            <span className="inline-flex min-h-9 items-center font-mono text-[11.5px] text-text-faint">
+              all cities
+            </span>
+          )}
+          <CityCombobox
+            id="explore-city"
+            label="Add a city filter"
+            query={cityQuery}
+            onQueryChange={onCityQueryChange}
+            cities={availableCities}
+            onSelectCity={onSelectCity}
+            placeholder="+ add city"
+            className="min-w-0 basis-full sm:basis-56 sm:grow-0"
+            inputClassName="h-9 text-[12px]"
+          />
+        </div>
       </div>
     </header>
   )
