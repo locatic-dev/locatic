@@ -108,8 +108,50 @@ export const exploreFeedQueryOptions = ({
 export const nearbyBuildersQueryOptions = (cityIds: Array<Id<'cities'>> = []) =>
   convexQuery(api.explore.listNearbyBuilders, { cityIds })
 
-export const builderSearchQueryOptions = (q: string) =>
-  convexQuery(api.explore.searchBuilders, { q })
+export const builderSearchQueryOptions = ({
+  cityIds = [],
+  limit = 10,
+  q,
+}: {
+  cityIds?: Array<Id<'cities'>>
+  limit?: number
+  q: string
+}) =>
+  convexQuery(api.explore.searchBuilders, {
+    cityIds,
+    limit,
+    q,
+  })
+
+export const projectSearchQueryOptions = ({
+  cityIds = [],
+  limit = 10,
+  q,
+}: {
+  cityIds?: Array<Id<'cities'>>
+  limit?: number
+  q: string
+}) =>
+  convexQuery(api.explore.searchProjects, {
+    cityIds,
+    limit,
+    q,
+  })
+
+export const postSearchQueryOptions = ({
+  cityIds = [],
+  limit = 10,
+  q,
+}: {
+  cityIds?: Array<Id<'cities'>>
+  limit?: number
+  q: string
+}) =>
+  convexQuery(api.explore.searchPosts, {
+    cityIds,
+    limit,
+    q,
+  })
 
 export const citiesSearchQueryOptions = (query: string, limit = 10) =>
   convexQuery(api.cities.search, { query, limit })
@@ -141,8 +183,13 @@ export const pulseQueryOptions = ({
     page,
   })
 
-export const projectDetailQueryOptions = (fullName: string) =>
-  convexQuery(api.projects.getPublicByFullName, { fullName })
+export const projectDetailQueryOptions = ({
+  owner,
+  repo,
+}: {
+  owner: string
+  repo: string
+}) => convexQuery(api.projects.getPublicByRoute, { owner, repo })
 
 export const mineProjectsQueryOptions = () =>
   convexQuery(api.projects.listMine, {})

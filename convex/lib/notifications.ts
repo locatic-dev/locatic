@@ -5,6 +5,8 @@ type NotificationTarget = {
   kind: 'profile' | 'project' | 'conversation'
   username: string | null
   projectFullName: string | null
+  projectOwner?: string | null
+  projectRepo?: string | null
   conversationId: Doc<'conversations'>['_id'] | null
   inboxTab?: 'inbox' | 'requests' | null
   commentId: Doc<'comments'>['_id'] | null
@@ -13,7 +15,9 @@ type NotificationTarget = {
 const NOTIFICATION_PREF_MAP = {
   project_liked: 'projectLikes',
   update_reacted: 'updateLikes',
+  post_reacted: 'updateLikes',
   project_commented: 'comments',
+  post_commented: 'comments',
   comment_replied: 'commentReplies',
   followed: 'newFollowers',
   dm_received: 'dms',
@@ -26,6 +30,7 @@ interface CreateNotificationArgs {
   type: keyof typeof NOTIFICATION_PREF_MAP
   projectId?: Doc<'projects'>['_id'] | null
   updateId?: Doc<'updates'>['_id'] | null
+  postId?: Doc<'posts'>['_id'] | null
   commentId?: Doc<'comments'>['_id'] | null
   conversationId?: Doc<'conversations'>['_id'] | null
   projectName?: string | null
@@ -39,6 +44,8 @@ export function buildProfileNotificationTarget(
     kind: 'profile',
     username,
     projectFullName: null,
+    projectOwner: null,
+    projectRepo: null,
     conversationId: null,
     inboxTab: null,
     commentId: null,
@@ -46,7 +53,11 @@ export function buildProfileNotificationTarget(
 }
 
 export function buildProjectNotificationTarget(
-  projectFullName: string,
+  project: {
+    fullName: string
+    owner: string
+    repo: string
+  },
   options?: {
     commentId?: Doc<'comments'>['_id'] | null
   },
@@ -54,7 +65,9 @@ export function buildProjectNotificationTarget(
   return {
     kind: 'project',
     username: null,
-    projectFullName,
+    projectFullName: project.fullName,
+    projectOwner: project.owner,
+    projectRepo: project.repo,
     conversationId: null,
     inboxTab: null,
     commentId: options?.commentId ?? null,
@@ -69,6 +82,8 @@ export function buildConversationNotificationTarget(
     kind: 'conversation',
     username: null,
     projectFullName: null,
+    projectOwner: null,
+    projectRepo: null,
     conversationId,
     inboxTab: isRequest ? 'requests' : 'inbox',
     commentId: null,
@@ -83,6 +98,7 @@ export async function createNotificationIfEnabled(
     type,
     projectId = null,
     updateId = null,
+    postId = null,
     commentId = null,
     conversationId = null,
     projectName = null,
@@ -104,6 +120,7 @@ export async function createNotificationIfEnabled(
     type,
     projectId,
     updateId,
+    postId,
     commentId,
     actorSnapshot: {
       displayName: actor.profile.displayName,

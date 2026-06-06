@@ -22,39 +22,64 @@ Locatic — "GitHub with a map." Developer activity platform: discover projects,
 ├── convex/                 # Backend (Convex serverless functions + schema)
 │   ├── lib/                # Shared backend utilities
 │   └── _generated/         # Auto-generated Convex types (DO NOT EDIT)
-├── locatic-design/         # Design assets and visual references
-├── docs/                   # PRD, issue tracker, plans, screenshots
-│   ├── assets/             # Captured UI artifacts and references
-│   └── plans/              # Implementation plans and RCAs
-└── public/                 # Static assets
+├── docs/                   # Product docs (PRD, design notes, issue trackers)
+├── scripts/                # Seed data generation, geonames processing
+├── playwright/             # E2E tests (Playwright + Clerk auth)
+├── public/                 # Static assets
+└── .github/workflows/      # CI / deploy workflows
 ```
 
 ## WHERE TO LOOK
 
-| Task                 | Location                                                                      | Notes                                                                        |
-| -------------------- | ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| Add route            | `src/routes/`                                                                 | File-based routing, `_app/` = auth-required                                  |
-| Add feature          | `src/features/`                                                               | Domain logic, hooks, types per feature                                       |
-| Add UI component     | `src/components/ui/`                                                          | shadcn/ui components                                                         |
-| Add route pending UI | `src/components/app-shell/route-pending.tsx`                                  | Shared suspense fallback for auth routes                                     |
-| Add Convex function  | `convex/`                                                                     | Queries, mutations, HTTP endpoints                                           |
-| Add DB table         | `convex/schema.ts`                                                            | Define table + validators in `convex/lib/validators.ts`                      |
-| Add product doc      | `docs/`                                                                       | PRDs, design notes, issue trackers, plans                                    |
-| Add design asset     | `locatic-design/`                                                             | Visual references, comp boards                                               |
-| Add plan / RCA       | `docs/plans/`                                                                 | Implementation plans, remediation notes                                      |
-| Auth logic           | `src/routes/__root.tsx` + `src/lib/auth-routing.ts` + `convex/auth.config.ts` | SSR auth centralized in root, route-target helpers, Convex JWT issuer config |
-| Request middleware   | `src/start.ts`                                                                | CSRF filtered to server functions, Clerk middleware                          |
-| Router setup         | `src/router.tsx` + `src/routeTree.gen.ts`                                     | Router factory + generated route tree                                        |
-| API integrations     | `convex/github.ts`                                                            | GitHub API sync, webhooks                                                    |
-| App shell/layout     | `src/components/app-shell/`                                                   | Sidebar, header, navigation                                                  |
-| Vite config          | `vite.config.ts`                                                              | Code splitting groups, plugins                                               |
+| Task                            | Location                                                                      | Notes                                                                                                                |
+| ------------------------------- | ----------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Add route                       | `src/routes/`                                                                 | File-based routing, `_app/` = auth-required                                                                          |
+| Add feature                     | `src/features/`                                                               | Domain logic, hooks, types per feature                                                                               |
+| Add UI component                | `src/components/ui/`                                                          | shadcn/ui components                                                                                                 |
+| Add route pending UI            | `src/components/app-shell/route-pending.tsx`                                  | Shared suspense fallback for auth routes                                                                             |
+| Add Convex function             | `convex/`                                                                     | Queries, mutations, HTTP endpoints                                                                                   |
+| Add DB table                    | `convex/schema.ts`                                                            | Define table + validators in `convex/lib/validators.ts`                                                              |
+| Add project route helper        | `convex/lib/project_route.ts`                                                 | `normalizeProjectRouteKey`, `resolveProjectOwnerLogin`, `resolveProjectSnapshotOwnerLogin`                           |
+| Add backend notification helper | `convex/lib/notifications.ts`                                                 | `buildProjectNotificationTarget`, `buildProfileNotificationTarget`, etc.                                             |
+| Auth logic                      | `src/routes/__root.tsx` + `src/lib/auth-routing.ts` + `convex/auth.config.ts` | SSR auth centralized in root, route-target helpers, Convex JWT issuer config                                         |
+| Request middleware              | `src/start.ts`                                                                | CSRF filtered to server functions, Clerk middleware                                                                  |
+| Router setup                    | `src/router.tsx` + `src/routeTree.gen.ts`                                     | Router factory + generated route tree                                                                                |
+| API integrations                | `convex/github.ts`, `convex/github_actions.ts`                                | GitHub API sync, webhooks, README import, contribution sync                                                          |
+| App shell/layout                | `src/components/app-shell/`                                                   | Sidebar, header, navigation                                                                                          |
+| Vite config                     | `vite.config.ts`                                                              | Code splitting groups, plugins                                                                                       |
+| Post visibility                 | `convex/lib/posts.ts`                                                         | Helpers: `filterVisiblePosts`, `normalizePostSearchQuery`, `buildPostSearchText`                                     |
+| Project posts feed              | `src/features/projects/posts/`                                                | `ProjectPostsSection` — paginated list, supports `highlightedPostId` scroll-into-view                                |
+| Project search                  | `src/integrations/convex/query-options.ts`                                    | `projectSearchQueryOptions` (replaces old `projectPostSearchQueryOptions`)                                           |
+| Post search                     | `src/integrations/convex/query-options.ts`                                    | `postSearchQueryOptions` — separate from project search                                                              |
+| Builder search                  | `src/integrations/convex/query-options.ts`                                    | `builderSearchQueryOptions` takes `{cityIds, limit, q}`; results include city name                                   |
+| Debounced search                | `src/features/explore/use-debounced-route-search.ts`                          | Hook for debounced input with route query sync; handles rapid clear/backspace                                        |
+| Project card render             | `src/components/ui/project-card.tsx`                                          | `ProjectCard` — card component with `<Link>` nav, keyboard, preload, action passthrough                              |
+| Project card preview model      | `src/features/project-card-preview.ts`                                        | `toProjectCardData`, `getProjectCardRouteParams` — maps preview → card data                                          |
+| Shared feature types            | `src/features/contracts.ts`                                                   | `ProjectCardPreview`, `NotificationTarget`, `ViewerRecord`, `ProfileCommentPreview`                                  |
+| Notification routing            | `src/features/notifications/navigation.ts`                                    | `getNotificationDestination` — converts notification target to router dest                                           |
+| Linkify text                    | `src/lib/linkify.tsx`                                                         | `linkify()`, `splitLinkParts()` — renders URLs in text as safe external links                                        |
+| Route pending UI                | `src/components/app-shell/route-pending.tsx`                                  | Shared suspense fallback (`FeedRoutePending`, `FormRoutePending`, etc.)                                              |
+| Nav progress bar                | `src/components/app-shell/route-navigation-progress.tsx`                      | Top-of-screen pulse bar during route loads                                                                           |
+| E2E tests                       | `playwright/`                                                                 | Playwright + `@clerk/testing` for authenticated browser tests                                                        |
+| E2E auth setup                  | `playwright/auth.setup.ts`                                                    | Clerk sign-in flow, saves storage state to `playwright/.clerk/user.json`                                             |
+| E2E config                      | `playwright.config.ts`                                                        | Two projects: `setup` (auth) + `chromium-authenticated` (tests)                                                      |
+| E2E env loader                  | `playwright/env.ts`                                                           | Loads `.env.local` for `E2E_CLERK_USER_EMAIL` and `E2E_BASE_URL`                                                     |
+| Mobile UI E2E tests             | `playwright/mobile-ui.authenticated.spec.ts`                                  | Runs at 320px/360px; helpers for `expectAboveMobileNav`, `expectTouchTarget`, `skipOnOnboarding`                     |
+| Project card tests              | `src/components/ui/__tests__/project-card.test.tsx`                           | Touch target assertions, event propagation (card nav vs button clicks)                                               |
+| Inbox page                      | `src/routes/_app/inbox.tsx`                                                   | Conversation list + composer; mobile grid layout with `--lx-mobile-tab-height` clearance                             |
+| Liked-by summary                | `src/features/projects/likes/liked-by-summary.tsx`                            | Avatar stack + count + expandable dialog with paginated likers                                                       |
+| GitHub API helpers              | `convex/lib/github.ts`                                                        | Types, README import helpers (`GithubReadmeImport`, `normalizeGithubReadmeImport`, `assertGithubRawDownloadUrl`)     |
+| Render project README           | `src/features/projects/readme/project-readme-section.tsx`                     | Markdown rendering with GitHub asset/link URL resolution via `resolveGithubReadmeMarkdownUrl`                        |
+| GitHub README URL resolution    | `src/lib/github-readme-url.ts`                                                | `resolveGithubReadmeMarkdownUrl`, `GithubReadmeUrlBases` — resolve relative URLs in rendered README (assets + links) |
+| Viewer auth helpers             | `src/features/viewer/auth.ts`                                                 | `shouldEnableViewerSummaryQuery` — gate viewer summary queries behind auth state                                     |
 
 ## CONVENTIONS
 
 - Path aliases: `#/*` and `@/*` → `./src/*`
 - Formatting: oxfmt (semi: false, singleQuote: true, trailingComma: all, printWidth: 80)
 - Linting: oxlint with type-aware checks (`--typeAware`)
-- Testing: Vitest + Testing Library (`__tests__/` dirs colocated)
+- Testing: Vitest + Testing Library (`__tests__/` dirs colocated); E2E via Playwright (`*.authenticated.spec.ts` naming)
+- Vitest excludes `playwright/` in config — run E2E tests via `pnpm e2e`
 - Convex validators: defined in `convex/lib/validators.ts`, used in schema
 - Feature modules: each feature in `src/features/<name>/` has its own domain logic
 - Route guards: `_app/` prefix = authenticated routes
@@ -63,6 +88,20 @@ Locatic — "GitHub with a map." Developer activity platform: discover projects,
 - Nested AGENTS.md files under `src/` and `convex/` override root guidance for their subtree.
 - Route loading is suspense-first now: shared pending UI lives in `src/components/app-shell/route-pending.tsx`.
 - Auth route targeting now flows through `src/lib/auth-routing.ts`; keep route names aligned with `_app` and sign-in/out redirects.
+- Explore route uses 3 tab modes (`projects`/`posts`/`builders`) with `getExploreLoaderDeps` for stable loader deps; avoids re-fetching on query-only changes.
+- Search input uses `useDebouncedRouteSearch` for route-synced debounced input; keeps local state independent of route query to avoid stale restore during rapid clear/backspace.
+- Project detail query options use `{owner, repo}` (not `fullName`); see `projectDetailQueryOptions` in `src/integrations/convex/query-options.ts`.
+- Project route key normalization lives in `convex/lib/project_route.ts`; use `normalizeProjectRouteKey` for route-param-safe keys, `resolveProjectOwnerLogin` to resolve owner login from project/snapshot data.
+- Notification targets now carry `projectOwner`+`projectRepo` for direct project linking; routing via `getNotificationDestination` in `src/features/notifications/navigation.ts`.
+- `ProjectCard` navigation uses `<Link>` components and `router.preloadRoute` instead of click callbacks; passes `projectLink`/`authorLink` props instead of `onCardClick`/`onOpenAuthor`.
+- Project card preview mapping is centralized in `src/features/project-card-preview.ts` (`toProjectCardData`).
+- Touch targets: all interactive icon buttons must be `min-h-11 min-w-11` (44px) per mobile accessibility guidelines; use negative margins (`-my-3 -mr-2` etc.) to offset spacing when needed; prefer `rounded-md` over `rounded-sm`.
+- iOS zoom prevention: textarea/input elements at mobile widths must use `text-[16px]` to prevent auto-zoom on focus; revert to `text-sm` at `md:` breakpoint.
+- Mobile nav clearance: bottom-anchored elements must account for the mobile tab bar using `pb-[calc(var(--lx-mobile-tab-height)+...)]`.
+- LikedBySummary: each named liker renders as an interactive profile button with `aria-label`; use `onOpenProfile` callback for navigation, not static text.
+- E2E mobile tests: test at both 320px and 360px viewport widths; use `expectAboveMobileNav` for position checks and `expectTouchTarget` for dimension assertions; use `skipOnOnboarding` guard for tests requiring completed onboarding.
+- `aria-label` for interactive buttons that lack visible text labels is required (conversation buttons, remove topic, dismiss, etc.)
+- Composer layout uses grid on mobile (`grid-cols-[minmax(0,1fr)_auto]`) and flex on desktop (`md:flex`)
 
 ## ANTI-PATTERNS (THIS PROJECT)
 
@@ -92,19 +131,20 @@ Locatic — "GitHub with a map." Developer activity platform: discover projects,
 - Semantic Tailwind tokens: `--color-*`, `--radius-*`, `--shadow-*` registered via `@theme` in `styles.css` — use utility classes like `bg-surface`, `text-text-muted`, `rounded-card`, `shadow-card` instead of direct `var(--lx-*)`
 - Auth routes use splat pattern: `sign-in.$.tsx`, `sign-up.$.tsx` (not flat `sign-in.tsx`)
 - `routeTree.gen.ts` is generated by TanStack Router and contains type suppressions from the generator; never hand-edit it.
-- Docs live in `docs/`: PRD, database design, UI issue tracker, implementation plans, screenshots.
 
 ## ENV / RUNTIME BOUNDARIES
 
-| Variable                       | Runtime               | Purpose                                       |
-| ------------------------------ | --------------------- | --------------------------------------------- |
-| `VITE_CLERK_PUBLISHABLE_KEY`   | Browser               | ClerkProvider client key                      |
-| `VITE_CONVEX_URL`              | Browser               | Convex React client URL                       |
-| `CLERK_SECRET_KEY`             | TanStack Start server | `auth()` and `getToken()` in server functions |
-| `CONVEX_DEPLOYMENT`            | Convex CLI            | Local `npx convex dev` target                 |
-| `CLERK_JWT_ISSUER_DOMAIN`      | Convex runtime        | `convex/auth.config.ts` JWT verification      |
-| `CLERK_SECRET_KEY` (Convex)    | Convex actions        | Backend API calls (e.g., `github_actions.ts`) |
-| `CLERK_WEBHOOK_SIGNING_SECRET` | Convex HTTP           | `/clerk/webhooks` handler                     |
+| Variable                       | Runtime               | Purpose                                        |
+| ------------------------------ | --------------------- | ---------------------------------------------- |
+| `VITE_CLERK_PUBLISHABLE_KEY`   | Browser               | ClerkProvider client key                       |
+| `VITE_CONVEX_URL`              | Browser               | Convex React client URL                        |
+| `CLERK_SECRET_KEY`             | TanStack Start server | `auth()` and `getToken()` in server functions  |
+| `CONVEX_DEPLOYMENT`            | Convex CLI            | Local `npx convex dev` target                  |
+| `CLERK_JWT_ISSUER_DOMAIN`      | Convex runtime        | `convex/auth.config.ts` JWT verification       |
+| `CLERK_SECRET_KEY` (Convex)    | Convex actions        | Backend API calls (e.g., `github_actions.ts`)  |
+| `E2E_CLERK_USER_EMAIL`         | Playwright E2E        | Clerk test user email for `auth.setup.ts`      |
+| `E2E_BASE_URL`                 | Playwright E2E        | Base URL (defaults to `http://localhost:3000`) |
+| `CLERK_WEBHOOK_SIGNING_SECRET` | Convex HTTP           | `/clerk/webhooks` handler                      |
 
 Convex env vars must be set via `npx convex env set` — `.env.local` values do not propagate to Convex runtime.
 
@@ -120,9 +160,19 @@ pnpm typecheck        # tsc --noEmit
 pnpm format           # oxfmt + oxlint --fix
 pnpm check            # oxfmt --check + oxlint
 pnpm ci:quality       # check + typecheck + test
-pnpm ci:build         # build only
-pnpm deploy:convex    # Deploy Convex backend
-pnpm deploy           # Build + wrangler deploy
+pnpm ci:build                     # build only
+pnpm build:development            # Development-mode Vite build
+pnpm build:production             # Production-mode Vite build
+pnpm deploy:convex                # Deploy Convex backend
+pnpm deploy:convex:development    # Deploy Convex (dev)
+pnpm deploy:convex:production     # Deploy Convex (prod)
+pnpm deploy:worker:development    # Build + wrangler deploy (dev)
+pnpm deploy:worker:production     # Build + wrangler deploy (prod)
+pnpm deploy                       # Build + wrangler deploy (prod)
+pnpm e2e              # Playwright E2E tests (requires dev server)
+pnpm e2e:auth         # Playwright auth setup only
+pnpm e2e:headed       # Playwright headed mode
+pnpm e2e:ui           # Playwright UI mode
 pnpm cities:generate  # Regenerate city seed data
 pnpm reactions:generate # Regenerate reaction seed data
 ```

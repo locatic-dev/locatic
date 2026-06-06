@@ -11,19 +11,23 @@ app-shell/
 ├── app-layout.tsx       # Main layout: sidebar + content area + mobile tab bar
 ├── sidebar-nav.tsx      # Collapsible nav (hidden mobile, visible desktop)
 ├── page-header.tsx      # Header with wrapped actions, safe-area padding
-├── route-pending.tsx    # Shared suspense/pending fallback UI
-└── mobile-tab-bar.tsx   # Bottom tab navigation (mobile only, hidden md+)
+├── route-pending.tsx    # Shared suspense/pending fallback UI (FeedRoutePending, FormRoutePending, etc.)
+├── route-navigation-progress.tsx  # Top-of-screen pulse bar during route navigations
+├── mobile-tab-bar.tsx   # Bottom tab navigation (mobile only, hidden md+)
+└── __tests__/           # Shell component tests
 ```
 
 ## WHERE TO LOOK
 
-| Task                    | File                                     | Notes                         |
-| ----------------------- | ---------------------------------------- | ----------------------------- |
-| Add nav item            | `sidebar-nav.tsx` + `mobile-tab-bar.tsx` | Update both for consistency   |
-| Modify layout structure | `app-layout.tsx`                         | Main composition point        |
-| Add header action       | `page-header.tsx`                        | Actions wrap on small screens |
-| Persist sidebar state   | `src/lib/sidebar-layout.ts`              | Shared collapse parsing/key   |
-| Skip-link behavior      | `src/lib/skip-link.ts`                   | Keyboard modality/focus reset |
+| Task                    | File                                     | Notes                                 |
+| ----------------------- | ---------------------------------------- | ------------------------------------- |
+| Add nav item            | `sidebar-nav.tsx` + `mobile-tab-bar.tsx` | Update both for consistency           |
+| Modify layout structure | `app-layout.tsx`                         | Main composition point                |
+| Add header action       | `page-header.tsx`                        | Actions wrap on small screens         |
+| Persist sidebar state   | `src/lib/sidebar-layout.ts`              | Shared collapse parsing/key           |
+| Skip-link behavior      | `src/lib/skip-link.ts`                   | Keyboard modality/focus reset         |
+| Add route pending UI    | `route-pending.tsx`                      | Shared fallbacks per route type       |
+| Add nav progress bar    | `route-navigation-progress.tsx`          | Top-of-screen pulse while route loads |
 
 ## CONVENTIONS
 

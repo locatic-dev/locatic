@@ -45,6 +45,11 @@ export type ProfileCommentPreview = {
   targetAvailability: 'available' | 'hidden' | 'deleted'
 }
 
+export type ProjectRouteParams = {
+  owner: string
+  repo: string
+}
+
 export type ProjectCardPreview = {
   projectId: Id<'projects'>
   ownerUserId: Id<'users'>
@@ -57,6 +62,8 @@ export type ProjectCardPreview = {
   githubStars: number
   locaticLikes: number
   commentsCount: number
+  postsCount?: number
+  topics?: string[]
   lastCommitAt: number
   updatedAt: number
   authorName: string
@@ -186,6 +193,7 @@ export type ProjectDetailPayload = {
   }>
   viewerHasLiked: boolean
   viewerFollowsOwner: boolean
+  canonicalRoute: ProjectRouteParams
   owner: {
     userId: Id<'users'>
     githubUsername: string
@@ -201,6 +209,8 @@ export type NotificationTarget = {
   kind: 'profile' | 'project' | 'conversation'
   username: string | null
   projectFullName: string | null
+  projectOwner?: string | null
+  projectRepo?: string | null
   conversationId: Id<'conversations'> | null
   inboxTab?: 'inbox' | 'requests' | null
   commentId: Id<'comments'> | null
@@ -383,6 +393,7 @@ export function mapProjectDetail(
   if (!payload) return null
 
   return {
+    canonicalRoute: payload.canonicalRoute,
     comments: payload.comments,
     likedByPreview: payload.likedByPreview,
     owner: payload.owner,

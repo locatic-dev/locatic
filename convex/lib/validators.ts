@@ -22,9 +22,11 @@ export const contributorSyncCadenceValidator = v.union(
 
 export const eventTypeValidator = v.union(
   v.literal('project_posted'),
+  v.literal('post_created'),
   v.literal('update_broadcast'),
   v.literal('project_liked'),
   v.literal('project_commented'),
+  v.literal('post_commented'),
   v.literal('contributor_matched'),
 )
 
@@ -36,7 +38,9 @@ export const feedReasonValidator = v.union(
 export const notificationTypeValidator = v.union(
   v.literal('project_liked'),
   v.literal('update_reacted'),
+  v.literal('post_reacted'),
   v.literal('project_commented'),
+  v.literal('post_commented'),
   v.literal('comment_replied'),
   v.literal('followed'),
   v.literal('dm_received'),
@@ -73,12 +77,20 @@ export const cityVisibilityValidator = v.union(
 export const reactionTargetTypeValidator = v.union(
   v.literal('project'),
   v.literal('update'),
+  v.literal('post'),
   v.literal('comment'),
 )
 
 export const commentTargetTypeValidator = v.union(
   v.literal('project'),
   v.literal('update'),
+  v.literal('post'),
+)
+
+export const postAuthorRoleValidator = v.union(
+  v.literal('owner'),
+  v.literal('collaborator'),
+  v.literal('contributor'),
 )
 
 export const pulseScopeTypeValidator = v.union(
@@ -168,6 +180,7 @@ export const commentTargetSnapshotValidator = v.object({
 export const projectSnapshotValidator = v.object({
   name: v.string(),
   fullName: v.string(),
+  ownerLogin: v.string(),
   description: optionalStringValidator,
   primaryLanguage: optionalStringValidator,
   languages: v.array(
@@ -197,10 +210,21 @@ export const updateSnapshotValidator = v.union(
   v.null(),
 )
 
+export const postSnapshotValidator = v.union(
+  v.object({
+    body: v.string(),
+    reactionCounts: v.record(v.string(), v.number()),
+    commentsCount: v.number(),
+  }),
+  v.null(),
+)
+
 export const notificationTargetValidator = v.object({
   kind: notificationTargetKindValidator,
   username: optionalStringValidator,
   projectFullName: optionalStringValidator,
+  projectOwner: v.optional(optionalStringValidator),
+  projectRepo: v.optional(optionalStringValidator),
   conversationId: v.union(v.id('conversations'), v.null()),
   inboxTab: v.optional(v.union(inboxTabValidator, v.null())),
   commentId: v.union(v.id('comments'), v.null()),

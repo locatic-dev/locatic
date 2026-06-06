@@ -24,6 +24,10 @@ import {
 } from './lib/auth'
 import { buildDiscoverabilitySearchText } from './lib/discoverability'
 import {
+  resolveProjectOwnerLogin,
+  resolveProjectSnapshotOwnerLogin,
+} from './lib/project_route'
+import {
   buildProjectCardPreview,
   resolvePublicCityLabel,
 } from './lib/project_previews'
@@ -430,7 +434,7 @@ async function buildProfileCommentPreview(
     const project = projectId ? await ctx.db.get(projectId) : null
     if (project) {
       projectFullName = project.github.fullName
-      projectOwner = project.github.fullName.split('/')[0] ?? projectOwner
+      projectOwner = resolveProjectOwnerLogin(project)
       projectRepo = project.github.name
       targetLabel = project.github.fullName
       targetAvailability = project.locatic.isVisible ? 'available' : 'hidden'
@@ -443,11 +447,17 @@ async function buildProfileCommentPreview(
     const project = update ? await ctx.db.get(update.projectId) : null
     const fullName =
       project?.github.fullName ?? update?.projectSnapshot.fullName
+    const ownerLogin = project
+      ? resolveProjectOwnerLogin(project)
+      : update
+        ? resolveProjectSnapshotOwnerLogin(update.projectSnapshot)
+        : null
 
     if (fullName) {
       projectFullName = fullName
-      projectOwner = fullName.split('/')[0] ?? projectOwner
-      projectRepo = fullName.split('/')[1] ?? projectRepo
+      projectOwner = ownerLogin ?? projectOwner
+      projectRepo =
+        project?.github.name ?? update?.projectSnapshot.name ?? projectRepo
       targetLabel = `${fullName}${update?.title ? ` update · ${update.title}` : ' update'}`
       if (project?.locatic.isVisible) {
         targetAvailability = 'available'

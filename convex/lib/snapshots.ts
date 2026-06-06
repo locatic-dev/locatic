@@ -1,5 +1,6 @@
 import type { Doc } from './types'
 import type { DatabaseReader, DatabaseWriter } from '../_generated/server'
+import { resolveProjectOwnerLogin } from './project_route'
 
 type Reader = DatabaseReader | DatabaseWriter
 
@@ -53,6 +54,7 @@ export function buildProjectSnapshot(project: Doc<'projects'>) {
   return {
     name: project.github.name,
     fullName: project.github.fullName,
+    ownerLogin: resolveProjectOwnerLogin(project),
     description: project.github.description,
     primaryLanguage: project.github.primaryLanguage,
     languages: project.github.languages,
@@ -74,5 +76,13 @@ export function buildUpdateSnapshot(update: Doc<'updates'>) {
     description: update.description,
     reactionCounts: update.reactionCounts,
     commentsCount: update.commentsCount,
+  }
+}
+
+export function buildPostSnapshot(post: Doc<'posts'>) {
+  return {
+    body: post.body,
+    reactionCounts: post.reactionCounts,
+    commentsCount: post.commentsCount,
   }
 }

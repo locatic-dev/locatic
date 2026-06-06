@@ -11,6 +11,8 @@ import {
   builderSearchQueryOptions,
   exploreFeedQueryOptions,
   nearbyBuildersQueryOptions,
+  projectSearchQueryOptions,
+  postSearchQueryOptions,
 } from '@/features/explore/queries'
 import { followingQueryOptions } from '@/features/follows/queries'
 import {
@@ -23,7 +25,11 @@ import { useFollowUser, useUnfollowUser } from '@/features/follows/mutations'
 import { useDismissExploreProject } from '@/features/explore/mutations'
 import { useOpenConversation } from '@/features/inbox/use-open-conversation'
 import { disabledQuery } from '@/lib/query'
-import { FeedRoutePending } from '@/components/app-shell/route-pending'
+import {
+  FeedRoutePending,
+  ROUTE_PENDING_MIN_MS,
+  ROUTE_PENDING_MS,
+} from '@/components/app-shell/route-pending'
 import {
   mapViewerExplorePrefs,
   mapViewerLikedProjectIds,
@@ -40,16 +46,16 @@ import {
   deriveDefaultExploreCityIds,
   getCanonicalExploreCityIds,
   getExploreCityIdentity,
+  getExploreLoaderDeps,
   getExploreProjectCityIds,
   getNearbyBuilderCityIds,
-  isExploreUserFollowed,
   isExploreProjectFeedGlobal,
   normalizeExploreSearch,
   removeExploreCityId,
 } from '@/features/explore/state'
 import { ExploreHeader } from '@/features/explore/components/explore-header'
 import { ExploreFeed } from '@/features/explore/components/explore-feed'
-import { ExploreRail } from '@/features/explore/components/explore-rail'
+import { useDebouncedRouteSearch } from '@/features/explore/use-debounced-route-search'
 import {
   updateExploreFeedPayload,
   updateLikedProjectIdsPayload,
@@ -62,7 +68,7 @@ import type {
 
 export const Route = createFileRoute('/_app/explore')({
   validateSearch: normalizeExploreSearch,
-  loaderDeps: ({ search }) => normalizeExploreSearch(search),
+  loaderDeps: ({ search }) => getExploreLoaderDeps(search),
   loader: async ({ context, deps }) => {
     if (!shouldPrefetchPrivateConvexQueries()) {
       return
@@ -90,15 +96,19 @@ export const Route = createFileRoute('/_app/explore')({
     }) as Array<Id<'cities'>>
 
     await Promise.all([
-      context.queryClient.ensureQueryData(
-        exploreFeedQueryOptions({
-          scope: deps.scope,
-          selectedCityIds,
-        }),
-      ),
-      context.queryClient.ensureQueryData(
-        nearbyBuildersQueryOptions(nearbyBuilderCityIds),
-      ),
+      deps.mode === 'projects'
+        ? context.queryClient.ensureQueryData(
+            exploreFeedQueryOptions({
+              scope: deps.scope,
+              selectedCityIds,
+            }),
+          )
+        : Promise.resolve(),
+      deps.mode === 'builders'
+        ? context.queryClient.ensureQueryData(
+            nearbyBuildersQueryOptions(nearbyBuilderCityIds),
+          )
+        : Promise.resolve(),
       context.queryClient.ensureQueryData(
         followingQueryOptions(explorePrefs.viewerId),
       ),
@@ -110,7 +120,8 @@ export const Route = createFileRoute('/_app/explore')({
     ])
   },
   pendingComponent: FeedRoutePending,
-  pendingMs: 250,
+  pendingMs: ROUTE_PENDING_MS,
+  pendingMinMs: ROUTE_PENDING_MIN_MS,
   component: ExplorePage,
 })
 
@@ -138,7 +149,48 @@ function ExplorePage() {
   const selectedCityIds = effectiveSelectedCityIds as Array<Id<'cities'>>
   const viewerId = explorePrefs?.viewerId
   const currentScope = search.scope
+  const currentMode = search.mode
   const isGlobalFeed = isExploreProjectFeedGlobal(currentScope)
+  const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set())
+  const [pendingLikes, setPendingLikes] = useState<Set<string>>(new Set())
+  const [pendingFollows, setPendingFollows] = useState<Set<string>>(new Set())
+  const [followOverrides, setFollowOverrides] = useState<
+    Record<string, boolean>
+  >({})
+  const [pendingCityIds, setPendingCityIds] = useState(false)
+  const [selectedCityLabels, setSelectedCityLabels] = useState<
+    Record<string, string>
+  >({})
+  const [cityQuery, setCityQuery] = useState('')
+  const commitSearchQuery = useCallback(
+    (q: string) => {
+      void navigate({
+        to: '/explore',
+        search: (current) => ({
+          ...current,
+          q,
+        }),
+        replace: true,
+        resetScroll: false,
+      })
+    },
+    [navigate],
+  )
+  const {
+    debouncedSearchQuery,
+    localSearchQuery,
+    resetSearchQuery,
+    setLocalSearchQuery,
+  } = useDebouncedRouteSearch({
+    onCommit: commitSearchQuery,
+    routeQuery: search.q,
+  })
+  const isBuilderSearchActive =
+    currentMode === 'builders' && debouncedSearchQuery.length > 0
+  const isProjectSearchActive =
+    currentMode === 'projects' && debouncedSearchQuery.length > 0
+  const isPostSearchActive =
+    currentMode === 'posts' && debouncedSearchQuery.length > 0
 
   const selectedCitiesQuery = useQuery({
     ...citiesByIdsQueryOptions(selectedCityIds),
@@ -161,10 +213,12 @@ function ExplorePage() {
       scope: currentScope,
       selectedCityIds: queryCityIds,
     }),
+    enabled: currentMode === 'projects',
   })
-  const { data: nearbyBuildersData } = useSuspenseQuery(
-    nearbyBuildersQueryOptions(nearbyBuilderCityIds),
-  )
+  const nearbyBuildersQuery = useQuery({
+    ...nearbyBuildersQueryOptions(nearbyBuilderCityIds),
+    enabled: currentMode === 'builders' && !isBuilderSearchActive,
+  })
   const { data: followingData } = useSuspenseQuery(
     followingQueryOptions(viewerId as Id<'users'>),
   )
@@ -176,36 +230,48 @@ function ExplorePage() {
   const dismissProject = useDismissExploreProject()
   const { openConversation, pendingUserId } = useOpenConversation()
 
-  const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set())
-  const [pendingLikes, setPendingLikes] = useState<Set<string>>(new Set())
-  const [pendingFollows, setPendingFollows] = useState<Set<string>>(new Set())
-  const [followOverrides, setFollowOverrides] = useState<
-    Record<string, boolean>
-  >({})
-  const [pendingCityIds, setPendingCityIds] = useState(false)
-  const [selectedCityLabels, setSelectedCityLabels] = useState<
-    Record<string, string>
-  >({})
-  const [builderQuery, setBuilderQuery] = useState('')
-  const [cityQuery, setCityQuery] = useState('')
-  const [debouncedBuilderQuery, setDebouncedBuilderQuery] = useState('')
-
-  useEffect(() => {
-    const timeout = window.setTimeout(() => {
-      setDebouncedBuilderQuery(builderQuery.trim())
-    }, 250)
-
-    return () => window.clearTimeout(timeout)
-  }, [builderQuery])
-
   const citySearchResultsQuery = useQuery({
     ...citiesSearchQueryOptions(cityQuery.trim() || 'unused'),
     enabled: cityQuery.trim().length > 0,
   })
   const builderSearchQuery = useQuery(
-    debouncedBuilderQuery.length > 0
-      ? builderSearchQueryOptions(debouncedBuilderQuery)
-      : disabledQuery(builderSearchQueryOptions('')),
+    currentMode === 'builders' && debouncedSearchQuery.length > 0
+      ? builderSearchQueryOptions({
+          cityIds: queryCityIds,
+          q: debouncedSearchQuery,
+        })
+      : disabledQuery(
+          builderSearchQueryOptions({
+            cityIds: [],
+            q: '',
+          }),
+        ),
+  )
+  const projectSearchQuery = useQuery(
+    isProjectSearchActive
+      ? projectSearchQueryOptions({
+          cityIds: queryCityIds,
+          q: debouncedSearchQuery,
+        })
+      : disabledQuery(
+          projectSearchQueryOptions({
+            cityIds: [],
+            q: '',
+          }),
+        ),
+  )
+  const postSearchQuery = useQuery(
+    isPostSearchActive
+      ? postSearchQueryOptions({
+          cityIds: queryCityIds,
+          q: debouncedSearchQuery,
+        })
+      : disabledQuery(
+          postSearchQueryOptions({
+            cityIds: [],
+            q: '',
+          }),
+        ),
   )
   const feedQueryKey = exploreFeedQueryOptions({
     scope: currentScope,
@@ -312,22 +378,25 @@ function ExplorePage() {
       String(follow.followingId),
     ),
   )
-  const getFollowedState = (userId: Id<'users'>) =>
-    isExploreUserFollowed({
-      followOverrides,
-      followedUserIds,
-      userId,
-    })
-
   const scopedFeedData = scopedFeedQuery.data as ExploreFeedPayload | undefined
   const projects = scopedFeedData?.projects ?? []
   const items = projects
   const nearbyBuilders =
-    (nearbyBuildersData as Array<BuilderPreview> | undefined) ?? []
-  const builderResults =
-    (builderSearchQuery.data as Array<BuilderPreview> | undefined) ?? []
-  const isBuilderSearchActive = debouncedBuilderQuery.length > 0
-  const hasSelectedCities = canonicalSelectedCityIds.length > 0
+    (nearbyBuildersQuery.data as Array<BuilderPreview> | undefined) ?? []
+  const builderResults = isBuilderSearchActive
+    ? ((builderSearchQuery.data as Array<BuilderPreview> | undefined) ?? [])
+    : nearbyBuilders
+  const projectSearchData = projectSearchQuery.data as
+    | {
+        projectResultScope: 'recent'
+        projects: ExploreFeedPayload['projects']
+      }
+    | undefined
+  const postResults =
+    (postSearchQuery.data as Array<Doc<'posts'>> | undefined) ?? []
+  const displayedItems = isProjectSearchActive
+    ? (projectSearchData?.projects ?? [])
+    : items
   const canonicalSelectedCities = dedupeExploreCities(selectedCities)
   const selectedCityIdentities = new Set(
     canonicalSelectedCities.map(getExploreCityIdentity),
@@ -358,16 +427,31 @@ function ExplorePage() {
     (next: Partial<typeof search>) => {
       void navigate({
         to: '/explore',
-        search: {
-          ...search,
+        search: (current) => ({
+          ...current,
           ...next,
-        },
+        }),
         replace: true,
         resetScroll: false,
       })
     },
-    [navigate, search],
+    [navigate],
   )
+
+  const updateExploreMode = (mode: typeof currentMode) => {
+    resetSearchQuery()
+
+    void navigate({
+      to: '/explore',
+      search: (current) => ({
+        ...current,
+        mode,
+        q: '',
+      }),
+      replace: true,
+      resetScroll: false,
+    })
+  }
 
   useEffect(() => {
     if (currentScope !== 'custom' || selectedCities.length === 0) {
@@ -515,11 +599,11 @@ function ExplorePage() {
     <div className="lx-page-shell">
       <ExploreHeader
         availableCities={availableCities}
-        builderQuery={builderQuery}
         cityQuery={cityQuery}
         currentScope={currentScope}
-        onBuilderQueryChange={setBuilderQuery}
+        mode={currentMode}
         onCityQueryChange={setCityQuery}
+        onModeChange={updateExploreMode}
         onRemoveCity={removeCityById}
         onSelectCity={(city) =>
           void persistCityIds(
@@ -527,129 +611,49 @@ function ExplorePage() {
             [...selectedCities, city],
           )
         }
+        onSearchQueryChange={setLocalSearchQuery}
         pendingCityIds={pendingCityIds}
+        searchQuery={localSearchQuery}
         selectedCityChips={selectedCityChips}
       />
 
-      <div className="lx-page-scroll">
-        <div className="flex min-w-0 flex-col gap-8 md:flex-row md:items-start">
-          <div className="lx-page-width-feed-left min-w-0 flex-1">
-            <ExploreFeed
-              builderResults={builderResults}
-              builderSearchLoading={builderSearchQuery.isLoading}
-              debouncedBuilderQuery={debouncedBuilderQuery}
-              dismissedIds={dismissedIds}
-              followOverrides={followOverrides}
-              followedUserIds={followedUserIds}
-              isBuilderSearchActive={isBuilderSearchActive}
-              isGlobalFeed={isGlobalFeed}
-              items={items}
-              likedProjectIds={likedProjectIds}
-              onDismissProject={handleDismiss}
-              onFollowUser={handleFollow}
-              onLikeProject={handleLike}
-              onMessageUser={(userId) => void openConversation(userId)}
-              onOpenBuilderProfile={(builder) =>
-                void navigate({
-                  to: '/u/$username',
-                  params: {
-                    username: builder.githubUsername,
-                  },
-                  search: { tab: 'projects' },
-                })
-              }
-              onOpenProject={(project) =>
-                void navigate({
-                  to: '/project/$owner/$repo',
-                  params: { owner: project.owner, repo: project.repo },
-                  search: { comment: null },
-                })
-              }
-              onOpenProjectOwner={(project) =>
-                void navigate({
-                  to: '/u/$username',
-                  params: { username: project.owner },
-                  search: { tab: 'projects' },
-                })
-              }
-              pendingFollows={pendingFollows}
-              pendingLikes={pendingLikes}
-              pendingUserId={pendingUserId}
-              viewerId={viewerId}
-            />
-
-            <div className="mt-8 md:hidden">
-              <ExploreRail
-                hasSelectedCities={hasSelectedCities}
-                nearbyBuilders={nearbyBuilders}
-                compact
-                onFollowBuilder={(builder) =>
-                  void handleFollow(
-                    builder.userId,
-                    String(builder.userId),
-                    getFollowedState(builder.userId),
-                  )
-                }
-                onMessageBuilder={(builder) =>
-                  viewerId && builder.userId !== viewerId
-                    ? () => void openConversation(builder.userId)
-                    : undefined
-                }
-                onOpenBuilderProfile={(builder) =>
-                  void navigate({
-                    to: '/u/$username',
-                    params: {
-                      username: builder.githubUsername,
-                    },
-                    search: { tab: 'projects' },
-                  })
-                }
-                onRemoveCity={removeCityById}
-                pendingFollows={pendingFollows}
-                pendingUserId={pendingUserId}
-                selectedCityChips={selectedCityChips}
-                followedUserIds={followedUserIds}
-                followOverrides={followOverrides}
-                viewerId={viewerId}
-              />
-            </div>
-          </div>
-
-          <aside className="sticky top-6 hidden w-full shrink-0 md:block md:w-70">
-            <ExploreRail
-              hasSelectedCities={hasSelectedCities}
-              nearbyBuilders={nearbyBuilders}
-              compact
-              onFollowBuilder={(builder) =>
-                void handleFollow(
-                  builder.userId,
-                  String(builder.userId),
-                  getFollowedState(builder.userId),
-                )
-              }
-              onMessageBuilder={(builder) =>
-                viewerId && builder.userId !== viewerId
-                  ? () => void openConversation(builder.userId)
-                  : undefined
-              }
-              onOpenBuilderProfile={(builder) =>
-                void navigate({
-                  to: '/u/$username',
-                  params: {
-                    username: builder.githubUsername,
-                  },
-                  search: { tab: 'projects' },
-                })
-              }
-              onRemoveCity={removeCityById}
-              pendingFollows={pendingFollows}
-              pendingUserId={pendingUserId}
-              selectedCityChips={selectedCityChips}
-              followedUserIds={followedUserIds}
-              followOverrides={followOverrides}
-              viewerId={viewerId}
-            />
-          </aside>
+      <div className="lx-page-scroll" data-scroll-restoration-id="explore-feed">
+        <div className="lx-page-width-detail min-w-0">
+          <ExploreFeed
+            builderResults={builderResults}
+            builderSearchLoading={builderSearchQuery.isLoading}
+            debouncedSearchQuery={debouncedSearchQuery}
+            dismissedIds={dismissedIds}
+            followOverrides={followOverrides}
+            followedUserIds={followedUserIds}
+            isBuilderSearchActive={isBuilderSearchActive}
+            isBuildersMode={currentMode === 'builders'}
+            isGlobalFeed={isGlobalFeed}
+            isPostSearchActive={isPostSearchActive}
+            isPostsMode={currentMode === 'posts'}
+            isProjectSearchActive={isProjectSearchActive}
+            items={displayedItems}
+            likedProjectIds={likedProjectIds}
+            onDismissProject={handleDismiss}
+            onFollowUser={handleFollow}
+            onLikeProject={handleLike}
+            onMessageUser={(userId) => void openConversation(userId)}
+            onOpenBuilderProfile={(builder) =>
+              void navigate({
+                to: '/u/$username',
+                params: {
+                  username: builder.githubUsername,
+                },
+                search: { tab: 'projects' },
+              })
+            }
+            pendingFollows={pendingFollows}
+            pendingLikes={pendingLikes}
+            pendingUserId={pendingUserId}
+            postSearchLoading={postSearchQuery.isLoading}
+            postResults={postResults}
+            viewerId={viewerId}
+          />
         </div>
       </div>
     </div>

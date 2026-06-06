@@ -14,6 +14,12 @@ import { BrandIcon } from '@/components/ui/brand-icon'
 import { ContributionGraph } from '@/components/ui/contribution-graph'
 import { Button } from '@/components/ui/button'
 import { Logo } from '@/components/ui/logo'
+import { AppLayout } from '@/components/app-shell/app-layout'
+import {
+  ProfileRoutePending,
+  ROUTE_PENDING_MIN_MS,
+  ROUTE_PENDING_MS,
+} from '@/components/app-shell/route-pending'
 import { compactNumber } from '@/lib/format'
 import { relativeTime } from '@/lib/time'
 import { ProjectCard } from '@/components/ui/project-card'
@@ -51,6 +57,7 @@ import { ProfileNetworkSection } from '@/features/profile/network-section'
 import { socialLinkHref } from '@/lib/social-links'
 import { useFollowUser, useUnfollowUser } from '@/features/follows/mutations'
 import { viewerQueryOptions } from '@/features/viewer/queries'
+import { notificationsUnreadCountQueryOptions } from '@/features/notifications/queries'
 import { useOpenConversation } from '@/features/inbox/use-open-conversation'
 
 const TAB_QUERY_STALE_TIME = 60_000
@@ -87,22 +94,27 @@ export const Route = createFileRoute('/u/$username')({
   loaderDeps: ({ search }) => ({
     network: search.network ?? 'followers',
   }),
-  loader: ({ context, deps, params }) =>
-    Promise.all([
-      context.queryClient.ensureQueryData(
-        publicProfileOverviewQueryOptions(params.username),
-      ),
-      context.queryClient.ensureQueryData(
-        publicFollowGraphQueryOptions({
-          username: params.username,
-          kind: deps.network,
-          paginationOpts: {
-            cursor: null,
-            numItems: SOCIAL_PAGE_SIZE,
-          },
-        }),
-      ),
-    ]),
+  loader: async ({ context, deps, params }) => {
+    const overview = await context.queryClient.ensureQueryData(
+      publicProfileOverviewQueryOptions(params.username),
+    )
+
+    void context.queryClient.prefetchQuery(
+      publicFollowGraphQueryOptions({
+        username: params.username,
+        kind: deps.network,
+        paginationOpts: {
+          cursor: null,
+          numItems: SOCIAL_PAGE_SIZE,
+        },
+      }),
+    )
+
+    return overview
+  },
+  pendingComponent: ProfileRoutePending,
+  pendingMs: ROUTE_PENDING_MS,
+  pendingMinMs: ROUTE_PENDING_MIN_MS,
   component: PublicProfilePage,
 })
 
@@ -137,6 +149,12 @@ function PublicProfilePage() {
   const viewerBootstrap = mapViewerBootstrap(
     viewerQuery.data as ViewerBootstrapPayload | undefined,
   )
+  const hasViewer = Boolean(viewerBootstrap?.viewer)
+  const notificationsQuery = useQuery({
+    ...notificationsUnreadCountQueryOptions(),
+    enabled: hasViewer,
+    staleTime: 30_000,
+  })
   const overview = mapPublicProfileOverview(
     data as PublicProfileOverviewPayload | null | undefined,
   )
@@ -159,20 +177,47 @@ function PublicProfilePage() {
     )
   }
 
-  return (
+  const viewer = viewerBootstrap?.viewer
+  const content = (
     <PublicProfileContent
+      inAppShell={Boolean(viewer)}
       overview={overview}
       username={username}
       viewerBootstrap={viewerBootstrap}
     />
   )
+
+  if (!viewer) {
+    return content
+  }
+
+  return (
+    <AppLayout
+      viewer={{
+        avatarUrl: viewer.avatarUrl,
+        city: viewer.cityName ?? undefined,
+        displayName: viewer.displayName,
+        githubUsername: viewer.githubUsername,
+      }}
+      unreadMessages={viewer.unreadMessagesCount}
+      unreadNotifications={
+        typeof notificationsQuery.data === 'number'
+          ? notificationsQuery.data
+          : 0
+      }
+    >
+      {content}
+    </AppLayout>
+  )
 }
 
 function PublicProfileContent({
+  inAppShell = false,
   overview,
   username,
   viewerBootstrap,
 }: {
+  inAppShell?: boolean
   overview: NonNullable<ReturnType<typeof mapPublicProfileOverview>>
   username: string
   viewerBootstrap: ReturnType<typeof mapViewerBootstrap>
@@ -517,63 +562,115 @@ function PublicProfileContent({
 
   return (
     <div className="min-h-dvh bg-canvas">
-      <header className="flex min-h-14 flex-wrap items-center justify-between gap-3 border-b border-line px-(--lx-gutter) py-3">
-        <Link to="/" className="flex items-center gap-2.5 no-underline">
-          <Logo size={20} />
-          <span className="font-mono text-sm font-bold text-text">locatic</span>
-        </Link>
+      {!inAppShell && (
+        <header className="flex min-h-14 flex-wrap items-center justify-between gap-3 border-b border-line px-(--lx-gutter) py-3">
+          <Link to="/" className="flex items-center gap-2.5 no-underline">
+            <Logo size={20} />
+            <span className="font-mono text-sm font-bold text-text">
+              locatic
+            </span>
+          </Link>
 
-        {isOwnProfile ? (
-          <Button
-            variant="outline"
-            onClick={() =>
-              void navigate({
-                to: '/profile',
-                search: { tab: 'projects', network },
-              })
-            }
-            className="min-h-11 font-mono text-[12px]"
-          >
-            your profile
-          </Button>
-        ) : isSignedIn ? (
-          <div className="flex gap-2">
+          {isOwnProfile ? (
             <Button
               variant="outline"
-              onClick={() => void openConversation(overview.userId)}
-              disabled={pendingUserId === overview.userId}
+              onClick={() =>
+                void navigate({
+                  to: '/profile',
+                  search: { tab: 'projects', network },
+                })
+              }
               className="min-h-11 font-mono text-[12px]"
             >
-              {pendingUserId === overview.userId ? 'opening…' : 'message'}
+              your profile
             </Button>
-            <Button
-              variant={overview.viewerFollowsProfile ? 'outline' : 'default'}
-              onClick={() => void handleFollow()}
-              disabled={followMutation.isPending}
-              className={
-                overview.viewerFollowsProfile
-                  ? 'min-h-11 font-mono text-[12px]'
-                  : 'min-h-11 font-mono text-[12px] font-semibold'
-              }
+          ) : isSignedIn ? (
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => void openConversation(overview.userId)}
+                disabled={pendingUserId === overview.userId}
+                className="min-h-11 font-mono text-[12px]"
+              >
+                {pendingUserId === overview.userId ? 'opening…' : 'message'}
+              </Button>
+              <Button
+                variant={overview.viewerFollowsProfile ? 'outline' : 'default'}
+                onClick={() => void handleFollow()}
+                disabled={followMutation.isPending}
+                className={
+                  overview.viewerFollowsProfile
+                    ? 'min-h-11 font-mono text-[12px]'
+                    : 'min-h-11 font-mono text-[12px] font-semibold'
+                }
+              >
+                {followMutation.isPending
+                  ? 'working…'
+                  : overview.viewerFollowsProfile
+                    ? 'following'
+                    : 'follow'}
+              </Button>
+            </div>
+          ) : (
+            <Link
+              to="/sign-in/$"
+              className="font-mono text-[12.5px] text-primary no-underline"
             >
-              {followMutation.isPending
-                ? 'working…'
-                : overview.viewerFollowsProfile
-                  ? 'following'
-                  : 'follow'}
-            </Button>
-          </div>
-        ) : (
-          <Link
-            to="/sign-in/$"
-            className="font-mono text-[12.5px] text-primary no-underline"
-          >
-            sign in
-          </Link>
-        )}
-      </header>
+              sign in
+            </Link>
+          )}
+        </header>
+      )}
 
       <div className="lx-page-width-detail py-8 pb-20">
+        {inAppShell && (
+          <div className="mb-6 flex flex-wrap justify-end gap-2">
+            {isOwnProfile ? (
+              <Button
+                variant="outline"
+                onClick={() =>
+                  void navigate({
+                    to: '/profile',
+                    search: { tab: 'projects', network },
+                  })
+                }
+                className="min-h-11 font-mono text-[12px]"
+              >
+                your profile
+              </Button>
+            ) : (
+              <>
+                <Button
+                  variant="outline"
+                  onClick={() => void openConversation(overview.userId)}
+                  disabled={pendingUserId === overview.userId}
+                  className="min-h-11 font-mono text-[12px]"
+                >
+                  {pendingUserId === overview.userId ? 'opening...' : 'message'}
+                </Button>
+                <Button
+                  variant={
+                    overview.viewerFollowsProfile ? 'outline' : 'default'
+                  }
+                  onClick={() => void handleFollow()}
+                  disabled={followMutation.isPending}
+                  className={
+                    overview.viewerFollowsProfile
+                      ? 'min-h-11 font-mono text-[12px]'
+                      : 'min-h-11 font-mono text-[12px] font-semibold'
+                  }
+                >
+                  {followMutation.isPending
+                    ? 'working...'
+                    : overview.viewerFollowsProfile
+                      ? 'following'
+                      : 'follow'}
+                </Button>
+              </>
+            )}
+          </div>
+        )}
+
         <div className="mb-8 flex flex-col items-start gap-6">
           <LxAvatar
             name={overview.profile.displayName}
@@ -785,20 +882,11 @@ function PublicProfileContent({
                         <ProjectCard
                           key={getProjectCardId(project)}
                           project={toProjectCardData(project)}
-                          onAuthorClick={() =>
-                            void navigate({
-                              to: '/u/$username',
-                              params: { username: owner },
-                              search: { tab: 'projects', network: 'followers' },
-                            })
-                          }
-                          onCardClick={() =>
-                            void navigate({
-                              to: '/project/$owner/$repo',
-                              params: { owner, repo },
-                              search: { comment: null },
-                            })
-                          }
+                          authorLink={{
+                            username: project.authorHandle,
+                            search: { tab: 'projects' },
+                          }}
+                          projectLink={{ owner, repo }}
                           showActions={false}
                         />
                       )
@@ -829,23 +917,11 @@ function PublicProfileContent({
                           </div>
                           <ProjectCard
                             project={toProjectCardData(entry.project)}
-                            onAuthorClick={() =>
-                              void navigate({
-                                to: '/u/$username',
-                                params: { username: owner },
-                                search: {
-                                  tab: 'projects',
-                                  network: 'followers',
-                                },
-                              })
-                            }
-                            onCardClick={() =>
-                              void navigate({
-                                to: '/project/$owner/$repo',
-                                params: { owner, repo },
-                                search: { comment: null },
-                              })
-                            }
+                            authorLink={{
+                              username: entry.project.authorHandle,
+                              search: { tab: 'projects' },
+                            }}
+                            projectLink={{ owner, repo }}
                             showActions={false}
                             className="rounded-none border-0"
                           />
@@ -922,20 +998,13 @@ function PublicProfileContent({
                       const owner = getProjectCardOwner(project.project)
                       const repo = getProjectCardRepo(project.project)
                       return (
-                        <button
+                        <Link
                           key={String(project.reactionId)}
-                          onClick={() =>
-                            void navigate({
-                              to: '/project/$owner/$repo',
-                              params: {
-                                owner: owner ?? overview.githubUsername,
-                                repo,
-                              },
-                              search: { comment: null },
-                            })
-                          }
+                          to="/project/$owner/$repo"
+                          params={{ owner, repo }}
+                          search={{ comment: null }}
+                          preload="intent"
                           className="rounded-[6px] border border-line bg-surface px-4 py-3.5 text-left"
-                          type="button"
                         >
                           <div className="mb-1 font-mono text-[13px] font-semibold text-text">
                             {getProjectCardFullName(project.project)}
@@ -943,7 +1012,7 @@ function PublicProfileContent({
                           <div className="font-mono text-[11px] text-text-faint">
                             liked {relativeTime(project.likedAt)}
                           </div>
-                        </button>
+                        </Link>
                       )
                     })
                   )}
