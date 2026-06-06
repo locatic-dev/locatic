@@ -93,7 +93,40 @@ export function LikedBySummary({
   if (!canExpand) {
     return (
       <div className="mb-5 flex flex-wrap items-center gap-2.5 font-mono text-[11.5px]">
-        {content}
+        <span className="flex items-center">
+          {stack.map((user, index) => (
+            <LxAvatar
+              key={String(user.userId)}
+              name={user.displayName}
+              avatarUrl={user.avatarUrl}
+              size={20}
+              className={index > 0 ? '-ml-2 ring-2 ring-canvas' : ''}
+            />
+          ))}
+        </span>
+        <span className="text-text-faint">liked by</span>
+        <span className="flex flex-wrap items-center gap-x-1 text-text-muted">
+          {namedUsers.map((user, index) => (
+            <span
+              key={String(user.userId)}
+              className="inline-flex items-center"
+            >
+              {index > 0 && (
+                <span aria-hidden="true" className="text-text-faint">
+                  ,
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={() => onOpenProfile(user.githubUsername)}
+                className="-my-2 inline-flex min-h-11 items-center rounded-md bg-transparent px-1.5 text-left text-text-muted transition-colors hover:text-text"
+                aria-label={`Open ${user.displayName}'s profile`}
+              >
+                {user.displayName}
+              </button>
+            </span>
+          ))}
+        </span>
       </div>
     )
   }
@@ -103,7 +136,7 @@ export function LikedBySummary({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="mb-5 flex min-h-8 flex-wrap items-center gap-2.5 rounded-md bg-transparent font-mono text-[11.5px] transition-colors hover:[&_span]:text-text"
+        className="mb-5 flex min-h-11 flex-wrap items-center gap-2.5 rounded-md bg-transparent font-mono text-[11.5px] transition-colors hover:[&_span]:text-text"
         aria-label={`View all ${compactNumber(likesCount)} people who liked this project`}
       >
         {content}

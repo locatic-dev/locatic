@@ -23,7 +23,7 @@ export function CityPill({ city, onRemove, className }: CityPillProps) {
           type="button"
           onClick={onRemove}
           aria-label={`Remove ${city}`}
-          className="ml-0.5 flex size-5 items-center justify-center rounded-sm text-text-faint transition-colors hover:text-text"
+          className="-my-3 -mr-2 ml-0.5 flex min-h-11 min-w-11 items-center justify-center rounded-md text-text-faint transition-colors hover:text-text"
         >
           <X size={9} strokeWidth={2} />
         </button>
