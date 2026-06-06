@@ -12,6 +12,49 @@ import {
   resolveProjectOwnerLogin,
 } from './lib/project_route'
 
+const MAX_README_BACKFILL_BATCH = 100
+const README_BACKFILL_SCAN_PAGE_SIZE = 100
+
+const projectReadmeBackfillTargetValidator = v.object({
+  currentReadmeLength: v.number(),
+  fullName: v.string(),
+  projectId: v.id('projects'),
+})
+
+const projectReadmeBackfillBatchPageValidator = v.object({
+  continueCursor: v.string(),
+  hasMore: v.boolean(),
+  remainingLowerBound: v.number(),
+  scanned: v.number(),
+  targets: v.array(projectReadmeBackfillTargetValidator),
+  totalCandidatesLowerBound: v.number(),
+})
+
+function projectNeedsReadmeBackfill(
+  project: {
+    github: {
+      description: string | null
+      readmePreview: string | null
+    }
+    locatic: {
+      isVisible: boolean
+    }
+  },
+  refreshAll: boolean,
+) {
+  if (!project.locatic.isVisible) {
+    return false
+  }
+
+  if (refreshAll) {
+    return true
+  }
+
+  const readmePreview = project.github.readmePreview?.trim() ?? ''
+  const description = project.github.description?.trim() ?? ''
+  return !readmePreview || readmePreview === description
+}
+
 export const applyProjectLike = internalMutation({
   args: {
     projectId: v.id('projects'),
@@ -195,6 +238,10 @@ export const patchProjectMetadata = internalMutation({
       lastCommitAt: v.number(),
       lastMetadataSyncedAt: v.union(v.number(), v.null()),
       readmePreview: v.union(v.string(), v.null()),
+      readmeAssetBaseUrl: v.union(v.string(), v.null()),
+      readmeAssetRootUrl: v.union(v.string(), v.null()),
+      readmeLinkBaseUrl: v.union(v.string(), v.null()),
+      readmeLinkRootUrl: v.union(v.string(), v.null()),
     }),
   },
   handler: async (ctx, args) => {
@@ -293,6 +340,81 @@ export const likedProjectsByUser = internalQuery({
         }
       }),
     )
+  },
+})
+
+export const listProjectReadmeBackfillTargets = internalQuery({
+  args: {
+    cursor: v.optional(v.union(v.string(), v.null())),
+    limit: v.optional(v.number()),
+    refreshAll: v.optional(v.boolean()),
+  },
+  returns: projectReadmeBackfillBatchPageValidator,
+  handler: async (ctx, args) => {
+    const limit = Math.min(
+      Math.max(Math.floor(args.limit ?? MAX_README_BACKFILL_BATCH), 1),
+      MAX_README_BACKFILL_BATCH,
+    )
+    const refreshAll = args.refreshAll ?? false
+    const page = await ctx.db
+      .query('projects')
+      .withIndex('by_visible_added', (query) =>
+        query.eq('locatic.isVisible', true),
+      )
+      .order('desc')
+      .paginate({
+        cursor: args.cursor ?? null,
+        numItems: README_BACKFILL_SCAN_PAGE_SIZE,
+      })
+    const candidates = page.page.filter((project) =>
+      projectNeedsReadmeBackfill(project, refreshAll),
+    )
+
+    return {
+      continueCursor: page.continueCursor,
+      hasMore: !page.isDone || candidates.length > limit,
+      remainingLowerBound: Math.max(0, candidates.length - limit),
+      scanned: page.page.length,
+      targets: candidates.slice(0, limit).map((project) => ({
+        currentReadmeLength: project.github.readmePreview?.length ?? 0,
+        fullName: project.github.fullName,
+        projectId: project._id,
+      })),
+      totalCandidatesLowerBound: candidates.length,
+    }
+  },
+})
+
+export const patchProjectReadmePreview = internalMutation({
+  args: {
+    projectId: v.id('projects'),
+    readmePreview: v.union(v.string(), v.null()),
+    readmeAssetBaseUrl: v.union(v.string(), v.null()),
+    readmeAssetRootUrl: v.union(v.string(), v.null()),
+    readmeLinkBaseUrl: v.union(v.string(), v.null()),
+    readmeLinkRootUrl: v.union(v.string(), v.null()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const project = await ctx.db.get(args.projectId)
+    if (!project) {
+      return null
+    }
+
+    await ctx.db.patch('projects', project._id, {
+      github: {
+        ...project.github,
+        lastMetadataSyncedAt: Date.now(),
+        readmePreview: args.readmePreview,
+        readmeAssetBaseUrl: args.readmeAssetBaseUrl,
+        readmeAssetRootUrl: args.readmeAssetRootUrl,
+        readmeLinkBaseUrl: args.readmeLinkBaseUrl,
+        readmeLinkRootUrl: args.readmeLinkRootUrl,
+      },
+      updatedAt: Date.now(),
+    })
+
+    return null
   },
 })
 
