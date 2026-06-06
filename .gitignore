@@ -4,6 +4,10 @@ dist
 dist-ssr
 *.local
 .env
+playwright/.auth/
+playwright/.clerk/
+playwright-report/
+test-results/
 .nitro
 .tanstack
 .wrangler
