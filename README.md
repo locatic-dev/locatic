@@ -77,6 +77,9 @@ VITE_CONVEX_URL=
 # TanStack Start server
 CLERK_SECRET_KEY=
 
+# Playwright E2E
+E2E_CLERK_USER_EMAIL=
+
 # Convex CLI / local tooling
 CONVEX_DEPLOYMENT=
 
@@ -92,6 +95,10 @@ Browser / client bundle:
 TanStack Start server:
 
 - `CLERK_SECRET_KEY` for `auth()` and `getToken()` in server functions and SSR route auth
+
+Playwright E2E:
+
+- `E2E_CLERK_USER_EMAIL` for a dedicated Clerk development/test user. Playwright uses `@clerk/testing` to create a Clerk session and stores the browser state in `playwright/.clerk/user.json`, which is gitignored. For richer authenticated UI coverage, complete onboarding for this user once in the development Clerk/Convex environment.
 
 Convex CLI / local tooling:
 
@@ -145,6 +152,34 @@ pnpm dev
 
 The Vite app runs on `http://localhost:3000`.
 
+### Authenticated E2E
+
+Authenticated browser tests use Clerk's Playwright helpers and Playwright `storageState`, so local agents and test runs can open logged-in UI without using your personal browser profile.
+
+Prerequisites:
+
+- `.env.local` has `VITE_CLERK_PUBLISHABLE_KEY`, `VITE_CONVEX_URL`, `CLERK_SECRET_KEY`, and `E2E_CLERK_USER_EMAIL`
+- the dedicated Clerk test user exists in the development Clerk instance
+- the Convex dev deployment is running and configured with `CLERK_JWT_ISSUER_DOMAIN`
+
+Run the auth setup only:
+
+```bash
+pnpm run e2e:auth
+```
+
+Run authenticated E2E tests:
+
+```bash
+pnpm run e2e
+```
+
+If Chromium is not installed yet, run:
+
+```bash
+pnpm exec playwright install chromium
+```
+
 ### Clerk and GitHub Setup Notes
 
 Locatic assumes users authenticate through Clerk with GitHub connected. The codebase uses Clerk's GitHub OAuth token to:
@@ -173,6 +208,10 @@ pnpm dev
 pnpm build
 pnpm preview
 pnpm test
+pnpm e2e
+pnpm e2e:auth
+pnpm e2e:headed
+pnpm e2e:ui
 pnpm lint
 pnpm typecheck
 pnpm format

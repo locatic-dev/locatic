@@ -24,6 +24,7 @@ Locatic — "GitHub with a map." Developer activity platform: discover projects,
 │   └── _generated/         # Auto-generated Convex types (DO NOT EDIT)
 ├── docs/                   # Product docs (PRD, design notes, issue trackers)
 ├── scripts/                # Seed data generation, geonames processing
+├── playwright/             # E2E tests (Playwright + Clerk auth)
 ├── public/                 # Static assets
 └── .github/workflows/      # CI / deploy workflows
 ```
@@ -60,13 +61,18 @@ Locatic — "GitHub with a map." Developer activity platform: discover projects,
 | Linkify text                    | `src/lib/linkify.tsx`                                                         | `linkify()`, `splitLinkParts()` — renders URLs in text as safe external links              |
 | Route pending UI                | `src/components/app-shell/route-pending.tsx`                                  | Shared suspense fallback (`FeedRoutePending`, `FormRoutePending`, etc.)                    |
 | Nav progress bar                | `src/components/app-shell/route-navigation-progress.tsx`                      | Top-of-screen pulse bar during route loads                                                 |
+| E2E tests                       | `playwright/`                                                                 | Playwright + `@clerk/testing` for authenticated browser tests                              |
+| E2E auth setup                  | `playwright/auth.setup.ts`                                                    | Clerk sign-in flow, saves storage state to `playwright/.clerk/user.json`                   |
+| E2E config                      | `playwright.config.ts`                                                        | Two projects: `setup` (auth) + `chromium-authenticated` (tests)                            |
+| E2E env loader                  | `playwright/env.ts`                                                           | Loads `.env.local` for `E2E_CLERK_USER_EMAIL` and `E2E_BASE_URL`                           |
 
 ## CONVENTIONS
 
 - Path aliases: `#/*` and `@/*` → `./src/*`
 - Formatting: oxfmt (semi: false, singleQuote: true, trailingComma: all, printWidth: 80)
 - Linting: oxlint with type-aware checks (`--typeAware`)
-- Testing: Vitest + Testing Library (`__tests__/` dirs colocated)
+- Testing: Vitest + Testing Library (`__tests__/` dirs colocated); E2E via Playwright (`*.authenticated.spec.ts` naming)
+- Vitest excludes `playwright/` in config — run E2E tests via `pnpm e2e`
 - Convex validators: defined in `convex/lib/validators.ts`, used in schema
 - Feature modules: each feature in `src/features/<name>/` has its own domain logic
 - Route guards: `_app/` prefix = authenticated routes
@@ -114,15 +120,17 @@ Locatic — "GitHub with a map." Developer activity platform: discover projects,
 
 ## ENV / RUNTIME BOUNDARIES
 
-| Variable                       | Runtime               | Purpose                                       |
-| ------------------------------ | --------------------- | --------------------------------------------- |
-| `VITE_CLERK_PUBLISHABLE_KEY`   | Browser               | ClerkProvider client key                      |
-| `VITE_CONVEX_URL`              | Browser               | Convex React client URL                       |
-| `CLERK_SECRET_KEY`             | TanStack Start server | `auth()` and `getToken()` in server functions |
-| `CONVEX_DEPLOYMENT`            | Convex CLI            | Local `npx convex dev` target                 |
-| `CLERK_JWT_ISSUER_DOMAIN`      | Convex runtime        | `convex/auth.config.ts` JWT verification      |
-| `CLERK_SECRET_KEY` (Convex)    | Convex actions        | Backend API calls (e.g., `github_actions.ts`) |
-| `CLERK_WEBHOOK_SIGNING_SECRET` | Convex HTTP           | `/clerk/webhooks` handler                     |
+| Variable                       | Runtime               | Purpose                                        |
+| ------------------------------ | --------------------- | ---------------------------------------------- |
+| `VITE_CLERK_PUBLISHABLE_KEY`   | Browser               | ClerkProvider client key                       |
+| `VITE_CONVEX_URL`              | Browser               | Convex React client URL                        |
+| `CLERK_SECRET_KEY`             | TanStack Start server | `auth()` and `getToken()` in server functions  |
+| `CONVEX_DEPLOYMENT`            | Convex CLI            | Local `npx convex dev` target                  |
+| `CLERK_JWT_ISSUER_DOMAIN`      | Convex runtime        | `convex/auth.config.ts` JWT verification       |
+| `CLERK_SECRET_KEY` (Convex)    | Convex actions        | Backend API calls (e.g., `github_actions.ts`)  |
+| `E2E_CLERK_USER_EMAIL`         | Playwright E2E        | Clerk test user email for `auth.setup.ts`      |
+| `E2E_BASE_URL`                 | Playwright E2E        | Base URL (defaults to `http://localhost:3000`) |
+| `CLERK_WEBHOOK_SIGNING_SECRET` | Convex HTTP           | `/clerk/webhooks` handler                      |
 
 Convex env vars must be set via `npx convex env set` — `.env.local` values do not propagate to Convex runtime.
 
@@ -147,6 +155,10 @@ pnpm deploy:convex:production     # Deploy Convex (prod)
 pnpm deploy:worker:development    # Build + wrangler deploy (dev)
 pnpm deploy:worker:production     # Build + wrangler deploy (prod)
 pnpm deploy                       # Build + wrangler deploy (prod)
+pnpm e2e              # Playwright E2E tests (requires dev server)
+pnpm e2e:auth         # Playwright auth setup only
+pnpm e2e:headed       # Playwright headed mode
+pnpm e2e:ui           # Playwright UI mode
 pnpm cities:generate  # Regenerate city seed data
 pnpm reactions:generate # Regenerate reaction seed data
 ```
