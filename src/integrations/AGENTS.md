@@ -34,6 +34,8 @@ integrations/
 - TanStack Query provider exports `getContext()` for router integration
 - Shared query option helpers live beside the Convex provider now; use them instead of ad-hoc query config.
 - Shared query helpers now cover viewer/bootstrap, public/private profile, explore, inbox, and follow-graph flows; prefer them over direct route calls.
+- Convex query options split into separate helpers: `projectSearchQueryOptions`, `postSearchQueryOptions`, `builderSearchQueryOptions`.
+- `builderSearchQueryOptions` accepts `{cityIds, limit, q}` object — filters builder search by active city and result count.
 - SSR auth flows through `createServerFn` in `__root.tsx`
 - No devtools integration — TanStack Query devtools removed for production
 

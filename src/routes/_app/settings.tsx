@@ -25,7 +25,11 @@ import { CityCombobox } from '@/components/ui/city-combobox'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 import { BrandIcon } from '@/components/ui/brand-icon'
-import { FormRoutePending } from '@/components/app-shell/route-pending'
+import {
+  FormRoutePending,
+  ROUTE_PENDING_MIN_MS,
+  ROUTE_PENDING_MS,
+} from '@/components/app-shell/route-pending'
 import { CheckCircle2 } from '@/lib/icons'
 import { RepositoryManagerDialog } from '@/features/github/repository-manager-dialog'
 import {
@@ -59,7 +63,8 @@ export const Route = createFileRoute('/_app/settings')({
   loader: ({ context }) =>
     context.queryClient.ensureQueryData(privateProfileOverviewQueryOptions()),
   pendingComponent: FormRoutePending,
-  pendingMs: 250,
+  pendingMs: ROUTE_PENDING_MS,
+  pendingMinMs: ROUTE_PENDING_MIN_MS,
   component: SettingsPage,
 })
 
@@ -405,32 +410,26 @@ function SettingsPage() {
               <div className="flex max-w-140 flex-col gap-7">
                 <div>
                   <div className={sectionTitleClassName}>visibility</div>
-                  {[
-                    {
-                      key: 'commentHistoryVisibility',
-                      label: 'comment history',
-                      desc: 'who can see your comment history tab on your profile',
-                      type: 'tab',
-                    },
-                    {
-                      key: 'likedProjectsVisibility',
-                      label: 'liked projects',
-                      desc: 'who can see your liked tab on your profile',
-                      type: 'tab',
-                    },
-                    {
-                      key: 'followGraphVisibility',
-                      label: 'follow graph',
-                      desc: 'who can see your followers and following counts',
-                      type: 'tab',
-                    },
-                    {
-                      key: 'appearInPulse',
-                      label: 'appear in pulse rankings',
-                      desc: 'allow your projects to appear in trending charts',
-                      type: 'boolean',
-                    },
-                  ].map(({ key, label, desc, type }) => (
+                  {(
+                    [
+                      {
+                        key: 'commentHistoryVisibility',
+                        label: 'show comment history',
+                        desc: 'show your comment tab on your profile',
+                      },
+                      {
+                        key: 'likedProjectsVisibility',
+                        label: 'show liked projects',
+                        desc: 'show your liked tab on your profile',
+                      },
+                      {
+                        key: 'followGraphVisibility',
+                        label: 'show follow counts',
+                        desc: 'show follower and following counts on your profile',
+                      },
+                      // Pulse has backend privacy state only. Keep this out of the UI until the frontend exists.
+                    ] as const
+                  ).map(({ key, label, desc }) => (
                     <div key={key} className={settingsRowClassName}>
                       <div>
                         <div className="mb-0.5 font-mono text-[13px] text-text">
@@ -441,25 +440,11 @@ function SettingsPage() {
                         </div>
                       </div>
                       <Switch
-                        checked={
-                          type === 'boolean'
-                            ? profile.viewer.privacy[key as 'appearInPulse']
-                            : profile.viewer.privacy[
-                                key as
-                                  | 'commentHistoryVisibility'
-                                  | 'likedProjectsVisibility'
-                                  | 'followGraphVisibility'
-                              ] === 'public'
-                        }
+                        checked={profile.viewer.privacy[key] === 'public'}
                         onCheckedChange={async (checked) => {
                           const nextPrivacy = {
                             ...profile.viewer.privacy,
-                            [key]:
-                              type === 'boolean'
-                                ? checked
-                                : checked
-                                  ? 'public'
-                                  : 'private',
+                            [key]: checked ? 'public' : 'private',
                           }
                           try {
                             await updatePrivacy(nextPrivacy)

@@ -19,6 +19,8 @@ export type ExploreFeedPayload = {
   projects: Array<ProjectCardPreview>
 }
 
+export type ExplorePostPreview = Doc<'posts'>
+
 export type ExploreCityChip = {
   id: string
   name: string

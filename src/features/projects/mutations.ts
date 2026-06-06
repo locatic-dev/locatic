@@ -10,7 +10,12 @@ export const useDeleteComment = () => useMutation(api.comments.remove)
 export const useReactToTarget = () => useMutation(api.reactions.reactToTarget)
 export const useUnreactFromTarget = () =>
   useMutation(api.reactions.unreactFromTarget)
+export const useCreatePost = () => useMutation(api.posts.create)
+export const useUpdatePost = () => useMutation(api.posts.update)
+export const useDeletePost = () => useMutation(api.posts.remove)
 export const usePinOwnedProject = () =>
   useMutation(api.projects.pinOwnedProject)
+export const useUpdateProjectTopics = () =>
+  useMutation(api.projects.updateTopics)
 export const useUpdateProjectVisibility = () =>
   useMutation(api.projects.updateVisibility)

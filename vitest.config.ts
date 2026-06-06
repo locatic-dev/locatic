@@ -10,7 +10,7 @@ export default defineConfig({
   },
   test: {
     include: ['**/*.{test,spec}.{ts,tsx}'],
-    exclude: ['**/node_modules/**', '**/dist/**'],
+    exclude: ['**/node_modules/**', '**/dist/**', '**/playwright/**'],
     environment: 'node',
     globals: true,
     clearMocks: true,

@@ -9,7 +9,8 @@ Feature modules encapsulating domain logic, hooks, and types. Each feature is se
 ```
 features/
 ├── cities/           # City-based developer discovery
-├── explore/          # Discover developers/projects by location; scope/search state
+├── contracts.ts      # Shared type contracts between features
+├── explore/          # Discover devs/projects/posts by location; scope/search state, debounced search
 ├── follows/          # Follow/unfollow developers
 ├── github/           # GitHub API integration, repo sync
 ├── home/             # Main feed, activity stream, copy helpers
@@ -17,28 +18,34 @@ features/
 ├── notifications/    # Notification system, read state, routing
 ├── onboarding/       # New user onboarding flow, repo-derived prefs
 ├── profile/          # User profiles (public + private), tab/search state
-├── projects/         # Project management, repo linking, sync feedback
+├── project-card-preview.ts  # Project card preview logic (standalone)
+├── projects/         # Project detail, repo linking, sync feedback, post feed (posts/)
 ├── settings/         # User settings, preferences
 ├── viewer/           # Current user context + bootstrap queries
-├── contracts.ts      # Shared type contracts between features
 └── __tests__/        # Cross-feature tests
 ```
 
 ## WHERE TO LOOK
 
-| Task               | Location                                             | Notes                                      |
-| ------------------ | ---------------------------------------------------- | ------------------------------------------ |
-| Add new feature    | `features/<name>/`                                   | Create dir with hooks, types, components   |
-| Shared types       | `contracts.ts`                                       | Cross-feature type definitions             |
-| Search state       | `explore/state.ts`, `profile/state.ts`               | Normalize route search params              |
-| Destination maps   | `notifications/navigation.ts`, `inbox/navigation.ts` | Keep route targets in one place            |
-| Feed copy          | `home/activity-labels.ts`                            | Activity labels and card copy              |
-| GitHub sync logic  | `github/`                                            | API calls, webhook handlers                |
-| City search        | `cities/`                                            | Geolocation, city data                     |
-| Current user data  | `viewer/`                                            | Authenticated user context, route payloads |
-| Onboarding helpers | `onboarding/helpers.ts`                              | Repo-derived stack prefs, owned projects   |
-| Profile network UI | `profile/network-section.tsx`                        | Follow graph section                       |
-| Sync feedback      | `projects/github-sync-feedback.ts`                   | Toasts for GitHub sync failures            |
+| Task                 | Location                                   | Notes                                                                 |
+| -------------------- | ------------------------------------------ | --------------------------------------------------------------------- |
+| Add new feature      | `features/<name>/`                         | Create dir with hooks, types, components                              |
+| Shared types         | `contracts.ts`                             | Cross-feature type definitions                                        |
+| Search state         | `explore/state.ts`, `profile/state.ts`     | Normalize route search params; `getExploreLoaderDeps` for stable deps |
+| Debounced search     | `explore/use-debounced-route-search.ts`    | Route-synced debounced input with rapid clear/backspace handling      |
+| Notification routing | `notifications/navigation.ts`              | `getNotificationDestination` — converts db target to router dest      |
+| Inbox destinations   | `inbox/`                                   | Keep route targets in one place                                       |
+| Project card preview | `project-card-preview.ts`                  | `toProjectCardData`, `getProjectCardRouteParams` mapping helpers      |
+| Liked-by display     | `projects/likes/liked-by-summary.tsx`      | Avatar stack + count + expandable dialog with paginated likers        |
+| Feed copy            | `home/activity-labels.ts`                  | Activity labels and card copy                                         |
+| GitHub sync logic    | `github/`                                  | API calls, webhook handlers                                           |
+| City search          | `cities/`                                  | Geolocation, city data                                                |
+| Current user data    | `viewer/`                                  | Authenticated user context, route payloads                            |
+| Onboarding helpers   | `onboarding/helpers.ts`                    | Repo-derived stack prefs, owned projects                              |
+| Profile network UI   | `profile/network-section.tsx`              | Follow graph section                                                  |
+| Sync feedback        | `projects/github-sync-feedback.ts`         | Toasts for GitHub sync failures                                       |
+| Project post feed    | `projects/posts/project-posts-section.tsx` | Paginated post list via `usePaginatedQuery` on project detail         |
+| Explore post click   | `explore/components/explore-feed.tsx`      | Post results click navigates to project page via `onOpenPostResult`   |
 
 ## CONVENTIONS
 

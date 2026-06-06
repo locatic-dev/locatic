@@ -179,6 +179,10 @@ export function buildOptimisticSelfProjectPreview(args: {
   profileUsername: string
 }) {
   const fullName = args.project.github.fullName
+  const routeOwner =
+    args.project.github.ownerLogin ??
+    args.project.github.fullName.split('/')[0] ??
+    args.profileUsername
   const owner = args.profileUsername
   const privateOverview = isPrivateOverview(args.overview)
     ? args.overview
@@ -202,7 +206,7 @@ export function buildOptimisticSelfProjectPreview(args: {
     projectId: args.project._id,
     ownerUserId: args.project.ownerId,
     fullName,
-    owner,
+    owner: routeOwner,
     repo: args.project.github.name,
     description: args.project.github.description,
     primaryLanguage: args.project.github.primaryLanguage,

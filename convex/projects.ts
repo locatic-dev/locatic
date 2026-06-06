@@ -1,4 +1,8 @@
 import { ConvexError, v } from 'convex/values'
+import {
+  paginationOptsValidator,
+  paginationResultValidator,
+} from 'convex/server'
 
 import {
   action,
@@ -7,16 +11,25 @@ import {
   mutation,
   query,
 } from './_generated/server'
+import type { QueryCtx } from './_generated/server'
 import { internal } from './_generated/api'
 import { fanOutActivityEventToFollowers } from './lib/homeFeed'
 import { getViewerOrThrow } from './lib/auth'
+import { buildPostSearchText } from './lib/posts'
 import { canPinProject } from './lib/project_pins'
 import { resolvePublicCityLabel } from './lib/project_previews'
+import {
+  getOwnerLoginFromFullName,
+  normalizeProjectRouteKey,
+  resolveProjectOwnerLogin,
+} from './lib/project_route'
 import {
   buildOwnerSnapshot,
   buildProjectExploreOwner,
   buildProjectSnapshot,
 } from './lib/snapshots'
+import { normalizeProjectTopics } from './lib/topics'
+import { buildStatusValidator, socialLinksValidator } from './lib/validators'
 
 function getCommitFrequency(lastCommitAt: number) {
   const ageDays = (Date.now() - lastCommitAt) / (24 * 60 * 60 * 1000)
@@ -24,6 +37,49 @@ function getCommitFrequency(lastCommitAt: number) {
   if (ageDays <= 30) return 'slow' as const
   return 'dormant' as const
 }
+
+function getSnapshotOwnerLogin(args: {
+  fallbackProjectId: string
+  fullName: string
+  ownerLoginByProjectId: Map<string, string>
+}) {
+  return (
+    args.ownerLoginByProjectId.get(args.fallbackProjectId) ??
+    getOwnerLoginFromFullName(args.fullName)
+  )
+}
+
+const projectLikerValidator = v.object({
+  userId: v.id('users'),
+  githubUsername: v.string(),
+  displayName: v.string(),
+  avatarUrl: v.union(v.string(), v.null()),
+})
+
+const projectDetailValidator = v.union(
+  v.object({
+    project: v.any(),
+    updates: v.array(v.any()),
+    comments: v.array(v.any()),
+    likedByPreview: v.array(projectLikerValidator),
+    viewerHasLiked: v.boolean(),
+    viewerFollowsOwner: v.boolean(),
+    owner: v.object({
+      userId: v.id('users'),
+      githubUsername: v.string(),
+      displayName: v.string(),
+      avatarUrl: v.union(v.string(), v.null()),
+      socialLinks: socialLinksValidator,
+      buildStatus: buildStatusValidator,
+      city: v.union(v.string(), v.null()),
+    }),
+    canonicalRoute: v.object({
+      owner: v.string(),
+      repo: v.string(),
+    }),
+  }),
+  v.null(),
+)
 
 export const listMine = query({
   args: {},
@@ -36,76 +92,294 @@ export const listMine = query({
   },
 })
 
-export const getPublicByFullName = query({
-  args: {
-    fullName: v.string(),
+export const backfillRouteFields = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const projects = await ctx.db.query('projects').collect()
+    const ownerLoginByProjectId = new Map<string, string>()
+    let projectsPatched = 0
+    let snapshotsPatched = 0
+    const now = Date.now()
+
+    for (const project of projects) {
+      const ownerLogin = resolveProjectOwnerLogin(project)
+      ownerLoginByProjectId.set(String(project._id), ownerLogin)
+
+      if (
+        project.github.ownerLogin !== ownerLogin ||
+        project.github.ownerLoginKey !== normalizeProjectRouteKey(ownerLogin) ||
+        project.github.nameKey !== normalizeProjectRouteKey(project.github.name)
+      ) {
+        await ctx.db.patch(project._id, {
+          github: {
+            ...project.github,
+            ownerLogin,
+            ownerLoginKey: normalizeProjectRouteKey(ownerLogin),
+            nameKey: normalizeProjectRouteKey(project.github.name),
+          },
+          updatedAt: now,
+        })
+        projectsPatched += 1
+      }
+    }
+
+    const updates = await ctx.db.query('updates').collect()
+    for (const update of updates) {
+      if (update.projectSnapshot.ownerLogin) {
+        continue
+      }
+
+      await ctx.db.patch(update._id, {
+        projectSnapshot: {
+          ...update.projectSnapshot,
+          ownerLogin: getSnapshotOwnerLogin({
+            fallbackProjectId: String(update.projectId),
+            fullName: update.projectSnapshot.fullName,
+            ownerLoginByProjectId,
+          }),
+        },
+      })
+      snapshotsPatched += 1
+    }
+
+    const posts = await ctx.db.query('posts').collect()
+    for (const post of posts) {
+      if (post.projectSnapshot.ownerLogin) {
+        continue
+      }
+
+      await ctx.db.patch(post._id, {
+        projectSnapshot: {
+          ...post.projectSnapshot,
+          ownerLogin: getSnapshotOwnerLogin({
+            fallbackProjectId: String(post.projectId),
+            fullName: post.projectSnapshot.fullName,
+            ownerLoginByProjectId,
+          }),
+        },
+      })
+      snapshotsPatched += 1
+    }
+
+    const events = await ctx.db.query('activity_events').collect()
+    for (const event of events) {
+      if (event.projectSnapshot.ownerLogin) {
+        continue
+      }
+
+      await ctx.db.patch(event._id, {
+        projectSnapshot: {
+          ...event.projectSnapshot,
+          ownerLogin: getSnapshotOwnerLogin({
+            fallbackProjectId: String(event.projectId),
+            fullName: event.projectSnapshot.fullName,
+            ownerLoginByProjectId,
+          }),
+        },
+      })
+      snapshotsPatched += 1
+    }
+
+    const feedItems = await ctx.db.query('home_feed_items').collect()
+    for (const item of feedItems) {
+      if (item.projectSnapshot.ownerLogin) {
+        continue
+      }
+
+      await ctx.db.patch(item._id, {
+        projectSnapshot: {
+          ...item.projectSnapshot,
+          ownerLogin: getSnapshotOwnerLogin({
+            fallbackProjectId: String(item.projectId),
+            fullName: item.projectSnapshot.fullName,
+            ownerLoginByProjectId,
+          }),
+        },
+      })
+      snapshotsPatched += 1
+    }
+
+    const pulseSnapshots = await ctx.db.query('pulse_snapshots').collect()
+    for (const snapshot of pulseSnapshots) {
+      if (snapshot.projectSnapshot.ownerLogin) {
+        continue
+      }
+
+      await ctx.db.patch(snapshot._id, {
+        projectSnapshot: {
+          ...snapshot.projectSnapshot,
+          ownerLogin: getSnapshotOwnerLogin({
+            fallbackProjectId: snapshot.projectId,
+            fullName: snapshot.projectSnapshot.fullName,
+            ownerLoginByProjectId,
+          }),
+        },
+      })
+      snapshotsPatched += 1
+    }
+
+    return {
+      projectsPatched,
+      snapshotsPatched,
+    }
   },
+})
+
+async function getPublicProjectDetail(
+  ctx: QueryCtx,
+  args: {
+    owner: string
+    repo: string
+  },
+) {
+  const requesterIdentity = await ctx.auth.getUserIdentity()
+  const requester = requesterIdentity
+    ? await ctx.db
+        .query('users')
+        .withIndex('by_clerk_id', (query) =>
+          query.eq('clerkId', requesterIdentity.subject),
+        )
+        .unique()
+    : null
+  const ownerLoginKey = normalizeProjectRouteKey(args.owner)
+  const nameKey = normalizeProjectRouteKey(args.repo)
+  const matchingProjects = await ctx.db
+    .query('projects')
+    .withIndex('by_github_route_visible', (query) =>
+      query
+        .eq('github.ownerLoginKey', ownerLoginKey)
+        .eq('github.nameKey', nameKey)
+        .eq('locatic.isVisible', true),
+    )
+    .take(2)
+  if (matchingProjects.length > 1) {
+    throw new ConvexError('Duplicate visible project route')
+  }
+  const project = matchingProjects[0] ?? null
+
+  if (!project) {
+    return null
+  }
+
+  const owner = await ctx.db.get(project.ownerId)
+  if (!owner || owner.deletedAt || owner.deactivatedAt) {
+    return null
+  }
+
+  const updates = await ctx.db
+    .query('updates')
+    .withIndex('by_project', (query) => query.eq('projectId', project._id))
+    .collect()
+
+  const viewerHasLiked = requester
+    ? await ctx.db
+        .query('reactions')
+        .withIndex('by_user_target_reaction', (query) =>
+          query
+            .eq('userId', requester._id)
+            .eq('targetId', String(project._id))
+            .eq('reactionType', 'like'),
+        )
+        .unique()
+    : null
+
+  const viewerFollowsOwner = requester
+    ? await ctx.db
+        .query('follows')
+        .withIndex('by_pair', (query) =>
+          query.eq('followerId', requester._id).eq('followingId', owner._id),
+        )
+        .unique()
+    : null
+
+  const likedByReactions = await ctx.db
+    .query('reactions')
+    .withIndex('by_target_reaction_created', (query) =>
+      query
+        .eq('targetType', 'project')
+        .eq('targetId', String(project._id))
+        .eq('reactionType', 'like'),
+    )
+    .order('desc')
+    .take(3)
+
+  const likedByPreview = (
+    await Promise.all(
+      likedByReactions.map(async (reaction) => {
+        const user = await ctx.db.get(reaction.userId)
+        if (!user || user.deletedAt || user.deactivatedAt) {
+          return null
+        }
+
+        return {
+          userId: user._id,
+          githubUsername: user.github.username,
+          displayName: user.profile.displayName,
+          avatarUrl: user.profile.avatarUrl,
+        }
+      }),
+    )
+  ).filter((user): user is NonNullable<typeof user> => user !== null)
+
+  const ownerCity = owner.profile.cityId
+    ? await ctx.db.get(owner.profile.cityId)
+    : null
+
+  return {
+    project,
+    updates,
+    comments: [],
+    likedByPreview,
+    viewerHasLiked: Boolean(viewerHasLiked),
+    viewerFollowsOwner: Boolean(viewerFollowsOwner),
+    owner: {
+      userId: owner._id,
+      githubUsername: owner.github.username,
+      displayName: owner.profile.displayName,
+      avatarUrl: owner.profile.avatarUrl,
+      socialLinks: owner.profile.socialLinks,
+      buildStatus: owner.profile.buildStatus,
+      city: resolvePublicCityLabel(owner, ownerCity?.displayName ?? null),
+    },
+    canonicalRoute: {
+      owner: resolveProjectOwnerLogin(project),
+      repo: project.github.name,
+    },
+  }
+}
+
+export const getPublicByRoute = query({
+  args: {
+    owner: v.string(),
+    repo: v.string(),
+  },
+  returns: projectDetailValidator,
   handler: async (ctx, args) => {
-    const requesterIdentity = await ctx.auth.getUserIdentity()
-    const requester = requesterIdentity
-      ? await ctx.db
-          .query('users')
-          .withIndex('by_clerk_id', (query) =>
-            query.eq('clerkId', requesterIdentity.subject),
-          )
-          .unique()
-      : null
-    const project = await ctx.db
-      .query('projects')
-      .withIndex('by_full_name', (query) =>
-        query.eq('github.fullName', args.fullName),
-      )
-      .unique()
+    return await getPublicProjectDetail(ctx, args)
+  },
+})
 
-    if (!project || !project.locatic.isVisible) {
-      return null
-    }
-
-    const owner = await ctx.db.get(project.ownerId)
-    if (!owner || owner.deletedAt || owner.deactivatedAt) {
-      return null
-    }
-
-    const updates = await ctx.db
-      .query('updates')
-      .withIndex('by_project', (query) => query.eq('projectId', project._id))
-      .collect()
-
-    const viewerHasLiked = requester
-      ? await ctx.db
-          .query('reactions')
-          .withIndex('by_user_target_reaction', (query) =>
-            query
-              .eq('userId', requester._id)
-              .eq('targetId', String(project._id))
-              .eq('reactionType', 'like'),
-          )
-          .unique()
-      : null
-
-    const viewerFollowsOwner = requester
-      ? await ctx.db
-          .query('follows')
-          .withIndex('by_pair', (query) =>
-            query.eq('followerId', requester._id).eq('followingId', owner._id),
-          )
-          .unique()
-      : null
-
-    const likedByReactions = await ctx.db
+export const listLikers = query({
+  args: {
+    projectId: v.id('projects'),
+    paginationOpts: paginationOptsValidator,
+  },
+  returns: paginationResultValidator(projectLikerValidator),
+  handler: async (ctx, args) => {
+    const page = await ctx.db
       .query('reactions')
       .withIndex('by_target_reaction_created', (query) =>
         query
           .eq('targetType', 'project')
-          .eq('targetId', String(project._id))
+          .eq('targetId', String(args.projectId))
           .eq('reactionType', 'like'),
       )
       .order('desc')
-      .take(3)
+      .paginate(args.paginationOpts)
 
-    const likedByPreview = (
+    const likers = (
       await Promise.all(
-        likedByReactions.map(async (reaction) => {
+        page.page.map(async (reaction) => {
           const user = await ctx.db.get(reaction.userId)
           if (!user || user.deletedAt || user.deactivatedAt) {
             return null
@@ -119,28 +393,11 @@ export const getPublicByFullName = query({
           }
         }),
       )
-    ).filter(Boolean)
-
-    const ownerCity = owner.profile.cityId
-      ? await ctx.db.get(owner.profile.cityId)
-      : null
+    ).filter((liker): liker is NonNullable<typeof liker> => liker !== null)
 
     return {
-      project,
-      updates,
-      comments: [],
-      likedByPreview,
-      viewerHasLiked: Boolean(viewerHasLiked),
-      viewerFollowsOwner: Boolean(viewerFollowsOwner),
-      owner: {
-        userId: owner._id,
-        githubUsername: owner.github.username,
-        displayName: owner.profile.displayName,
-        avatarUrl: owner.profile.avatarUrl,
-        socialLinks: owner.profile.socialLinks,
-        buildStatus: owner.profile.buildStatus,
-        city: resolvePublicCityLabel(owner, ownerCity?.displayName ?? null),
-      },
+      ...page,
+      page: likers,
     }
   },
 })
@@ -258,6 +515,55 @@ export const pinOwnedProject = mutation({
   },
 })
 
+export const updateTopics = mutation({
+  args: {
+    projectId: v.id('projects'),
+    topics: v.array(v.string()),
+  },
+  returns: v.array(v.string()),
+  handler: async (ctx, args) => {
+    const viewer = await getViewerOrThrow(ctx)
+    const project = await ctx.db.get(args.projectId)
+    if (!project || project.ownerId !== viewer._id) {
+      throw new ConvexError('Project not found')
+    }
+
+    const topics = normalizeProjectTopics(args.topics)
+    const now = Date.now()
+
+    await ctx.db.patch(project._id, {
+      locatic: {
+        ...project.locatic,
+        tags: topics,
+        topicsEditedAt: now,
+      },
+      updatedAt: now,
+    })
+
+    const posts = await ctx.db
+      .query('posts')
+      .withIndex('by_project_deleted_created', (query) =>
+        query.eq('projectId', project._id).eq('deletedAt', null),
+      )
+      .collect()
+
+    await Promise.all(
+      posts.map((post) =>
+        ctx.db.patch(post._id, {
+          projectTopics: topics,
+          searchText: buildPostSearchText({
+            body: post.body,
+            projectFullName: project.github.fullName,
+            topics,
+          }),
+        }),
+      ),
+    )
+
+    return topics
+  },
+})
+
 export const refreshMetadata = action({
   args: {
     projectId: v.id('projects'),
@@ -289,7 +595,10 @@ export const upsertImportedRepositories = internalMutation({
       v.object({
         repoId: v.number(),
         fullName: v.string(),
+        ownerLogin: v.string(),
+        ownerLoginKey: v.string(),
         name: v.string(),
+        nameKey: v.string(),
         description: v.union(v.string(), v.null()),
         githubUrl: v.string(),
         projectUrl: v.union(v.string(), v.null()),
@@ -305,6 +614,10 @@ export const upsertImportedRepositories = internalMutation({
         lastCommitAt: v.number(),
         lastMetadataSyncedAt: v.union(v.number(), v.null()),
         readmePreview: v.union(v.string(), v.null()),
+        readmeAssetBaseUrl: v.union(v.string(), v.null()),
+        readmeAssetRootUrl: v.union(v.string(), v.null()),
+        readmeLinkBaseUrl: v.union(v.string(), v.null()),
+        readmeLinkRootUrl: v.union(v.string(), v.null()),
       }),
     ),
   },
@@ -322,6 +635,8 @@ export const upsertImportedRepositories = internalMutation({
     const createdProjectIds = []
 
     for (const repository of args.repositories) {
+      const ownerLogin =
+        repository.ownerLogin || getOwnerLoginFromFullName(repository.fullName)
       const existing = await ctx.db
         .query('projects')
         .withIndex('by_github_repo_id', (query) =>
@@ -332,14 +647,18 @@ export const upsertImportedRepositories = internalMutation({
       const projectRecord = {
         github: {
           ...repository,
+          ownerLogin,
+          ownerLoginKey: normalizeProjectRouteKey(ownerLogin),
+          nameKey: normalizeProjectRouteKey(repository.name),
           commitFrequency: getCommitFrequency(repository.lastCommitAt),
         },
         locatic: existing?.locatic ?? {
           isVisible: true,
-          tags: repository.topics,
+          tags: normalizeProjectTopics(repository.topics),
           likesCount: 0,
           commentsCount: 0,
           updatesCount: 0,
+          postsCount: 0,
         },
         exploreOwner: buildProjectExploreOwner(
           owner,
@@ -384,6 +703,7 @@ export const upsertImportedRepositories = internalMutation({
         eventType: 'project_posted',
         projectId,
         updateId: null,
+        postId: null,
         commentId: null,
         actorSnapshot: {
           displayName: owner.profile.displayName,
@@ -393,6 +713,7 @@ export const upsertImportedRepositories = internalMutation({
         },
         projectSnapshot: buildProjectSnapshot(project),
         updateSnapshot: null,
+        postSnapshot: null,
         createdAt: now,
       })
 

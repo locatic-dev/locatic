@@ -1,5 +1,8 @@
 import type { ProjectCardData } from '@/components/ui/project-card'
-import type { ProjectCardPreview } from '@/features/contracts'
+import type {
+  ProjectCardPreview,
+  ProjectRouteParams,
+} from '@/features/contracts'
 import { relativeTime } from '@/lib/time'
 
 export function getProjectCardId(project: ProjectCardPreview) {
@@ -16,6 +19,15 @@ export function getProjectCardOwner(project: ProjectCardPreview) {
 
 export function getProjectCardRepo(project: ProjectCardPreview) {
   return project.repo
+}
+
+export function getProjectCardRouteParams(
+  project: ProjectCardPreview,
+): ProjectRouteParams {
+  return {
+    owner: project.owner,
+    repo: project.repo,
+  }
 }
 
 export function getProjectCardFullName(project: ProjectCardPreview) {
@@ -37,6 +49,8 @@ export function toProjectCardData(
     githubStars: project.githubStars,
     locaticLikes: project.locaticLikes,
     commentsCount: project.commentsCount,
+    postsCount: project.postsCount,
+    topics: project.topics,
     authorName: project.authorName,
     authorHandle: project.authorHandle,
     authorAvatarUrl: project.authorAvatarUrl,

@@ -27,13 +27,32 @@ describe('notification navigation helpers', () => {
         kind: 'project',
         username: null,
         projectFullName: 'octocat/hello-world',
+        projectOwner: 'OctoCat',
+        projectRepo: 'Hello-World',
         conversationId: null,
         inboxTab: null,
         commentId: 'comment_123' as Id<'comments'>,
       }),
     ).toEqual({
-      params: { owner: 'octocat', repo: 'hello-world' },
+      params: { owner: 'OctoCat', repo: 'Hello-World' },
       search: { comment: 'comment_123' },
+      to: '/project/$owner/$repo',
+    })
+  })
+
+  it('falls back to fullName for legacy project targets', () => {
+    expect(
+      getNotificationDestination({
+        kind: 'project',
+        username: null,
+        projectFullName: 'octocat/hello-world',
+        conversationId: null,
+        inboxTab: null,
+        commentId: null,
+      }),
+    ).toEqual({
+      params: { owner: 'octocat', repo: 'hello-world' },
+      search: { comment: null },
       to: '/project/$owner/$repo',
     })
   })

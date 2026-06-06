@@ -128,14 +128,3 @@ export function mergeBuilderSearchCandidates<
 
   return merged
 }
-
-export function mapBuilderSearchResult(user: DiscoverabilityIdentity) {
-  return {
-    userId: user._id,
-    displayName: user.profile.displayName,
-    avatarUrl: user.profile.avatarUrl ?? null,
-    githubUsername: user.github.username,
-    projectsCount: user.stats.projectsCount,
-    followersCount: user.stats.followersCount,
-  }
-}

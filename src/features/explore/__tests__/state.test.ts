@@ -6,6 +6,7 @@ import {
   dedupeExploreCityIds,
   deriveDefaultExploreCityIds,
   getCanonicalExploreCityIds,
+  getExploreLoaderDeps,
   getExploreProjectCityIds,
   getExploreScopeStatusCopy,
   getFreshExploreSearch,
@@ -19,6 +20,8 @@ import {
 describe('explore state helpers', () => {
   it('defaults a fresh explore visit to default scope', () => {
     expect(getFreshExploreSearch()).toEqual({
+      mode: 'projects',
+      q: '',
       scope: 'default',
       selectedCityIds: [],
     })
@@ -27,15 +30,50 @@ describe('explore state helpers', () => {
   it('normalizes route search params into a typed explore state', () => {
     expect(
       normalizeExploreSearch({
+        mode: 'builders',
+        q: '  avinash  ',
         scope: 'custom',
-        builderQuery: '  avinash  ',
-        cityQuery: 'banga',
         selectedCityIds: ['city_1', 'city_1', '', 123],
       }),
     ).toEqual({
+      mode: 'builders',
+      q: '  avinash  ',
       scope: 'custom',
       selectedCityIds: ['city_1'],
     })
+  })
+
+  it('accepts posts as a first-class explore mode', () => {
+    expect(
+      normalizeExploreSearch({
+        mode: 'posts',
+        q: '#react',
+        scope: 'global',
+      }),
+    ).toEqual({
+      mode: 'posts',
+      q: '#react',
+      scope: 'global',
+      selectedCityIds: [],
+    })
+  })
+
+  it('keeps loader deps stable across query-only changes', () => {
+    expect(
+      getExploreLoaderDeps({
+        mode: 'posts',
+        q: 'react',
+        scope: 'custom',
+        selectedCityIds: ['city_1'],
+      }),
+    ).toEqual(
+      getExploreLoaderDeps({
+        mode: 'posts',
+        q: 'maps',
+        scope: 'custom',
+        selectedCityIds: ['city_1'],
+      }),
+    )
   })
 
   it('converts empty custom selections into an explicit global scope', () => {
@@ -45,6 +83,8 @@ describe('explore state helpers', () => {
         selectedCityIds: [],
       }),
     ).toEqual({
+      mode: 'projects',
+      q: '',
       scope: 'global',
       selectedCityIds: [],
     })
@@ -210,7 +250,7 @@ describe('explore state helpers', () => {
     expect(isExploreProjectFeedGlobal('global')).toBe(true)
   })
 
-  it('uses active city ids for the nearby builders rail', () => {
+  it('uses active city ids for the builders tab directory', () => {
     expect(
       getNearbyBuilderCityIds({
         scope: 'default',

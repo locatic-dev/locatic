@@ -15,14 +15,26 @@ import {
   buildProfileNotificationTarget,
   buildProjectNotificationTarget,
 } from './lib/notifications'
+import {
+  resolveProjectOwnerLogin,
+  resolveProjectSnapshotOwnerLogin,
+} from './lib/project_route'
 
 type NotificationTargetRecord = {
   kind: 'profile' | 'project' | 'conversation'
   username: string | null
   projectFullName: string | null
+  projectOwner?: string | null
+  projectRepo?: string | null
   conversationId: Id<'conversations'> | null
   inboxTab?: 'inbox' | 'requests' | null
   commentId: Id<'comments'> | null
+}
+
+type ProjectNotificationRouteTarget = {
+  fullName: string
+  owner: string
+  repo: string
 }
 
 async function resolveNotificationTarget(
@@ -66,34 +78,58 @@ async function resolveNotificationTarget(
       : null
   }
 
-  let projectFullName: string | null = null
+  let projectTarget: ProjectNotificationRouteTarget | null = null
 
   if (notification.projectId) {
     const project = await ctx.db.get(notification.projectId)
-    projectFullName = project?.github.fullName ?? null
+    projectTarget = project
+      ? {
+          fullName: project.github.fullName,
+          owner: resolveProjectOwnerLogin(project),
+          repo: project.github.name,
+        }
+      : null
   }
 
-  if (!projectFullName && notification.updateId) {
+  if (!projectTarget && notification.updateId) {
     const update = await ctx.db.get(notification.updateId)
-    projectFullName = update?.projectSnapshot.fullName ?? null
+    projectTarget = update
+      ? {
+          fullName: update.projectSnapshot.fullName,
+          owner: resolveProjectSnapshotOwnerLogin(update.projectSnapshot),
+          repo: update.projectSnapshot.name,
+        }
+      : null
   }
 
-  if (!projectFullName && notification.commentId) {
+  if (!projectTarget && notification.commentId) {
     const comment = await ctx.db.get(notification.commentId)
     if (comment?.targetType === 'project') {
       const projectId = ctx.db.normalizeId('projects', comment.targetId)
       const project = projectId ? await ctx.db.get(projectId) : null
-      projectFullName = project?.github.fullName ?? null
+      projectTarget = project
+        ? {
+            fullName: project.github.fullName,
+            owner: resolveProjectOwnerLogin(project),
+            repo: project.github.name,
+          }
+        : null
     }
-    if (comment?.targetType === 'update') {
+    if (!projectTarget && comment?.targetType === 'update') {
       const updateId = ctx.db.normalizeId('updates', comment.targetId)
       const update = updateId ? await ctx.db.get(updateId) : null
-      projectFullName = update?.projectSnapshot.fullName ?? null
+      projectTarget = update
+        ? {
+            fullName: update.projectSnapshot.fullName,
+            owner: resolveProjectSnapshotOwnerLogin(update.projectSnapshot),
+            repo: update.projectSnapshot.name,
+          }
+        : null
     }
   }
 
-  return projectFullName
-    ? buildProjectNotificationTarget(projectFullName, {
+  return projectTarget
+    ? buildProjectNotificationTarget(projectTarget, {
         commentId: notification.commentId,
       })
     : null

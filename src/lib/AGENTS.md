@@ -14,22 +14,28 @@ lib/
 ├── social-links.ts   # Social link validation, formatting
 ├── time.ts           # Time utilities, relative time formatting
 ├── auth-routing.ts   # Auth redirect and route-target helpers
-├── sidebar-layout.ts  # Sidebar collapse storage helpers
-├── skip-link.ts       # Keyboard modality / focus helpers
+├── error-display.ts  # Error boundary display component
+├── query.ts          # Query key / option helpers
+├── sidebar-layout.ts # Sidebar collapse storage helpers
+├── skip-link.ts      # Keyboard modality / focus helpers
+├── linkify.tsx       # URL detection & safe external link rendering
 └── __tests__/        # Utility tests
 ```
 
 ## WHERE TO LOOK
 
-| Task                  | File                | Notes                     |
-| --------------------- | ------------------- | ------------------------- |
-| Add utility           | `utils.ts`          | General-purpose helpers   |
-| Add formatter         | `format.ts`         | Display formatting        |
-| Add icon              | `icons.ts`          | Icon components, mappings |
-| Add time helper       | `time.ts`           | Date/time utilities       |
-| Add auth route helper | `auth-routing.ts`   | Login redirect targets    |
-| Add sidebar helper    | `sidebar-layout.ts` | Sidebar collapse storage  |
-| Add skip-link helper  | `skip-link.ts`      | Keyboard modality / blur  |
+| Task                  | File                | Notes                         |
+| --------------------- | ------------------- | ----------------------------- |
+| Add utility           | `utils.ts`          | General-purpose helpers       |
+| Add formatter         | `format.ts`         | Display formatting            |
+| Add icon              | `icons.ts`          | Icon components, mappings     |
+| Add time helper       | `time.ts`           | Date/time utilities           |
+| Add auth route helper | `auth-routing.ts`   | Login redirect targets        |
+| Add error display     | `error-display.ts`  | Error boundary / fallback UI  |
+| Add query helper      | `query.ts`          | Query key/option helpers      |
+| Add sidebar helper    | `sidebar-layout.ts` | Sidebar collapse storage      |
+| Add skip-link helper  | `skip-link.ts`      | Keyboard modality / blur      |
+| Add linkify utility   | `linkify.tsx`       | URL→anchor conversion in text |
 
 ## CONVENTIONS
 
@@ -38,6 +44,8 @@ lib/
 - Each utility file has a focused domain
 - Auth moved to `__root.tsx` — no route-level auth helpers in lib
 - Auth-routing helpers are shared across route guards and tests; keep route target names in sync with `_app` flows.
+- `error-display.ts` provides error boundary UI; keep it as a shared presentational helper
+- `query.ts` holds shared query key constants and query option factory helpers
 - Sidebar state persistence and skip-link modality helpers stay here; keep shell components dumb.
 
 ## ANTI-PATTERNS

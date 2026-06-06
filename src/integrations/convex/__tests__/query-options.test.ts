@@ -2,8 +2,11 @@ import { describe, expect, it } from 'vitest'
 
 import {
   exploreFeedQueryOptions,
+  builderSearchQueryOptions,
   nearbyBuildersQueryOptions,
+  postSearchQueryOptions,
   privateFollowGraphQueryOptions,
+  projectSearchQueryOptions,
   publicFollowGraphQueryOptions,
 } from '../query-options'
 
@@ -27,6 +30,51 @@ describe('nearbyBuildersQueryOptions', () => {
 
     expect(query.queryKey[2]).toMatchObject({
       cityIds: [],
+    })
+  })
+})
+
+describe('builderSearchQueryOptions', () => {
+  it('passes active city filters through to builder search', () => {
+    const query = builderSearchQueryOptions({
+      cityIds: ['city_1' as never],
+      q: 'react',
+    })
+
+    expect(query.queryKey[2]).toMatchObject({
+      cityIds: ['city_1'],
+      limit: 10,
+      q: 'react',
+    })
+  })
+})
+
+describe('projectSearchQueryOptions', () => {
+  it('targets project-only explore search args', () => {
+    const query = projectSearchQueryOptions({
+      cityIds: ['city_1' as never],
+      q: 'convex',
+    })
+
+    expect(query.queryKey[2]).toMatchObject({
+      cityIds: ['city_1'],
+      limit: 10,
+      q: 'convex',
+    })
+  })
+})
+
+describe('postSearchQueryOptions', () => {
+  it('targets post-only explore search args', () => {
+    const query = postSearchQueryOptions({
+      cityIds: ['city_1' as never],
+      q: '#react',
+    })
+
+    expect(query.queryKey[2]).toMatchObject({
+      cityIds: ['city_1'],
+      limit: 10,
+      q: '#react',
     })
   })
 })

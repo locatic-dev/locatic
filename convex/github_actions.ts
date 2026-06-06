@@ -4,6 +4,7 @@ import { createClerkClient } from '@clerk/backend'
 import { ConvexError, v } from 'convex/values'
 
 import { internal } from './_generated/api'
+import type { Id } from './_generated/dataModel'
 import { action, internalAction } from './_generated/server'
 import { buildViewerSeedFromIdentity, requireIdentity } from './lib/auth'
 import {
@@ -13,7 +14,11 @@ import {
   mapGithubRepository,
   mapGithubRepositoryWithOptionalLanguages,
   normalizeRepositoryFullNames,
+  normalizeGithubReadmeImport,
+  assertGithubRawDownloadUrl,
   type GithubLanguages,
+  type GithubReadmeImport,
+  type GithubReadmeMetadata,
   type GithubRepository,
 } from './lib/github'
 
@@ -22,6 +27,73 @@ class GitHubRequestError extends Error {
     super(`GitHub request failed: ${status}`)
   }
 }
+
+type ProjectReadmeBackfillBatch = {
+  hasMore: boolean
+  limit: number
+  refreshAll: boolean
+  remaining: number
+  scanned: number
+  targets: Array<{
+    currentReadmeLength: number
+    fullName: string
+    projectId: Id<'projects'>
+  }>
+  totalCandidates: number
+}
+
+type ProjectReadmeBackfillBatchPage = {
+  continueCursor: string
+  hasMore: boolean
+  remainingLowerBound: number
+  scanned: number
+  targets: ProjectReadmeBackfillBatch['targets']
+  totalCandidatesLowerBound: number
+}
+
+type ProjectReadmeBackfillResult = {
+  error: string | null
+  fullName: string
+  readmeLength: number
+  status: 'failed' | 'missing' | 'updated'
+}
+
+type ProjectReadmeBackfillSummary = {
+  failed: number
+  hasMore: boolean
+  limit: number
+  missing: number
+  refreshAll: boolean
+  remaining: number
+  results: ProjectReadmeBackfillResult[]
+  scanned: number
+  totalCandidates: number
+  updated: number
+}
+
+const projectReadmeBackfillResultValidator = v.object({
+  error: v.union(v.string(), v.null()),
+  fullName: v.string(),
+  readmeLength: v.number(),
+  status: v.union(
+    v.literal('failed'),
+    v.literal('missing'),
+    v.literal('updated'),
+  ),
+})
+
+const projectReadmeBackfillSummaryValidator = v.object({
+  failed: v.number(),
+  hasMore: v.boolean(),
+  limit: v.number(),
+  missing: v.number(),
+  refreshAll: v.boolean(),
+  remaining: v.number(),
+  results: v.array(projectReadmeBackfillResultValidator),
+  scanned: v.number(),
+  totalCandidates: v.number(),
+  updated: v.number(),
+})
 
 async function getClerkClient() {
   if (!process.env.CLERK_SECRET_KEY) {
@@ -67,6 +139,78 @@ async function githubRequest<T>(
   }
 
   return (await response.json()) as T
+}
+
+async function githubRawTextRequest(
+  url: string,
+  accessToken?: string,
+  init?: RequestInit,
+) {
+  const downloadUrl = assertGithubRawDownloadUrl(url)
+  const headers = new Headers(init?.headers)
+  if (accessToken) {
+    headers.set('Authorization', `Bearer ${accessToken}`)
+  }
+
+  const response = await fetch(downloadUrl, {
+    ...init,
+    headers,
+  })
+
+  if (!response.ok) {
+    throw new GitHubRequestError(response.status)
+  }
+
+  return response.text()
+}
+
+async function githubOptionalRequest<T>(url: string, init?: RequestInit) {
+  const headers = new Headers(init?.headers)
+  headers.set('Accept', 'application/vnd.github+json')
+  headers.set('X-GitHub-Api-Version', '2022-11-28')
+
+  const response = await fetch(`https://api.github.com${url}`, {
+    ...init,
+    headers,
+  })
+
+  if (response.status === 404) {
+    return null
+  }
+
+  if (!response.ok) {
+    throw new GitHubRequestError(response.status)
+  }
+
+  return (await response.json()) as T
+}
+
+async function fetchGithubReadmeImport(
+  repositoryPath: string,
+  accessToken: string,
+): Promise<GithubReadmeImport | null> {
+  const metadata = await githubRequest<GithubReadmeMetadata>(
+    `/repos/${repositoryPath}/readme`,
+    accessToken,
+  )
+  const markdown = metadata.download_url
+    ? await githubRawTextRequest(metadata.download_url, accessToken)
+    : null
+
+  return { markdown, metadata }
+}
+
+async function fetchOptionalGithubReadmeImport(
+  repositoryPath: string,
+): Promise<GithubReadmeImport | null> {
+  const metadata = await githubOptionalRequest<GithubReadmeMetadata>(
+    `/repos/${repositoryPath}/readme`,
+  )
+  const markdown = metadata?.download_url
+    ? await githubRawTextRequest(metadata.download_url)
+    : null
+
+  return metadata ? { markdown, metadata } : null
 }
 
 async function githubNoContentRequest(
@@ -238,6 +382,8 @@ export const importSelectedRepositories = action({
               `/repos/${repositoryPath}/languages`,
               accessToken,
             ),
+          fetchReadme: () =>
+            fetchGithubReadmeImport(repositoryPath, accessToken),
         })
       }),
     )
@@ -406,17 +552,19 @@ export const refreshProjectMetadata = internalAction({
     }
 
     const { accessToken, scopes } = await getGithubAccessToken(owner.clerkId)
+    const repositoryPath = encodeRepositoryFullNamePath(project.github.fullName)
     const repository = await mapGithubRepositoryWithOptionalLanguages({
       fetchRepository: () =>
         githubRequest<GithubRepository>(
-          `/repos/${project.github.fullName}`,
+          `/repos/${repositoryPath}`,
           accessToken,
         ),
       fetchLanguages: () =>
         githubRequest<GithubLanguages>(
-          `/repos/${project.github.fullName}/languages`,
+          `/repos/${repositoryPath}/languages`,
           accessToken,
         ),
+      fetchReadme: () => fetchGithubReadmeImport(repositoryPath, accessToken),
     })
 
     await ctx.runMutation(internal.github.patchProjectMetadata, {
@@ -450,6 +598,107 @@ export const refreshActiveProjectMetadata = internalAction({
     }
 
     return { refreshed: projects.length }
+  },
+})
+
+export const backfillProjectReadmes = internalAction({
+  args: {
+    limit: v.optional(v.number()),
+    refreshAll: v.optional(v.boolean()),
+  },
+  returns: projectReadmeBackfillSummaryValidator,
+  handler: async (ctx, args): Promise<ProjectReadmeBackfillSummary> => {
+    const limit = Math.min(Math.max(Math.floor(args.limit ?? 100), 1), 100)
+    const refreshAll = args.refreshAll ?? false
+    const targets: ProjectReadmeBackfillBatch['targets'] = []
+    let cursor: string | null = null
+    let hasMore = false
+    let remaining = 0
+    let scanned = 0
+    let totalCandidates = 0
+
+    while (targets.length < limit) {
+      const page: ProjectReadmeBackfillBatchPage = await ctx.runQuery(
+        internal.github.listProjectReadmeBackfillTargets,
+        {
+          cursor,
+          limit: limit - targets.length,
+          refreshAll,
+        },
+      )
+
+      targets.push(...page.targets)
+      cursor = page.continueCursor
+      hasMore = page.hasMore
+      remaining += page.remainingLowerBound
+      scanned += page.scanned
+      totalCandidates += page.totalCandidatesLowerBound
+
+      if (!page.hasMore || page.scanned === 0) {
+        break
+      }
+    }
+
+    const batch: ProjectReadmeBackfillBatch = {
+      hasMore,
+      limit,
+      refreshAll,
+      remaining,
+      scanned,
+      targets,
+      totalCandidates,
+    }
+    const results: ProjectReadmeBackfillResult[] = []
+
+    for (const target of batch.targets) {
+      try {
+        const repositoryPath = encodeRepositoryFullNamePath(target.fullName)
+        const readme = await fetchOptionalGithubReadmeImport(repositoryPath)
+        const readmeImport = normalizeGithubReadmeImport(readme)
+
+        await ctx.runMutation(internal.github.patchProjectReadmePreview, {
+          projectId: target.projectId,
+          ...readmeImport,
+        })
+
+        const status = readmeImport.readmePreview ? 'updated' : 'missing'
+        const readmeLength = readmeImport.readmePreview?.length ?? 0
+        console.info(
+          `README backfill ${status}: ${target.fullName} (${readmeLength} chars)`,
+        )
+        results.push({
+          error: null,
+          fullName: target.fullName,
+          readmeLength,
+          status,
+        })
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : 'Unknown README backfill error'
+        console.error(`README backfill failed: ${target.fullName}: ${message}`)
+        results.push({
+          error: message,
+          fullName: target.fullName,
+          readmeLength: 0,
+          status: 'failed',
+        })
+      }
+    }
+
+    return {
+      failed: results.filter((result) => result.status === 'failed').length,
+      hasMore: batch.hasMore,
+      limit: batch.limit,
+      missing: results.filter((result) => result.status === 'missing').length,
+      refreshAll: batch.refreshAll,
+      remaining: batch.remaining,
+      results,
+      scanned: batch.scanned,
+      totalCandidates: batch.totalCandidates,
+      updated: results.filter((result) => result.status === 'updated').length,
+    }
   },
 })
 

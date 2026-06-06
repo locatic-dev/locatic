@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { SidebarNav } from './sidebar-nav'
 import { MobileTabBar } from './mobile-tab-bar'
+import { RouteNavigationProgress } from './route-navigation-progress'
 import {
   parseStoredSidebarCollapsed,
   SIDEBAR_COLLAPSED_STORAGE_KEY,
@@ -51,6 +52,8 @@ export function AppLayout({
 
   return (
     <div className="min-h-dvh bg-background md:flex">
+      <RouteNavigationProgress />
+
       {/* Desktop sidebar — hidden on mobile, sticky so it doesn't scroll with content */}
       <div className="sticky top-0 z-10 hidden h-dvh shrink-0 self-start md:flex">
         <SidebarNav

@@ -14,14 +14,23 @@ import { relativeTime } from '@/lib/time'
 import { Bell, Heart, MessageSquare, UserPlus } from '@/lib/icons'
 import { mapNotifications, type NotificationRecord } from '@/features/contracts'
 import type { Doc } from '../../../convex/_generated/dataModel'
-import { FeedRoutePending } from '@/components/app-shell/route-pending'
+import {
+  FeedRoutePending,
+  ROUTE_PENDING_MIN_MS,
+  ROUTE_PENDING_MS,
+} from '@/components/app-shell/route-pending'
 import { getNotificationDestination } from '@/features/notifications/navigation'
+import {
+  projectDetailQueryOptions,
+  publicProfileOverviewQueryOptions,
+} from '@/integrations/convex/query-options'
 
 export const Route = createFileRoute('/_app/notifications')({
   loader: ({ context }) =>
     context.queryClient.ensureQueryData(notificationsQueryOptions()),
   pendingComponent: FeedRoutePending,
-  pendingMs: 250,
+  pendingMs: ROUTE_PENDING_MS,
+  pendingMinMs: ROUTE_PENDING_MIN_MS,
   component: NotificationsPage,
 })
 
@@ -207,6 +216,28 @@ function NotificationsPage() {
     }
   }
 
+  const prefetchNotificationDestination = (
+    notification: NotificationRecord,
+  ) => {
+    const destination = getNotificationDestination(notification.target)
+    if (!destination) {
+      return
+    }
+
+    if (destination.to === '/project/$owner/$repo') {
+      void queryClient.prefetchQuery(
+        projectDetailQueryOptions(destination.params),
+      )
+      return
+    }
+
+    if (destination.to === '/u/$username') {
+      void queryClient.prefetchQuery(
+        publicProfileOverviewQueryOptions(destination.params.username),
+      )
+    }
+  }
+
   return (
     <div className="lx-page-shell">
       <div className="flex min-h-14 shrink-0 flex-wrap items-center justify-between gap-3 border-b border-line px-(--lx-gutter)">
@@ -246,6 +277,13 @@ function NotificationsPage() {
                   !isRead ? 'bg-[oklch(72%_0.17_185/0.04)]' : 'bg-transparent'
                 }`}
                 onClick={() => void handleNotificationClick(notification)}
+                onFocus={() => prefetchNotificationDestination(notification)}
+                onPointerEnter={() =>
+                  prefetchNotificationDestination(notification)
+                }
+                onTouchStart={() =>
+                  prefetchNotificationDestination(notification)
+                }
                 type="button"
               >
                 <div className="relative shrink-0">
