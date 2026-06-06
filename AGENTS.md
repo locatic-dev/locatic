@@ -31,40 +31,43 @@ Locatic — "GitHub with a map." Developer activity platform: discover projects,
 
 ## WHERE TO LOOK
 
-| Task                            | Location                                                                      | Notes                                                                                      |
-| ------------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| Add route                       | `src/routes/`                                                                 | File-based routing, `_app/` = auth-required                                                |
-| Add feature                     | `src/features/`                                                               | Domain logic, hooks, types per feature                                                     |
-| Add UI component                | `src/components/ui/`                                                          | shadcn/ui components                                                                       |
-| Add route pending UI            | `src/components/app-shell/route-pending.tsx`                                  | Shared suspense fallback for auth routes                                                   |
-| Add Convex function             | `convex/`                                                                     | Queries, mutations, HTTP endpoints                                                         |
-| Add DB table                    | `convex/schema.ts`                                                            | Define table + validators in `convex/lib/validators.ts`                                    |
-| Add project route helper        | `convex/lib/project_route.ts`                                                 | `normalizeProjectRouteKey`, `resolveProjectOwnerLogin`, `resolveProjectSnapshotOwnerLogin` |
-| Add backend notification helper | `convex/lib/notifications.ts`                                                 | `buildProjectNotificationTarget`, `buildProfileNotificationTarget`, etc.                   |
-| Auth logic                      | `src/routes/__root.tsx` + `src/lib/auth-routing.ts` + `convex/auth.config.ts` | SSR auth centralized in root, route-target helpers, Convex JWT issuer config               |
-| Request middleware              | `src/start.ts`                                                                | CSRF filtered to server functions, Clerk middleware                                        |
-| Router setup                    | `src/router.tsx` + `src/routeTree.gen.ts`                                     | Router factory + generated route tree                                                      |
-| API integrations                | `convex/github.ts`                                                            | GitHub API sync, webhooks                                                                  |
-| App shell/layout                | `src/components/app-shell/`                                                   | Sidebar, header, navigation                                                                |
-| Vite config                     | `vite.config.ts`                                                              | Code splitting groups, plugins                                                             |
-| Post visibility                 | `convex/lib/posts.ts`                                                         | Helpers: `filterVisiblePosts`, `normalizePostSearchQuery`, `buildPostSearchText`           |
-| Project posts feed              | `src/features/projects/posts/`                                                | `ProjectPostsSection` — paginated list, supports `highlightedPostId` scroll-into-view      |
-| Project search                  | `src/integrations/convex/query-options.ts`                                    | `projectSearchQueryOptions` (replaces old `projectPostSearchQueryOptions`)                 |
-| Post search                     | `src/integrations/convex/query-options.ts`                                    | `postSearchQueryOptions` — separate from project search                                    |
-| Builder search                  | `src/integrations/convex/query-options.ts`                                    | `builderSearchQueryOptions` takes `{cityIds, limit, q}`; results include city name         |
-| Debounced search                | `src/features/explore/use-debounced-route-search.ts`                          | Hook for debounced input with route query sync; handles rapid clear/backspace              |
-| Project card render             | `src/components/ui/project-card.tsx`                                          | `ProjectCard` — card component with `<Link>` nav, keyboard, preload, action passthrough    |
-| Project card preview model      | `src/features/project-card-preview.ts`                                        | `toProjectCardData`, `getProjectCardRouteParams` — maps preview → card data                |
-| Shared feature types            | `src/features/contracts.ts`                                                   | `ProjectCardPreview`, `NotificationTarget`, `ViewerRecord`, `ProfileCommentPreview`        |
-| Liked-by summary                | `src/features/projects/likes/liked-by-summary.tsx`                            | Avatar stack + count + expandable dialog with paginated likers                             |
-| Notification routing            | `src/features/notifications/navigation.ts`                                    | `getNotificationDestination` — converts notification target to router dest                 |
-| Linkify text                    | `src/lib/linkify.tsx`                                                         | `linkify()`, `splitLinkParts()` — renders URLs in text as safe external links              |
-| Route pending UI                | `src/components/app-shell/route-pending.tsx`                                  | Shared suspense fallback (`FeedRoutePending`, `FormRoutePending`, etc.)                    |
-| Nav progress bar                | `src/components/app-shell/route-navigation-progress.tsx`                      | Top-of-screen pulse bar during route loads                                                 |
-| E2E tests                       | `playwright/`                                                                 | Playwright + `@clerk/testing` for authenticated browser tests                              |
-| E2E auth setup                  | `playwright/auth.setup.ts`                                                    | Clerk sign-in flow, saves storage state to `playwright/.clerk/user.json`                   |
-| E2E config                      | `playwright.config.ts`                                                        | Two projects: `setup` (auth) + `chromium-authenticated` (tests)                            |
-| E2E env loader                  | `playwright/env.ts`                                                           | Loads `.env.local` for `E2E_CLERK_USER_EMAIL` and `E2E_BASE_URL`                           |
+| Task                            | Location                                                                      | Notes                                                                                            |
+| ------------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| Add route                       | `src/routes/`                                                                 | File-based routing, `_app/` = auth-required                                                      |
+| Add feature                     | `src/features/`                                                               | Domain logic, hooks, types per feature                                                           |
+| Add UI component                | `src/components/ui/`                                                          | shadcn/ui components                                                                             |
+| Add route pending UI            | `src/components/app-shell/route-pending.tsx`                                  | Shared suspense fallback for auth routes                                                         |
+| Add Convex function             | `convex/`                                                                     | Queries, mutations, HTTP endpoints                                                               |
+| Add DB table                    | `convex/schema.ts`                                                            | Define table + validators in `convex/lib/validators.ts`                                          |
+| Add project route helper        | `convex/lib/project_route.ts`                                                 | `normalizeProjectRouteKey`, `resolveProjectOwnerLogin`, `resolveProjectSnapshotOwnerLogin`       |
+| Add backend notification helper | `convex/lib/notifications.ts`                                                 | `buildProjectNotificationTarget`, `buildProfileNotificationTarget`, etc.                         |
+| Auth logic                      | `src/routes/__root.tsx` + `src/lib/auth-routing.ts` + `convex/auth.config.ts` | SSR auth centralized in root, route-target helpers, Convex JWT issuer config                     |
+| Request middleware              | `src/start.ts`                                                                | CSRF filtered to server functions, Clerk middleware                                              |
+| Router setup                    | `src/router.tsx` + `src/routeTree.gen.ts`                                     | Router factory + generated route tree                                                            |
+| API integrations                | `convex/github.ts`                                                            | GitHub API sync, webhooks                                                                        |
+| App shell/layout                | `src/components/app-shell/`                                                   | Sidebar, header, navigation                                                                      |
+| Vite config                     | `vite.config.ts`                                                              | Code splitting groups, plugins                                                                   |
+| Post visibility                 | `convex/lib/posts.ts`                                                         | Helpers: `filterVisiblePosts`, `normalizePostSearchQuery`, `buildPostSearchText`                 |
+| Project posts feed              | `src/features/projects/posts/`                                                | `ProjectPostsSection` — paginated list, supports `highlightedPostId` scroll-into-view            |
+| Project search                  | `src/integrations/convex/query-options.ts`                                    | `projectSearchQueryOptions` (replaces old `projectPostSearchQueryOptions`)                       |
+| Post search                     | `src/integrations/convex/query-options.ts`                                    | `postSearchQueryOptions` — separate from project search                                          |
+| Builder search                  | `src/integrations/convex/query-options.ts`                                    | `builderSearchQueryOptions` takes `{cityIds, limit, q}`; results include city name               |
+| Debounced search                | `src/features/explore/use-debounced-route-search.ts`                          | Hook for debounced input with route query sync; handles rapid clear/backspace                    |
+| Project card render             | `src/components/ui/project-card.tsx`                                          | `ProjectCard` — card component with `<Link>` nav, keyboard, preload, action passthrough          |
+| Project card preview model      | `src/features/project-card-preview.ts`                                        | `toProjectCardData`, `getProjectCardRouteParams` — maps preview → card data                      |
+| Shared feature types            | `src/features/contracts.ts`                                                   | `ProjectCardPreview`, `NotificationTarget`, `ViewerRecord`, `ProfileCommentPreview`              |
+| Notification routing            | `src/features/notifications/navigation.ts`                                    | `getNotificationDestination` — converts notification target to router dest                       |
+| Linkify text                    | `src/lib/linkify.tsx`                                                         | `linkify()`, `splitLinkParts()` — renders URLs in text as safe external links                    |
+| Route pending UI                | `src/components/app-shell/route-pending.tsx`                                  | Shared suspense fallback (`FeedRoutePending`, `FormRoutePending`, etc.)                          |
+| Nav progress bar                | `src/components/app-shell/route-navigation-progress.tsx`                      | Top-of-screen pulse bar during route loads                                                       |
+| E2E tests                       | `playwright/`                                                                 | Playwright + `@clerk/testing` for authenticated browser tests                                    |
+| E2E auth setup                  | `playwright/auth.setup.ts`                                                    | Clerk sign-in flow, saves storage state to `playwright/.clerk/user.json`                         |
+| E2E config                      | `playwright.config.ts`                                                        | Two projects: `setup` (auth) + `chromium-authenticated` (tests)                                  |
+| E2E env loader                  | `playwright/env.ts`                                                           | Loads `.env.local` for `E2E_CLERK_USER_EMAIL` and `E2E_BASE_URL`                                 |
+| Mobile UI E2E tests             | `playwright/mobile-ui.authenticated.spec.ts`                                  | Runs at 320px/360px; helpers for `expectAboveMobileNav`, `expectTouchTarget`, `skipOnOnboarding` |
+| Project card tests              | `src/components/ui/__tests__/project-card.test.tsx`                           | Touch target assertions, event propagation (card nav vs button clicks)                           |
+| Inbox page                      | `src/routes/_app/inbox.tsx`                                                   | Conversation list + composer; mobile grid layout with `--lx-mobile-tab-height` clearance         |
+| Liked-by summary                | `src/features/projects/likes/liked-by-summary.tsx`                            | Avatar stack + count + expandable dialog with paginated likers                                   |
 
 ## CONVENTIONS
 
@@ -88,6 +91,13 @@ Locatic — "GitHub with a map." Developer activity platform: discover projects,
 - Notification targets now carry `projectOwner`+`projectRepo` for direct project linking; routing via `getNotificationDestination` in `src/features/notifications/navigation.ts`.
 - `ProjectCard` navigation uses `<Link>` components and `router.preloadRoute` instead of click callbacks; passes `projectLink`/`authorLink` props instead of `onCardClick`/`onOpenAuthor`.
 - Project card preview mapping is centralized in `src/features/project-card-preview.ts` (`toProjectCardData`).
+- Touch targets: all interactive icon buttons must be `min-h-11 min-w-11` (44px) per mobile accessibility guidelines; use negative margins (`-my-3 -mr-2` etc.) to offset spacing when needed; prefer `rounded-md` over `rounded-sm`.
+- iOS zoom prevention: textarea/input elements at mobile widths must use `text-[16px]` to prevent auto-zoom on focus; revert to `text-sm` at `md:` breakpoint.
+- Mobile nav clearance: bottom-anchored elements must account for the mobile tab bar using `pb-[calc(var(--lx-mobile-tab-height)+...)]`.
+- LikedBySummary: each named liker renders as an interactive profile button with `aria-label`; use `onOpenProfile` callback for navigation, not static text.
+- E2E mobile tests: test at both 320px and 360px viewport widths; use `expectAboveMobileNav` for position checks and `expectTouchTarget` for dimension assertions; use `skipOnOnboarding` guard for tests requiring completed onboarding.
+- `aria-label` for interactive buttons that lack visible text labels is required (conversation buttons, remove topic, dismiss, etc.)
+- Composer layout uses grid on mobile (`grid-cols-[minmax(0,1fr)_auto]`) and flex on desktop (`md:flex`)
 
 ## ANTI-PATTERNS (THIS PROJECT)
 

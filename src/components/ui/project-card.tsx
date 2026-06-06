@@ -221,7 +221,7 @@ export function ProjectCard({
           <button
             onClick={onDismiss}
             aria-label="Dismiss"
-            className="-mr-1 -mt-0.5 flex shrink-0 rounded-sm border-none bg-transparent p-1 text-text-faint transition-colors hover:text-text"
+            className="-mt-2 -mr-3 -mb-2 flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-md border-none bg-transparent text-text-faint transition-colors hover:text-text"
             type="button"
             data-project-card-action
           >
@@ -275,7 +275,7 @@ export function ProjectCard({
         <button
           onClick={onComment}
           aria-label="Comments"
-          className="inline-flex items-center gap-1 border-none bg-transparent p-0 text-inherit"
+          className="-my-3 inline-flex min-h-11 min-w-11 items-center justify-center gap-1 rounded-md border-none bg-transparent px-1.5 text-inherit"
           disabled={!onComment}
           type="button"
           data-project-card-action

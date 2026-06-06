@@ -217,6 +217,11 @@ function InboxPage() {
                         },
                       })
                     }
+                    aria-label={`Open conversation with ${
+                      conversation.otherUser?.displayName ??
+                      conversation.otherUser?.githubUsername ??
+                      'user'
+                    }`}
                     className="min-w-0 flex-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
                     type="button"
                   >
@@ -512,13 +517,13 @@ function SelectedConversationPanel({
         <div ref={messagesEndRef} aria-hidden="true" />
       </div>
 
-      <div className="flex shrink-0 flex-wrap items-end gap-3 border-t border-line px-[var(--lx-gutter)] pt-4 pb-5">
+      <div className="grid shrink-0 grid-cols-[minmax(0,1fr)_auto] items-end gap-2 border-t border-line px-[var(--lx-gutter)] pt-3 pb-[calc(var(--lx-mobile-tab-height)+0.75rem)] md:flex md:flex-wrap md:gap-3 md:pt-4 md:pb-5">
         <Textarea
           value={newMessage}
           onChange={(event) => setNewMessage(event.target.value)}
           placeholder="write a message…"
           rows={2}
-          className="resize-none border-line bg-surface font-sans text-text"
+          className="max-h-28 min-h-11 min-w-0 resize-none border-line bg-surface font-sans text-[16px] leading-6 text-text md:min-h-20 md:text-sm"
           onKeyDown={(event) => {
             if (event.key === 'Enter' && !event.shiftKey) {
               event.preventDefault()
@@ -529,7 +534,7 @@ function SelectedConversationPanel({
         <Button
           onClick={() => void handleSend()}
           disabled={!newMessage.trim() || sending}
-          className="min-h-11 border-none bg-brand font-mono text-[12.5px] font-semibold text-brand-foreground hover:bg-brand/90"
+          className="min-h-11 shrink-0 border-none bg-brand px-4 font-mono text-[12.5px] font-semibold text-brand-foreground hover:bg-brand/90"
         >
           {sending ? 'sending…' : 'send'}
         </Button>

@@ -639,9 +639,6 @@ function ProjectDetailPage() {
                 <span className="font-mono text-[12px] text-text-faint">
                   {owner}
                 </span>
-                <span className="font-mono text-[12px] text-text-faint">
-                  imported from GitHub
-                </span>
               </div>
 
               <h1 className="mb-3 font-mono text-[clamp(30px,4vw,42px)] font-bold tracking-tight text-text wrap-anywhere">
@@ -706,7 +703,7 @@ function ProjectDetailPage() {
                         type="button"
                         onClick={() => void handleRemoveTopic(topic)}
                         disabled={pendingTopics}
-                        className="-mr-1 inline-flex min-h-6 min-w-6 items-center justify-center rounded-sm bg-transparent text-text-faint transition-colors hover:text-text"
+                        className="-my-2 -mr-2 inline-flex min-h-11 min-w-11 items-center justify-center rounded-md bg-transparent text-text-faint transition-colors hover:text-text"
                         aria-label={`Remove ${topic}`}
                       >
                         <X size={12} />
@@ -754,46 +751,46 @@ function ProjectDetailPage() {
             </div>
 
             <div className="rounded-[6px] border border-line bg-surface p-4.5">
-              <button
-                type="button"
-                onClick={() =>
-                  void router.navigate({
-                    to: '/u/$username',
-                    params: {
-                      username: detail.owner.githubUsername,
-                    },
-                    search: { tab: 'projects' },
-                  })
-                }
-                className="mb-3.5 flex w-full items-center gap-3 border-0 bg-transparent p-0 text-left"
-              >
-                <LxAvatar
-                  name={detail.owner.displayName}
-                  avatarUrl={detail.owner.avatarUrl}
-                  size={48}
-                />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5">
+              <div className="mb-3.5 flex w-full items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() =>
+                    void router.navigate({
+                      to: '/u/$username',
+                      params: {
+                        username: detail.owner.githubUsername,
+                      },
+                      search: { tab: 'projects' },
+                    })
+                  }
+                  className="flex min-w-0 flex-1 items-center gap-3 border-0 bg-transparent p-0 text-left"
+                >
+                  <LxAvatar
+                    name={detail.owner.displayName}
+                    avatarUrl={detail.owner.avatarUrl}
+                    size={48}
+                  />
+                  <div className="min-w-0 flex-1">
                     <div className="font-mono text-sm font-semibold text-text">
                       {detail.owner.displayName}
                     </div>
-                    {ownerGithubHref && (
-                      <a
-                        href={ownerGithubHref}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-text-faint no-underline transition-colors hover:text-text-muted"
-                        aria-label="GitHub profile"
-                      >
-                        <BrandIcon name="github" size={13} />
-                      </a>
-                    )}
+                    <div className="font-mono text-[11.5px] text-text-faint">
+                      @{detail.owner.githubUsername}
+                    </div>
                   </div>
-                  <div className="font-mono text-[11.5px] text-text-faint">
-                    @{detail.owner.githubUsername}
-                  </div>
-                </div>
-              </button>
+                </button>
+                {ownerGithubHref && (
+                  <a
+                    href={ownerGithubHref}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-md text-text-faint no-underline transition-colors hover:text-text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                    aria-label="GitHub profile"
+                  >
+                    <BrandIcon name="github" size={13} />
+                  </a>
+                )}
+              </div>
 
               <div className="mb-3.5 flex flex-wrap gap-2.5">
                 <StatusPill status={detail.owner.buildStatus} size="md" />
@@ -867,7 +864,10 @@ function ProjectDetailPage() {
             </div>
           </div>
 
-          <Tabs defaultValue="posts" className="pb-12">
+          <Tabs
+            defaultValue="posts"
+            className="pb-[calc(var(--lx-mobile-tab-height)+3rem)] md:pb-12"
+          >
             <div className="mb-5 overflow-x-auto overflow-y-hidden border-b border-line">
               <TabsList className="h-auto min-w-max justify-start rounded-none bg-transparent p-0">
                 {[
