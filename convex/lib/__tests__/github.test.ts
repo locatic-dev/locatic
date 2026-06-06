@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  assertGithubRawDownloadUrl,
   encodeRepositoryFullNamePath,
+  deriveGithubReadmeUrlBases,
   extractContributionCalendar,
   listGithubRepositoryPages,
   mapGithubLanguages,
   mapGithubRepositoryWithOptionalLanguages,
+  normalizeGithubReadmePreview,
   normalizeRepositoryFullNames,
 } from '../github'
 
@@ -94,11 +97,208 @@ describe('mapGithubRepositoryWithOptionalLanguages', () => {
     })
 
     expect(repository.languages).toEqual([])
+    expect(repository.readmePreview).toBeNull()
     expect(repository.fullName).toBe('avinash/locatic')
     expect(repository.ownerLogin).toBe('avinash')
     expect(repository.ownerLoginKey).toBe('avinash')
     expect(repository.nameKey).toBe('locatic')
     expect(repository.primaryLanguage).toBe('TypeScript')
+  })
+
+  it('stores fetched README markdown instead of duplicating the description', async () => {
+    const repository = await mapGithubRepositoryWithOptionalLanguages({
+      fetchRepository: async () => ({
+        id: 1,
+        full_name: 'avinash/locatic',
+        name: 'locatic',
+        owner: {
+          login: 'avinash',
+        },
+        description: 'Map-based discovery',
+        html_url: 'https://github.com/avinash/locatic',
+        homepage: 'https://locatic.dev',
+        language: 'TypeScript',
+        topics: ['maps', 'react'],
+        stargazers_count: 42,
+        pushed_at: '2026-05-20T00:00:00.000Z',
+      }),
+      fetchLanguages: async () => ({ TypeScript: 900 }),
+      fetchReadme: async () => ({
+        markdown: '# Locatic\n\nGitHub with a map.',
+        metadata: {
+          download_url:
+            'https://raw.githubusercontent.com/avinash/locatic/main/README.md',
+          html_url: 'https://github.com/avinash/locatic/blob/main/README.md',
+          path: 'README.md',
+        },
+      }),
+    })
+
+    expect(repository.readmePreview).toBe('# Locatic\n\nGitHub with a map.')
+    expect(repository.readmePreview).not.toBe(repository.description)
+    expect(repository.readmeAssetBaseUrl).toBe(
+      'https://raw.githubusercontent.com/avinash/locatic/main/',
+    )
+    expect(repository.readmeAssetRootUrl).toBe(
+      'https://raw.githubusercontent.com/avinash/locatic/main/',
+    )
+    expect(repository.readmeLinkBaseUrl).toBe(
+      'https://github.com/avinash/locatic/blob/main/',
+    )
+    expect(repository.readmeLinkRootUrl).toBe(
+      'https://github.com/avinash/locatic/blob/main/',
+    )
+  })
+
+  it('keeps importing a repository when the optional README fetch fails', async () => {
+    const repository = await mapGithubRepositoryWithOptionalLanguages({
+      fetchRepository: async () => ({
+        id: 1,
+        full_name: 'avinash/locatic',
+        name: 'locatic',
+        owner: {
+          login: 'avinash',
+        },
+        description: 'Map-based discovery',
+        html_url: 'https://github.com/avinash/locatic',
+        homepage: 'https://locatic.dev',
+        language: 'TypeScript',
+        topics: ['maps', 'react'],
+        stargazers_count: 42,
+        pushed_at: '2026-05-20T00:00:00.000Z',
+      }),
+      fetchLanguages: async () => ({ TypeScript: 900 }),
+      fetchReadme: async () => {
+        throw new Error('GitHub README unavailable')
+      },
+    })
+
+    expect(repository.languages).toEqual([{ bytes: 900, name: 'TypeScript' }])
+    expect(repository.readmePreview).toBeNull()
+    expect(repository.readmeAssetBaseUrl).toBeNull()
+  })
+})
+
+describe('deriveGithubReadmeUrlBases', () => {
+  it('derives raw and GitHub web bases for a repository-root README', () => {
+    expect(
+      deriveGithubReadmeUrlBases({
+        download_url:
+          'https://raw.githubusercontent.com/octokit/octokit.rb/master/README.md',
+        html_url: 'https://github.com/octokit/octokit.rb/blob/master/README.md',
+        path: 'README.md',
+      }),
+    ).toEqual({
+      readmeAssetBaseUrl:
+        'https://raw.githubusercontent.com/octokit/octokit.rb/master/',
+      readmeAssetRootUrl:
+        'https://raw.githubusercontent.com/octokit/octokit.rb/master/',
+      readmeLinkBaseUrl: 'https://github.com/octokit/octokit.rb/blob/master/',
+      readmeLinkRootUrl: 'https://github.com/octokit/octokit.rb/blob/master/',
+    })
+  })
+
+  it('derives directory and root bases for a nested README', () => {
+    expect(
+      deriveGithubReadmeUrlBases({
+        download_url:
+          'https://raw.githubusercontent.com/owner/repo/main/docs/setup/README.md',
+        html_url:
+          'https://github.com/owner/repo/blob/main/docs/setup/README.md',
+        path: 'docs/setup/README.md',
+      }),
+    ).toEqual({
+      readmeAssetBaseUrl:
+        'https://raw.githubusercontent.com/owner/repo/main/docs/setup/',
+      readmeAssetRootUrl: 'https://raw.githubusercontent.com/owner/repo/main/',
+      readmeLinkBaseUrl: 'https://github.com/owner/repo/blob/main/docs/setup/',
+      readmeLinkRootUrl: 'https://github.com/owner/repo/blob/main/',
+    })
+  })
+
+  it('derives bases when the branch and README path contain encoded segments', () => {
+    expect(
+      deriveGithubReadmeUrlBases({
+        download_url:
+          'https://raw.githubusercontent.com/owner/repo/feature%2Fdocs/docs/My%20README.md',
+        html_url:
+          'https://github.com/owner/repo/blob/feature%2Fdocs/docs/My%20README.md',
+        path: 'docs/My README.md',
+      }),
+    ).toEqual({
+      readmeAssetBaseUrl:
+        'https://raw.githubusercontent.com/owner/repo/feature%2Fdocs/docs/',
+      readmeAssetRootUrl:
+        'https://raw.githubusercontent.com/owner/repo/feature%2Fdocs/',
+      readmeLinkBaseUrl:
+        'https://github.com/owner/repo/blob/feature%2Fdocs/docs/',
+      readmeLinkRootUrl: 'https://github.com/owner/repo/blob/feature%2Fdocs/',
+    })
+  })
+
+  it('returns null bases for missing or incomplete metadata', () => {
+    expect(deriveGithubReadmeUrlBases(null)).toEqual({
+      readmeAssetBaseUrl: null,
+      readmeAssetRootUrl: null,
+      readmeLinkBaseUrl: null,
+      readmeLinkRootUrl: null,
+    })
+    expect(
+      deriveGithubReadmeUrlBases({
+        download_url: null,
+        html_url: 'https://github.com/owner/repo/blob/main/README.md',
+        path: 'README.md',
+      }),
+    ).toEqual({
+      readmeAssetBaseUrl: null,
+      readmeAssetRootUrl: null,
+      readmeLinkBaseUrl: null,
+      readmeLinkRootUrl: null,
+    })
+  })
+})
+
+describe('assertGithubRawDownloadUrl', () => {
+  it('allows HTTPS raw.githubusercontent.com README URLs', () => {
+    expect(
+      assertGithubRawDownloadUrl(
+        'https://raw.githubusercontent.com/owner/repo/main/README.md',
+      ),
+    ).toBe('https://raw.githubusercontent.com/owner/repo/main/README.md')
+  })
+
+  it('strips credentials before returning an allowed raw URL', () => {
+    expect(
+      assertGithubRawDownloadUrl(
+        'https://user:token@raw.githubusercontent.com/owner/repo/main/README.md',
+      ),
+    ).toBe('https://raw.githubusercontent.com/owner/repo/main/README.md')
+  })
+
+  it('rejects non-raw GitHub and non-HTTPS URLs', () => {
+    expect(() =>
+      assertGithubRawDownloadUrl(
+        'https://github.com/owner/repo/raw/main/README.md',
+      ),
+    ).toThrow('GitHub README download URL host is not allowed')
+    expect(() =>
+      assertGithubRawDownloadUrl(
+        'http://raw.githubusercontent.com/owner/repo/main/README.md',
+      ),
+    ).toThrow('GitHub README download URL host is not allowed')
+  })
+})
+
+describe('normalizeGithubReadmePreview', () => {
+  it('trims blank README content and stores null', () => {
+    expect(normalizeGithubReadmePreview('   \n\t  ')).toBeNull()
+  })
+
+  it('caps README content before storage', () => {
+    const preview = normalizeGithubReadmePreview('a'.repeat(20_010))
+
+    expect(preview).toHaveLength(20_005)
+    expect(preview?.endsWith('\n\n...')).toBe(true)
   })
 })
 

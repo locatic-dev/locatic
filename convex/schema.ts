@@ -200,6 +200,10 @@ export default defineSchema({
       lastMetadataSyncedAt: optionalTimestampValidator,
       commitFrequency: commitFrequencyValidator,
       readmePreview: optionalStringValidator,
+      readmeAssetBaseUrl: v.optional(optionalStringValidator),
+      readmeAssetRootUrl: v.optional(optionalStringValidator),
+      readmeLinkBaseUrl: v.optional(optionalStringValidator),
+      readmeLinkRootUrl: v.optional(optionalStringValidator),
     }),
     locatic: v.object({
       isVisible: v.boolean(),
@@ -240,6 +244,7 @@ export default defineSchema({
       'github.nameKey',
       'locatic.isVisible',
     ])
+    .index('by_visible_added', ['locatic.isVisible', 'addedToLocaticAt'])
     .index('by_owner', ['ownerId'])
     .index('by_owner_visible', ['ownerId', 'locatic.isVisible'])
     .index('by_explore_eligible_added', [

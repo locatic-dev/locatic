@@ -81,7 +81,7 @@ export function useRepositoryManagerController({
       buildRepositoryManagerItems({
         githubRepositories,
         pinnedProjectIds,
-        projects: mineProjectsQuery.data ?? [],
+        projects: (mineProjectsQuery.data ?? []) as Doc<'projects'>[],
       }),
     [githubRepositories, mineProjectsQuery.data, pinnedProjectIds],
   )

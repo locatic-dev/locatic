@@ -12,7 +12,7 @@ import { LxAvatar } from '@/components/ui/lx-avatar'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { relativeTime } from '@/lib/time'
-import { Inbox } from '@/lib/icons'
+import { Inbox, Send } from '@/lib/icons'
 import {
   mapConversationList,
   mapViewerBootstrap,
@@ -517,27 +517,34 @@ function SelectedConversationPanel({
         <div ref={messagesEndRef} aria-hidden="true" />
       </div>
 
-      <div className="grid shrink-0 grid-cols-[minmax(0,1fr)_auto] items-end gap-2 border-t border-line px-[var(--lx-gutter)] pt-3 pb-[calc(var(--lx-mobile-tab-height)+0.75rem)] md:flex md:flex-wrap md:gap-3 md:pt-4 md:pb-5">
-        <Textarea
-          value={newMessage}
-          onChange={(event) => setNewMessage(event.target.value)}
-          placeholder="write a message…"
-          rows={2}
-          className="max-h-28 min-h-11 min-w-0 resize-none border-line bg-surface font-sans text-[16px] leading-6 text-text md:min-h-20 md:text-sm"
-          onKeyDown={(event) => {
-            if (event.key === 'Enter' && !event.shiftKey) {
-              event.preventDefault()
-              void handleSend()
-            }
-          }}
-        />
-        <Button
-          onClick={() => void handleSend()}
-          disabled={!newMessage.trim() || sending}
-          className="min-h-11 shrink-0 border-none bg-brand px-4 font-mono text-[12.5px] font-semibold text-brand-foreground hover:bg-brand/90"
-        >
-          {sending ? 'sending…' : 'send'}
-        </Button>
+      <div className="shrink-0 border-t border-line px-[var(--lx-gutter)] pt-2 pb-[calc(var(--lx-mobile-tab-height)+0.75rem)] md:pt-4 md:pb-5">
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-1.5 rounded-card border border-line bg-surface p-1.5 md:gap-3 md:border-0 md:bg-transparent md:p-0">
+          <Textarea
+            value={newMessage}
+            onChange={(event) => setNewMessage(event.target.value)}
+            placeholder="write a message…"
+            rows={1}
+            className="max-h-28 min-h-11 min-w-0 resize-none border-0 bg-transparent px-3 py-2.5 font-sans text-[16px] leading-6 text-text shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 md:min-h-20 md:border md:border-line md:bg-surface md:px-3 md:py-2 md:text-sm md:focus-visible:ring-2 md:focus-visible:ring-ring md:focus-visible:ring-offset-2"
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault()
+                void handleSend()
+              }
+            }}
+          />
+          <Button
+            type="button"
+            onClick={() => void handleSend()}
+            disabled={!newMessage.trim() || sending}
+            className="h-11 min-h-11 w-11 min-w-11 shrink-0 self-end border-none bg-brand px-0 font-mono text-[12.5px] font-semibold text-brand-foreground hover:bg-brand/90 md:w-auto md:px-4"
+            aria-label={sending ? 'Sending message' : 'Send message'}
+          >
+            <Send size={16} aria-hidden="true" className="md:hidden" />
+            <span className="hidden md:inline">
+              {sending ? 'sending…' : 'send'}
+            </span>
+          </Button>
+        </div>
       </div>
     </div>
   )

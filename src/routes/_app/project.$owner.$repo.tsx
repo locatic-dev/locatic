@@ -5,7 +5,7 @@ import {
   useQueryClient,
   useSuspenseQuery,
 } from '@tanstack/react-query'
-import { usePaginatedQuery } from 'convex/react'
+import { useConvexAuth, usePaginatedQuery } from 'convex/react'
 import {
   createFileRoute,
   redirect,
@@ -48,6 +48,7 @@ import {
 } from '@/features/contracts'
 import { socialLinkHref } from '@/lib/social-links'
 import { useOpenConversation } from '@/features/inbox/use-open-conversation'
+import { shouldEnableViewerSummaryQuery } from '@/features/viewer/auth'
 import { viewerSummaryQueryOptions } from '@/features/viewer/queries'
 import { CommentThread } from '@/features/projects/comments/comment-thread'
 import { useCommentThreadState } from '@/features/projects/comments/use-comment-thread-state'
@@ -55,6 +56,7 @@ import type {
   ProjectCommentLikeOverride,
   ProjectCommentView,
 } from '@/features/projects/comments/types'
+import { ProjectReadmeSection } from '@/features/projects/readme/project-readme-section'
 import { ProjectPostsSection } from '@/features/projects/posts/project-posts-section'
 import { LikedBySummary } from '@/features/projects/likes/liked-by-summary'
 import {
@@ -113,10 +115,6 @@ export const Route = createFileRoute('/_app/project/$owner/$repo')({
       }),
     )
 
-    if (context.auth.isAuthenticated) {
-      void context.queryClient.prefetchQuery(viewerSummaryQueryOptions())
-    }
-
     const detail = payload as ProjectDetailPayload | null | undefined
     const canonicalRoute = detail?.canonicalRoute
     if (
@@ -154,6 +152,7 @@ function ProjectDetailPage() {
   const router = useRouter()
   const canGoBack = useCanGoBack()
   const { isSignedIn } = useAuth()
+  const convexAuth = useConvexAuth()
   const queryClient = useQueryClient()
   const likeProject = useLikeProject()
   const unlikeProject = useUnlikeProject()
@@ -170,7 +169,7 @@ function ProjectDetailPage() {
   const { data } = useSuspenseQuery(projectDetailQueryOptions(projectRoute))
   const viewerSummaryQuery = useQuery({
     ...viewerSummaryQueryOptions(),
-    enabled: isSignedIn,
+    enabled: shouldEnableViewerSummaryQuery(convexAuth),
   })
   const viewer = mapViewerSummary(
     viewerSummaryQuery.data as ViewerSummaryPayload | undefined,
@@ -301,10 +300,19 @@ function ProjectDetailPage() {
   )
   const description =
     detail.project.github.description || 'no project description provided yet.'
+  const storedReadmePreview = detail.project.github.readmePreview?.trim() ?? ''
   const readmePreview =
-    detail.project.github.readmePreview ||
-    description ||
-    `# ${detail.project.github.name}`
+    storedReadmePreview && storedReadmePreview !== description.trim()
+      ? storedReadmePreview
+      : ''
+  const readmeUrlBases = {
+    readmeAssetBaseUrl: detail.project.github.readmeAssetBaseUrl,
+    readmeAssetRootUrl: detail.project.github.readmeAssetRootUrl,
+    readmeLinkBaseUrl: detail.project.github.readmeLinkBaseUrl,
+    readmeLinkRootUrl: detail.project.github.readmeLinkRootUrl,
+  }
+  const defaultProjectTab =
+    (detail.project.locatic.postsCount ?? 0) > 0 ? 'posts' : 'readme'
   const isOwnProject = viewer?.id === String(detail.owner.userId)
   const projectTopics =
     detail.project.locatic.tags.length > 0
@@ -635,12 +643,6 @@ function ProjectDetailPage() {
         <div className="lx-page-width-detail pt-2">
           <div className="mb-8 grid gap-6 border-b border-line pb-7 lg:grid-cols-[minmax(0,1.2fr)_320px] lg:items-start">
             <div>
-              <div className="mb-3 flex flex-wrap items-center gap-3">
-                <span className="font-mono text-[12px] text-text-faint">
-                  {owner}
-                </span>
-              </div>
-
               <h1 className="mb-3 font-mono text-[clamp(30px,4vw,42px)] font-bold tracking-tight text-text wrap-anywhere">
                 {repo}
               </h1>
@@ -865,7 +867,7 @@ function ProjectDetailPage() {
           </div>
 
           <Tabs
-            defaultValue="posts"
+            defaultValue={defaultProjectTab}
             className="pb-[calc(var(--lx-mobile-tab-height)+3rem)] md:pb-12"
           >
             <div className="mb-5 overflow-x-auto overflow-y-hidden border-b border-line">
@@ -902,57 +904,10 @@ function ProjectDetailPage() {
             </TabsContent>
 
             <TabsContent value="readme" className="mt-0">
-              <div className="overflow-hidden rounded-[6px] border border-line bg-surface">
-                <div className="flex items-center justify-between border-b border-line bg-surface-alt px-4 py-2.5 font-mono text-[11.5px]">
-                  <span className="text-text-muted">README.md</span>
-                  <span className="text-text-faint">repo overview</span>
-                </div>
-                <div className="flex flex-col gap-3.5 px-7 py-6">
-                  {readmePreview.split('\n\n').map((block, index) => {
-                    if (block.startsWith('# ')) {
-                      return (
-                        <h1
-                          key={index}
-                          className="m-0 font-mono text-[22px] font-bold tracking-[-0.02em] text-text"
-                        >
-                          {block.slice(2)}
-                        </h1>
-                      )
-                    }
-
-                    if (block.startsWith('## ')) {
-                      return (
-                        <h2
-                          key={index}
-                          className="mt-2 border-b border-line pb-1.5 font-mono text-sm font-semibold text-text-muted"
-                        >
-                          {block.slice(3)}
-                        </h2>
-                      )
-                    }
-
-                    if (block.startsWith('`')) {
-                      return (
-                        <pre
-                          key={index}
-                          className="m-0 overflow-x-auto whitespace-pre-wrap rounded bg-canvas px-3.5 py-3 font-mono text-[12.5px] leading-[1.6] text-text"
-                        >
-                          {block.replace(/`/g, '')}
-                        </pre>
-                      )
-                    }
-
-                    return (
-                      <p
-                        key={index}
-                        className="m-0 font-sans text-sm leading-[1.65] text-text-muted wrap-anywhere"
-                      >
-                        {linkify(block)}
-                      </p>
-                    )
-                  })}
-                </div>
-              </div>
+              <ProjectReadmeSection
+                bases={readmeUrlBases}
+                readmePreview={readmePreview}
+              />
             </TabsContent>
 
             <TabsContent value="updates" className="mt-0">
