@@ -4,7 +4,7 @@ import { createClerkClient } from '@clerk/backend'
 import { ConvexError, v } from 'convex/values'
 
 import { internal } from './_generated/api'
-import type { Id } from './_generated/dataModel'
+import type { Doc, Id } from './_generated/dataModel'
 import { action, internalAction } from './_generated/server'
 import { buildViewerSeedFromIdentity, requireIdentity } from './lib/auth'
 import {
@@ -21,6 +21,7 @@ import {
   type GithubReadmeMetadata,
   type GithubRepository,
 } from './lib/github'
+import { enforceRateLimit } from './lib/rate_limits'
 
 class GitHubRequestError extends Error {
   constructor(public status: number) {
@@ -70,6 +71,34 @@ type ProjectReadmeBackfillSummary = {
   totalCandidates: number
   updated: number
 }
+
+type GithubContributor = {
+  id: number | null
+  login: string
+  contributions: number
+  type: string
+}
+
+export type GithubRelease = {
+  id: number
+  tag_name: string
+  name: string | null
+  body: string | null
+  html_url: string
+  draft: boolean
+  prerelease: boolean
+  published_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+type GithubReleasePageImport = {
+  exhausted: boolean
+  releases: GithubRelease[]
+}
+
+const GITHUB_RELEASES_PER_PAGE = 100
+const MAX_GITHUB_RELEASE_IMPORT_PAGES = 3
 
 const projectReadmeBackfillResultValidator = v.object({
   error: v.union(v.string(), v.null()),
@@ -185,6 +214,58 @@ async function githubOptionalRequest<T>(url: string, init?: RequestInit) {
   return (await response.json()) as T
 }
 
+async function fetchGithubReleasePages(
+  repositoryPath: string,
+  accessToken: string,
+): Promise<GithubReleasePageImport> {
+  const releases: GithubRelease[] = []
+  let exhausted = false
+
+  for (let page = 1; page <= MAX_GITHUB_RELEASE_IMPORT_PAGES; page += 1) {
+    const pageReleases = await githubRequest<GithubRelease[]>(
+      `/repos/${repositoryPath}/releases?per_page=${GITHUB_RELEASES_PER_PAGE}&page=${page}`,
+      accessToken,
+    )
+    releases.push(...pageReleases)
+
+    if (pageReleases.length < GITHUB_RELEASES_PER_PAGE) {
+      exhausted = true
+      break
+    }
+  }
+
+  return { exhausted, releases }
+}
+
+function githubActionErrorMessage(error: unknown) {
+  if (error instanceof Error) {
+    return error.message
+  }
+
+  return 'Unknown GitHub sync error'
+}
+
+export function shouldDeleteMissingProjectReleasesAfterImport(
+  releaseImport: Pick<GithubReleasePageImport, 'exhausted'>,
+) {
+  return releaseImport.exhausted
+}
+
+export function mapGithubReleaseForImport(release: GithubRelease) {
+  return {
+    githubReleaseId: release.id,
+    tagName: release.tag_name,
+    name: release.name,
+    body: release.body,
+    htmlUrl: release.html_url,
+    isDraft: release.draft,
+    isPrerelease: release.prerelease,
+    publishedAt: release.published_at ? Date.parse(release.published_at) : null,
+    createdAt: Date.parse(release.created_at),
+    updatedAt: Date.parse(release.updated_at),
+  }
+}
+
 async function fetchGithubReadmeImport(
   repositoryPath: string,
   accessToken: string,
@@ -211,28 +292,6 @@ async function fetchOptionalGithubReadmeImport(
     : null
 
   return metadata ? { markdown, metadata } : null
-}
-
-async function githubNoContentRequest(
-  url: string,
-  accessToken: string,
-  init: RequestInit,
-) {
-  const headers = new Headers(init.headers)
-  headers.set('Accept', 'application/vnd.github+json')
-  headers.set('Authorization', `Bearer ${accessToken}`)
-  headers.set('X-GitHub-Api-Version', '2022-11-28')
-
-  const response = await fetch(`https://api.github.com${url}`, {
-    ...init,
-    headers,
-  })
-
-  if (response.ok || response.status === 304) {
-    return
-  }
-
-  throw new ConvexError(`GitHub request failed: ${response.status}`)
 }
 
 async function githubGraphqlRequest<T>(
@@ -295,6 +354,7 @@ export const listRepositories = action({
     if (!viewer) {
       throw new ConvexError('Viewer not found')
     }
+    await enforceRateLimit(ctx, 'githubRepoList', String(viewer._id))
 
     const { accessToken, scopes } = await getGithubAccessToken(identity.subject)
     let repositories: GithubRepository[] = []
@@ -353,6 +413,7 @@ export const importSelectedRepositories = action({
     if (!viewer) {
       throw new ConvexError('Viewer not found')
     }
+    await enforceRateLimit(ctx, 'githubRepoImport', String(viewer._id))
 
     let fullNames: string[]
     try {
@@ -449,14 +510,7 @@ export const likeProject = action({
   args: {
     projectId: v.id('projects'),
   },
-  handler: async (
-    ctx,
-    args,
-  ): Promise<{
-    githubSyncAttempted: boolean
-    githubSyncSucceeded: boolean
-    githubSyncError: string | null
-  }> => {
+  handler: async (ctx, args): Promise<null> => {
     const identity = await requireIdentity(ctx)
     const project = await ctx.runQuery(internal.projects.projectById, {
       projectId: args.projectId,
@@ -470,6 +524,7 @@ export const likeProject = action({
     if (!viewer) {
       throw new ConvexError('Viewer not found')
     }
+    await enforceRateLimit(ctx, 'reactionWrite', String(viewer._id))
 
     if (!project) {
       throw new ConvexError('Project not found')
@@ -480,11 +535,7 @@ export const likeProject = action({
       clerkId: identity.subject,
     })
 
-    return {
-      githubSyncAttempted: false,
-      githubSyncSucceeded: false,
-      githubSyncError: null,
-    }
+    return null
   },
 })
 
@@ -492,14 +543,7 @@ export const unlikeProject = action({
   args: {
     projectId: v.id('projects'),
   },
-  handler: async (
-    ctx,
-    args,
-  ): Promise<{
-    githubSyncAttempted: boolean
-    githubSyncSucceeded: boolean
-    githubSyncError: string | null
-  }> => {
+  handler: async (ctx, args): Promise<null> => {
     const identity = await requireIdentity(ctx)
     const project = await ctx.runQuery(internal.projects.projectById, {
       projectId: args.projectId,
@@ -513,6 +557,7 @@ export const unlikeProject = action({
     if (!viewer) {
       throw new ConvexError('Viewer not found')
     }
+    await enforceRateLimit(ctx, 'reactionWrite', String(viewer._id))
 
     if (!project) {
       throw new ConvexError('Project not found')
@@ -523,11 +568,7 @@ export const unlikeProject = action({
       clerkId: identity.subject,
     })
 
-    return {
-      githubSyncAttempted: false,
-      githubSyncSucceeded: false,
-      githubSyncError: null,
-    }
+    return null
   },
 })
 
@@ -535,10 +576,13 @@ export const refreshProjectMetadata = internalAction({
   args: {
     projectId: v.id('projects'),
   },
-  handler: async (ctx, args) => {
-    const project = await ctx.runQuery(internal.projects.projectById, {
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{ matchedCount: number; totalFetched: number } | null> => {
+    const project = (await ctx.runQuery(internal.projects.projectById, {
       projectId: args.projectId,
-    })
+    })) as Doc<'projects'> | null
 
     if (!project) {
       return null
@@ -551,53 +595,100 @@ export const refreshProjectMetadata = internalAction({
       return null
     }
 
-    const { accessToken, scopes } = await getGithubAccessToken(owner.clerkId)
     const repositoryPath = encodeRepositoryFullNamePath(project.github.fullName)
-    const repository = await mapGithubRepositoryWithOptionalLanguages({
-      fetchRepository: () =>
-        githubRequest<GithubRepository>(
-          `/repos/${repositoryPath}`,
-          accessToken,
-        ),
-      fetchLanguages: () =>
-        githubRequest<GithubLanguages>(
-          `/repos/${repositoryPath}/languages`,
-          accessToken,
-        ),
-      fetchReadme: () => fetchGithubReadmeImport(repositoryPath, accessToken),
-    })
 
-    await ctx.runMutation(internal.github.patchProjectMetadata, {
-      projectId: project._id,
-      repository,
-    })
+    try {
+      const { accessToken, scopes } = await getGithubAccessToken(owner.clerkId)
+      const [repository, releaseImport] = await Promise.all([
+        mapGithubRepositoryWithOptionalLanguages({
+          fetchRepository: () =>
+            githubRequest<GithubRepository>(
+              `/repos/${repositoryPath}`,
+              accessToken,
+            ),
+          fetchLanguages: () =>
+            githubRequest<GithubLanguages>(
+              `/repos/${repositoryPath}/languages`,
+              accessToken,
+            ),
+          fetchReadme: () =>
+            fetchGithubReadmeImport(repositoryPath, accessToken),
+        }),
+        fetchGithubReleasePages(repositoryPath, accessToken),
+      ])
 
-    await ctx.runMutation(internal.github.recordGithubTokenState, {
-      userId: owner._id,
-      tokenStatus: 'active',
-      scopes,
-      lastError: null,
-    })
+      await ctx.runMutation(internal.github.patchProjectMetadata, {
+        projectId: project._id,
+        repository,
+      })
+      await ctx.runMutation(internal.github.patchProjectReleases, {
+        deleteMissing:
+          shouldDeleteMissingProjectReleasesAfterImport(releaseImport),
+        projectId: project._id,
+        releases: releaseImport.releases.map(mapGithubReleaseForImport),
+      })
+
+      await ctx.runMutation(internal.github.recordGithubTokenState, {
+        userId: owner._id,
+        tokenStatus: 'active',
+        scopes,
+        lastError: null,
+      })
+      await ctx.runMutation(internal.github.recordGithubSyncResult, {
+        userId: owner._id,
+        syncType: 'metadata',
+        reposFetched: 1,
+        reposNew: 0,
+        reposUpdated: 1,
+        status: 'success',
+        error: null,
+        githubRateLimitRemaining: null,
+      })
+    } catch (error) {
+      const message = githubActionErrorMessage(error)
+      await ctx.runMutation(internal.github.recordProjectMetadataSyncFailure, {
+        error: message,
+        projectId: project._id,
+      })
+      throw error
+    }
 
     return null
   },
 })
 
 export const refreshActiveProjectMetadata = internalAction({
-  args: {},
-  handler: async (ctx): Promise<{ refreshed: number }> => {
-    const projects = await ctx.runQuery(
-      internal.github.listRefreshableProjects,
-      {},
+  args: {
+    limit: v.optional(v.number()),
+  },
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{ failed: number; refreshed: number }> => {
+    const projectIds = await ctx.runQuery(
+      internal.github.listRefreshableProjectIds,
+      {
+        limit: args.limit,
+      },
     )
+    let failed = 0
 
-    for (const project of projects) {
-      await ctx.runAction(internal.github_actions.refreshProjectMetadata, {
-        projectId: project._id,
-      })
+    for (const projectId of projectIds) {
+      try {
+        await ctx.runAction(internal.github_actions.refreshProjectMetadata, {
+          projectId,
+        })
+      } catch (error) {
+        failed += 1
+        console.error(
+          `Scheduled GitHub metadata refresh failed for ${projectId}: ${
+            error instanceof Error ? error.message : 'unknown error'
+          }`,
+        )
+      }
     }
 
-    return { refreshed: projects.length }
+    return { failed, refreshed: projectIds.length - failed }
   },
 })
 
@@ -706,49 +797,63 @@ export const syncProjectContributors = internalAction({
   args: {
     projectId: v.id('projects'),
   },
-  handler: async () => {
-    return null
-  },
-})
-
-export const cleanupDeletedAccountStars = internalAction({
-  args: {
-    userId: v.id('users'),
-  },
   handler: async (ctx, args) => {
-    const user = await ctx.runQuery(internal.users.userById, {
-      userId: args.userId,
+    const project = await ctx.runQuery(internal.projects.projectById, {
+      projectId: args.projectId,
     })
-
-    if (!user) {
+    if (!project) {
       return null
     }
 
-    let accessToken = ''
-    try {
-      const tokenState = await getGithubAccessToken(user.clerkId)
-      accessToken = tokenState.accessToken
-    } catch {
+    const owner = await ctx.runQuery(internal.users.userById, {
+      userId: project.ownerId,
+    })
+    if (!owner) {
       return null
     }
 
-    const likes = await ctx.runQuery(internal.github.likedProjectsByUser, {
-      userId: args.userId,
+    await enforceRateLimit(ctx, 'githubContributionSync', String(owner._id))
+    const { accessToken } = await getGithubAccessToken(owner.clerkId)
+    const repositoryPath = encodeRepositoryFullNamePath(project.github.fullName)
+    const contributors = await listGithubRepositoryPages({
+      maxPages: 5,
+      perPage: 100,
+      fetchPage: (page, perPage) =>
+        githubRequest<GithubContributor[]>(
+          `/repos/${repositoryPath}/contributors?per_page=${perPage}&page=${page}`,
+          accessToken,
+        ),
+    })
+    const result = (await ctx.runMutation(
+      internal.github.patchProjectContributors,
+      {
+        projectId: project._id,
+        contributors: contributors.flatMap((contributor) =>
+          contributor.id === null || contributor.type !== 'User'
+            ? []
+            : [
+                {
+                  githubId: contributor.id,
+                  githubUsername: contributor.login,
+                  commitCount: contributor.contributions,
+                },
+              ],
+        ),
+      },
+    )) as { matchedCount: number; totalFetched: number } | null
+
+    await ctx.runMutation(internal.github.recordGithubSyncResult, {
+      userId: owner._id,
+      syncType: 'contributors',
+      reposFetched: 1,
+      reposNew: 0,
+      reposUpdated: result ? 1 : 0,
+      status: 'success',
+      error: null,
+      githubRateLimitRemaining: null,
     })
 
-    for (const like of likes) {
-      if (!like.projectFullName) {
-        continue
-      }
-
-      await githubNoContentRequest(
-        `/user/starred/${like.projectFullName}`,
-        accessToken,
-        { method: 'DELETE' },
-      )
-    }
-
-    return null
+    return result
   },
 })
 
@@ -761,6 +866,7 @@ export const syncContributions = action({
       { ...buildViewerSeedFromIdentity(identity) },
     )
     if (!viewer) throw new ConvexError('Viewer not found')
+    await enforceRateLimit(ctx, 'githubContributionSync', String(viewer._id))
 
     const { accessToken } = await getGithubAccessToken(identity.subject)
 

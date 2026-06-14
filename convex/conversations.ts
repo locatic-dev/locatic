@@ -8,6 +8,7 @@ import {
   buildConversationNotificationTarget,
   createNotificationIfEnabled,
 } from './lib/notifications'
+import { enforceRateLimit } from './lib/rate_limits'
 
 export const list = query({
   args: {},
@@ -192,6 +193,7 @@ export const sendMessage = mutation({
   },
   handler: async (ctx, args) => {
     const viewer = await getViewerOrThrow(ctx)
+    await enforceRateLimit(ctx, 'conversationMessage', String(viewer._id))
     const conversation = await ctx.db.get(args.conversationId)
     if (
       !conversation ||

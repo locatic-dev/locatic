@@ -14,8 +14,13 @@ import {
 import type { QueryCtx } from './_generated/server'
 import { internal } from './_generated/api'
 import { fanOutActivityEventToFollowers } from './lib/homeFeed'
-import { getViewerOrThrow } from './lib/auth'
+import {
+  buildViewerSeedFromIdentity,
+  getViewerOrThrow,
+  requireIdentity,
+} from './lib/auth'
 import { buildPostSearchText } from './lib/posts'
+import { getPubliclyInteractableProject } from './lib/project_access'
 import { canPinProject } from './lib/project_pins'
 import { resolvePublicCityLabel } from './lib/project_previews'
 import {
@@ -30,6 +35,7 @@ import {
 } from './lib/snapshots'
 import { normalizeProjectTopics } from './lib/topics'
 import { buildStatusValidator, socialLinksValidator } from './lib/validators'
+import { enforceRateLimit } from './lib/rate_limits'
 
 function getCommitFrequency(lastCommitAt: number) {
   const ageDays = (Date.now() - lastCommitAt) / (24 * 60 * 60 * 1000)
@@ -59,7 +65,7 @@ const projectLikerValidator = v.object({
 const projectDetailValidator = v.union(
   v.object({
     project: v.any(),
-    updates: v.array(v.any()),
+    releases: v.array(v.any()),
     comments: v.array(v.any()),
     likedByPreview: v.array(projectLikerValidator),
     viewerHasLiked: v.boolean(),
@@ -121,25 +127,6 @@ export const backfillRouteFields = internalMutation({
         })
         projectsPatched += 1
       }
-    }
-
-    const updates = await ctx.db.query('updates').collect()
-    for (const update of updates) {
-      if (update.projectSnapshot.ownerLogin) {
-        continue
-      }
-
-      await ctx.db.patch(update._id, {
-        projectSnapshot: {
-          ...update.projectSnapshot,
-          ownerLogin: getSnapshotOwnerLogin({
-            fallbackProjectId: String(update.projectId),
-            fullName: update.projectSnapshot.fullName,
-            ownerLoginByProjectId,
-          }),
-        },
-      })
-      snapshotsPatched += 1
     }
 
     const posts = await ctx.db.query('posts').collect()
@@ -266,9 +253,12 @@ async function getPublicProjectDetail(
     return null
   }
 
-  const updates = await ctx.db
-    .query('updates')
-    .withIndex('by_project', (query) => query.eq('projectId', project._id))
+  const releases = await ctx.db
+    .query('project_releases')
+    .withIndex('by_project_published', (query) =>
+      query.eq('projectId', project._id),
+    )
+    .order('desc')
     .collect()
 
   const viewerHasLiked = requester
@@ -327,7 +317,7 @@ async function getPublicProjectDetail(
 
   return {
     project,
-    updates,
+    releases,
     comments: [],
     likedByPreview,
     viewerHasLiked: Boolean(viewerHasLiked),
@@ -366,6 +356,16 @@ export const listLikers = query({
   },
   returns: paginationResultValidator(projectLikerValidator),
   handler: async (ctx, args) => {
+    if (!(await getPubliclyInteractableProject(ctx, args.projectId))) {
+      return {
+        continueCursor: '',
+        isDone: true,
+        page: [],
+        pageStatus: null,
+        splitCursor: null,
+      }
+    }
+
     const page = await ctx.db
       .query('reactions')
       .withIndex('by_target_reaction_created', (query) =>
@@ -569,6 +569,25 @@ export const refreshMetadata = action({
     projectId: v.id('projects'),
   },
   handler: async (ctx, args): Promise<unknown> => {
+    const identity = await requireIdentity(ctx)
+    const viewer = await ctx.runMutation(
+      internal.users.ensureViewerFromIdentity,
+      {
+        ...buildViewerSeedFromIdentity(identity),
+      },
+    )
+    if (!viewer) {
+      throw new ConvexError('Viewer not found')
+    }
+
+    const project = await ctx.runQuery(internal.projects.projectById, {
+      projectId: args.projectId,
+    })
+    if (!project || project.ownerId !== viewer._id) {
+      throw new ConvexError('Project not found')
+    }
+    await enforceRateLimit(ctx, 'githubMetadataRefresh', String(viewer._id))
+
     await ctx.runAction(internal.github_actions.refreshProjectMetadata, {
       projectId: args.projectId,
     })
@@ -657,7 +676,6 @@ export const upsertImportedRepositories = internalMutation({
           tags: normalizeProjectTopics(repository.topics),
           likesCount: 0,
           commentsCount: 0,
-          updatesCount: 0,
           postsCount: 0,
         },
         exploreOwner: buildProjectExploreOwner(
@@ -702,7 +720,6 @@ export const upsertImportedRepositories = internalMutation({
         actorId: owner._id,
         eventType: 'project_posted',
         projectId,
-        updateId: null,
         postId: null,
         commentId: null,
         actorSnapshot: {
@@ -712,7 +729,6 @@ export const upsertImportedRepositories = internalMutation({
           cityName: ownerSnapshot.cityName,
         },
         projectSnapshot: buildProjectSnapshot(project),
-        updateSnapshot: null,
         postSnapshot: null,
         createdAt: now,
       })

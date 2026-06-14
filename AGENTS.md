@@ -45,6 +45,12 @@ Locatic — "GitHub with a map." Developer activity platform: discover projects,
 | Request middleware              | `src/start.ts`                                                                | CSRF filtered to server functions, Clerk middleware                                                                  |
 | Router setup                    | `src/router.tsx` + `src/routeTree.gen.ts`                                     | Router factory + generated route tree                                                                                |
 | API integrations                | `convex/github.ts`, `convex/github_actions.ts`                                | GitHub API sync, webhooks, README import, contribution sync                                                          |
+| Rate limiting                   | `convex/lib/rate_limits.ts`                                                   | `enforceRateLimit` via `@convex-dev/rate-limiter` component; enforces per-action token buckets/fixed windows         |
+| Project/comment gates           | `convex/lib/project_access.ts`                                                | `isProjectPubliclyInteractable`, `getPubliclyInteractableProject`, `isCommentPubliclyInteractable`                   |
+| Convex app config               | `convex/convex.config.ts`                                                     | `defineApp` + `app.use(rateLimiter)` — component registration                                                        |
+| Convex shared constants         | `convex/lib/constants.ts`                                                     | Enum arrays: build status, notification types, feed reasons, contributor sync cadence                                |
+| Activity pulse queries          | `convex/pulse.ts`                                                             | `listPublic` query for time-windowed activity (day/week/month windows)                                               |
+| Reaction seed config            | `convex/reactionConfigSeed.ts`                                                | `DEFAULT_REACTIONS` array + `scripts/reactions-to-seed.mjs` for generating seed JSON                                 |
 | App shell/layout                | `src/components/app-shell/`                                                   | Sidebar, header, navigation                                                                                          |
 | Vite config                     | `vite.config.ts`                                                              | Code splitting groups, plugins                                                                                       |
 | Post visibility                 | `convex/lib/posts.ts`                                                         | Helpers: `filterVisiblePosts`, `normalizePostSearchQuery`, `buildPostSearchText`                                     |
@@ -81,6 +87,9 @@ Locatic — "GitHub with a map." Developer activity platform: discover projects,
 - Testing: Vitest + Testing Library (`__tests__/` dirs colocated); E2E via Playwright (`*.authenticated.spec.ts` naming)
 - Vitest excludes `playwright/` in config — run E2E tests via `pnpm e2e`
 - Convex validators: defined in `convex/lib/validators.ts`, used in schema
+- Convex app config: `convex/convex.config.ts` registers components via `app.use()` — currently `rateLimiter` only
+- Rate limiting: defined in `convex/lib/rate_limits.ts` via `@convex-dev/rate-limiter`; uses token bucket + fixed window
+- Convex shared constants: enums for build status, notification types, feed reasons, and contributor sync cadence live in `convex/lib/constants.ts`
 - Feature modules: each feature in `src/features/<name>/` has its own domain logic
 - Route guards: `_app/` prefix = authenticated routes
 - TanStack deps pinned to compatible versions (see package.json) — do not upgrade independently

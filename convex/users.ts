@@ -23,10 +23,7 @@ import {
   requireIdentity,
 } from './lib/auth'
 import { buildDiscoverabilitySearchText } from './lib/discoverability'
-import {
-  resolveProjectOwnerLogin,
-  resolveProjectSnapshotOwnerLogin,
-} from './lib/project_route'
+import { resolveProjectOwnerLogin } from './lib/project_route'
 import {
   buildProjectCardPreview,
   resolvePublicCityLabel,
@@ -104,7 +101,6 @@ const serializedViewerValidator = v.object({
   }),
   onboardingSelectedOwnedProjectIds: v.array(v.id('projects')),
   pinnedProfileProjectIds: v.array(v.id('projects')),
-  syncGithubStarsOnLike: v.boolean(),
   unreadMessagesCount: v.number(),
   onboardingCompletedAt: optionalTimestampValidator,
   appearInExplore: v.boolean(),
@@ -150,7 +146,6 @@ function serializeViewer(
     notificationPrefs: viewer.notificationPrefs,
     onboardingSelectedOwnedProjectIds: viewer.onboardingSelectedOwnedProjectIds,
     pinnedProfileProjectIds: viewer.pinnedProfileProjectIds,
-    syncGithubStarsOnLike: viewer.syncGithubStarsOnLike,
     unreadMessagesCount: viewer.unreadMessagesCount,
     onboardingCompletedAt: viewer.onboardingCompletedAt,
     appearInExplore: viewer.appearInExplore,
@@ -438,34 +433,6 @@ async function buildProfileCommentPreview(
       projectRepo = project.github.name
       targetLabel = project.github.fullName
       targetAvailability = project.locatic.isVisible ? 'available' : 'hidden'
-    }
-  }
-
-  if (comment.targetType === 'update') {
-    const updateId = ctx.db.normalizeId('updates', comment.targetId)
-    const update = updateId ? await ctx.db.get(updateId) : null
-    const project = update ? await ctx.db.get(update.projectId) : null
-    const fullName =
-      project?.github.fullName ?? update?.projectSnapshot.fullName
-    const ownerLogin = project
-      ? resolveProjectOwnerLogin(project)
-      : update
-        ? resolveProjectSnapshotOwnerLogin(update.projectSnapshot)
-        : null
-
-    if (fullName) {
-      projectFullName = fullName
-      projectOwner = ownerLogin ?? projectOwner
-      projectRepo =
-        project?.github.name ?? update?.projectSnapshot.name ?? projectRepo
-      targetLabel = `${fullName}${update?.title ? ` update · ${update.title}` : ' update'}`
-      if (project?.locatic.isVisible) {
-        targetAvailability = 'available'
-      } else if (project) {
-        targetAvailability = 'hidden'
-      } else {
-        targetAvailability = 'deleted'
-      }
     }
   }
 
@@ -1353,25 +1320,6 @@ export const completeOnboarding = mutation({
   },
 })
 
-export const updateGithubSyncPreference = mutation({
-  args: {
-    syncGithubStarsOnLike: v.boolean(),
-  },
-  handler: async (ctx, args) => {
-    const viewer = await getOrCreateViewer(ctx)
-    if (!viewer) {
-      throw new ConvexError('Viewer not found')
-    }
-
-    await ctx.db.patch(viewer._id, {
-      syncGithubStarsOnLike: args.syncGithubStarsOnLike,
-      updatedAt: Date.now(),
-    })
-
-    return null
-  },
-})
-
 export const deactivateAccount = mutation({
   args: {},
   handler: async (ctx) => {
@@ -1427,9 +1375,6 @@ export const finalizeDeletedAccount = internalAction({
     userId: v.id('users'),
   },
   handler: async (ctx, args) => {
-    await ctx.runAction(internal.github_actions.cleanupDeletedAccountStars, {
-      userId: args.userId,
-    })
     await ctx.runMutation(internal.users.scrubDeletedAccount, {
       userId: args.userId,
     })
@@ -1591,22 +1536,6 @@ export const scrubDeletedAccount = internalMutation({
         }
       }
 
-      if (reaction.targetType === 'update') {
-        const updateId = ctx.db.normalizeId('updates', reaction.targetId)
-        const update = updateId ? await ctx.db.get(updateId) : null
-        if (update) {
-          await ctx.db.patch(update._id, {
-            reactionCounts: {
-              ...update.reactionCounts,
-              [reaction.reactionType]: Math.max(
-                0,
-                (update.reactionCounts[reaction.reactionType] ?? 0) - 1,
-              ),
-            },
-          })
-        }
-      }
-
       if (reaction.targetType === 'comment') {
         const commentId = ctx.db.normalizeId('comments', reaction.targetId)
         const comment = commentId ? await ctx.db.get(commentId) : null
@@ -1642,16 +1571,6 @@ export const scrubDeletedAccount = internalMutation({
               commentsCount: Math.max(0, project.locatic.commentsCount - 1),
             },
             updatedAt: Date.now(),
-          })
-        }
-      }
-
-      if (comment.targetType === 'update') {
-        const updateId = ctx.db.normalizeId('updates', comment.targetId)
-        const update = updateId ? await ctx.db.get(updateId) : null
-        if (update) {
-          await ctx.db.patch(update._id, {
-            commentsCount: Math.max(0, update.commentsCount - 1),
           })
         }
       }
