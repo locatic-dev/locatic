@@ -69,16 +69,6 @@ export function buildProjectSnapshot(project: Doc<'projects'>) {
   }
 }
 
-export function buildUpdateSnapshot(update: Doc<'updates'>) {
-  return {
-    versionTag: update.versionTag,
-    title: update.title,
-    description: update.description,
-    reactionCounts: update.reactionCounts,
-    commentsCount: update.commentsCount,
-  }
-}
-
 export function buildPostSnapshot(post: Doc<'posts'>) {
   return {
     body: post.body,

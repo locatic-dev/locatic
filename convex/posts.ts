@@ -126,7 +126,7 @@ export const listByProject = query({
   handler: async (ctx, args) => {
     const viewer = await getViewerFromAuth(ctx)
     const project = await ctx.db.get(args.projectId)
-    if (!project?.locatic.isVisible || !project.exploreOwner.isEligible) {
+    if (!project?.locatic.isVisible) {
       return emptyPostPage
     }
 
@@ -276,12 +276,10 @@ export const create = mutation({
       actorId: viewer._id,
       eventType: 'post_created',
       projectId: project._id,
-      updateId: null,
       postId,
       commentId: null,
       actorSnapshot,
       projectSnapshot: buildProjectSnapshot(project),
-      updateSnapshot: null,
       postSnapshot: buildPostSnapshot(post),
       createdAt: now,
     })

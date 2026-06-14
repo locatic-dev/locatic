@@ -20,7 +20,6 @@ import {
   citiesSearchQueryOptions,
 } from '@/features/cities/queries'
 import { useLikeProject, useUnlikeProject } from '@/features/projects/mutations'
-import { showGithubSyncFeedback } from '@/features/projects/github-sync-feedback'
 import { useFollowUser, useUnfollowUser } from '@/features/follows/mutations'
 import { useDismissExploreProject } from '@/features/explore/mutations'
 import { useOpenConversation } from '@/features/inbox/use-open-conversation'
@@ -331,9 +330,6 @@ function ExplorePage() {
         likedProjectIdsQueryKey,
         context?.previousLikedProjectIds,
       )
-    },
-    onSuccess: (result) => {
-      showGithubSyncFeedback(result)
     },
     onSettled: async () => {
       await Promise.all([

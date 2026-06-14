@@ -13,7 +13,6 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { PageHeader } from '@/components/app-shell/page-header'
 import { relativeTime } from '@/lib/time'
 import { useLikeProject, useUnlikeProject } from '@/features/projects/mutations'
-import { showGithubSyncFeedback } from '@/features/projects/github-sync-feedback'
 import { useOpenConversation } from '@/features/inbox/use-open-conversation'
 import { getHomeCardDmTargetUserId } from '@/features/home/project-card-targets'
 import { getHomeFeedActivityLabel } from '@/features/home/activity-labels'
@@ -128,9 +127,6 @@ function HomePage() {
         likedProjectIdsQueryKey,
         context?.previousLikedProjectIds,
       )
-    },
-    onSuccess: (result) => {
-      showGithubSyncFeedback(result)
     },
     onSettled: async () => {
       await Promise.all([

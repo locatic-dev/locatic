@@ -40,7 +40,6 @@ export function createDefaultViewerProfile(
     },
     pinnedProfileProjectIds: [],
     onboardingSelectedOwnedProjectIds: [],
-    syncGithubStarsOnLike: false,
     unreadMessagesCount: 0,
     stats: {
       followersCount: 0,

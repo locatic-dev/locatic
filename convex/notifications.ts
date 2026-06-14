@@ -15,10 +15,7 @@ import {
   buildProfileNotificationTarget,
   buildProjectNotificationTarget,
 } from './lib/notifications'
-import {
-  resolveProjectOwnerLogin,
-  resolveProjectSnapshotOwnerLogin,
-} from './lib/project_route'
+import { resolveProjectOwnerLogin } from './lib/project_route'
 
 type NotificationTargetRecord = {
   kind: 'profile' | 'project' | 'conversation'
@@ -45,7 +42,6 @@ async function resolveNotificationTarget(
     actorId: Id<'users'>
     recipientId: Id<'users'>
     projectId: Id<'projects'> | null
-    updateId: Id<'updates'> | null
     commentId: Id<'comments'> | null
   },
 ) {
@@ -91,17 +87,6 @@ async function resolveNotificationTarget(
       : null
   }
 
-  if (!projectTarget && notification.updateId) {
-    const update = await ctx.db.get(notification.updateId)
-    projectTarget = update
-      ? {
-          fullName: update.projectSnapshot.fullName,
-          owner: resolveProjectSnapshotOwnerLogin(update.projectSnapshot),
-          repo: update.projectSnapshot.name,
-        }
-      : null
-  }
-
   if (!projectTarget && notification.commentId) {
     const comment = await ctx.db.get(notification.commentId)
     if (comment?.targetType === 'project') {
@@ -112,17 +97,6 @@ async function resolveNotificationTarget(
             fullName: project.github.fullName,
             owner: resolveProjectOwnerLogin(project),
             repo: project.github.name,
-          }
-        : null
-    }
-    if (!projectTarget && comment?.targetType === 'update') {
-      const updateId = ctx.db.normalizeId('updates', comment.targetId)
-      const update = updateId ? await ctx.db.get(updateId) : null
-      projectTarget = update
-        ? {
-            fullName: update.projectSnapshot.fullName,
-            owner: resolveProjectSnapshotOwnerLogin(update.projectSnapshot),
-            repo: update.projectSnapshot.name,
           }
         : null
     }

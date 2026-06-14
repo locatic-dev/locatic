@@ -56,6 +56,22 @@ describe('post visibility helpers', () => {
     ).resolves.toEqual(visibleProject)
   })
 
+  it('allows visible project posts when the project is not eligible for Explore', async () => {
+    const project = {
+      ...visibleProject,
+      exploreOwner: { isEligible: false },
+    }
+
+    await expect(
+      getVisiblePostProject(
+        {
+          db: createDb({ project_1: project, user_1: activeOwner }),
+        } as never,
+        post as never,
+      ),
+    ).resolves.toEqual(project)
+  })
+
   it('hides posts when the parent project is hidden', async () => {
     await expect(
       getVisiblePostProject(

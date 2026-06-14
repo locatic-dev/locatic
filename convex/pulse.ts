@@ -60,13 +60,12 @@ export const listPublic = query({
 export const rebuildSnapshots = internalMutation({
   args: {},
   handler: async (ctx) => {
-    const [projects, users, reactions, comments, updates, existingSnapshots] =
+    const [projects, users, reactions, comments, existingSnapshots] =
       await Promise.all([
         ctx.db.query('projects').collect(),
         ctx.db.query('users').collect(),
         ctx.db.query('reactions').withIndex('by_user').collect(),
         ctx.db.query('comments').collect(),
-        ctx.db.query('updates').collect(),
         ctx.db.query('pulse_snapshots').collect(),
       ])
 
@@ -132,12 +131,6 @@ export const rebuildSnapshots = internalMutation({
           (commentsByProjectId.get(comment.targetId) ?? 0) + 1,
         )
         activeProjectIds.add(comment.targetId)
-      }
-
-      for (const update of updates) {
-        if (update.createdAt >= windowStart) {
-          activeProjectIds.add(String(update.projectId))
-        }
       }
 
       for (const project of visibleProjects) {

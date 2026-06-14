@@ -186,7 +186,7 @@ Locatic assumes users authenticate through Clerk with GitHub connected. The code
 
 - list a user's public repositories during onboarding
 - import selected repositories into Locatic
-- star or unstar repositories when a user likes or unlikes a project
+- refresh imported repository metadata, README content, releases, and contributor data
 
 In practice, that means your Clerk setup needs GitHub OAuth configured with the permissions required for those flows.
 
