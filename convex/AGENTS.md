@@ -16,11 +16,14 @@ convex/
 │   ├── constants.ts    # App-wide constants
 │   ├── explore.ts      # Explore scope / search helpers
 │   ├── notifications.ts  # Notification target helpers
+│   ├── project_access.ts # Project/comment public interactability gates
+│   ├── rate_limits.ts  # Rate limiter via @convex-dev/rate-limiter component
 │   ├── snapshots.ts    # Snapshot utilities
 │   ├── types.ts        # Shared TypeScript types
 │   ├── viewer.ts       # Viewer/bootstrap payload helpers
 │   ├── posts.ts        # Post visibility helpers (filterVisiblePosts, getVisiblePostProject)
 │   └── __tests__/      # Library tests
+├── convex.config.ts    # App config: defineApp + app.use(rateLimiter)
 ├── auth.config.ts      # Convex auth configuration (requires CLERK_JWT_ISSUER_DOMAIN)
 ├── users.ts            # User CRUD, profile management
 ├── projects.ts         # Project/repo management
@@ -32,7 +35,6 @@ convex/
 ├── explore.ts          # Discovery queries
 ├── home.ts             # Feed generation
 ├── pulse.ts            # Activity pulse/metrics
-├── updates.ts          # Status updates
 ├── github.ts           # GitHub API integration
 ├── github_actions.ts   # GitHub Actions sync
 ├── crons.ts            # Scheduled tasks
@@ -46,24 +48,26 @@ convex/
 
 ## WHERE TO LOOK
 
-| Task                | File                                       | Notes                                                                           |
-| ------------------- | ------------------------------------------ | ------------------------------------------------------------------------------- |
-| Add DB table        | `schema.ts`                                | Use validators from `lib/validators.ts`                                         |
-| Add query/mutation  | New file or existing domain file           | `export const myQuery = query({...})`                                           |
-| Add HTTP endpoint   | `http.ts`                                  | Webhooks, external API callbacks                                                |
-| Post visibility     | `lib/posts.ts`                             | Used by `posts.ts`, `comments.ts`, `explore.ts`                                 |
-| Post search text    | `lib/posts.ts`                             | `buildPostSearchText`, `normalizePostSearchQuery` for search indexing           |
-| Explore result      | `explore.ts`                               | Validators for projectSearch/postSearch/builderSearch/exploreFeed results       |
-| Add scheduled task  | `crons.ts`                                 | Cron-triggered functions                                                        |
-| Add validator       | `lib/validators.ts`                        | Used in schema definitions                                                      |
-| GitHub integration  | `github.ts`, `github_actions.ts`           | API sync, webhooks                                                              |
-| Add post management | `posts.ts`                                 | Project posts / status updates                                                  |
-| Add seed data       | `citiesSeed.ts`, `reactionConfigSeed.ts`   | City + reaction seed data                                                       |
-| Viewer/bootstrap    | `users.ts`, `lib/viewer.ts`                | Authenticated app payloads; preserve contracts                                  |
-| Explore state       | `explore.ts`, `lib/explore.ts`             | Search scope / city defaults; `searchProjects`, `searchPosts`, `searchBuilders` |
-| Notification state  | `notifications.ts`, `lib/notifications.ts` | Read state + backfill helpers                                                   |
-| Conversation flow   | `conversations.ts`                         | Start/get DM threads                                                            |
-| Project sync        | `projects.ts`, `github_actions.ts`         | Repo metadata + sync orchestration                                              |
+| Task                   | File                                       | Notes                                                                                              |
+| ---------------------- | ------------------------------------------ | -------------------------------------------------------------------------------------------------- |
+| Add DB table           | `schema.ts`                                | Use validators from `lib/validators.ts`                                                            |
+| Add query/mutation     | New file or existing domain file           | `export const myQuery = query({...})`                                                              |
+| Add HTTP endpoint      | `http.ts`                                  | Webhooks, external API callbacks                                                                   |
+| Project/comment access | `lib/project_access.ts`                    | `isProjectPubliclyInteractable`, `getPubliclyInteractableProject`, `isCommentPubliclyInteractable` |
+| Rate limiting          | `lib/rate_limits.ts`                       | `enforceRateLimit` via `@convex-dev/rate-limiter` component; token buckets + fixed windows         |
+| Post visibility        | `lib/posts.ts`                             | Used by `posts.ts`, `comments.ts`, `explore.ts`                                                    |
+| Post search text       | `lib/posts.ts`                             | `buildPostSearchText`, `normalizePostSearchQuery` for search indexing                              |
+| Explore result         | `explore.ts`                               | Validators for projectSearch/postSearch/builderSearch/exploreFeed results                          |
+| Add scheduled task     | `crons.ts`                                 | Cron-triggered functions                                                                           |
+| Add validator          | `lib/validators.ts`                        | Used in schema definitions                                                                         |
+| GitHub integration     | `github.ts`, `github_actions.ts`           | API sync, webhooks                                                                                 |
+| Add post management    | `posts.ts`                                 | Project posts and owner-authored project activity                                                  |
+| Add seed data          | `citiesSeed.ts`, `reactionConfigSeed.ts`   | City + reaction seed data                                                                          |
+| Viewer/bootstrap       | `users.ts`, `lib/viewer.ts`                | Authenticated app payloads; preserve contracts                                                     |
+| Explore state          | `explore.ts`, `lib/explore.ts`             | Search scope / city defaults; `searchProjects`, `searchPosts`, `searchBuilders`                    |
+| Notification state     | `notifications.ts`, `lib/notifications.ts` | Read state + backfill helpers                                                                      |
+| Conversation flow      | `conversations.ts`                         | Start/get DM threads                                                                               |
+| Project sync           | `projects.ts`, `github_actions.ts`         | Repo metadata + sync orchestration                                                                 |
 
 ## CONVENTIONS
 
@@ -76,6 +80,8 @@ convex/
 - Viewer/bootstrap queries feed route-prefetch flows; keep payload names stable when editing `users.ts` or `lib/viewer.ts`.
 - `users.ts` is the largest backend domain file; avoid opportunistic refactors while changing auth/profile/bootstrap behavior.
 - Feature search/navigation helpers should stay aligned with Convex query args and payload shapes.
+- Rate limiting defined in `lib/rate_limits.ts` via `@convex-dev/rate-limiter`; `convex.config.ts` registers the component via `app.use(rateLimiter)`.
+- Project/comment public interactability gates live in `lib/project_access.ts` — use instead of inline owner/visibility checks.
 
 ## ANTI-PATTERNS
 

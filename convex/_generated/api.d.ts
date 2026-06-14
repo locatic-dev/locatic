@@ -30,10 +30,12 @@ import type * as lib_github from "../lib/github.js";
 import type * as lib_homeFeed from "../lib/homeFeed.js";
 import type * as lib_notifications from "../lib/notifications.js";
 import type * as lib_posts from "../lib/posts.js";
+import type * as lib_project_access from "../lib/project_access.js";
 import type * as lib_project_pins from "../lib/project_pins.js";
 import type * as lib_project_previews from "../lib/project_previews.js";
 import type * as lib_project_route from "../lib/project_route.js";
 import type * as lib_pulse from "../lib/pulse.js";
+import type * as lib_rate_limits from "../lib/rate_limits.js";
 import type * as lib_snapshots from "../lib/snapshots.js";
 import type * as lib_topics from "../lib/topics.js";
 import type * as lib_types from "../lib/types.js";
@@ -45,7 +47,6 @@ import type * as projects from "../projects.js";
 import type * as pulse from "../pulse.js";
 import type * as reactionConfigSeed from "../reactionConfigSeed.js";
 import type * as reactions from "../reactions.js";
-import type * as updates from "../updates.js";
 import type * as users from "../users.js";
 
 import type {
@@ -77,10 +78,12 @@ declare const fullApi: ApiFromModules<{
   "lib/homeFeed": typeof lib_homeFeed;
   "lib/notifications": typeof lib_notifications;
   "lib/posts": typeof lib_posts;
+  "lib/project_access": typeof lib_project_access;
   "lib/project_pins": typeof lib_project_pins;
   "lib/project_previews": typeof lib_project_previews;
   "lib/project_route": typeof lib_project_route;
   "lib/pulse": typeof lib_pulse;
+  "lib/rate_limits": typeof lib_rate_limits;
   "lib/snapshots": typeof lib_snapshots;
   "lib/topics": typeof lib_topics;
   "lib/types": typeof lib_types;
@@ -92,7 +95,6 @@ declare const fullApi: ApiFromModules<{
   pulse: typeof pulse;
   reactionConfigSeed: typeof reactionConfigSeed;
   reactions: typeof reactions;
-  updates: typeof updates;
   users: typeof users;
 }>;
 
@@ -122,4 +124,6 @@ export declare const internal: FilterApi<
   FunctionReference<any, "internal">
 >;
 
-export declare const components: {};
+export declare const components: {
+  rateLimiter: import("@convex-dev/rate-limiter/_generated/component.js").ComponentApi<"rateLimiter">;
+};

@@ -3,7 +3,7 @@
 import { readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 
-const VALID_TARGET_TYPES = new Set(['project', 'update', 'comment'])
+const VALID_TARGET_TYPES = new Set(['project', 'post', 'comment'])
 
 function parseArgs(argv) {
   const args = {
@@ -73,7 +73,7 @@ function formatSeedFile(reactions) {
   key: string
   label: string
   icon: string
-  targetTypes: Array<'project' | 'update' | 'comment'>
+  targetTypes: Array<'project' | 'post' | 'comment'>
   isActive: boolean
   sortOrder: number
 }

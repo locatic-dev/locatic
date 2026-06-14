@@ -66,6 +66,10 @@ export type GithubReadmeUrlBases = Pick<
   | 'readmeLinkRootUrl'
 >
 
+type LegacyGithubReadmeUrlBases = Partial<
+  Record<keyof GithubReadmeUrlBases, unknown>
+>
+
 export type GithubReadmeImport = {
   markdown: string | null
   metadata: GithubReadmeMetadata | null
@@ -83,6 +87,40 @@ const EMPTY_README_URL_BASES: GithubReadmeUrlBases = {
   readmeAssetRootUrl: null,
   readmeLinkBaseUrl: null,
   readmeLinkRootUrl: null,
+}
+
+export function needsGithubReadmeUrlBaseKeyNormalization(
+  github: LegacyGithubReadmeUrlBases,
+) {
+  return (
+    github.readmeAssetBaseUrl === undefined ||
+    github.readmeAssetRootUrl === undefined ||
+    github.readmeLinkBaseUrl === undefined ||
+    github.readmeLinkRootUrl === undefined
+  )
+}
+
+export function normalizeLegacyGithubReadmeUrlBaseKeys(
+  github: LegacyGithubReadmeUrlBases,
+): GithubReadmeUrlBases {
+  return {
+    readmeAssetBaseUrl:
+      typeof github.readmeAssetBaseUrl === 'string'
+        ? github.readmeAssetBaseUrl
+        : null,
+    readmeAssetRootUrl:
+      typeof github.readmeAssetRootUrl === 'string'
+        ? github.readmeAssetRootUrl
+        : null,
+    readmeLinkBaseUrl:
+      typeof github.readmeLinkBaseUrl === 'string'
+        ? github.readmeLinkBaseUrl
+        : null,
+    readmeLinkRootUrl:
+      typeof github.readmeLinkRootUrl === 'string'
+        ? github.readmeLinkRootUrl
+        : null,
+  }
 }
 
 export function normalizeRepositoryFullNames(fullNames: string[]) {

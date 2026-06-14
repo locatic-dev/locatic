@@ -43,7 +43,7 @@ features/
 | Current user data    | `viewer/`                                  | Authenticated user context, route payloads                            |
 | Onboarding helpers   | `onboarding/helpers.ts`                    | Repo-derived stack prefs, owned projects                              |
 | Profile network UI   | `profile/network-section.tsx`              | Follow graph section                                                  |
-| Sync feedback        | `projects/github-sync-feedback.ts`         | Toasts for GitHub sync failures                                       |
+| Project likes        | `projects/mutations.ts`                    | Locatic-only like/unlike actions; no GitHub star sync                 |
 | Project post feed    | `projects/posts/project-posts-section.tsx` | Paginated post list via `usePaginatedQuery` on project detail         |
 | Explore post click   | `explore/components/explore-feed.tsx`      | Post results click navigates to project page via `onOpenPostResult`   |
 

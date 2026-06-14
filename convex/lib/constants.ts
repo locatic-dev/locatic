@@ -16,7 +16,6 @@ export const CONTRIBUTOR_SYNC_CADENCE_VALUES = [
 
 export const EVENT_TYPE_VALUES = [
   'project_posted',
-  'update_broadcast',
   'project_liked',
   'project_commented',
   'contributor_matched',
@@ -26,7 +25,6 @@ export const FEED_REASON_VALUES = ['following', 'liked_project_update'] as const
 
 export const NOTIFICATION_TYPE_VALUES = [
   'project_liked',
-  'update_reacted',
   'project_commented',
   'comment_replied',
   'followed',
@@ -45,11 +43,11 @@ export const CITY_VISIBILITY_VALUES = [
 
 export const REACTION_TARGET_TYPE_VALUES = [
   'project',
-  'update',
+  'post',
   'comment',
 ] as const
 
-export const COMMENT_TARGET_TYPE_VALUES = ['project', 'update'] as const
+export const COMMENT_TARGET_TYPE_VALUES = ['project', 'post'] as const
 
 export const PULSE_SCOPE_TYPE_VALUES = ['city', 'global'] as const
 export const PULSE_TIME_WINDOW_VALUES = ['day', 'week', 'month'] as const

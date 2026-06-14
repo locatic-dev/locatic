@@ -32,8 +32,8 @@ describe('getHomeFeedActivityLabel', () => {
     expect(
       getHomeFeedActivityLabel({
         actorDisplayName: '   ',
-        eventType: 'update_broadcast',
+        eventType: 'post_created',
       }),
-    ).toBe('Someone updated this')
+    ).toBe('Someone posted an update')
   })
 })
