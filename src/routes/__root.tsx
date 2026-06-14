@@ -30,6 +30,9 @@ interface MyRouterContext {
   queryClient: QueryClient
 }
 
+const siteUrl = 'https://locatic.dev'
+const socialImageUrl = `${siteUrl}/og-locatic.png`
+
 const fetchClerkAuth = createServerFn({ method: 'GET' }).handler(async () => {
   if (!process.env.CLERK_SECRET_KEY) {
     throw new Error(
@@ -89,6 +92,7 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
       },
       { name: 'theme-color', content: '#0f141c' },
       { property: 'og:type', content: 'website' },
+      { property: 'og:url', content: siteUrl },
       { property: 'og:site_name', content: 'Locatic' },
       { property: 'og:title', content: 'Locatic · GitHub with a map' },
       {
@@ -96,7 +100,7 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
         content:
           'Discover what developers are building from locally to globally. Like it, comment on it, follow them.',
       },
-      { property: 'og:image', content: '/og-locatic.png' },
+      { property: 'og:image', content: socialImageUrl },
       { property: 'og:image:alt', content: 'Locatic social preview' },
       { property: 'og:image:width', content: '1200' },
       { property: 'og:image:height', content: '630' },
@@ -107,7 +111,7 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
         content:
           'Discover what developers are building from locally to globally. Like it, comment on it, follow them.',
       },
-      { name: 'twitter:image', content: '/og-locatic.png' },
+      { name: 'twitter:image', content: socialImageUrl },
       { name: 'twitter:image:alt', content: 'Locatic social preview' },
     ],
     links: [

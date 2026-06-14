@@ -61,6 +61,7 @@ const packageChunkGroups = [
 // so TypeScript accepts the supported runtime option.
 const tanstackStartRouterOptions = {
   routesDirectory: 'routes',
+  routeFileIgnorePattern: '(__tests__|\\.test\\.)',
   autoCodeSplitting: false,
 }
 
