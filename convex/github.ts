@@ -11,6 +11,11 @@ import {
   normalizeProjectRouteKey,
   resolveProjectOwnerLogin,
 } from './lib/project_route'
+import { getPubliclyInteractableProject } from './lib/project_access'
+import {
+  needsGithubReadmeUrlBaseKeyNormalization,
+  normalizeLegacyGithubReadmeUrlBaseKeys,
+} from './lib/github'
 
 const MAX_README_BACKFILL_BATCH = 100
 const README_BACKFILL_SCAN_PAGE_SIZE = 100
@@ -28,6 +33,32 @@ const projectReadmeBackfillBatchPageValidator = v.object({
   scanned: v.number(),
   targets: v.array(projectReadmeBackfillTargetValidator),
   totalCandidatesLowerBound: v.number(),
+})
+
+const githubReleaseImportValidator = v.object({
+  githubReleaseId: v.number(),
+  tagName: v.string(),
+  name: v.union(v.string(), v.null()),
+  body: v.union(v.string(), v.null()),
+  htmlUrl: v.string(),
+  isDraft: v.boolean(),
+  isPrerelease: v.boolean(),
+  publishedAt: v.union(v.number(), v.null()),
+  createdAt: v.number(),
+  updatedAt: v.number(),
+})
+
+const githubContributorImportValidator = v.object({
+  githubId: v.number(),
+  githubUsername: v.string(),
+  commitCount: v.number(),
+})
+
+const projectReadmeUrlBaseVerificationValidator = v.object({
+  continueCursor: v.union(v.string(), v.null()),
+  done: v.boolean(),
+  patched: v.number(),
+  scanned: v.number(),
 })
 
 function projectNeedsReadmeBackfill(
@@ -65,7 +96,7 @@ export const applyProjectLike = internalMutation({
       .query('users')
       .withIndex('by_clerk_id', (query) => query.eq('clerkId', args.clerkId))
       .unique()
-    const project = await ctx.db.get(args.projectId)
+    const project = await getPubliclyInteractableProject(ctx, args.projectId)
 
     if (!viewer || !project) {
       throw new ConvexError('Missing project or viewer')
@@ -102,11 +133,9 @@ export const applyProjectLike = internalMutation({
         actorId: viewer._id,
         eventType: 'project_liked',
         projectId: project._id,
-        updateId: null,
         commentId: null,
         actorSnapshot: await buildActorSnapshot(ctx.db, viewer),
         projectSnapshot: buildProjectSnapshot(project),
-        updateSnapshot: null,
         createdAt: Date.now(),
       })
 
@@ -237,6 +266,7 @@ export const patchProjectMetadata = internalMutation({
       stargazersCount: v.number(),
       lastCommitAt: v.number(),
       lastMetadataSyncedAt: v.union(v.number(), v.null()),
+      lastMetadataSyncAttemptedAt: v.optional(v.union(v.number(), v.null())),
       readmePreview: v.union(v.string(), v.null()),
       readmeAssetBaseUrl: v.union(v.string(), v.null()),
       readmeAssetRootUrl: v.union(v.string(), v.null()),
@@ -256,6 +286,7 @@ export const patchProjectMetadata = internalMutation({
         ...args.repository,
         ownerLoginKey: normalizeProjectRouteKey(args.repository.ownerLogin),
         nameKey: normalizeProjectRouteKey(args.repository.name),
+        lastMetadataSyncAttemptedAt: Date.now(),
         commitFrequency:
           Date.now() - args.repository.lastCommitAt <= 7 * 24 * 60 * 60 * 1000
             ? 'active'
@@ -314,32 +345,36 @@ export const recordGithubTokenState = internalMutation({
   },
 })
 
-export const likedProjectsByUser = internalQuery({
+export const recordGithubSyncResult = internalMutation({
   args: {
     userId: v.id('users'),
+    syncType: v.union(
+      v.literal('initial'),
+      v.literal('manual'),
+      v.literal('metadata'),
+      v.literal('readme'),
+      v.literal('contributors'),
+      v.literal('releases'),
+      v.literal('scheduled'),
+    ),
+    reposFetched: v.number(),
+    reposNew: v.number(),
+    reposUpdated: v.number(),
+    status: v.union(
+      v.literal('success'),
+      v.literal('failed'),
+      v.literal('token_revoked'),
+    ),
+    error: v.union(v.string(), v.null()),
+    githubRateLimitRemaining: v.union(v.number(), v.null()),
   },
   handler: async (ctx, args) => {
-    const likes = await ctx.db
-      .query('reactions')
-      .withIndex('by_user_target_type', (query) =>
-        query
-          .eq('userId', args.userId)
-          .eq('targetType', 'project')
-          .eq('reactionType', 'like'),
-      )
-      .collect()
+    await ctx.db.insert('github_sync_log', {
+      ...args,
+      syncedAt: Date.now(),
+    })
 
-    return await Promise.all(
-      likes.map(async (like) => {
-        const projectId = ctx.db.normalizeId('projects', like.targetId)
-        const project = projectId ? await ctx.db.get(projectId) : null
-        return {
-          reactionId: like._id,
-          projectId: like.targetId,
-          projectFullName: project?.github.fullName ?? null,
-        }
-      }),
-    )
+    return null
   },
 })
 
@@ -401,7 +436,7 @@ export const patchProjectReadmePreview = internalMutation({
       return null
     }
 
-    await ctx.db.patch('projects', project._id, {
+    await ctx.db.patch(project._id, {
       github: {
         ...project.github,
         lastMetadataSyncedAt: Date.now(),
@@ -418,11 +453,301 @@ export const patchProjectReadmePreview = internalMutation({
   },
 })
 
-export const listRefreshableProjects = internalQuery({
-  args: {},
-  handler: async (ctx) => {
-    return (await ctx.db.query('projects').collect()).filter(
-      (project) => project.locatic.isVisible,
+export const verifyProjectReadmeUrlBaseKeys = internalMutation({
+  args: {
+    cursor: v.optional(v.union(v.string(), v.null())),
+    limit: v.optional(v.number()),
+  },
+  returns: projectReadmeUrlBaseVerificationValidator,
+  handler: async (ctx, args) => {
+    const limit = Math.min(Math.max(Math.floor(args.limit ?? 500), 1), 1000)
+    const page = await ctx.db.query('projects').paginate({
+      cursor: args.cursor ?? null,
+      numItems: limit,
+    })
+    let patched = 0
+
+    for (const project of page.page) {
+      const legacyGithub = project.github as typeof project.github &
+        Record<string, unknown>
+      const needsPatch = needsGithubReadmeUrlBaseKeyNormalization(legacyGithub)
+
+      if (!needsPatch) {
+        continue
+      }
+
+      await ctx.db.patch(project._id, {
+        github: {
+          ...project.github,
+          ...normalizeLegacyGithubReadmeUrlBaseKeys(legacyGithub),
+        },
+        updatedAt: Date.now(),
+      })
+      patched += 1
+    }
+
+    return {
+      continueCursor: page.isDone ? null : page.continueCursor,
+      done: page.isDone,
+      patched,
+      scanned: page.page.length,
+    }
+  },
+})
+
+export const recordProjectMetadataSyncFailure = internalMutation({
+  args: {
+    error: v.string(),
+    projectId: v.id('projects'),
+  },
+  handler: async (ctx, args) => {
+    const project = await ctx.db.get(args.projectId)
+    if (!project) {
+      return null
+    }
+
+    const now = Date.now()
+    await ctx.db.patch(project._id, {
+      github: {
+        ...project.github,
+        lastMetadataSyncAttemptedAt: now,
+      },
+      updatedAt: now,
+    })
+
+    await ctx.db.insert('github_sync_log', {
+      userId: project.ownerId,
+      syncType: 'metadata',
+      reposFetched: 1,
+      reposNew: 0,
+      reposUpdated: 0,
+      status: 'failed',
+      error: args.error,
+      githubRateLimitRemaining: null,
+      syncedAt: now,
+    })
+
+    return null
+  },
+})
+
+export const listRefreshableProjectIds = internalQuery({
+  args: {
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const limit = Math.min(Math.max(Math.floor(args.limit ?? 25), 1), 100)
+    const projects = await ctx.db
+      .query('projects')
+      .withIndex('by_visible_metadata_attempted', (query) =>
+        query.eq('locatic.isVisible', true),
+      )
+      .order('asc')
+      .take(limit)
+
+    return projects.map((project) => project._id)
+  },
+})
+
+export const patchProjectReleases = internalMutation({
+  args: {
+    deleteMissing: v.optional(v.boolean()),
+    projectId: v.id('projects'),
+    releases: v.array(githubReleaseImportValidator),
+  },
+  handler: async (ctx, args) => {
+    const now = Date.now()
+    const current = await ctx.db
+      .query('project_releases')
+      .withIndex('by_project_release', (query) =>
+        query.eq('projectId', args.projectId),
+      )
+      .collect()
+    const currentByReleaseId = new Map(
+      current.map((release) => [release.githubReleaseId, release]),
     )
+    const seen = new Set<number>()
+    let inserted = 0
+    let updated = 0
+
+    for (const release of args.releases) {
+      seen.add(release.githubReleaseId)
+      const existing = currentByReleaseId.get(release.githubReleaseId)
+      const record = {
+        ...release,
+        projectId: args.projectId,
+        importedAt: now,
+      }
+
+      if (existing) {
+        await ctx.db.patch(existing._id, record)
+        updated += 1
+      } else {
+        await ctx.db.insert('project_releases', record)
+        inserted += 1
+      }
+    }
+
+    if (args.deleteMissing ?? false) {
+      for (const release of current) {
+        if (!seen.has(release.githubReleaseId)) {
+          await ctx.db.delete(release._id)
+        }
+      }
+    }
+
+    const deleted =
+      (args.deleteMissing ?? false)
+        ? current.filter((release) => !seen.has(release.githubReleaseId)).length
+        : 0
+
+    return {
+      deleted,
+      inserted,
+      updated,
+    }
+  },
+})
+
+export const patchProjectContributors = internalMutation({
+  args: {
+    projectId: v.id('projects'),
+    contributors: v.array(githubContributorImportValidator),
+  },
+  handler: async (ctx, args) => {
+    const now = Date.now()
+    const project = await ctx.db.get(args.projectId)
+    if (!project) {
+      return null
+    }
+
+    const existingContributors = await ctx.db
+      .query('project_contributors')
+      .withIndex('by_project', (query) => query.eq('projectId', args.projectId))
+      .collect()
+    const existingByGithubId = new Map(
+      existingContributors.map((contributor) => [
+        contributor.githubId,
+        contributor,
+      ]),
+    )
+    const seenGithubIds = new Set<number>()
+    const touchedUserIds = new Set<string>()
+    const matchedContributors: Array<{
+      userId: typeof project.ownerId
+      displayName: string
+      avatarUrl: string | null
+      commitCount: number
+    }> = []
+
+    for (const contributor of args.contributors) {
+      seenGithubIds.add(contributor.githubId)
+      const user = await ctx.db
+        .query('users')
+        .withIndex('by_github_id', (query) =>
+          query.eq('github.id', contributor.githubId),
+        )
+        .unique()
+      const existing = existingByGithubId.get(contributor.githubId)
+
+      if (!user || user.deletedAt !== null || user.deactivatedAt !== null) {
+        if (existing?.isActive) {
+          await ctx.db.patch(existing._id, {
+            isActive: false,
+            lastConfirmedAt: now,
+          })
+          touchedUserIds.add(String(existing.userId))
+        }
+        continue
+      }
+
+      touchedUserIds.add(String(user._id))
+      matchedContributors.push({
+        userId: user._id,
+        displayName: user.profile.displayName,
+        avatarUrl: user.profile.avatarUrl,
+        commitCount: contributor.commitCount,
+      })
+
+      const record = {
+        projectId: args.projectId,
+        userId: user._id,
+        githubId: contributor.githubId,
+        githubUsername: contributor.githubUsername,
+        commitCount: contributor.commitCount,
+        role: 'contributor' as const,
+        isActive: true,
+        lastConfirmedAt: now,
+        userSnapshot: {
+          displayName: user.profile.displayName,
+          avatarUrl: user.profile.avatarUrl,
+        },
+      }
+
+      if (existing) {
+        await ctx.db.patch(existing._id, record)
+      } else {
+        await ctx.db.insert('project_contributors', {
+          ...record,
+          firstMatchedAt: now,
+        })
+      }
+    }
+
+    for (const contributor of existingContributors) {
+      if (!seenGithubIds.has(contributor.githubId) && contributor.isActive) {
+        await ctx.db.patch(contributor._id, {
+          isActive: false,
+          lastConfirmedAt: now,
+        })
+        touchedUserIds.add(String(contributor.userId))
+      }
+    }
+
+    for (const userIdString of touchedUserIds) {
+      const userId = ctx.db.normalizeId('users', userIdString)
+      const user = userId ? await ctx.db.get(userId) : null
+      if (!user) {
+        continue
+      }
+      const activeContributions = await ctx.db
+        .query('project_contributors')
+        .withIndex('by_user', (query) => query.eq('userId', user._id))
+        .collect()
+      await ctx.db.patch(user._id, {
+        stats: {
+          ...user.stats,
+          contributionsCount: activeContributions.filter(
+            (contribution) => contribution.isActive,
+          ).length,
+        },
+        updatedAt: now,
+      })
+    }
+
+    const topContributorsSnapshot = matchedContributors
+      .sort((left, right) => right.commitCount - left.commitCount)
+      .slice(0, 5)
+      .map((contributor) => ({
+        userId: contributor.userId,
+        displayName: contributor.displayName,
+        avatarUrl: contributor.avatarUrl ?? '',
+        commitCount: contributor.commitCount,
+      }))
+
+    await ctx.db.patch(project._id, {
+      topContributorsSnapshot,
+      contributorStats: {
+        ...project.contributorStats,
+        matchedCount: matchedContributors.length,
+        lastSyncedAt: now,
+      },
+      updatedAt: now,
+    })
+
+    return {
+      matchedCount: matchedContributors.length,
+      totalFetched: args.contributors.length,
+    }
   },
 })

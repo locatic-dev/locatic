@@ -74,7 +74,6 @@ describe('contract mappers', () => {
           likedProjectsVisibility: 'public',
           profileVisibility: 'public',
         },
-        syncGithubStarsOnLike: false,
         profile: {
           avatarUrl: null,
           bio: 'building things',
@@ -104,6 +103,7 @@ describe('contract mappers', () => {
     expect(mapped.displayName).toBe('octocat')
     expect(mapped.cityName).toBe('Berlin, Germany')
     expect(mapped.appearInExplore).toBe(true)
+    expect(mapped).not.toHaveProperty('syncGithubStarsOnLike')
   })
 
   it('maps nested private and public profile payloads', () => {
@@ -147,7 +147,6 @@ describe('contract mappers', () => {
           likedProjectsVisibility: 'public',
           profileVisibility: 'public',
         },
-        syncGithubStarsOnLike: true,
         profile: {
           avatarUrl: null,
           bio: '',
@@ -256,7 +255,6 @@ describe('contract mappers', () => {
           likedProjectsVisibility: 'public',
           profileVisibility: 'public',
         },
-        syncGithubStarsOnLike: false,
         profile: {
           avatarUrl: null,
           bio: '',
@@ -345,6 +343,35 @@ describe('contract mappers', () => {
 
   it('returns null when project detail is absent', () => {
     expect(mapProjectDetail(null)).toBeNull()
+  })
+
+  it('preserves imported releases on project detail payloads', () => {
+    const detail = mapProjectDetail({
+      canonicalRoute: { owner: 'octocat', repo: 'hello-world' },
+      comments: [],
+      likedByPreview: [],
+      owner: {
+        avatarUrl: null,
+        buildStatus: 'building_solo',
+        city: null,
+        displayName: 'Octo',
+        githubUsername: 'octocat',
+        socialLinks: {
+          bluesky: null,
+          github: 'octocat',
+          linkedin: null,
+          website: null,
+          x: null,
+        },
+        userId: 'user_1',
+      },
+      project: { _id: 'project_1' },
+      releases: [{ tagName: 'v1.0.0' }],
+      viewerFollowsOwner: false,
+      viewerHasLiked: false,
+    } as never)
+
+    expect(detail?.releases).toEqual([{ tagName: 'v1.0.0' }])
   })
 
   it('preserves pending conversation and notification payloads', () => {

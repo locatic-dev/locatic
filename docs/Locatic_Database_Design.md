@@ -15,7 +15,7 @@ Locatic is a social discovery product for developers. The data model has to supp
 
 - GitHub-authenticated users
 - city-based discovery
-- project profiles and updates
+- project profiles, posts, and GitHub releases
 - open social interactions: likes, comments, follows, DMs
 - contributor matching from GitHub
 - a Home feed that is fast to read in Convex
@@ -41,7 +41,7 @@ Locatic uses the following collections:
 - `users`
 - `projects`
 - `project_contributors`
-- `updates`
+- `project_releases`
 - `reaction_config`
 - `reactions`
 - `comments`
@@ -72,17 +72,19 @@ type ContributorSyncCadence = 'daily' | 'weekly' | 'monthly'
 
 type EventType =
   | 'project_posted'
-  | 'update_broadcast'
+  | 'post_created'
   | 'project_liked'
   | 'project_commented'
+  | 'post_commented'
   | 'contributor_matched'
 
 type FeedReason = 'following' | 'liked_project_update'
 
 type NotificationType =
   | 'project_liked'
-  | 'update_reacted'
+  | 'post_reacted'
   | 'project_commented'
+  | 'post_commented'
   | 'comment_replied'
   | 'followed'
   | 'dm_received'
@@ -265,22 +267,33 @@ interface Project {
   github: {
     repoId: number
     fullName: string
+    ownerLogin: string
+    ownerLoginKey: string
     name: string
+    nameKey: string
     description: string | null
     githubUrl: string
     projectUrl: string | null
     primaryLanguage: string | null
+    languages: Array<{ name: string; bytes: number }>
     topics: string[]
+    stargazersCount: number
     lastCommitAt: Date
+    lastMetadataSyncedAt: Date | null
+    lastMetadataSyncAttemptedAt?: Date | null
     commitFrequency: CommitFrequency
     readmePreview: string | null
+    readmeAssetBaseUrl: string | null
+    readmeAssetRootUrl: string | null
+    readmeLinkBaseUrl: string | null
+    readmeLinkRootUrl: string | null
   }
   locatic: {
     isVisible: boolean
     tags: string[]
     likesCount: number
     commentsCount: number
-    updatesCount: number
+    postsCount: number
   }
   ownerSnapshot: {
     displayName: string
@@ -311,7 +324,9 @@ interface Project {
 - `github.repoId`: Stable GitHub repo identity, sufficient without an extra repo key
 - `github.fullName`: Canonical `owner/repo`
 - `github.projectUrl`: Live deployed project URL if available
-- `github.readmePreview`: Truncated cached preview only, not full README
+- `github.lastMetadataSyncAttemptedAt`: Last attempted metadata refresh, used to make scheduled sync progress even when a repo fails.
+- `github.readmePreview`: Cached README markdown preview. It can be `null` when GitHub has no README.
+- `github.readmeAssetBaseUrl`, `github.readmeAssetRootUrl`, `github.readmeLinkBaseUrl`, `github.readmeLinkRootUrl`: Required nullable URL-base keys used to resolve relative README assets and links.
 - `locatic.isVisible`: Owner-facing visibility toggle
 - `ownerSnapshot`: Feed/card render cache
 - `topContributorsSnapshot`: Small render cache only, not source of truth
@@ -321,6 +336,11 @@ interface Project {
 ### Indexes
 
 - `by_github_repo_id -> ["github.repoId"]`
+- `by_full_name -> ["github.fullName"]`
+- `by_github_route_visible -> ["github.ownerLoginKey", "github.nameKey", "locatic.isVisible"]`
+- `by_visible_added -> ["locatic.isVisible", "addedToLocaticAt"]`
+- `by_visible_metadata_synced -> ["locatic.isVisible", "github.lastMetadataSyncedAt"]`
+- `by_visible_metadata_attempted -> ["locatic.isVisible", "github.lastMetadataSyncAttemptedAt"]`
 - `by_owner -> ["ownerId"]`
 - `by_owner_visible -> ["ownerId", "locatic.isVisible"]`
 - `by_city_likes -> ["ownerSnapshot.cityId", "locatic.likesCount"]`
@@ -373,52 +393,39 @@ interface ProjectContributor {
 
 ---
 
-## 9. Collection: `updates`
+## 9. Collection: `project_releases`
 
-Broadcast updates posted by project owners. These are first-class feed items.
+GitHub releases imported from the repository. These are distinct from Locatic-authored posts.
 
 ```ts
-interface Update {
+interface ProjectRelease {
   _id: string
   projectId: string
-  ownerId: string
-  versionTag: string | null
-  title: string | null
-  description: string
-  additionalDetail: string | null
-  reactionCounts: Record<string, number>
-  commentsCount: number
-  ownerSnapshot: {
-    displayName: string
-    avatarUrl: string
-    cityId: string
-    cityName: string
-    buildStatus: BuildStatus
-  }
-  projectSnapshot: {
-    name: string
-    fullName: string
-    primaryLanguage: string | null
-  }
+  githubReleaseId: number
+  tagName: string
+  name: string | null
+  body: string | null
+  htmlUrl: string
+  isDraft: boolean
+  isPrerelease: boolean
+  publishedAt: Date | null
   createdAt: Date
+  updatedAt: Date
+  importedAt: Date
 }
 ```
 
 ### Field notes
 
 - `projectId`: References `projects._id`
-- `ownerId`: References `users._id`
-- `versionTag`: Optional human-friendly milestone label
-- `description`: Main update content
-- `additionalDetail`: Optional longer note
-- `reactionCounts`: Count map keyed by `reaction_config._id`
-- `ownerSnapshot`: Feed/card render cache
-- `projectSnapshot`: Feed/card render cache
+- `githubReleaseId`: Stable GitHub release identifier for dedupe/update
+- `body`: GitHub-authored release notes, rendered separately from Locatic posts
+- `importedAt`: Last successful import time for this release row
 
 ### Indexes
 
-- `by_project -> ["projectId"]`
-- `by_owner -> ["ownerId"]`
+- `by_project_published -> ["projectId", "publishedAt"]`
+- `by_project_release -> ["projectId", "githubReleaseId"]`
 
 ---
 
@@ -431,7 +438,7 @@ interface ReactionConfig {
   _id: string
   label: string
   emoji: string
-  targetTypes: Array<'project' | 'update'>
+  targetTypes: Array<'project' | 'post' | 'comment'>
   isActive: boolean
   sortOrder: number
   createdAt: Date
@@ -456,13 +463,13 @@ interface ReactionConfig {
 
 ## 11. Collection: `reactions`
 
-Stores a user reaction against a project or update.
+Stores a user reaction against a project, post, or comment.
 
 ```ts
 interface Reaction {
   _id: string
   userId: string
-  targetType: 'project' | 'update'
+  targetType: 'project' | 'post' | 'comment'
   targetId: string
   reactionType: string
   createdAt: Date
@@ -472,8 +479,8 @@ interface Reaction {
 ### Field notes
 
 - `userId`: References `users._id`
-- `targetType`: Distinguishes project vs update reactions
-- `targetId`: References a project or update
+- `targetType`: Distinguishes project, post, and comment reactions
+- `targetId`: References a project, post, or comment
 - `reactionType`: References `reaction_config._id`
 
 ### Indexes
@@ -490,12 +497,12 @@ Logical uniqueness like “one reaction per user per target per reaction type”
 
 ## 12. Collection: `comments`
 
-Public comment threads on projects and updates. Replies are one level deep.
+Public comment threads on projects and posts. Replies are one level deep.
 
 ```ts
 interface Comment {
   _id: string
-  targetType: 'project' | 'update'
+  targetType: 'project' | 'post'
   targetId: string
   authorId: string
   parentId: string | null
@@ -564,7 +571,7 @@ interface ActivityEvent {
   actorId: string
   eventType: EventType
   projectId: string
-  updateId: string | null
+  postId: string | null
   commentId: string | null
   actorSnapshot: {
     displayName: string
@@ -580,10 +587,8 @@ interface ActivityEvent {
     likesCount: number
     commentsCount: number
   }
-  updateSnapshot: {
-    versionTag: string | null
-    title: string | null
-    description: string
+  postSnapshot: {
+    body: string
     reactionCounts: Record<string, number>
     commentsCount: number
   } | null
@@ -596,11 +601,11 @@ interface ActivityEvent {
 - `actorId`: User who generated the event
 - `eventType`: Type of activity
 - `projectId`: Always populated
-- `updateId`: Populated for update-related activity
+- `postId`: Populated for post-related activity
 - `commentId`: Populated for comment-related activity
 - `actorSnapshot`: Feed render cache
 - `projectSnapshot`: Feed render cache
-- `updateSnapshot`: Feed render cache for update events
+- `postSnapshot`: Feed render cache for post events
 
 ### Indexes
 
@@ -624,7 +629,7 @@ interface HomeFeedItem {
   actorId: string
   eventType: EventType
   projectId: string
-  updateId: string | null
+  postId: string | null
   actorSnapshot: {
     displayName: string
     avatarUrl: string
@@ -639,10 +644,8 @@ interface HomeFeedItem {
     likesCount: number
     commentsCount: number
   }
-  updateSnapshot: {
-    versionTag: string | null
-    title: string | null
-    description: string
+  postSnapshot: {
+    body: string
     reactionCounts: Record<string, number>
     commentsCount: number
   } | null
@@ -743,7 +746,7 @@ interface Notification {
   actorId: string
   type: NotificationType
   projectId: string | null
-  updateId: string | null
+  postId: string | null
   commentId: string | null
   actorSnapshot: {
     displayName: string
@@ -760,7 +763,7 @@ interface Notification {
 - `recipientId`: User who receives the notification
 - `actorId`: User who triggered the event
 - `type`: Notification category
-- `projectId` / `updateId` / `commentId`: Optional context fields
+- `projectId` / `postId` / `commentId`: Optional context fields
 - `actorSnapshot`: Render cache for the notification row
 - `projectName`: Small display helper
 - `isRead`: Read state
@@ -780,7 +783,14 @@ Audit trail for GitHub sync activity.
 interface GithubSyncLog {
   _id: string
   userId: string
-  syncType: 'initial' | 'manual'
+  syncType:
+    | 'initial'
+    | 'manual'
+    | 'metadata'
+    | 'readme'
+    | 'contributors'
+    | 'releases'
+    | 'scheduled'
   reposFetched: number
   reposNew: number
   reposUpdated: number
@@ -794,7 +804,7 @@ interface GithubSyncLog {
 ### Field notes
 
 - `userId`: References `users._id`
-- `syncType`: Signup sync vs manual sync
+- `syncType`: Import, refresh, backfill, contributor, release, or scheduled sync category
 - `reposFetched` / `reposNew` / `reposUpdated`: Sync counts
 - `status`: Final sync result
 - `error`: Failure detail if any

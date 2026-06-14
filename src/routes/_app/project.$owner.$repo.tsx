@@ -38,7 +38,6 @@ import {
   useUnreactFromTarget,
   useUpdateProjectTopics,
 } from '@/features/projects/mutations'
-import { showGithubSyncFeedback } from '@/features/projects/github-sync-feedback'
 import { useFollowUser, useUnfollowUser } from '@/features/follows/mutations'
 import {
   mapProjectDetail,
@@ -244,9 +243,6 @@ function ProjectDetailPage() {
     },
     onError: (_error, _variables, context) => {
       queryClient.setQueryData(projectDetailQueryKey, context?.previous ?? null)
-    },
-    onSuccess: (result) => {
-      showGithubSyncFeedback(result)
     },
     onSettled: async () => {
       await queryClient.invalidateQueries({ queryKey: projectDetailQueryKey })
@@ -875,7 +871,7 @@ function ProjectDetailPage() {
                 {[
                   ['posts', `posts ${detail.project.locatic.postsCount ?? 0}`],
                   ['readme', 'README'],
-                  ['updates', `updates ${detail.updates.length}`],
+                  ['releases', `releases ${detail.releases.length}`],
                   [
                     'discussion',
                     `discussion ${detail.project.locatic.commentsCount}`,
@@ -910,26 +906,43 @@ function ProjectDetailPage() {
               />
             </TabsContent>
 
-            <TabsContent value="updates" className="mt-0">
+            <TabsContent value="releases" className="mt-0">
               <div className="rounded-[6px] border border-line bg-surface p-4.5">
-                {detail.updates.length === 0 ? (
+                {detail.releases.length === 0 ? (
                   <div className="font-sans text-[13px] text-text-muted">
-                    no release updates yet.
+                    no github releases imported yet.
                   </div>
                 ) : (
-                  detail.updates.map((update) => (
-                    <div
-                      key={String(update._id)}
+                  detail.releases.map((release) => (
+                    <article
+                      key={String(release._id)}
                       className="border-b border-line py-4 last:border-b-0"
                     >
-                      <div className="mb-1 font-mono text-xs font-semibold text-text">
-                        {update.versionTag ? `${update.versionTag} · ` : ''}
-                        {update.title}
+                      <div className="mb-1 flex flex-wrap items-center gap-2 font-mono text-xs font-semibold text-text">
+                        <a
+                          href={release.htmlUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-text no-underline hover:text-brand"
+                        >
+                          {release.name || release.tagName}
+                        </a>
+                        {release.isPrerelease ? (
+                          <span className="text-text-muted">pre-release</span>
+                        ) : null}
                       </div>
-                      <div className="font-sans text-[13px] leading-6 text-text-muted">
-                        {update.description}
+                      <div className="mb-2 font-mono text-[12px] text-text-faint">
+                        {release.tagName}
+                        {release.publishedAt
+                          ? ` · ${relativeTime(release.publishedAt)}`
+                          : ''}
                       </div>
-                    </div>
+                      {release.body ? (
+                        <div className="font-sans text-[13px] leading-6 text-text-muted">
+                          {release.body}
+                        </div>
+                      ) : null}
+                    </article>
                   ))
                 )}
               </div>

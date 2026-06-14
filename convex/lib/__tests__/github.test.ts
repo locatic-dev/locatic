@@ -8,6 +8,8 @@ import {
   listGithubRepositoryPages,
   mapGithubLanguages,
   mapGithubRepositoryWithOptionalLanguages,
+  needsGithubReadmeUrlBaseKeyNormalization,
+  normalizeLegacyGithubReadmeUrlBaseKeys,
   normalizeGithubReadmePreview,
   normalizeRepositoryFullNames,
 } from '../github'
@@ -176,6 +178,9 @@ describe('mapGithubRepositoryWithOptionalLanguages', () => {
     expect(repository.languages).toEqual([{ bytes: 900, name: 'TypeScript' }])
     expect(repository.readmePreview).toBeNull()
     expect(repository.readmeAssetBaseUrl).toBeNull()
+    expect(repository.readmeAssetRootUrl).toBeNull()
+    expect(repository.readmeLinkBaseUrl).toBeNull()
+    expect(repository.readmeLinkRootUrl).toBeNull()
   })
 })
 
@@ -251,6 +256,43 @@ describe('deriveGithubReadmeUrlBases', () => {
       }),
     ).toEqual({
       readmeAssetBaseUrl: null,
+      readmeAssetRootUrl: null,
+      readmeLinkBaseUrl: null,
+      readmeLinkRootUrl: null,
+    })
+  })
+})
+
+describe('legacy GitHub README URL base normalization', () => {
+  it('detects missing README URL-base keys', () => {
+    expect(
+      needsGithubReadmeUrlBaseKeyNormalization({
+        readmeAssetBaseUrl: 'https://raw.githubusercontent.com/o/r/main/',
+        readmeAssetRootUrl: 'https://raw.githubusercontent.com/o/r/main/',
+        readmeLinkBaseUrl: 'https://github.com/o/r/blob/main/',
+      }),
+    ).toBe(true)
+
+    expect(
+      needsGithubReadmeUrlBaseKeyNormalization({
+        readmeAssetBaseUrl: null,
+        readmeAssetRootUrl: null,
+        readmeLinkBaseUrl: null,
+        readmeLinkRootUrl: null,
+      }),
+    ).toBe(false)
+  })
+
+  it('normalizes legacy README URL-base keys to required nullable values', () => {
+    expect(
+      normalizeLegacyGithubReadmeUrlBaseKeys({
+        readmeAssetBaseUrl: 'https://raw.githubusercontent.com/o/r/main/',
+        readmeAssetRootUrl: undefined,
+        readmeLinkBaseUrl: 42,
+        readmeLinkRootUrl: null,
+      }),
+    ).toEqual({
+      readmeAssetBaseUrl: 'https://raw.githubusercontent.com/o/r/main/',
       readmeAssetRootUrl: null,
       readmeLinkBaseUrl: null,
       readmeLinkRootUrl: null,

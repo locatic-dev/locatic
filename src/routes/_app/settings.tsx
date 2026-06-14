@@ -466,7 +466,7 @@ function SettingsPage() {
                 </div>
                 {[
                   { key: 'projectLikes', label: 'likes on your projects' },
-                  { key: 'updateLikes', label: 'likes on your updates' },
+                  { key: 'updateLikes', label: 'likes on your posts' },
                   { key: 'comments', label: 'comments on your projects' },
                   { key: 'commentReplies', label: 'replies to your comments' },
                   { key: 'newFollowers', label: 'new followers' },

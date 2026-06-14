@@ -11,7 +11,6 @@ export type ViewerRecord = {
   notificationPrefs: Doc<'users'>['notificationPrefs']
   onboardingSelectedOwnedProjectIds: Array<Id<'projects'>>
   pinnedProfileProjectIds: Array<Id<'projects'>>
-  syncGithubStarsOnLike: boolean
   unreadMessagesCount: number
   onboardingCompletedAt: Doc<'users'>['onboardingCompletedAt']
   githubContributions?: Doc<'users'>['githubContributions']
@@ -183,7 +182,7 @@ export type ThreadedProjectComment = Doc<'comments'> & {
 
 export type ProjectDetailPayload = {
   project: Doc<'projects'>
-  updates: Array<Doc<'updates'>>
+  releases: Array<Doc<'project_releases'>>
   comments: Array<ThreadedProjectComment>
   likedByPreview: Array<{
     userId: Id<'users'>
@@ -269,7 +268,6 @@ export function mapViewer(
     privacy: viewer.privacy,
     socialLinks: viewer.profile.socialLinks,
     stats: viewer.stats,
-    syncGithubStarsOnLike: viewer.syncGithubStarsOnLike,
     unreadMessagesCount: viewer.unreadMessagesCount,
   }
 }
@@ -398,7 +396,7 @@ export function mapProjectDetail(
     likedByPreview: payload.likedByPreview,
     owner: payload.owner,
     project: payload.project,
-    updates: payload.updates,
+    releases: payload.releases,
     viewerFollowsOwner: payload.viewerFollowsOwner,
     viewerHasLiked: payload.viewerHasLiked,
   }

@@ -1,7 +1,6 @@
 export type HomeFeedEventType =
   | 'project_posted'
   | 'post_created'
-  | 'update_broadcast'
   | 'project_liked'
   | 'project_commented'
   | 'post_commented'
@@ -21,8 +20,6 @@ export function getHomeFeedActivityLabel({
       return `${actorName} shipped this`
     case 'post_created':
       return `${actorName} posted an update`
-    case 'update_broadcast':
-      return `${actorName} updated this`
     case 'project_liked':
       return `${actorName} liked this`
     case 'project_commented':

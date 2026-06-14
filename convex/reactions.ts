@@ -9,13 +9,18 @@ import {
 import { getViewerOrThrow } from './lib/auth'
 import { createNotificationIfEnabled } from './lib/notifications'
 import { isPublicPostVisible } from './lib/posts'
+import {
+  getPubliclyInteractableProject,
+  isCommentPubliclyInteractable,
+} from './lib/project_access'
+import { enforceRateLimit } from './lib/rate_limits'
 import type { Doc } from './lib/types'
 import { DEFAULT_REACTIONS } from './reactionConfigSeed'
 
 async function upsertReaction(
   ctx: MutationCtx,
   viewerId: Awaited<ReturnType<typeof getViewerOrThrow>>['_id'],
-  targetType: 'project' | 'update' | 'post' | 'comment',
+  targetType: 'project' | 'post' | 'comment',
   targetId: string,
   reactionType: string,
 ): Promise<{
@@ -51,7 +56,7 @@ async function upsertReaction(
 async function assertConfiguredReaction(
   ctx: MutationCtx,
   args: {
-    targetType: 'project' | 'update' | 'post' | 'comment'
+    targetType: 'project' | 'post' | 'comment'
     reactionType: string
   },
 ) {
@@ -76,12 +81,7 @@ async function assertConfiguredReaction(
 export const listConfig = query({
   args: {
     targetType: v.optional(
-      v.union(
-        v.literal('project'),
-        v.literal('update'),
-        v.literal('post'),
-        v.literal('comment'),
-      ),
+      v.union(v.literal('project'), v.literal('post'), v.literal('comment')),
     ),
   },
   handler: async (ctx, args) => {
@@ -102,7 +102,6 @@ export const reactToTarget = mutation({
   args: {
     targetType: v.union(
       v.literal('project'),
-      v.literal('update'),
       v.literal('post'),
       v.literal('comment'),
     ),
@@ -112,24 +111,18 @@ export const reactToTarget = mutation({
   returns: v.any(),
   handler: async (ctx, args): Promise<unknown> => {
     const viewer = await getViewerOrThrow(ctx)
+    await enforceRateLimit(ctx, 'reactionWrite', String(viewer._id))
     await assertConfiguredReaction(ctx, args)
     let projectTarget: Doc<'projects'> | null = null
-    let updateTarget: Doc<'updates'> | null = null
     let postTarget: Doc<'posts'> | null = null
     let commentTarget: Doc<'comments'> | null = null
     if (args.targetType === 'project') {
       const projectId = ctx.db.normalizeId('projects', args.targetId)
-      projectTarget = projectId ? await ctx.db.get(projectId) : null
+      projectTarget = projectId
+        ? await getPubliclyInteractableProject(ctx, projectId)
+        : null
       if (!projectTarget) {
         throw new ConvexError('Project not found')
-      }
-    }
-
-    if (args.targetType === 'update') {
-      const updateId = ctx.db.normalizeId('updates', args.targetId)
-      updateTarget = updateId ? await ctx.db.get(updateId) : null
-      if (!updateTarget) {
-        throw new ConvexError('Update not found')
       }
     }
 
@@ -148,7 +141,10 @@ export const reactToTarget = mutation({
     if (args.targetType === 'comment') {
       const commentId = ctx.db.normalizeId('comments', args.targetId)
       commentTarget = commentId ? await ctx.db.get(commentId) : null
-      if (!commentTarget) {
+      if (
+        !commentTarget ||
+        !(await isCommentPubliclyInteractable(ctx, commentTarget))
+      ) {
         throw new ConvexError('Comment not found')
       }
     }
@@ -173,30 +169,6 @@ export const reactToTarget = mutation({
         },
         updatedAt: Date.now(),
       })
-    }
-
-    if (updateTarget) {
-      const reactionCounts = {
-        ...updateTarget.reactionCounts,
-        [args.reactionType]:
-          (updateTarget.reactionCounts[args.reactionType] ?? 0) + 1,
-      }
-
-      await ctx.db.patch(updateTarget._id, {
-        reactionCounts,
-      })
-
-      const owner = await ctx.db.get(updateTarget.ownerId)
-      if (owner) {
-        await createNotificationIfEnabled(ctx, {
-          recipient: owner,
-          actor: viewer,
-          type: 'update_reacted',
-          projectId: updateTarget.projectId,
-          updateId: updateTarget._id,
-          projectName: updateTarget.projectSnapshot.name,
-        })
-      }
     }
 
     if (postTarget) {
@@ -238,7 +210,6 @@ export const unreactFromTarget = mutation({
   args: {
     targetType: v.union(
       v.literal('project'),
-      v.literal('update'),
       v.literal('post'),
       v.literal('comment'),
     ),
@@ -248,6 +219,7 @@ export const unreactFromTarget = mutation({
   returns: v.null(),
   handler: async (ctx, args) => {
     const viewer = await getViewerOrThrow(ctx)
+    await enforceRateLimit(ctx, 'reactionWrite', String(viewer._id))
     const existing = await ctx.db
       .query('reactions')
       .withIndex('by_user_target_type_id_reaction', (query) =>
@@ -267,7 +239,9 @@ export const unreactFromTarget = mutation({
 
     if (args.targetType === 'project') {
       const projectId = ctx.db.normalizeId('projects', args.targetId)
-      const project = projectId ? await ctx.db.get(projectId) : null
+      const project = projectId
+        ? await getPubliclyInteractableProject(ctx, projectId)
+        : null
       if (project && args.reactionType === 'like') {
         await ctx.db.patch(project._id, {
           locatic: {
@@ -275,23 +249,6 @@ export const unreactFromTarget = mutation({
             likesCount: Math.max(0, project.locatic.likesCount - 1),
           },
           updatedAt: Date.now(),
-        })
-      }
-    }
-
-    if (args.targetType === 'update') {
-      const updateId = ctx.db.normalizeId('updates', args.targetId)
-      const update = updateId ? await ctx.db.get(updateId) : null
-      if (update) {
-        const nextCount = Math.max(
-          0,
-          (update.reactionCounts[args.reactionType] ?? 0) - 1,
-        )
-        await ctx.db.patch(update._id, {
-          reactionCounts: {
-            ...update.reactionCounts,
-            [args.reactionType]: nextCount,
-          },
         })
       }
     }
@@ -321,7 +278,7 @@ export const unreactFromTarget = mutation({
     if (args.targetType === 'comment') {
       const commentId = ctx.db.normalizeId('comments', args.targetId)
       const comment = commentId ? await ctx.db.get(commentId) : null
-      if (comment) {
+      if (comment && (await isCommentPubliclyInteractable(ctx, comment))) {
         await ctx.db.patch(comment._id, {
           likesCount: Math.max(0, comment.likesCount - 1),
         })

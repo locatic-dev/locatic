@@ -32,7 +32,7 @@ export async function getVisiblePostProject(
   post: Doc<'posts'>,
 ): Promise<Doc<'projects'> | null> {
   const project = await ctx.db.get(post.projectId)
-  if (!project?.locatic.isVisible || !project.exploreOwner.isEligible) {
+  if (!project?.locatic.isVisible) {
     return null
   }
 

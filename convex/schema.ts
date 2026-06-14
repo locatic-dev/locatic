@@ -31,7 +31,6 @@ import {
   socialLinksValidator,
   tabVisibilityValidator,
   cityVisibilityValidator,
-  updateSnapshotValidator,
 } from './lib/validators'
 
 export default defineSchema({
@@ -93,7 +92,6 @@ export default defineSchema({
     }),
     pinnedProfileProjectIds: v.array(v.id('projects')),
     onboardingSelectedOwnedProjectIds: v.array(v.id('projects')),
-    syncGithubStarsOnLike: v.boolean(),
     unreadMessagesCount: v.number(),
     stats: v.object({
       followersCount: v.number(),
@@ -198,19 +196,19 @@ export default defineSchema({
       stargazersCount: v.number(),
       lastCommitAt: v.number(),
       lastMetadataSyncedAt: optionalTimestampValidator,
+      lastMetadataSyncAttemptedAt: v.optional(optionalTimestampValidator),
       commitFrequency: commitFrequencyValidator,
       readmePreview: optionalStringValidator,
-      readmeAssetBaseUrl: v.optional(optionalStringValidator),
-      readmeAssetRootUrl: v.optional(optionalStringValidator),
-      readmeLinkBaseUrl: v.optional(optionalStringValidator),
-      readmeLinkRootUrl: v.optional(optionalStringValidator),
+      readmeAssetBaseUrl: optionalStringValidator,
+      readmeAssetRootUrl: optionalStringValidator,
+      readmeLinkBaseUrl: optionalStringValidator,
+      readmeLinkRootUrl: optionalStringValidator,
     }),
     locatic: v.object({
       isVisible: v.boolean(),
       tags: v.array(v.string()),
       likesCount: v.number(),
       commentsCount: v.number(),
-      updatesCount: v.number(),
       postsCount: v.optional(v.number()),
       topicsEditedAt: v.optional(v.number()),
     }),
@@ -245,6 +243,14 @@ export default defineSchema({
       'locatic.isVisible',
     ])
     .index('by_visible_added', ['locatic.isVisible', 'addedToLocaticAt'])
+    .index('by_visible_metadata_synced', [
+      'locatic.isVisible',
+      'github.lastMetadataSyncedAt',
+    ])
+    .index('by_visible_metadata_attempted', [
+      'locatic.isVisible',
+      'github.lastMetadataSyncAttemptedAt',
+    ])
     .index('by_owner', ['ownerId'])
     .index('by_owner_visible', ['ownerId', 'locatic.isVisible'])
     .index('by_explore_eligible_added', [
@@ -327,33 +333,22 @@ export default defineSchema({
     .index('by_project_user', ['projectId', 'userId'])
     .index('by_github_id', ['githubId']),
 
-  updates: defineTable({
+  project_releases: defineTable({
     projectId: v.id('projects'),
-    ownerId: v.id('users'),
-    versionTag: optionalStringValidator,
-    title: optionalStringValidator,
-    description: v.string(),
-    additionalDetail: optionalStringValidator,
-    reactionCounts: v.record(v.string(), v.number()),
-    commentsCount: v.number(),
-    ownerSnapshot: ownerSnapshotValidator,
-    projectSnapshot: v.object({
-      name: v.string(),
-      fullName: v.string(),
-      ownerLogin: v.string(),
-      primaryLanguage: optionalStringValidator,
-      languages: v.array(
-        v.object({
-          name: v.string(),
-          bytes: v.number(),
-        }),
-      ),
-    }),
+    githubReleaseId: v.number(),
+    tagName: v.string(),
+    name: optionalStringValidator,
+    body: optionalStringValidator,
+    htmlUrl: v.string(),
+    isDraft: v.boolean(),
+    isPrerelease: v.boolean(),
+    publishedAt: optionalTimestampValidator,
     createdAt: v.number(),
+    updatedAt: v.number(),
+    importedAt: v.number(),
   })
-    .index('by_project', ['projectId'])
-    .index('by_owner', ['ownerId'])
-    .index('by_created_at', ['createdAt']),
+    .index('by_project_published', ['projectId', 'publishedAt'])
+    .index('by_project_release', ['projectId', 'githubReleaseId']),
 
   posts: defineTable({
     projectId: v.id('projects'),
@@ -488,12 +483,10 @@ export default defineSchema({
     actorId: v.id('users'),
     eventType: eventTypeValidator,
     projectId: v.id('projects'),
-    updateId: v.union(v.id('updates'), v.null()),
     postId: v.optional(v.union(v.id('posts'), v.null())),
     commentId: v.union(v.id('comments'), v.null()),
     actorSnapshot: actorSnapshotValidator,
     projectSnapshot: projectSnapshotValidator,
-    updateSnapshot: updateSnapshotValidator,
     postSnapshot: v.optional(postSnapshotValidator),
     createdAt: v.number(),
   })
@@ -510,11 +503,9 @@ export default defineSchema({
     actorId: v.id('users'),
     eventType: eventTypeValidator,
     projectId: v.id('projects'),
-    updateId: v.union(v.id('updates'), v.null()),
     postId: v.optional(v.union(v.id('posts'), v.null())),
     actorSnapshot: actorSnapshotValidator,
     projectSnapshot: projectSnapshotValidator,
-    updateSnapshot: updateSnapshotValidator,
     postSnapshot: v.optional(postSnapshotValidator),
     createdAt: v.number(),
   })
@@ -558,7 +549,6 @@ export default defineSchema({
     actorId: v.id('users'),
     type: notificationTypeValidator,
     projectId: v.union(v.id('projects'), v.null()),
-    updateId: v.union(v.id('updates'), v.null()),
     postId: v.optional(v.union(v.id('posts'), v.null())),
     commentId: v.union(v.id('comments'), v.null()),
     actorSnapshot: v.object({

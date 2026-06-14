@@ -18,10 +18,12 @@ convex/lib/
 ├── github.ts            # GitHub API helpers
 ├── homeFeed.ts          # Feed generation / aggregation logic
 ├── notifications.ts     # Notification helpers (buildProjectNotificationTarget, etc.)
+├── project_access.ts    # Public interactability gates for projects/comments
 ├── project_pins.ts      # Project pinning helpers
 ├── project_route.ts     # Project route key normalization & owner login resolution
 ├── project_previews.ts  # Project preview / metadata helpers
 ├── pulse.ts             # Activity pulse / metrics helpers
+├── rate_limits.ts       # Rate limiter config + enforceRateLimit via @convex-dev/rate-limiter
 ├── snapshots.ts         # Snapshot utilities for denormalized data
 ├── topics.ts            # Topic/label extraction helpers
 ├── types.ts             # Shared TypeScript types
@@ -32,26 +34,28 @@ convex/lib/
 
 ## WHERE TO LOOK
 
-| Task                     | File                  | Notes                                                              |
-| ------------------------ | --------------------- | ------------------------------------------------------------------ |
-| Add schema validator     | `validators.ts`       | Import in `schema.ts`                                              |
-| Add auth helper          | `auth.ts`             | Backend auth logic                                                 |
-| Post visibility/search   | `posts.ts`            | `buildPostSearchText`, `normalizePostSearchQuery` for search index |
-| Add cleanup helper       | `cleanup.ts`          | Data cleanup, migrations                                           |
-| Add constant             | `constants.ts`        | Shared values                                                      |
-| Add conversation helper  | `conversation.ts`     | DM/thread helpers                                                  |
-| Add discoverability      | `discoverability.ts`  | Search index, visibility logic                                     |
-| Add explore helper       | `explore.ts`          | Search scope / city defaults                                       |
-| Add GitHub helper        | `github.ts`           | Repo data fetching helpers                                         |
-| Add feed helper          | `homeFeed.ts`         | Feed aggregation logic                                             |
-| Add notification helper  | `notifications.ts`    | Notification targets / state                                       |
-| Add pinning helper       | `project_pins.ts`     | Project pin/unpin helpers                                          |
-| Add preview helper       | `project_previews.ts` | Project preview/metadata                                           |
-| Add route helper         | `project_route.ts`    | Route-safe key normalization, owner login resolution               |
-| Add pulse/metrics helper | `pulse.ts`            | Activity metrics                                                   |
-| Add snapshot helper      | `snapshots.ts`        | Denormalized data utilities                                        |
-| Add topic helper         | `topics.ts`           | Topic extraction / labels                                          |
-| Add viewer helper        | `viewer.ts`           | Bootstrap payloads                                                 |
+| Task                     | File                  | Notes                                                                                              |
+| ------------------------ | --------------------- | -------------------------------------------------------------------------------------------------- |
+| Add schema validator     | `validators.ts`       | Import in `schema.ts`                                                                              |
+| Add auth helper          | `auth.ts`             | Backend auth logic                                                                                 |
+| Post visibility/search   | `posts.ts`            | `buildPostSearchText`, `normalizePostSearchQuery` for search index                                 |
+| Add cleanup helper       | `cleanup.ts`          | Data cleanup, migrations                                                                           |
+| Add constant             | `constants.ts`        | Shared values                                                                                      |
+| Add conversation helper  | `conversation.ts`     | DM/thread helpers                                                                                  |
+| Add discoverability      | `discoverability.ts`  | Search index, visibility logic                                                                     |
+| Add explore helper       | `explore.ts`          | Search scope / city defaults                                                                       |
+| Add GitHub helper        | `github.ts`           | Repo data fetching helpers                                                                         |
+| Add feed helper          | `homeFeed.ts`         | Feed aggregation logic                                                                             |
+| Add notification helper  | `notifications.ts`    | Notification targets / state                                                                       |
+| Add project access gate  | `project_access.ts`   | `isProjectPubliclyInteractable`, `getPubliclyInteractableProject`, `isCommentPubliclyInteractable` |
+| Add rate limiting        | `rate_limits.ts`      | `enforceRateLimit` via `@convex-dev/rate-limiter` component                                        |
+| Add pinning helper       | `project_pins.ts`     | Project pin/unpin helpers                                                                          |
+| Add preview helper       | `project_previews.ts` | Project preview/metadata                                                                           |
+| Add route helper         | `project_route.ts`    | Route-safe key normalization, owner login resolution                                               |
+| Add pulse/metrics helper | `pulse.ts`            | Activity metrics                                                                                   |
+| Add snapshot helper      | `snapshots.ts`        | Denormalized data utilities                                                                        |
+| Add topic helper         | `topics.ts`           | Topic extraction / labels                                                                          |
+| Add viewer helper        | `viewer.ts`           | Bootstrap payloads                                                                                 |
 
 ## CONVENTIONS
 
@@ -59,7 +63,8 @@ convex/lib/
 - Snapshot helpers manage denormalized data patterns
 - Domain helpers (homeFeed, explore, pulse) encapsulate complex query logic
 - Shared helpers here feed feature `state.ts` / `navigation.ts` modules; keep naming aligned with frontend route helpers.
-- Project-related helpers (project_pins, project_previews) operate on denormalized project data
+- Project-related helpers (project_pins, project_previews, project_access) operate on project data
+- Rate limiter config and enforcement lives in `rate_limits.ts`; component registered in parent `convex.config.ts`
 - Discoverability helpers drive search index logic shared across explore and home
 
 ## ANTI-PATTERNS
