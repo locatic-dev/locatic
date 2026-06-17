@@ -30,8 +30,6 @@ export interface ProjectCardData {
   liked?: boolean
   followed?: boolean
   isPinned?: boolean
-  isRecommended?: boolean
-  matchPct?: number
 }
 
 type ProjectCardProjectLink = {
@@ -194,14 +192,6 @@ export function ProjectCard({
                 </span>
                 {project.repo}
               </button>
-            )}
-
-            {project.isRecommended && (
-              <span className="rounded-[2px] border border-[oklch(72%_0.17_185/0.3)] bg-brand-quiet px-1.5 py-0.5 font-mono text-[9.5px] leading-none whitespace-nowrap text-brand">
-                {project.matchPct
-                  ? `${project.matchPct}% match`
-                  : 'recommended'}
-              </span>
             )}
           </div>
 

@@ -104,11 +104,10 @@ Ranking is implemented in `convex/lib/explore.ts`:
    selected by popularity.
 10. Return the combined popular-then-fresh list.
 
-The project card `recommended` badge currently means "first ranked Explore card
-in this response." It is not a persisted recommendation model, not a stable
-score, and not a `matchPct` unless a future payload explicitly supplies that
-field. Do not reuse this badge as proof of a recommendation engine without
-adding explicit ranking metadata.
+Explore does not show a `recommended` badge. The ranked order is only a feed
+ordering signal, not a user-facing recommendation model or match percentage.
+Do not add recommendation copy without explicit ranking metadata that explains
+why an item was selected.
 
 ### Nearby Builders
 
@@ -207,7 +206,8 @@ copy, query keys, and tests.
   creates a hidden filter.
 - Do not make city chips from raw strings. They must be backed by city docs.
 - Do not key follow state by username. Follow relationships use user IDs.
-- Do not treat the `recommended` badge as a stable ranking contract.
+- Do not describe Explore ranking as a recommendation engine unless explicit
+  ranking metadata is available.
 
 ## Code Ownership
 

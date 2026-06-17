@@ -56,8 +56,9 @@ convex/
 | Project/comment access | `lib/project_access.ts`                    | `isProjectPubliclyInteractable`, `getPubliclyInteractableProject`, `isCommentPubliclyInteractable` |
 | Rate limiting          | `lib/rate_limits.ts`                       | `enforceRateLimit` via `@convex-dev/rate-limiter` component; token buckets + fixed windows         |
 | Post visibility        | `lib/posts.ts`                             | Used by `posts.ts`, `comments.ts`, `explore.ts`                                                    |
-| Post search text       | `lib/posts.ts`                             | `buildPostSearchText`, `normalizePostSearchQuery` for search indexing                              |
+| Post search text       | `lib/posts.ts`                             | `buildPostSearchText`, `normalizePostSearchQuery`, `isPublicPostVisible` for search indexing       |
 | Explore result         | `explore.ts`                               | Validators for projectSearch/postSearch/builderSearch/exploreFeed results                          |
+| Explore post dismiss   | `schema.ts` (explore_post_history)         | `dismissPost` mutation, `resetDismissedPosts`, filtered via `by_user_dismissed` index              |
 | Add scheduled task     | `crons.ts`                                 | Cron-triggered functions                                                                           |
 | Add validator          | `lib/validators.ts`                        | Used in schema definitions                                                                         |
 | GitHub integration     | `github.ts`, `github_actions.ts`           | API sync, webhooks                                                                                 |
@@ -66,7 +67,8 @@ convex/
 | Viewer/bootstrap       | `users.ts`, `lib/viewer.ts`                | Authenticated app payloads; preserve contracts                                                     |
 | Explore state          | `explore.ts`, `lib/explore.ts`             | Search scope / city defaults; `searchProjects`, `searchPosts`, `searchBuilders`                    |
 | Notification state     | `notifications.ts`, `lib/notifications.ts` | Read state + backfill helpers                                                                      |
-| Conversation flow      | `conversations.ts`                         | Start/get DM threads                                                                               |
+| Conversation flow      | `conversations.ts`                         | Two-phase: `findWithUser` query → `sendFirstMessage` mutation; no `startOrGet`                     |
+| Home feed              | `home.ts`                                  | Paginated via `paginationOptsValidator` + `paginationResultValidator`                              |
 | Project sync           | `projects.ts`, `github_actions.ts`         | Repo metadata + sync orchestration                                                                 |
 
 ## CONVENTIONS
@@ -82,6 +84,10 @@ convex/
 - Feature search/navigation helpers should stay aligned with Convex query args and payload shapes.
 - Rate limiting defined in `lib/rate_limits.ts` via `@convex-dev/rate-limiter`; `convex.config.ts` registers the component via `app.use(rateLimiter)`.
 - Project/comment public interactability gates live in `lib/project_access.ts` — use instead of inline owner/visibility checks.
+- Conversation flow is two-phase: `findWithUser` query → `sendFirstMessage` mutation. No `startOrGet`.
+- Post dismissal uses `explore_post_history` table with `by_user_dismissed` index; mirrors project dismissal pattern.
+- Post search returns paginated payload `{posts, hasMore}` instead of flat array; filters out dismissed posts.
+- Home feed uses `paginationOptsValidator` + `paginationResultValidator` for proper Convex pagination.
 
 ## ANTI-PATTERNS
 

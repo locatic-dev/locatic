@@ -1,29 +1,54 @@
-import { paginationOptsValidator } from 'convex/server'
+import {
+  paginationOptsValidator,
+  paginationResultValidator,
+} from 'convex/server'
 import { v } from 'convex/values'
 
 import { query } from './_generated/server'
 import { getViewerOrThrow } from './lib/auth'
 import { buildProjectCardPreview } from './lib/project_previews'
 import { buildProjectSnapshot } from './lib/snapshots'
+import {
+  actorSnapshotValidator,
+  eventTypeValidator,
+  feedReasonValidator,
+  postSnapshotValidator,
+  projectSnapshotValidator,
+} from './lib/validators'
+
+const homeFeedItemValidator = v.object({
+  _id: v.id('home_feed_items'),
+  _creationTime: v.number(),
+  userId: v.id('users'),
+  sourceEventId: v.id('activity_events'),
+  dedupeKey: v.string(),
+  reason: feedReasonValidator,
+  priority: v.union(v.literal(1), v.literal(2), v.literal(3)),
+  actorId: v.id('users'),
+  eventType: eventTypeValidator,
+  projectId: v.id('projects'),
+  postId: v.optional(v.union(v.id('posts'), v.null())),
+  actorSnapshot: actorSnapshotValidator,
+  projectSnapshot: projectSnapshotValidator,
+  postSnapshot: v.optional(postSnapshotValidator),
+  createdAt: v.number(),
+  project: v.union(v.any(), v.null()),
+  projectPreview: v.union(v.any(), v.null()),
+})
 
 export const list = query({
   args: {
-    paginationOpts: v.optional(paginationOptsValidator),
-    cursor: v.optional(v.number()),
-    limit: v.optional(v.number()),
+    paginationOpts: paginationOptsValidator,
   },
+  returns: paginationResultValidator(homeFeedItemValidator),
   handler: async (ctx, args) => {
     const viewer = await getViewerOrThrow(ctx)
-    const paginationOpts = args.paginationOpts ?? {
-      cursor: args.cursor ? String(args.cursor) : null,
-      numItems: Math.min(args.limit ?? 20, 50),
-    }
 
     const feedPage = await ctx.db
       .query('home_feed_items')
       .withIndex('by_user_created', (query) => query.eq('userId', viewer._id))
       .order('desc')
-      .paginate(paginationOpts)
+      .paginate(args.paginationOpts)
 
     const page = await Promise.all(
       feedPage.page.map(async (item) => {
