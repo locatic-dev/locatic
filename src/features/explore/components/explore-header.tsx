@@ -33,9 +33,11 @@ export function ExploreHeader({
   onCityQueryChange,
   onModeChange,
   onRemoveCity,
+  onResetExplore,
   onSelectCity,
   onSearchQueryChange,
   pendingCityIds,
+  resetPending,
   searchQuery,
   selectedCityChips,
 }: {
@@ -46,13 +48,16 @@ export function ExploreHeader({
   onCityQueryChange: (query: string) => void
   onModeChange: (mode: ExploreMode) => void
   onRemoveCity: (cityId: string) => void
+  onResetExplore?: () => void
   onSelectCity: (city: Doc<'cities'>) => void
   onSearchQueryChange: (query: string) => void
   pendingCityIds: boolean
+  resetPending?: boolean
   searchQuery: string
   selectedCityChips: ExploreCityChip[]
 }) {
   const modeConfig = EXPLORE_MODE_CONFIG[mode]
+  const canResetExplore = mode === 'projects' || mode === 'posts'
 
   return (
     <header className="shrink-0 border-b border-line px-(--lx-gutter) py-5">
@@ -66,8 +71,18 @@ export function ExploreHeader({
           </h1>
         </div>
         <div className="flex items-center gap-2 font-mono text-[11.5px] text-text-faint">
-          <span>{getExploreScopeStatusCopy(currentScope)}</span>
+          <span>{getExploreScopeStatusCopy(currentScope, mode)}</span>
           {pendingCityIds && <span>saving…</span>}
+          {canResetExplore && onResetExplore && (
+            <button
+              type="button"
+              onClick={onResetExplore}
+              disabled={resetPending}
+              className="min-h-9 rounded-md border border-line px-3 py-1.5 font-mono text-[11.5px] text-text-muted transition-colors hover:border-line-strong hover:text-text disabled:cursor-default disabled:opacity-60"
+            >
+              {resetPending ? 'resetting…' : 'reset'}
+            </button>
+          )}
         </div>
       </div>
 

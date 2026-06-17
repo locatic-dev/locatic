@@ -4,11 +4,13 @@ import {
   useQueryClient,
   useSuspenseQuery,
 } from '@tanstack/react-query'
+import { usePaginatedQuery } from 'convex/react'
 import { useState } from 'react'
+import { api } from '../../../convex/_generated/api'
 import type { Id } from '../../../convex/_generated/dataModel'
-import { homeFeedQueryOptions } from '@/features/home/queries'
 import { viewerLikedProjectIdsQueryOptions } from '@/features/viewer/queries'
 import { ProjectCard } from '@/components/ui/project-card'
+import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
 import { PageHeader } from '@/components/app-shell/page-header'
 import { relativeTime } from '@/lib/time'
@@ -17,8 +19,7 @@ import { useOpenConversation } from '@/features/inbox/use-open-conversation'
 import { getHomeCardDmTargetUserId } from '@/features/home/project-card-targets'
 import { getHomeFeedActivityLabel } from '@/features/home/activity-labels'
 import {
-  type HomeFeedPage,
-  updateHomeFeedPayload,
+  type HomeFeedItem,
   updateLikedProjectIdsPayload,
 } from '@/features/home/cache'
 import {
@@ -40,10 +41,9 @@ export const Route = createFileRoute('/_app/home')({
       return
     }
 
-    return Promise.all([
-      context.queryClient.ensureQueryData(homeFeedQueryOptions()),
-      context.queryClient.ensureQueryData(viewerLikedProjectIdsQueryOptions()),
-    ])
+    return context.queryClient.ensureQueryData(
+      viewerLikedProjectIdsQueryOptions(),
+    )
   },
   pendingComponent: FeedRoutePending,
   pendingMs: ROUTE_PENDING_MS,
@@ -54,7 +54,7 @@ export const Route = createFileRoute('/_app/home')({
 function HomePage() {
   const navigate = Route.useNavigate()
   const queryClient = useQueryClient()
-  const { data: feedData } = useSuspenseQuery(homeFeedQueryOptions())
+  const homeFeed = usePaginatedQuery(api.home.list, {}, { initialNumItems: 20 })
   const { data: viewerStateData } = useSuspenseQuery(
     viewerLikedProjectIdsQueryOptions(),
   )
@@ -71,8 +71,7 @@ function HomePage() {
   const likedProjectIds = new Set(
     viewerState?.likedProjectIds.map(String) ?? [],
   )
-  const items = (feedData as HomeFeedPage).page
-  const homeFeedQueryKey = homeFeedQueryOptions().queryKey
+  const items = (homeFeed.results ?? []) as HomeFeedItem[]
   const likedProjectIdsQueryKey = viewerLikedProjectIdsQueryOptions().queryKey
   const likeMutation = useMutation({
     mutationFn: async ({
@@ -86,13 +85,8 @@ function HomePage() {
         ? unlikeProject({ projectId })
         : likeProject({ projectId }),
     onMutate: async ({ projectId }) => {
-      await Promise.all([
-        queryClient.cancelQueries({ queryKey: homeFeedQueryKey }),
-        queryClient.cancelQueries({ queryKey: likedProjectIdsQueryKey }),
-      ])
+      await queryClient.cancelQueries({ queryKey: likedProjectIdsQueryKey })
 
-      const previousFeed =
-        queryClient.getQueryData<HomeFeedPage>(homeFeedQueryKey)
       const previousLikedProjectIds =
         queryClient.getQueryData<ViewerLikedProjectIdsPayload>(
           likedProjectIdsQueryKey,
@@ -104,35 +98,21 @@ function HomePage() {
       const nextLiked = !cachedCurrentlyLiked
 
       queryClient.setQueryData(
-        homeFeedQueryKey,
-        (current: HomeFeedPage | undefined) =>
-          updateHomeFeedPayload(
-            current,
-            String(projectId),
-            nextLiked,
-            cachedLikedProjectIds,
-          ),
-      )
-      queryClient.setQueryData(
         likedProjectIdsQueryKey,
         (current: ViewerLikedProjectIdsPayload | undefined) =>
           updateLikedProjectIdsPayload(current, projectId, nextLiked),
       )
 
-      return { previousFeed, previousLikedProjectIds }
+      return { previousLikedProjectIds }
     },
     onError: (_error, _variables, context) => {
-      queryClient.setQueryData(homeFeedQueryKey, context?.previousFeed)
       queryClient.setQueryData(
         likedProjectIdsQueryKey,
         context?.previousLikedProjectIds,
       )
     },
     onSettled: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: homeFeedQueryKey }),
-        queryClient.invalidateQueries({ queryKey: likedProjectIdsQueryKey }),
-      ])
+      await queryClient.invalidateQueries({ queryKey: likedProjectIdsQueryKey })
     },
   })
 
@@ -273,6 +253,24 @@ function HomePage() {
                     </div>
                   )
                 })}
+                {homeFeed.status === 'CanLoadMore' && (
+                  <div className="flex justify-center pt-1">
+                    <Button
+                      type="button"
+                      variant="monoOutline"
+                      size="meta"
+                      onClick={() => homeFeed.loadMore(20)}
+                      className="min-h-11 font-mono"
+                    >
+                      load older activity
+                    </Button>
+                  </div>
+                )}
+                {homeFeed.status === 'LoadingMore' && (
+                  <div className="py-2 text-center font-mono text-[11.5px] text-text-faint">
+                    loading older activity…
+                  </div>
+                )}
               </div>
             </>
           )}

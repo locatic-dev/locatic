@@ -16,9 +16,11 @@ function renderHeader(
     onCityQueryChange: vi.fn(),
     onModeChange: vi.fn(),
     onRemoveCity: vi.fn(),
+    onResetExplore: vi.fn(),
     onSelectCity: vi.fn(),
     onSearchQueryChange: vi.fn(),
     pendingCityIds: false,
+    resetPending: false,
     searchQuery: '',
     selectedCityChips: [
       { id: 'city_1' as Id<'cities'>, name: 'Bengaluru, Karnataka, India' },
@@ -73,5 +75,20 @@ describe('ExploreHeader', () => {
     const { props } = renderHeader()
     fireEvent.click(screen.getByRole('button', { name: 'builders' }))
     expect(props.onModeChange).toHaveBeenCalledWith('builders')
+  })
+
+  it('renders mode-aware scope copy', () => {
+    renderHeader({ currentScope: 'global', mode: 'builders' })
+    expect(screen.getByText('showing builders everywhere')).toBeTruthy()
+  })
+
+  it('shows reset only for resettable modes', () => {
+    const { props, rerender } = renderHeader({ mode: 'posts' })
+
+    fireEvent.click(screen.getByRole('button', { name: 'reset' }))
+    expect(props.onResetExplore).toHaveBeenCalledTimes(1)
+
+    rerender(<ExploreHeader {...props} mode="builders" />)
+    expect(screen.queryByRole('button', { name: 'reset' })).toBeNull()
   })
 })

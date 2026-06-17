@@ -1,4 +1,4 @@
-import { v } from 'convex/values'
+import { ConvexError, v } from 'convex/values'
 
 import { mutation, query, type QueryCtx } from './_generated/server'
 import type { Doc, Id } from './_generated/dataModel'
@@ -7,7 +7,11 @@ import { mergeBuilderSearchCandidates } from './lib/discoverability'
 import { buildExploreCandidates, rankNearbyBuilders } from './lib/explore'
 import { buildProjectCardPreview } from './lib/project_previews'
 import { getProjectTopics } from './lib/topics'
-import { filterVisiblePosts, normalizePostSearchQuery } from './lib/posts'
+import {
+  filterVisiblePosts,
+  isPublicPostVisible,
+  normalizePostSearchQuery,
+} from './lib/posts'
 
 const projectSearchResultValidator = v.object({
   projectId: v.id('projects'),
@@ -80,6 +84,11 @@ const postSearchResultValidator = v.object({
   createdAt: v.number(),
   updatedAt: v.number(),
   deletedAt: v.union(v.number(), v.null()),
+})
+
+const postSearchPayloadValidator = v.object({
+  posts: v.array(postSearchResultValidator),
+  hasMore: v.boolean(),
 })
 
 const builderSearchResultValidator = v.object({
@@ -390,7 +399,7 @@ export const searchProjects = query({
       return { projectResultScope: 'recent' as const, projects: [] }
     }
 
-    const limit = Math.min(args.limit ?? 10, 20)
+    const limit = Math.min(args.limit ?? 10, 50)
     const cityIds = new Set((args.cityIds ?? []).map(String))
     const projects = await ctx.db
       .query('projects')
@@ -455,24 +464,38 @@ export const searchPosts = query({
     cityIds: v.optional(v.array(v.id('cities'))),
     limit: v.optional(v.number()),
   },
-  returns: v.array(postSearchResultValidator),
+  returns: postSearchPayloadValidator,
   handler: async (ctx, args) => {
     const viewer = await getViewerFromAuth(ctx)
     if (!viewer) {
-      return []
+      return { hasMore: false, posts: [] }
     }
 
     const normalizedQ = args.q.trim().toLowerCase()
     if (!normalizedQ) {
-      return []
+      return { hasMore: false, posts: [] }
     }
 
-    const limit = Math.min(args.limit ?? 10, 20)
+    const limit = Math.min(args.limit ?? 10, 50)
+    const candidateTake = Math.min(Math.max((limit + 1) * 4, 40), 200)
+    const dismissedPosts = await ctx.db
+      .query('explore_post_history')
+      .withIndex('by_user_dismissed', (query) =>
+        query.eq('userId', viewer._id).gt('dismissedAt', 0),
+      )
+      .collect()
+    const dismissedPostIds = new Set(
+      dismissedPosts.map((item) => String(item.postId)),
+    )
     const cityIds = new Set((args.cityIds ?? []).map(String))
     const cityIdValues = [...cityIds].flatMap((cityId) => {
       const normalizedCityId = ctx.db.normalizeId('cities', cityId)
       return normalizedCityId ? [normalizedCityId] : []
     })
+    const perCityTake =
+      cityIdValues.length > 0
+        ? Math.ceil(candidateTake / cityIdValues.length)
+        : candidateTake
     const posts =
       cityIdValues.length > 0
         ? (
@@ -486,7 +509,7 @@ export const searchPosts = query({
                       .eq('deletedAt', null)
                       .eq('projectCityId', cityId),
                   )
-                  .take(limit),
+                  .take(perCityTake),
               ),
             )
           ).flat()
@@ -495,9 +518,16 @@ export const searchPosts = query({
             .withSearchIndex('search_text', (query) =>
               query.search('searchText', normalizedQ).eq('deletedAt', null),
             )
-            .take(limit)
+            .take(candidateTake)
 
-    return (await filterVisiblePosts(ctx, posts)).slice(0, limit)
+    const visiblePosts = (await filterVisiblePosts(ctx, posts))
+      .filter((post) => !dismissedPostIds.has(String(post._id)))
+      .slice(0, limit + 1)
+
+    return {
+      hasMore: visiblePosts.length > limit,
+      posts: visiblePosts.slice(0, limit),
+    }
   },
 })
 
@@ -600,5 +630,106 @@ export const dismiss = mutation({
       dismissedAt: Date.now(),
       likedAt: null,
     })
+  },
+})
+
+export const resetDismissedProjects = mutation({
+  args: {},
+  returns: v.object({
+    resetCount: v.number(),
+  }),
+  handler: async (ctx) => {
+    const viewer = await getViewerOrThrow(ctx)
+    const dismissed = await ctx.db
+      .query('explore_history')
+      .withIndex('by_user_dismissed', (query) =>
+        query.eq('userId', viewer._id).gt('dismissedAt', 0),
+      )
+      .collect()
+    const now = Date.now()
+
+    await Promise.all(
+      dismissed.map((item) =>
+        ctx.db.patch(item._id, {
+          lastSeenAt: now,
+          dismissedAt: null,
+        }),
+      ),
+    )
+
+    return {
+      resetCount: dismissed.length,
+    }
+  },
+})
+
+export const dismissPost = mutation({
+  args: {
+    postId: v.id('posts'),
+  },
+  returns: v.id('explore_post_history'),
+  handler: async (ctx, args) => {
+    const viewer = await getViewerOrThrow(ctx)
+    const post = await ctx.db.get(args.postId)
+    if (
+      !post ||
+      post.deletedAt !== null ||
+      !(await isPublicPostVisible(ctx, post))
+    ) {
+      throw new ConvexError('Post not found')
+    }
+
+    const existing = await ctx.db
+      .query('explore_post_history')
+      .withIndex('by_user_post', (query) =>
+        query.eq('userId', viewer._id).eq('postId', args.postId),
+      )
+      .unique()
+
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        lastSeenAt: Date.now(),
+        dismissedAt: Date.now(),
+      })
+      return existing._id
+    }
+
+    return await ctx.db.insert('explore_post_history', {
+      userId: viewer._id,
+      postId: args.postId,
+      firstSeenAt: Date.now(),
+      lastSeenAt: Date.now(),
+      dismissedAt: Date.now(),
+    })
+  },
+})
+
+export const resetDismissedPosts = mutation({
+  args: {},
+  returns: v.object({
+    resetCount: v.number(),
+  }),
+  handler: async (ctx) => {
+    const viewer = await getViewerOrThrow(ctx)
+    const dismissed = await ctx.db
+      .query('explore_post_history')
+      .withIndex('by_user_dismissed', (query) =>
+        query.eq('userId', viewer._id).gt('dismissedAt', 0),
+      )
+      .collect()
+    const now = Date.now()
+
+    await Promise.all(
+      dismissed.map((item) =>
+        ctx.db.patch(item._id, {
+          lastSeenAt: now,
+          dismissedAt: null,
+        }),
+      ),
+    )
+
+    return {
+      resetCount: dismissed.length,
+    }
   },
 })

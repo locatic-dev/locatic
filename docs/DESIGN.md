@@ -280,7 +280,8 @@ A standard shadcn Dialog (`max-w-xl`) rendered when the user taps a follower or 
 
 - **City pill:** `rounded-pill`, 1px `line` border, `surface-alt` background, mono 11px `text-muted`, `map-pin` icon (11px) at left. Removable variant adds an ×-button after the city name.
 - **Status pill:** `border-radius: 3px` (intentionally less round than city pill), hue-matched per build status (shipping=145, building=200, exploring=280, hiring=35). Background at 10% opacity, border at 25% opacity of the status hue. 5px dot indicator inside.
-- **Recommended badge:** `rounded-sm`, Signal Teal at 12% bg, 30% border, brand color text. Mono 9.5px lowercase. Used on the first card in the Explore feed only.
+- **Explore ranking:** ranked order is implicit. Do not add recommendation or
+  match badges unless the backend provides explicit, explainable metadata.
 
 ### Notification Rows
 

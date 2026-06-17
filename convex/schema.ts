@@ -602,6 +602,16 @@ export default defineSchema({
     .index('by_user_last_seen', ['userId', 'lastSeenAt'])
     .index('by_user_dismissed', ['userId', 'dismissedAt']),
 
+  explore_post_history: defineTable({
+    userId: v.id('users'),
+    postId: v.id('posts'),
+    firstSeenAt: v.number(),
+    lastSeenAt: v.number(),
+    dismissedAt: optionalTimestampValidator,
+  })
+    .index('by_user_post', ['userId', 'postId'])
+    .index('by_user_dismissed', ['userId', 'dismissedAt']),
+
   pulse_snapshots: defineTable({
     scopeType: pulseScopeTypeValidator,
     scopeId: optionalStringValidator,

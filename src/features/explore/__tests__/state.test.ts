@@ -240,11 +240,23 @@ describe('explore state helpers', () => {
     expect(getExploreScopeStatusCopy('default')).toBe(
       'showing projects from your default city context',
     )
+    expect(getExploreScopeStatusCopy('default', 'builders')).toBe(
+      'showing builders from your default city context',
+    )
+    expect(getExploreScopeStatusCopy('default', 'posts')).toBe(
+      'searching posts from your default city context',
+    )
     expect(getExploreScopeStatusCopy('custom')).toBe(
       'strictly filtered to selected cities',
     )
     expect(getExploreScopeStatusCopy('global')).toBe(
       'showing projects everywhere',
+    )
+    expect(getExploreScopeStatusCopy('global', 'builders')).toBe(
+      'showing builders everywhere',
+    )
+    expect(getExploreScopeStatusCopy('global', 'posts')).toBe(
+      'searching posts everywhere',
     )
     expect(isExploreProjectFeedGlobal('default')).toBe(false)
     expect(isExploreProjectFeedGlobal('global')).toBe(true)

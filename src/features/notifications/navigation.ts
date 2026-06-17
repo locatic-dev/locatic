@@ -5,6 +5,7 @@ function getConversationInboxSearch(
   inboxTab?: 'inbox' | 'requests' | null,
 ) {
   return {
+    compose: null,
     conversation: conversationId,
     tab: inboxTab === 'requests' ? 'requests' : 'inbox',
   } as const

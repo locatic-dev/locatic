@@ -211,5 +211,8 @@ export const conversationDetailQueryOptions = (
   conversationId: Id<'conversations'>,
 ) => convexQuery(api.conversations.get, { conversationId })
 
+export const conversationRecipientPreviewQueryOptions = (otherUserId: string) =>
+  convexQuery(api.conversations.getRecipientPreview, { otherUserId })
+
 export const followingQueryOptions = (userId: Id<'users'>) =>
   convexQuery(api.follows.listFollowing, { userId })
