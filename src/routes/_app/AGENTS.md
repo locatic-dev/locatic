@@ -33,8 +33,8 @@ _app/
 - Shared Convex query options live in `src/integrations/convex/query-options.ts`; use them for loader prefetches.
 - `project.$owner.$repo.tsx` delegates post creation and listing to `ProjectPostsSection` component in `src/features/projects/posts/`.
 - `explore.tsx` search results navigate with function-form `search: (current) => ({...current, ...next})` — keep existing search params when updating.
-- `home.tsx` uses Convex `usePaginatedQuery` directly (not TanStack Query) for paginated feed list.
-- `explore.tsx` supports post dismissal (dismissed set + load-more limit stepping) and reset dismissed for both projects and posts.
+- `home.tsx` uses Convex `usePaginatedQuery` directly (not TanStack Query) for paginated feed list; uses `getHomeFeedRenderState` for loading/empty/items states with `HomeFeedSkeletonRows` during `LoadingFirstPage`.
+- `explore.tsx` supports post dismissal (dismissed set + load-more limit stepping) and reset dismissed for both projects and posts; uses `placeholderData` with `keepPreviousExploreFeedData`/`keepPreviousPostSearchData` for smooth filter transitions.
 - `inbox.tsx` uses two-phase compose flow: validates `compose` search param, shows recipient preview via `conversationRecipientPreviewQueryOptions`.
 
 ## ANTI-PATTERNS

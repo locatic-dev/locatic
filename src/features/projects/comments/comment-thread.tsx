@@ -8,6 +8,7 @@ import { LxAvatar } from '@/components/ui/lx-avatar'
 import { Textarea } from '@/components/ui/textarea'
 import { relativeTime } from '@/lib/time'
 import { CommentActions } from './comment-actions'
+import { commentComposerTextareaClass } from './composer-styles'
 import type { ProjectCommentLikeOverride, ProjectCommentView } from './types'
 
 function ReplySkeleton() {
@@ -135,6 +136,8 @@ export function CommentThread({
     previewReplies.length > 0 ||
     pendingChildReplies.length > 0
   const repliesRegionId = `comment-${commentId}-replies`
+  const showReplySkeleton =
+    repliesPage.status === 'LoadingFirstPage' && visibleReplies.length === 0
 
   if (comment.isDeleted && !hasReplies) {
     return null
@@ -223,7 +226,7 @@ export function CommentThread({
                   }
                   rows={2}
                   placeholder={`reply to ${comment.authorSnapshot.displayName}...`}
-                  className="min-h-18 flex-1 resize-none border-0 bg-transparent px-0 py-0 font-sans text-[13px] text-text shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                  className={commentComposerTextareaClass}
                 />
                 <div className="flex items-end gap-2">
                   <Button
@@ -286,7 +289,7 @@ export function CommentThread({
                     viewerId={viewerId}
                   />
                 ))}
-                {repliesPage.status === 'LoadingFirstPage' && (
+                {showReplySkeleton && (
                   <div
                     role="status"
                     aria-label="Loading replies"

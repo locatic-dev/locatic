@@ -59,6 +59,10 @@ import {
 } from '@/features/explore/state'
 import { ExploreHeader } from '@/features/explore/components/explore-header'
 import { ExploreFeed } from '@/features/explore/components/explore-feed'
+import {
+  keepPreviousExploreFeedData,
+  keepPreviousPostSearchData,
+} from '@/features/explore/query-transitions'
 import { useDebouncedRouteSearch } from '@/features/explore/use-debounced-route-search'
 import {
   updateExploreFeedPayload,
@@ -230,6 +234,10 @@ function ExplorePage() {
       selectedCityIds: queryCityIds,
     }),
     enabled: currentMode === 'projects',
+    placeholderData: keepPreviousExploreFeedData({
+      currentScope,
+      currentSelectedCityIds: queryCityIds,
+    }),
   })
   const nearbyBuildersQuery = useQuery({
     ...nearbyBuildersQueryOptions(nearbyBuilderCityIds),
@@ -281,11 +289,17 @@ function ExplorePage() {
   )
   const postSearchQuery = useQuery(
     isPostSearchActive
-      ? postSearchQueryOptions({
-          cityIds: queryCityIds,
-          limit: postLimit,
-          q: debouncedSearchQuery,
-        })
+      ? {
+          ...postSearchQueryOptions({
+            cityIds: queryCityIds,
+            limit: postLimit,
+            q: debouncedSearchQuery,
+          }),
+          placeholderData: keepPreviousPostSearchData({
+            currentCityIds: queryCityIds,
+            currentQuery: debouncedSearchQuery,
+          }),
+        }
       : disabledQuery(
           postSearchQueryOptions({
             cityIds: [],
@@ -754,7 +768,17 @@ function ExplorePage() {
             pendingFollows={pendingFollows}
             pendingLikes={pendingLikes}
             pendingUserId={pendingUserId}
-            postSearchLoading={postSearchQuery.isLoading}
+            projectFeedLoading={
+              scopedFeedQuery.isLoading ||
+              (scopedFeedQuery.isFetching && !scopedFeedQuery.isPlaceholderData)
+            }
+            projectSearchLoading={
+              projectSearchQuery.isLoading || projectSearchQuery.isFetching
+            }
+            postSearchLoading={
+              postSearchQuery.isLoading ||
+              (postSearchQuery.isFetching && !postSearchQuery.isPlaceholderData)
+            }
             postResults={postResults}
             viewerId={viewerId}
           />

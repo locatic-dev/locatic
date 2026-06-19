@@ -50,6 +50,8 @@ import { useOpenConversation } from '@/features/inbox/use-open-conversation'
 import { shouldEnableViewerSummaryQuery } from '@/features/viewer/auth'
 import { viewerSummaryQueryOptions } from '@/features/viewer/queries'
 import { CommentThread } from '@/features/projects/comments/comment-thread'
+import { commentComposerTextareaClass } from '@/features/projects/comments/composer-styles'
+import { removeReplyDraft } from '@/features/projects/comments/drafts'
 import { useCommentThreadState } from '@/features/projects/comments/use-comment-thread-state'
 import type {
   ProjectCommentLikeOverride,
@@ -466,6 +468,7 @@ function ProjectDetailPage() {
       ...current,
       [parentKey]: [...(current[parentKey] ?? []), pendingReply],
     }))
+    setReplyDrafts((current) => removeReplyDraft(current, parentKey))
 
     try {
       await addComment({
@@ -474,16 +477,15 @@ function ProjectDetailPage() {
         targetId: String(detail.project._id),
         targetType: 'project',
       })
-      setReplyDrafts((current) => {
-        const next = { ...current }
-        delete next[parentKey]
-        return next
-      })
       await queryClient.invalidateQueries({
         queryKey: projectDetailQueryKey,
       })
     } catch (error) {
       console.error(error)
+      setReplyDrafts((current) => ({
+        ...current,
+        [parentKey]: draft,
+      }))
     } finally {
       setPendingReplies((current) => {
         const nextReplies = (current[parentKey] ?? []).filter(
@@ -973,7 +975,7 @@ function ProjectDetailPage() {
                       onChange={(event) => setComment(event.target.value)}
                       placeholder="say something thoughtful..."
                       rows={2}
-                      className="min-h-18 flex-1 resize-none border-0 bg-transparent px-0 py-0 font-sans text-[13.5px] text-text shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                      className={commentComposerTextareaClass}
                     />
                     <div className="flex items-end gap-2">
                       <Button

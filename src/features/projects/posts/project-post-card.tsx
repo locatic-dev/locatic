@@ -18,6 +18,8 @@ import {
   useUpdatePost,
 } from '@/features/projects/mutations'
 import { CommentThread } from '@/features/projects/comments/comment-thread'
+import { commentComposerTextareaClass } from '@/features/projects/comments/composer-styles'
+import { removeReplyDraft } from '@/features/projects/comments/drafts'
 import { useCommentThreadState } from '@/features/projects/comments/use-comment-thread-state'
 import type {
   ProjectCommentLikeOverride,
@@ -203,6 +205,7 @@ export function ProjectPostCard({
       ...current,
       [parentKey]: [...(current[parentKey] ?? []), pendingReply],
     }))
+    setReplyDrafts((current) => removeReplyDraft(current, parentKey))
 
     try {
       await addComment({
@@ -211,13 +214,12 @@ export function ProjectPostCard({
         targetId: String(post._id),
         targetType: 'post',
       })
-      setReplyDrafts((current) => {
-        const next = { ...current }
-        delete next[parentKey]
-        return next
-      })
     } catch (error) {
       console.error(error)
+      setReplyDrafts((current) => ({
+        ...current,
+        [parentKey]: draft,
+      }))
     } finally {
       setPendingReplies((current) => ({
         ...current,
@@ -449,7 +451,7 @@ export function ProjectPostCard({
             onChange={(event) => setComment(event.target.value)}
             placeholder="reply to this repo post..."
             rows={2}
-            className="min-h-18 flex-1 resize-none border-0 bg-transparent px-0 py-0 font-sans text-[13.5px] text-text shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+            className={commentComposerTextareaClass}
           />
           <div className="flex items-end gap-2">
             <Button

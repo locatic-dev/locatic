@@ -82,6 +82,9 @@ Locatic — "GitHub with a map." Developer activity platform: discover projects,
 | Render project README           | `src/features/projects/readme/project-readme-section.tsx`                     | Markdown rendering with GitHub asset/link URL resolution via `resolveGithubReadmeMarkdownUrl`                                            |
 | GitHub README URL resolution    | `src/lib/github-readme-url.ts`                                                | `resolveGithubReadmeMarkdownUrl`, `GithubReadmeUrlBases` — resolve relative URLs in rendered README (assets + links)                     |
 | Viewer auth helpers             | `src/features/viewer/auth.ts`                                                 | `shouldEnableViewerSummaryQuery` — gate viewer summary queries behind auth state                                                         |
+| Explore query transitions       | `src/features/explore/query-transitions.ts`                                   | `keepPreviousExploreFeedData`/`keepPreviousPostSearchData` for smooth data retention during filter changes                               |
+| Home feed render state          | `src/features/home/render-state.ts`                                           | `getHomeFeedRenderState` for loading/empty/items render states                                                                           |
+| Comment composer styles         | `src/features/projects/comments/composer-styles.ts`                           | `commentComposerTextareaClass` shared textarea style constant                                                                            |
 
 ## CONVENTIONS
 
@@ -114,7 +117,9 @@ Locatic — "GitHub with a map." Developer activity platform: discover projects,
 - Explore post dismissal mirrors project dismissal: `explore_post_history` table, `dismissPost` mutation, filtered via `by_user_dismissed` index.
 - Explore feed supports incremental load-more via limit stepping (`EXPLORE_LIMIT_STEP = 20`), capped at `EXPLORE_MAX_LIMIT = 50`.
 - `getExploreScopeStatusCopy` takes optional `mode` param for mode-aware status copy.
+- Explore feed uses `placeholderData` with `keepPreviousExploreFeedData`/`keepPreviousPostSearchData` for smooth filter transitions; retains previous data when scope/cityIds/search query are unchanged.
 - Home feed uses direct Convex `usePaginatedQuery` (not TanStack Query) for paginated list with `paginationOptsValidator`.
+- Home feed uses `getHomeFeedRenderState` (empty/loading/items) for distinct render states; shows skeleton rows via `HomeFeedSkeletonRows` during initial `LoadingFirstPage`.
 - Touch targets: all interactive icon buttons must be `min-h-11 min-w-11` (44px) per mobile accessibility guidelines; use negative margins (`-my-3 -mr-2` etc.) to offset spacing when needed; prefer `rounded-md` over `rounded-sm`.
 - iOS zoom prevention: textarea/input elements at mobile widths must use `text-[16px]` to prevent auto-zoom on focus; revert to `text-sm` at `md:` breakpoint.
 - Mobile nav clearance: bottom-anchored elements must account for the mobile tab bar using `pb-[calc(var(--lx-mobile-tab-height)+...)]`.
@@ -122,6 +127,7 @@ Locatic — "GitHub with a map." Developer activity platform: discover projects,
 - E2E mobile tests: test at both 320px and 360px viewport widths; use `expectAboveMobileNav` for position checks and `expectTouchTarget` for dimension assertions; use `skipOnOnboarding` guard for tests requiring completed onboarding.
 - `aria-label` for interactive buttons that lack visible text labels is required (conversation buttons, remove topic, dismiss, etc.)
 - Composer layout uses grid on mobile (`grid-cols-[minmax(0,1fr)_auto]`) and flex on desktop (`md:flex`)
+- Comment composer textarea styles live in `src/features/projects/comments/composer-styles.ts` as the `commentComposerTextareaClass` constant; shared between `comment-thread.tsx` and `project-post-card.tsx`
 
 ## ANTI-PATTERNS (THIS PROJECT)
 
