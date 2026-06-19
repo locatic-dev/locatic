@@ -76,4 +76,21 @@ describe('ProjectCard', () => {
     expect(onComment).toHaveBeenCalledTimes(1)
     expect(navigate).not.toHaveBeenCalled()
   })
+
+  it('does not render a recommendation badge from legacy card data', () => {
+    render(
+      <ProjectCard
+        project={
+          {
+            ...project,
+            isRecommended: true,
+            matchPct: 97,
+          } as ProjectCardData
+        }
+      />,
+    )
+
+    expect(screen.queryByText('recommended')).toBeNull()
+    expect(screen.queryByText('97% match')).toBeNull()
+  })
 })

@@ -5,7 +5,7 @@ import type { Id } from '../../../convex/_generated/dataModel'
 
 import { api } from '../../../convex/_generated/api'
 import { convexClient } from '@/integrations/convex/client'
-import { getInboxDestinationSearch } from './navigation'
+import { getInboxComposeSearch, getInboxDestinationSearch } from './navigation'
 
 export function useOpenConversation() {
   const navigate = useNavigate()
@@ -20,22 +20,27 @@ export function useOpenConversation() {
     setPendingUserId(otherUserKey)
 
     try {
-      const conversation = await convexClient.mutation(
-        api.conversations.startOrGet,
+      const conversation = await convexClient.query(
+        api.conversations.findWithUser,
         {
           otherUserId,
         },
       )
-      if (!conversation) {
-        throw new Error('Conversation could not be opened')
+
+      if (conversation) {
+        await navigate({
+          to: '/inbox',
+          search: getInboxDestinationSearch(
+            String(conversation._id),
+            conversation.isRequest,
+          ),
+        })
+        return
       }
 
       await navigate({
         to: '/inbox',
-        search: getInboxDestinationSearch(
-          String(conversation._id),
-          conversation.isRequest,
-        ),
+        search: getInboxComposeSearch(otherUserKey),
       })
     } catch (error) {
       console.error('Conversation open failed', error)

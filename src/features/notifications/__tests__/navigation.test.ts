@@ -69,6 +69,7 @@ describe('notification navigation helpers', () => {
       }),
     ).toEqual({
       search: {
+        compose: null,
         conversation: 'conversation_123',
         tab: 'requests',
       },
@@ -87,6 +88,7 @@ describe('notification navigation helpers', () => {
       }),
     ).toEqual({
       search: {
+        compose: null,
         conversation: 'conversation_legacy',
         tab: 'inbox',
       },

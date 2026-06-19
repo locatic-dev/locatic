@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   exploreFeedQueryOptions,
   builderSearchQueryOptions,
+  conversationRecipientPreviewQueryOptions,
   nearbyBuildersQueryOptions,
   postSearchQueryOptions,
   privateFollowGraphQueryOptions,
@@ -75,6 +76,16 @@ describe('postSearchQueryOptions', () => {
       cityIds: ['city_1'],
       limit: 10,
       q: '#react',
+    })
+  })
+})
+
+describe('conversationRecipientPreviewQueryOptions', () => {
+  it('keeps raw compose search params at the backend validation boundary', () => {
+    const query = conversationRecipientPreviewQueryOptions('not-a-convex-id')
+
+    expect(query.queryKey[2]).toMatchObject({
+      otherUserId: 'not-a-convex-id',
     })
   })
 })
