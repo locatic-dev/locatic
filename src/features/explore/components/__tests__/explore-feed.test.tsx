@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { Id } from '../../../../../convex/_generated/dataModel'
 import type { PropsWithChildren } from 'react'
@@ -102,8 +102,11 @@ function renderFeed(
     builderSearchLoading: false,
     debouncedSearchQuery: '',
     dismissedIds: new Set<string>(),
+    dismissedPostIds: new Set<string>(),
     followOverrides: {},
     followedUserIds: new Set<string>(),
+    hasMorePosts: false,
+    hasMoreProjects: false,
     isBuilderSearchActive: false,
     isBuildersMode: false,
     isGlobalFeed: false,
@@ -112,9 +115,13 @@ function renderFeed(
     isProjectSearchActive: false,
     items: [],
     likedProjectIds: new Set<string>(),
+    loadMorePending: false,
+    onDismissPost: vi.fn(),
     onDismissProject: vi.fn(),
     onFollowUser: vi.fn(),
     onLikeProject: vi.fn(),
+    onLoadMorePosts: vi.fn(),
+    onLoadMoreProjects: vi.fn(),
     onMessageUser: vi.fn(),
     onOpenBuilderProfile: vi.fn(),
     pendingFollows: new Set<string>(),
@@ -125,7 +132,7 @@ function renderFeed(
     ...overrides,
   } satisfies Parameters<typeof ExploreFeed>[0]
 
-  return render(<ExploreFeed {...props} />)
+  return { props, ...render(<ExploreFeed {...props} />) }
 }
 
 describe('ExploreFeed', () => {
@@ -189,5 +196,41 @@ describe('ExploreFeed', () => {
 
     expect(screen.getByText('searching posts…')).toBeTruthy()
     expect(screen.queryByText(/no posts found/)).toBeNull()
+  })
+
+  it('dismisses post search rows independently from the project link', () => {
+    const { props } = renderFeed({
+      isPostSearchActive: true,
+      isPostsMode: true,
+      postResults: [post],
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss post' }))
+
+    expect(props.onDismissPost).toHaveBeenCalledWith('post_1', 'post_1')
+  })
+
+  it('renders a post load-more action when more post results can be requested', () => {
+    const { props } = renderFeed({
+      hasMorePosts: true,
+      isPostSearchActive: true,
+      isPostsMode: true,
+      postResults: [post],
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'load more posts' }))
+
+    expect(props.onLoadMorePosts).toHaveBeenCalledTimes(1)
+  })
+
+  it('renders a project load-more action for bounded explore expansion', () => {
+    const { props } = renderFeed({
+      hasMoreProjects: true,
+      items: [project],
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'load more projects' }))
+
+    expect(props.onLoadMoreProjects).toHaveBeenCalledTimes(1)
   })
 })

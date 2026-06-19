@@ -2,7 +2,7 @@ import { useMutation } from 'convex/react'
 import { api } from '../../../convex/_generated/api'
 
 export const useSendMessage = () => useMutation(api.conversations.sendMessage)
+export const useSendFirstMessage = () =>
+  useMutation(api.conversations.sendFirstMessage)
 export const useMarkConversationRead = () =>
   useMutation(api.conversations.markRead)
-export const useStartOrGetConversation = () =>
-  useMutation(api.conversations.startOrGet)

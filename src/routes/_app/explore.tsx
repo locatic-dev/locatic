@@ -21,7 +21,12 @@ import {
 } from '@/features/cities/queries'
 import { useLikeProject, useUnlikeProject } from '@/features/projects/mutations'
 import { useFollowUser, useUnfollowUser } from '@/features/follows/mutations'
-import { useDismissExploreProject } from '@/features/explore/mutations'
+import {
+  useDismissExplorePost,
+  useDismissExploreProject,
+  useResetExplorePosts,
+  useResetExploreProjects,
+} from '@/features/explore/mutations'
 import { useOpenConversation } from '@/features/inbox/use-open-conversation'
 import { disabledQuery } from '@/lib/query'
 import {
@@ -64,6 +69,10 @@ import type {
   BuilderPreview,
   ExploreFeedPayload,
 } from '@/features/explore/types'
+
+const EXPLORE_INITIAL_LIMIT = 20
+const EXPLORE_MAX_LIMIT = 50
+const EXPLORE_LIMIT_STEP = 20
 
 export const Route = createFileRoute('/_app/explore')({
   validateSearch: normalizeExploreSearch,
@@ -151,8 +160,14 @@ function ExplorePage() {
   const currentMode = search.mode
   const isGlobalFeed = isExploreProjectFeedGlobal(currentScope)
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set())
+  const [dismissedPostIds, setDismissedPostIds] = useState<Set<string>>(
+    new Set(),
+  )
+  const [projectLimit, setProjectLimit] = useState(EXPLORE_INITIAL_LIMIT)
+  const [postLimit, setPostLimit] = useState(EXPLORE_INITIAL_LIMIT)
   const [pendingLikes, setPendingLikes] = useState<Set<string>>(new Set())
   const [pendingFollows, setPendingFollows] = useState<Set<string>>(new Set())
+  const [resetPending, setResetPending] = useState(false)
   const [followOverrides, setFollowOverrides] = useState<
     Record<string, boolean>
   >({})
@@ -202,6 +217,7 @@ function ExplorePage() {
     selectedCities,
   )
   const queryCityIds = canonicalSelectedCityIds as Array<Id<'cities'>>
+  const queryCityKey = queryCityIds.map(String).join('|')
   const nearbyBuilderCityIds = getNearbyBuilderCityIds({
     scope: currentScope,
     selectedCityIds: canonicalSelectedCityIds,
@@ -209,6 +225,7 @@ function ExplorePage() {
 
   const scopedFeedQuery = useQuery({
     ...exploreFeedQueryOptions({
+      limit: projectLimit,
       scope: currentScope,
       selectedCityIds: queryCityIds,
     }),
@@ -227,6 +244,9 @@ function ExplorePage() {
   const followUser = useFollowUser()
   const unfollowUser = useUnfollowUser()
   const dismissProject = useDismissExploreProject()
+  const dismissPost = useDismissExplorePost()
+  const resetProjects = useResetExploreProjects()
+  const resetPosts = useResetExplorePosts()
   const { openConversation, pendingUserId } = useOpenConversation()
 
   const citySearchResultsQuery = useQuery({
@@ -263,6 +283,7 @@ function ExplorePage() {
     isPostSearchActive
       ? postSearchQueryOptions({
           cityIds: queryCityIds,
+          limit: postLimit,
           q: debouncedSearchQuery,
         })
       : disabledQuery(
@@ -273,8 +294,14 @@ function ExplorePage() {
         ),
   )
   const feedQueryKey = exploreFeedQueryOptions({
+    limit: projectLimit,
     scope: currentScope,
     selectedCityIds: queryCityIds,
+  }).queryKey
+  const postSearchQueryKey = postSearchQueryOptions({
+    cityIds: queryCityIds,
+    limit: postLimit,
+    q: debouncedSearchQuery,
   }).queryKey
   const nearbyBuildersQueryKey =
     nearbyBuildersQueryOptions(nearbyBuilderCityIds).queryKey
@@ -340,6 +367,16 @@ function ExplorePage() {
   })
 
   useEffect(() => {
+    setProjectLimit(EXPLORE_INITIAL_LIMIT)
+    setDismissedIds(new Set())
+  }, [currentScope, queryCityKey, isProjectSearchActive])
+
+  useEffect(() => {
+    setPostLimit(EXPLORE_INITIAL_LIMIT)
+    setDismissedPostIds(new Set())
+  }, [debouncedSearchQuery, queryCityKey])
+
+  useEffect(() => {
     if (selectedCities.length === 0) {
       return
     }
@@ -388,11 +425,24 @@ function ExplorePage() {
         projects: ExploreFeedPayload['projects']
       }
     | undefined
-  const postResults =
-    (postSearchQuery.data as Array<Doc<'posts'>> | undefined) ?? []
+  const postSearchData = postSearchQuery.data as
+    | {
+        posts: Array<Doc<'posts'>>
+        hasMore: boolean
+      }
+    | undefined
+  const postResults = postSearchData?.posts ?? []
   const displayedItems = isProjectSearchActive
     ? (projectSearchData?.projects ?? [])
     : items
+  const hasMoreProjects =
+    !isProjectSearchActive &&
+    displayedItems.length >= projectLimit &&
+    projectLimit < EXPLORE_MAX_LIMIT
+  const hasMorePosts =
+    isPostSearchActive &&
+    Boolean(postSearchData?.hasMore) &&
+    postLimit < EXPLORE_MAX_LIMIT
   const canonicalSelectedCities = dedupeExploreCities(selectedCities)
   const selectedCityIdentities = new Set(
     canonicalSelectedCities.map(getExploreCityIdentity),
@@ -515,6 +565,45 @@ function ExplorePage() {
     }
   }
 
+  const handleDismissPost = async (postId: Id<'posts'>, postKey: string) => {
+    setDismissedPostIds((current) => new Set(current).add(postKey))
+
+    try {
+      await dismissPost({ postId })
+    } catch (error) {
+      console.error('Post dismiss failed', error)
+      setDismissedPostIds((current) => {
+        const next = new Set(current)
+        next.delete(postKey)
+        return next
+      })
+    }
+  }
+
+  const handleResetExplore = async () => {
+    if (resetPending) return
+
+    setResetPending(true)
+    try {
+      if (currentMode === 'posts') {
+        await resetPosts({})
+        setDismissedPostIds(new Set())
+        await queryClient.invalidateQueries({ queryKey: postSearchQueryKey })
+        return
+      }
+
+      if (currentMode === 'projects') {
+        await resetProjects({})
+        setDismissedIds(new Set())
+        await queryClient.invalidateQueries({ queryKey: feedQueryKey })
+      }
+    } catch (error) {
+      console.error('Explore reset failed', error)
+    } finally {
+      setResetPending(false)
+    }
+  }
+
   const handleLike = async (projectId: Id<'projects'>, projectKey: string) => {
     if (pendingLikes.has(projectKey)) return
     setPendingLikes((current) => new Set(current).add(projectKey))
@@ -601,6 +690,7 @@ function ExplorePage() {
         onCityQueryChange={setCityQuery}
         onModeChange={updateExploreMode}
         onRemoveCity={removeCityById}
+        onResetExplore={handleResetExplore}
         onSelectCity={(city) =>
           void persistCityIds(
             [...queryCityIds, city._id],
@@ -609,6 +699,7 @@ function ExplorePage() {
         }
         onSearchQueryChange={setLocalSearchQuery}
         pendingCityIds={pendingCityIds}
+        resetPending={resetPending}
         searchQuery={localSearchQuery}
         selectedCityChips={selectedCityChips}
       />
@@ -620,8 +711,11 @@ function ExplorePage() {
             builderSearchLoading={builderSearchQuery.isLoading}
             debouncedSearchQuery={debouncedSearchQuery}
             dismissedIds={dismissedIds}
+            dismissedPostIds={dismissedPostIds}
             followOverrides={followOverrides}
             followedUserIds={followedUserIds}
+            hasMoreProjects={hasMoreProjects}
+            hasMorePosts={hasMorePosts}
             isBuilderSearchActive={isBuilderSearchActive}
             isBuildersMode={currentMode === 'builders'}
             isGlobalFeed={isGlobalFeed}
@@ -630,9 +724,23 @@ function ExplorePage() {
             isProjectSearchActive={isProjectSearchActive}
             items={displayedItems}
             likedProjectIds={likedProjectIds}
+            loadMorePending={
+              scopedFeedQuery.isFetching || postSearchQuery.isFetching
+            }
+            onDismissPost={handleDismissPost}
             onDismissProject={handleDismiss}
             onFollowUser={handleFollow}
             onLikeProject={handleLike}
+            onLoadMorePosts={() =>
+              setPostLimit((current) =>
+                Math.min(current + EXPLORE_LIMIT_STEP, EXPLORE_MAX_LIMIT),
+              )
+            }
+            onLoadMoreProjects={() =>
+              setProjectLimit((current) =>
+                Math.min(current + EXPLORE_LIMIT_STEP, EXPLORE_MAX_LIMIT),
+              )
+            }
             onMessageUser={(userId) => void openConversation(userId)}
             onOpenBuilderProfile={(builder) =>
               void navigate({

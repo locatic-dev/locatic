@@ -9,7 +9,16 @@ export function getInboxDestinationSearch(
   isRequest: boolean,
 ) {
   return {
+    compose: null,
     conversation: conversationId,
     tab: getInboxTabForConversation(isRequest),
+  }
+}
+
+export function getInboxComposeSearch(otherUserId: string) {
+  return {
+    compose: otherUserId,
+    conversation: null,
+    tab: 'inbox' as const,
   }
 }

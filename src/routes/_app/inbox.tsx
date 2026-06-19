@@ -1,11 +1,16 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useSuspenseQuery } from '@tanstack/react-query'
+import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
 import { usePaginatedQuery } from 'convex/react'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { api } from '../../../convex/_generated/api'
-import { conversationsQueryOptions } from '@/features/inbox/queries'
+import type { Id } from '../../../convex/_generated/dataModel'
+import {
+  conversationRecipientPreviewQueryOptions,
+  conversationsQueryOptions,
+} from '@/features/inbox/queries'
 import {
   useMarkConversationRead,
+  useSendFirstMessage,
   useSendMessage,
 } from '@/features/inbox/mutations'
 import { LxAvatar } from '@/components/ui/lx-avatar'
@@ -26,6 +31,7 @@ import {
   ROUTE_PENDING_MIN_MS,
   ROUTE_PENDING_MS,
 } from '@/components/app-shell/route-pending'
+import { getInboxDestinationSearch } from '@/features/inbox/navigation'
 
 export const Route = createFileRoute('/_app/inbox')({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -34,8 +40,14 @@ export const Route = createFileRoute('/_app/inbox')({
       | 'requests',
     conversation:
       typeof search.conversation === 'string' ? search.conversation : null,
+    compose:
+      typeof search.compose === 'string' &&
+      typeof search.conversation !== 'string'
+        ? search.compose
+        : null,
   }),
   loaderDeps: ({ search }) => ({
+    composeUserId: search.compose,
     conversationId: search.conversation,
   }),
   loader: async ({ context, deps }) => {
@@ -45,6 +57,7 @@ export const Route = createFileRoute('/_app/inbox')({
     ])
 
     void deps.conversationId
+    void deps.composeUserId
   },
   pendingComponent: InboxRoutePending,
   pendingMs: ROUTE_PENDING_MS,
@@ -53,7 +66,11 @@ export const Route = createFileRoute('/_app/inbox')({
 })
 
 function InboxPage() {
-  const { tab, conversation: selectedId } = Route.useSearch()
+  const {
+    tab,
+    conversation: selectedId,
+    compose: composeUserId,
+  } = Route.useSearch()
   const navigate = Route.useNavigate()
   const { data: viewerData } = useSuspenseQuery(viewerQueryOptions())
   const { data: conversationsData } = useSuspenseQuery(
@@ -73,6 +90,26 @@ function InboxPage() {
     allConversations.find(
       (conversation) => String(conversation._id) === selectedId,
     ) ?? null
+  const recipientPreviewQuery = useQuery({
+    ...conversationRecipientPreviewQueryOptions(composeUserId ?? ''),
+    enabled: Boolean(composeUserId) && !selectedConversation,
+  })
+  const draftRecipient = recipientPreviewQuery.data ?? null
+  const composePreviewLoading =
+    Boolean(composeUserId) &&
+    !selectedConversation &&
+    recipientPreviewQuery.isLoading
+  const composePreviewInvalid =
+    Boolean(composeUserId) &&
+    !selectedConversation &&
+    !recipientPreviewQuery.isLoading &&
+    !draftRecipient
+  const hasDetailPanel = Boolean(
+    selectedConversation ||
+    draftRecipient ||
+    composePreviewLoading ||
+    composePreviewInvalid,
+  )
   const markConversationRead = useMarkConversationRead()
 
   useEffect(() => {
@@ -128,7 +165,11 @@ function InboxPage() {
               onClick={() =>
                 void navigate({
                   to: '/inbox',
-                  search: { tab: tabItem.id, conversation: null },
+                  search: {
+                    compose: null,
+                    conversation: null,
+                    tab: tabItem.id,
+                  },
                 })
               }
               className={`relative inline-flex items-center gap-[7px] px-4 py-2.5 font-mono text-[12px] transition-colors ${
@@ -155,7 +196,7 @@ function InboxPage() {
       <div className="flex min-h-0 flex-1 flex-col">
         <div
           className={
-            selectedConversation
+            hasDetailPanel
               ? 'hidden'
               : 'flex min-h-0 w-full shrink-0 flex-col border-b border-line'
           }
@@ -212,6 +253,7 @@ function InboxPage() {
                       void navigate({
                         to: '/inbox',
                         search: {
+                          compose: null,
                           tab,
                           conversation: String(conversation._id),
                         },
@@ -256,12 +298,40 @@ function InboxPage() {
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col">
-          {!selectedConversation && (
+          {!hasDetailPanel && (
             <div className="flex flex-1 flex-col items-center justify-center gap-3.5 text-text-faint">
               <Inbox size={36} strokeWidth={1.2} />
               <span className="font-mono text-xs">
                 select a conversation to read messages.
               </span>
+            </div>
+          )}
+
+          {composePreviewLoading && (
+            <div className="flex flex-1 flex-col items-center justify-center gap-3.5 text-text-faint">
+              <Inbox size={36} strokeWidth={1.2} />
+              <span className="font-mono text-xs">loading conversation…</span>
+            </div>
+          )}
+
+          {composePreviewInvalid && (
+            <div className="flex flex-1 flex-col items-center justify-center gap-3.5 px-[var(--lx-gutter)] text-center text-text-faint">
+              <Inbox size={36} strokeWidth={1.2} />
+              <span className="font-mono text-xs">
+                could not open this message draft.
+              </span>
+              <Button
+                variant="monoOutline"
+                size="meta"
+                onClick={() =>
+                  void navigate({
+                    to: '/inbox',
+                    search: { compose: null, tab, conversation: null },
+                  })
+                }
+              >
+                back to inbox
+              </Button>
             </div>
           )}
 
@@ -272,6 +342,145 @@ function InboxPage() {
               viewerId={viewerId}
             />
           )}
+
+          {!selectedConversation && composeUserId && draftRecipient && (
+            <DraftConversationPanel
+              tab={tab}
+              otherUserId={draftRecipient.userId}
+              recipient={draftRecipient}
+            />
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+type DraftRecipient = {
+  userId: Id<'users'>
+  githubUsername: string
+  displayName: string
+  avatarUrl: string | null
+  cityName: string | null
+}
+
+function DraftConversationPanel({
+  otherUserId,
+  recipient,
+  tab,
+}: {
+  otherUserId: Id<'users'>
+  recipient: DraftRecipient
+  tab: 'inbox' | 'requests'
+}) {
+  const navigate = Route.useNavigate()
+  const sendFirstMessage = useSendFirstMessage()
+  const [newMessage, setNewMessage] = useState('')
+  const [sending, setSending] = useState(false)
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null)
+
+  useEffect(() => {
+    requestAnimationFrame(() => textareaRef.current?.focus())
+  }, [otherUserId])
+
+  const handleSend = async () => {
+    if (!newMessage.trim() || sending) return
+
+    setSending(true)
+    try {
+      const result = await sendFirstMessage({
+        otherUserId,
+        content: newMessage.trim(),
+      })
+      setNewMessage('')
+      await navigate({
+        to: '/inbox',
+        search: getInboxDestinationSearch(
+          String(result.conversationId),
+          result.isRequest,
+        ),
+      })
+    } catch (error) {
+      console.error('Send failed', error)
+    } finally {
+      setSending(false)
+    }
+  }
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="flex min-h-14 shrink-0 items-center gap-3 border-b border-line px-[var(--lx-gutter)]">
+        <Button
+          variant="ghost"
+          onClick={() =>
+            void navigate({
+              to: '/inbox',
+              search: { compose: null, tab, conversation: null },
+            })
+          }
+          className="md:hidden"
+        >
+          back
+        </Button>
+        <button
+          type="button"
+          onClick={() =>
+            void navigate({
+              to: '/u/$username',
+              params: { username: recipient.githubUsername },
+              search: { tab: 'projects', network: 'followers' },
+            })
+          }
+          className="flex min-w-0 items-center gap-3 rounded-[6px] px-1 py-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+        >
+          <LxAvatar
+            name={recipient.displayName}
+            avatarUrl={recipient.avatarUrl ?? undefined}
+            size={32}
+          />
+          <div className="min-w-0">
+            <div className="font-mono text-[12.5px] font-semibold text-text">
+              {recipient.displayName}
+            </div>
+            <div className="font-mono text-[10.5px] text-text-faint">
+              {recipient.cityName ?? 'location hidden'}
+            </div>
+          </div>
+        </button>
+      </div>
+
+      <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-[var(--lx-gutter)] text-center font-mono text-xs text-text-faint">
+        write the first message.
+      </div>
+
+      <div className="shrink-0 border-t border-line px-[var(--lx-gutter)] pt-2 pb-[calc(var(--lx-mobile-tab-height)+0.75rem)] md:pt-4 md:pb-5">
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-1.5 rounded-card border border-line bg-surface p-1.5 md:gap-3 md:border-0 md:bg-transparent md:p-0">
+          <Textarea
+            ref={textareaRef}
+            value={newMessage}
+            onChange={(event) => setNewMessage(event.target.value)}
+            placeholder="write a message…"
+            rows={1}
+            className="max-h-28 min-h-11 min-w-0 resize-none border-0 bg-transparent px-3 py-2.5 font-sans text-[16px] leading-6 text-text shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 md:min-h-20 md:border md:border-line md:bg-surface md:px-3 md:py-2 md:text-sm md:focus-visible:ring-2 md:focus-visible:ring-ring md:focus-visible:ring-offset-2"
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault()
+                void handleSend()
+              }
+            }}
+          />
+          <Button
+            type="button"
+            onClick={() => void handleSend()}
+            disabled={!newMessage.trim() || sending}
+            className="h-11 min-h-11 w-11 min-w-11 shrink-0 self-end border-none bg-brand px-0 font-mono text-[12.5px] font-semibold text-brand-foreground hover:bg-brand/90 md:w-auto md:px-4"
+            aria-label={sending ? 'Sending message' : 'Send message'}
+          >
+            <Send size={16} aria-hidden="true" className="md:hidden" />
+            <span className="hidden md:inline">
+              {sending ? 'sending…' : 'send'}
+            </span>
+          </Button>
         </div>
       </div>
     </div>
@@ -293,6 +502,7 @@ function SelectedConversationPanel({
   const [sending, setSending] = useState(false)
   const messagesScrollRef = useRef<HTMLDivElement | null>(null)
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const previousScrollHeightRef = useRef<number | null>(null)
   const openedConversationRef = useRef<string | null>(null)
   const shouldStickToBottomRef = useRef(true)
@@ -369,6 +579,7 @@ function SelectedConversationPanel({
     shouldStickToBottomRef.current = true
     sentMessagePendingRef.current = false
     lastMessageIdRef.current = null
+    requestAnimationFrame(() => textareaRef.current?.focus())
   }, [selectedConversation._id])
 
   useLayoutEffect(() => {
@@ -425,7 +636,7 @@ function SelectedConversationPanel({
           onClick={() =>
             void navigate({
               to: '/inbox',
-              search: { tab, conversation: null },
+              search: { compose: null, tab, conversation: null },
             })
           }
           className="md:hidden"
@@ -520,6 +731,7 @@ function SelectedConversationPanel({
       <div className="shrink-0 border-t border-line px-[var(--lx-gutter)] pt-2 pb-[calc(var(--lx-mobile-tab-height)+0.75rem)] md:pt-4 md:pb-5">
         <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-1.5 rounded-card border border-line bg-surface p-1.5 md:gap-3 md:border-0 md:bg-transparent md:p-0">
           <Textarea
+            ref={textareaRef}
             value={newMessage}
             onChange={(event) => setNewMessage(event.target.value)}
             placeholder="write a message…"
