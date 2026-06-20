@@ -65,6 +65,13 @@ import {
   ROUTE_PENDING_MIN_MS,
   ROUTE_PENDING_MS,
 } from '@/components/app-shell/route-pending'
+import {
+  getCommentExpansionPath,
+  getProjectDeepLinkTab,
+  parseCommentPathSearch,
+  shouldAutoLoadDeepLinkPage,
+  type ProjectTab,
+} from '@/features/projects/deep-link'
 
 function updateProjectLikePayload(
   payload: ProjectDetailPayload | null | undefined,
@@ -106,7 +113,11 @@ function updateProjectFollowPayload(
 export const Route = createFileRoute('/_app/project/$owner/$repo')({
   validateSearch: (search: Record<string, unknown>) => ({
     comment: typeof search.comment === 'string' ? search.comment : null,
+    ...(typeof search.commentPath === 'string'
+      ? { commentPath: search.commentPath }
+      : {}),
     ...(typeof search.post === 'string' ? { post: search.post } : {}),
+    ...(typeof search.thread === 'string' ? { thread: search.thread } : {}),
   }),
   loader: async ({ context, location, params }) => {
     const payload = await context.queryClient.ensureQueryData(
@@ -125,14 +136,18 @@ export const Route = createFileRoute('/_app/project/$owner/$repo')({
     ) {
       const search = location.search as {
         comment?: string | null
+        commentPath?: string
         post?: string
+        thread?: string
       }
       throw redirect({
         hash: location.hash,
         params: canonicalRoute,
         search: {
           comment: search.comment ?? null,
+          ...(search.commentPath ? { commentPath: search.commentPath } : {}),
           ...(search.post ? { post: search.post } : {}),
+          ...(search.thread ? { thread: search.thread } : {}),
         },
         to: '/project/$owner/$repo',
       })
@@ -148,8 +163,14 @@ function ProjectDetailPage() {
   const { owner, repo } = Route.useParams()
   const routeSearch = Route.useSearch()
   const highlightedCommentId = routeSearch.comment
+  const highlightedCommentPath =
+    'commentPath' in routeSearch
+      ? parseCommentPathSearch(routeSearch.commentPath)
+      : []
   const highlightedPostId =
     'post' in routeSearch ? (routeSearch.post ?? null) : null
+  const highlightedThreadId =
+    'thread' in routeSearch ? (routeSearch.thread ?? null) : null
   const router = useRouter()
   const canGoBack = useCanGoBack()
   const { isSignedIn } = useAuth()
@@ -203,6 +224,9 @@ function ProjectDetailPage() {
   const [replyingToId, setReplyingToId] = useState<string | null>(null)
   const [hashCommentId, setHashCommentId] = useState<string | null>(null)
   const [hashPostId, setHashPostId] = useState<string | null>(null)
+  const [activeProjectTab, setActiveProjectTab] = useState<ProjectTab>('readme')
+  const projectCommentLoadAttemptsRef = useRef(0)
+  const projectCommentLoadTargetRef = useRef<string | null>(null)
   const commentRefs = useRef<Record<string, HTMLElement | null>>({})
   const {
     expand: expandCommentThread,
@@ -309,8 +333,11 @@ function ProjectDetailPage() {
     readmeLinkBaseUrl: detail.project.github.readmeLinkBaseUrl,
     readmeLinkRootUrl: detail.project.github.readmeLinkRootUrl,
   }
-  const defaultProjectTab =
-    (detail.project.locatic.postsCount ?? 0) > 0 ? 'posts' : 'readme'
+  const defaultProjectTab = getProjectDeepLinkTab({
+    commentId: highlightedCommentId,
+    postId: highlightedPostId,
+    postsCount: detail.project.locatic.postsCount ?? 0,
+  })
   const isOwnProject = viewer?.id === String(detail.owner.userId)
   const projectTopics =
     detail.project.locatic.tags.length > 0
@@ -591,6 +618,57 @@ function ProjectDetailPage() {
 
   const activeHighlightedCommentId = highlightedCommentId ?? hashCommentId
   const activeHighlightedPostId = highlightedPostId ?? hashPostId
+  const commentExpansionPath = getCommentExpansionPath({
+    commentPath: highlightedCommentPath,
+    threadId: highlightedThreadId,
+  })
+
+  useEffect(() => {
+    setActiveProjectTab(defaultProjectTab)
+  }, [defaultProjectTab])
+
+  useEffect(() => {
+    if (activeHighlightedPostId) {
+      return
+    }
+
+    for (const commentId of commentExpansionPath) {
+      expandCommentThread(commentId)
+    }
+  }, [activeHighlightedPostId, commentExpansionPath, expandCommentThread])
+
+  useEffect(() => {
+    const highlightedRootCommentId =
+      commentExpansionPath[0] ?? activeHighlightedCommentId
+    if (activeHighlightedPostId || !highlightedRootCommentId) {
+      return
+    }
+    if (projectCommentLoadTargetRef.current !== highlightedRootCommentId) {
+      projectCommentLoadTargetRef.current = highlightedRootCommentId
+      projectCommentLoadAttemptsRef.current = 0
+    }
+
+    const rootIsLoaded = comments.some(
+      (commentItem) => String(commentItem._id) === highlightedRootCommentId,
+    )
+    if (
+      shouldAutoLoadDeepLinkPage({
+        attempts: projectCommentLoadAttemptsRef.current,
+        isLoaded: rootIsLoaded,
+        status: commentRoots.status,
+        targetId: highlightedRootCommentId,
+      })
+    ) {
+      projectCommentLoadAttemptsRef.current += 1
+      commentRoots.loadMore(10)
+    }
+  }, [
+    activeHighlightedCommentId,
+    activeHighlightedPostId,
+    commentExpansionPath,
+    commentRoots,
+    comments,
+  ])
 
   useEffect(() => {
     if (!activeHighlightedCommentId) {
@@ -865,7 +943,8 @@ function ProjectDetailPage() {
           </div>
 
           <Tabs
-            defaultValue={defaultProjectTab}
+            value={activeProjectTab}
+            onValueChange={(value) => setActiveProjectTab(value as ProjectTab)}
             className="pb-[calc(var(--lx-mobile-tab-height)+3rem)] md:pb-12"
           >
             <div className="mb-5 overflow-x-auto overflow-y-hidden border-b border-line">
@@ -895,6 +974,10 @@ function ProjectDetailPage() {
                 detail={detail}
                 isOwnProject={isOwnProject}
                 isSignedIn={Boolean(isSignedIn)}
+                highlightedCommentId={
+                  activeHighlightedPostId ? activeHighlightedCommentId : null
+                }
+                highlightedCommentPath={commentExpansionPath}
                 highlightedPostId={activeHighlightedPostId}
                 projectDetailQueryKey={projectDetailQueryKey}
                 viewerId={viewer?.id ? String(viewer.id) : null}

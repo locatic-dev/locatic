@@ -1,6 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { usePaginatedQuery } from 'convex/react'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { api } from '../../../../convex/_generated/api'
 import type { Doc, Id } from '../../../../convex/_generated/dataModel'
@@ -9,6 +9,7 @@ import { LxAvatar } from '@/components/ui/lx-avatar'
 import { Textarea } from '@/components/ui/textarea'
 import { relativeTime } from '@/lib/time'
 import { Heart, MessageSquare, Pencil, Trash2 } from '@/lib/icons'
+import { shouldAutoLoadDeepLinkPage } from '@/features/projects/deep-link'
 import {
   useAddComment,
   useDeleteComment,
@@ -31,12 +32,16 @@ type ProjectPost = Doc<'posts'> & {
 }
 
 export function ProjectPostCard({
+  activeHighlightedCommentId,
+  highlightedCommentPath,
   isOwner,
   isSignedIn,
   post,
   projectDetailQueryKey,
   viewerId,
 }: {
+  activeHighlightedCommentId: string | null
+  highlightedCommentPath: string[]
   isOwner: boolean
   isSignedIn: boolean
   post: ProjectPost
@@ -77,6 +82,8 @@ export function ProjectPostCard({
   const [editBody, setEditBody] = useState(post.body)
   const [savingEdit, setSavingEdit] = useState(false)
   const [deletingPost, setDeletingPost] = useState(false)
+  const commentLoadAttemptsRef = useRef(0)
+  const commentLoadTargetRef = useRef<string | null>(null)
   const commentRefs = useRef<Record<string, HTMLElement | null>>({})
   const {
     expand: expandCommentThread,
@@ -99,6 +106,59 @@ export function ProjectPostCard({
   )
   const postLiked = postLikeOverride?.liked ?? post.viewerHasLiked
   const postLikes = postLikeOverride?.count ?? post.reactionCounts.like ?? 0
+  const highlightedRootCommentId =
+    highlightedCommentPath[0] ?? activeHighlightedCommentId
+
+  useEffect(() => {
+    if (!highlightedRootCommentId || commentRoots.status !== 'CanLoadMore') {
+      return
+    }
+    if (commentLoadTargetRef.current !== highlightedRootCommentId) {
+      commentLoadTargetRef.current = highlightedRootCommentId
+      commentLoadAttemptsRef.current = 0
+    }
+
+    const rootIsLoaded = comments.some(
+      (commentItem) => String(commentItem._id) === highlightedRootCommentId,
+    )
+    if (
+      shouldAutoLoadDeepLinkPage({
+        attempts: commentLoadAttemptsRef.current,
+        isLoaded: rootIsLoaded,
+        status: commentRoots.status,
+        targetId: highlightedRootCommentId,
+      })
+    ) {
+      commentLoadAttemptsRef.current += 1
+      commentRoots.loadMore(6)
+    }
+  }, [commentRoots, comments, highlightedRootCommentId])
+
+  useEffect(() => {
+    if (!activeHighlightedCommentId) {
+      return
+    }
+
+    for (const commentId of highlightedCommentPath) {
+      expandCommentThread(commentId)
+    }
+  }, [activeHighlightedCommentId, expandCommentThread, highlightedCommentPath])
+
+  useEffect(() => {
+    if (!activeHighlightedCommentId) {
+      return
+    }
+
+    const commentElement = commentRefs.current[activeHighlightedCommentId]
+    if (!commentElement) {
+      return
+    }
+
+    commentElement.scrollIntoView({
+      behavior: 'smooth',
+      block: 'center',
+    })
+  }, [activeHighlightedCommentId, comments.length, expandedIds])
 
   const handleTogglePostLike = async () => {
     if (!isSignedIn || postLikePending) {
@@ -483,7 +543,7 @@ export function ProjectPostCard({
           {visibleRootComments.map((commentItem) => (
             <CommentThread
               key={String(commentItem._id)}
-              activeHighlightedCommentId={null}
+              activeHighlightedCommentId={activeHighlightedCommentId}
               commentItem={commentItem}
               commentLikeOverrides={commentLikeOverrides}
               commentRefs={commentRefs}

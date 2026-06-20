@@ -6,11 +6,14 @@ import { api } from '../../../../convex/_generated/api'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import type { ProjectDetailPayload } from '@/features/contracts'
+import { shouldAutoLoadDeepLinkPage } from '@/features/projects/deep-link'
 import { useCreatePost } from '@/features/projects/mutations'
 import { ProjectPostCard } from './project-post-card'
 
 export function ProjectPostsSection({
   detail,
+  highlightedCommentId,
+  highlightedCommentPath,
   highlightedPostId,
   isOwnProject,
   isSignedIn,
@@ -18,6 +21,8 @@ export function ProjectPostsSection({
   viewerId,
 }: {
   detail: ProjectDetailPayload
+  highlightedCommentId: string | null
+  highlightedCommentPath: string[]
   highlightedPostId: string | null
   isOwnProject: boolean
   isSignedIn: boolean
@@ -28,6 +33,8 @@ export function ProjectPostsSection({
   const createPost = useCreatePost()
   const [postBody, setPostBody] = useState('')
   const [postingRepoPost, setPostingRepoPost] = useState(false)
+  const postLoadAttemptsRef = useRef(0)
+  const postLoadTargetRef = useRef<string | null>(null)
   const postRefs = useRef<Record<string, HTMLElement | null>>({})
   const projectPosts = usePaginatedQuery(
     api.posts.listByProject,
@@ -35,6 +42,31 @@ export function ProjectPostsSection({
     { initialNumItems: 8 },
   )
   const posts = projectPosts.results ?? []
+
+  useEffect(() => {
+    if (!highlightedPostId || projectPosts.status !== 'CanLoadMore') {
+      return
+    }
+    if (postLoadTargetRef.current !== highlightedPostId) {
+      postLoadTargetRef.current = highlightedPostId
+      postLoadAttemptsRef.current = 0
+    }
+
+    const postIsLoaded = posts.some(
+      (post) => String(post._id) === highlightedPostId,
+    )
+    if (
+      shouldAutoLoadDeepLinkPage({
+        attempts: postLoadAttemptsRef.current,
+        isLoaded: postIsLoaded,
+        status: projectPosts.status,
+        targetId: highlightedPostId,
+      })
+    ) {
+      postLoadAttemptsRef.current += 1
+      projectPosts.loadMore(8)
+    }
+  }, [highlightedPostId, posts, projectPosts])
 
   useEffect(() => {
     if (!highlightedPostId) {
@@ -124,6 +156,12 @@ export function ProjectPostsSection({
               }
             >
               <ProjectPostCard
+                activeHighlightedCommentId={
+                  highlighted ? highlightedCommentId : null
+                }
+                highlightedCommentPath={
+                  highlighted ? highlightedCommentPath : []
+                }
                 isOwner={isOwnProject}
                 isSignedIn={isSignedIn}
                 post={post}

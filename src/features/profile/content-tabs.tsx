@@ -25,7 +25,7 @@ export function ProfileContentTabs({
           <button
             key={tabItem.id}
             onClick={() => onSelectTab(tabItem.id)}
-            className={`relative inline-flex min-h-11 min-w-0 items-center justify-center gap-1 px-1.5 py-3.5 text-center font-mono text-[11px] sm:text-[12.5px] ${
+            className={`relative inline-flex min-h-11 min-w-0 items-center justify-center gap-1 whitespace-nowrap px-2.5 py-3.5 text-center font-mono text-[11px] sm:text-[12.5px] ${
               activeTab === tabItem.id
                 ? 'font-semibold text-text'
                 : 'text-text-faint'
@@ -33,7 +33,7 @@ export function ProfileContentTabs({
             type="button"
             aria-busy={isRoutePending && activeTab === tabItem.id}
           >
-            <span className="min-w-0 truncate">
+            <span className="min-w-0 truncate whitespace-nowrap">
               <span className="sm:hidden">{tabItem.mobileLabel}</span>
               <span className="hidden sm:inline">{tabItem.label}</span>
             </span>

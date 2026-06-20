@@ -24,6 +24,11 @@ import {
   type ProfileNetworkTab,
 } from '@/features/profile/state'
 import { ProfileContentTabs } from '@/features/profile/content-tabs'
+import {
+  commentAvailabilityCopy,
+  getProfileCommentDestination,
+  isCommentTargetOpenable,
+} from '@/features/profile/comment-navigation'
 import { ProfileMobileAccountActions } from '@/features/profile/mobile-account-actions'
 import { ProfileNetworkSection } from '@/features/profile/network-section'
 import { ProfilePostList } from '@/features/profile/post-list'
@@ -61,32 +66,6 @@ import {
 import { socialLinkHref } from '@/lib/social-links'
 import { Pin } from '@/lib/icons'
 import { shouldPrefetchPrivateConvexQueries } from '@/lib/auth-routing'
-
-function isCommentTargetOpenable(
-  comment: ProfileCommentPreview,
-): comment is ProfileCommentPreview & {
-  projectOwner: string
-  projectRepo: string
-  targetAvailability: 'available'
-} {
-  return (
-    comment.targetAvailability === 'available' &&
-    Boolean(comment.projectOwner) &&
-    Boolean(comment.projectRepo)
-  )
-}
-
-function commentAvailabilityCopy(comment: ProfileCommentPreview) {
-  switch (comment.targetAvailability) {
-    case 'available':
-      return 'open in project'
-    case 'hidden':
-      return 'hidden from profile'
-    case 'deleted':
-    default:
-      return 'project removed'
-  }
-}
 
 const TAB_QUERY_STALE_TIME = 60_000
 const SOCIAL_PAGE_SIZE = 12
@@ -443,19 +422,12 @@ function ProfilePage() {
   }
 
   const openCommentTarget = (comment: ProfileCommentPreview) => {
-    if (!isCommentTargetOpenable(comment)) {
+    const destination = getProfileCommentDestination(comment)
+    if (!destination) {
       return
     }
 
-    void navigate({
-      to: '/project/$owner/$repo',
-      params: {
-        owner: comment.projectOwner,
-        repo: comment.projectRepo,
-      },
-      search: { comment: String(comment._id) },
-      hash: `comment-${String(comment._id)}`,
-    })
+    void navigate(destination)
   }
 
   const handleLoadMoreGraph = async (kind: ProfileNetworkTab) => {
@@ -509,7 +481,7 @@ function ProfilePage() {
   return (
     <div className="lx-page-shell">
       <div className="lx-page-scroll flex-1">
-        <div className="lx-page-width-detail">
+        <div className="lx-page-width-profile">
           <div className="relative border-b border-line py-8 pb-7">
             <div className="flex flex-col items-start gap-6">
               <LxAvatar
