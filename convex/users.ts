@@ -28,7 +28,8 @@ import {
   buildProjectCardPreview,
   resolvePublicCityLabel,
 } from './lib/project_previews'
-import { filterVisiblePosts } from './lib/posts'
+import { filterVisiblePosts, getVisiblePostProject } from './lib/posts'
+import { isProjectPubliclyInteractable } from './lib/project_access'
 import {
   getAccountDeletionWindow,
   shouldPurgeDeletedAccount,
@@ -137,6 +138,28 @@ const serializedViewerValidator = v.object({
   ),
   deactivatedAt: optionalTimestampValidator,
   deletedAt: optionalTimestampValidator,
+})
+
+const profileCommentPreviewValidator = v.object({
+  _id: v.id('comments'),
+  targetType: v.union(v.literal('project'), v.literal('post')),
+  targetId: v.string(),
+  targetPostId: v.union(v.string(), v.null()),
+  rootCommentId: v.string(),
+  ancestorCommentIds: v.array(v.string()),
+  content: v.string(),
+  replyCount: v.number(),
+  likesCount: v.number(),
+  createdAt: v.number(),
+  projectFullName: v.union(v.string(), v.null()),
+  projectOwner: v.union(v.string(), v.null()),
+  projectRepo: v.union(v.string(), v.null()),
+  targetLabel: v.string(),
+  targetAvailability: v.union(
+    v.literal('available'),
+    v.literal('hidden'),
+    v.literal('deleted'),
+  ),
 })
 
 const viewerBootstrapValidator = v.object({
@@ -512,6 +535,28 @@ async function buildProfileCommentPreview(
   let projectRepo = comment.targetSnapshot.projectRepo
   let targetLabel = comment.targetSnapshot.targetLabel
   let targetAvailability: 'available' | 'hidden' | 'deleted' = 'deleted'
+  let targetPostId: string | null = null
+  const ancestorCommentIds: string[] = []
+  let rootCommentId = String(comment._id)
+
+  let parentId = comment.parentId
+  const seenParentIds = new Set<string>()
+  while (parentId && seenParentIds.size < 20) {
+    const parentKey = String(parentId)
+    if (seenParentIds.has(parentKey)) {
+      break
+    }
+
+    seenParentIds.add(parentKey)
+    const parent = await ctx.db.get(parentId)
+    if (!parent) {
+      break
+    }
+
+    ancestorCommentIds.unshift(parentKey)
+    rootCommentId = parentKey
+    parentId = parent.parentId
+  }
 
   if (comment.targetType === 'project') {
     const projectId = ctx.db.normalizeId('projects', comment.targetId)
@@ -521,7 +566,27 @@ async function buildProfileCommentPreview(
       projectOwner = resolveProjectOwnerLogin(project)
       projectRepo = project.github.name
       targetLabel = project.github.fullName
-      targetAvailability = project.locatic.isVisible ? 'available' : 'hidden'
+      targetAvailability = (await isProjectPubliclyInteractable(ctx, project))
+        ? 'available'
+        : 'hidden'
+    }
+  } else {
+    targetPostId = comment.targetId
+    const postId = ctx.db.normalizeId('posts', comment.targetId)
+    const post = postId ? await ctx.db.get(postId) : null
+    if (post && post.deletedAt === null) {
+      const project = await ctx.db.get(post.projectId)
+      if (project) {
+        projectFullName = project.github.fullName
+        projectOwner = resolveProjectOwnerLogin(project)
+        projectRepo = project.github.name
+        targetLabel = `${project.github.fullName} post`
+        targetAvailability = (await getVisiblePostProject(ctx, post))
+          ? 'available'
+          : 'hidden'
+      } else {
+        targetAvailability = 'hidden'
+      }
     }
   }
 
@@ -529,6 +594,9 @@ async function buildProfileCommentPreview(
     _id: comment._id,
     targetType: comment.targetType,
     targetId: comment.targetId,
+    targetPostId,
+    rootCommentId,
+    ancestorCommentIds,
     content: comment.content,
     replyCount: comment.replyCount,
     likesCount: comment.likesCount,
@@ -980,6 +1048,7 @@ export const privateProfileContributions = query({
 
 export const privateProfileComments = query({
   args: {},
+  returns: v.array(profileCommentPreviewValidator),
   handler: async (ctx) => {
     const viewer = await getViewerOrThrow(ctx)
     return await listPrivateProfileComments(ctx, viewer._id)
@@ -1238,6 +1307,7 @@ export const publicProfileComments = query({
   args: {
     username: v.string(),
   },
+  returns: v.union(v.array(profileCommentPreviewValidator), v.null()),
   handler: async (ctx, args) => {
     const { viewer } = await getAccessiblePublicProfileViewer(
       ctx,

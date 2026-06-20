@@ -33,6 +33,9 @@ export type ProfileCommentPreview = {
   _id: Id<'comments'>
   targetType: Doc<'comments'>['targetType']
   targetId: string
+  targetPostId: string | null
+  rootCommentId: string
+  ancestorCommentIds: string[]
   content: string
   replyCount: number
   likesCount: number

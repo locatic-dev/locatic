@@ -55,6 +55,12 @@ import {
   type ProfileContentTab,
   type ProfileNetworkTab,
 } from '@/features/profile/state'
+import { ProfileContentTabs } from '@/features/profile/content-tabs'
+import {
+  commentAvailabilityCopy,
+  getProfileCommentDestination,
+  isCommentTargetOpenable,
+} from '@/features/profile/comment-navigation'
 import { ProfileNetworkSection } from '@/features/profile/network-section'
 import { ProfilePostList } from '@/features/profile/post-list'
 import { socialLinkHref } from '@/lib/social-links'
@@ -65,32 +71,6 @@ import { useOpenConversation } from '@/features/inbox/use-open-conversation'
 
 const TAB_QUERY_STALE_TIME = 60_000
 const SOCIAL_PAGE_SIZE = 12
-
-function isCommentTargetOpenable(
-  comment: ProfileCommentPreview,
-): comment is ProfileCommentPreview & {
-  projectOwner: string
-  projectRepo: string
-  targetAvailability: 'available'
-} {
-  return (
-    comment.targetAvailability === 'available' &&
-    Boolean(comment.projectOwner) &&
-    Boolean(comment.projectRepo)
-  )
-}
-
-function commentAvailabilityCopy(comment: ProfileCommentPreview) {
-  switch (comment.targetAvailability) {
-    case 'available':
-      return 'open in project'
-    case 'hidden':
-      return 'hidden from profile'
-    case 'deleted':
-    default:
-      return 'project removed'
-  }
-}
 
 export const Route = createFileRoute('/u/$username')({
   validateSearch: normalizeProfileSearch,
@@ -548,19 +528,36 @@ function PublicProfileContent({
   }
 
   const tabs = [
-    { count: overview.stats.projectsCount, id: 'projects', label: 'projects' },
+    {
+      count: overview.stats.projectsCount,
+      id: 'projects',
+      label: 'projects',
+      mobileLabel: 'projects',
+    },
     {
       count: overview.stats.postsCount ?? 0,
       id: 'posts',
       label: 'posts',
+      mobileLabel: 'posts',
     },
     {
       count: overview.stats.contributionsCount,
       id: 'contributions',
       label: 'contributions',
+      mobileLabel: 'contrib',
     },
-    { count: overview.stats.commentsCount, id: 'comments', label: 'comments' },
-    { count: overview.stats.likedCount, id: 'liked', label: 'liked' },
+    {
+      count: overview.stats.commentsCount,
+      id: 'comments',
+      label: 'comments',
+      mobileLabel: 'comments',
+    },
+    {
+      count: overview.stats.likedCount,
+      id: 'liked',
+      label: 'liked',
+      mobileLabel: 'liked',
+    },
   ] as const
 
   const sortedComments = [...comments].sort(
@@ -572,19 +569,12 @@ function PublicProfileContent({
     activeSocialQuery.data === undefined
 
   const openCommentTarget = (comment: ProfileCommentPreview) => {
-    if (!isCommentTargetOpenable(comment)) {
+    const destination = getProfileCommentDestination(comment)
+    if (!destination) {
       return
     }
 
-    void navigate({
-      to: '/project/$owner/$repo',
-      params: {
-        owner: comment.projectOwner,
-        repo: comment.projectRepo,
-      },
-      search: { comment: String(comment._id) },
-      hash: `comment-${String(comment._id)}`,
-    })
+    void navigate(destination)
   }
 
   return (
@@ -649,7 +639,7 @@ function PublicProfileContent({
         </header>
       )}
 
-      <div className="lx-page-width-detail py-8 pb-20">
+      <div className="lx-page-width-profile py-8 pb-20">
         {inAppShell && (
           <div className="mb-6 flex flex-wrap justify-end gap-2">
             {isOwnProfile ? (
@@ -876,34 +866,15 @@ function PublicProfileContent({
           </aside>
 
           <section>
-            <div className="overflow-x-auto overflow-y-hidden border-b border-line">
-              <div className="flex min-w-max items-stretch gap-1">
-                {tabs.map((tabItem) => (
-                  <button
-                    key={tabItem.id}
-                    onClick={() => {
-                      void prefetchTab(tabItem.id)
-                      navigateSearch({ tab: tabItem.id })
-                    }}
-                    className={`relative inline-flex min-h-11 min-w-24 shrink-0 flex-1 items-center justify-center gap-1.75 px-3 py-3.5 text-center font-mono text-[12.5px] ${
-                      tab === tabItem.id
-                        ? 'font-semibold text-text'
-                        : 'text-text-faint'
-                    }`}
-                    type="button"
-                    aria-busy={isRoutePending && tab === tabItem.id}
-                  >
-                    {tabItem.label}
-                    <span className="rounded-pill bg-surface-alt px-1.5 py-px text-[10.5px] leading-[1.3] text-text-faint">
-                      {tabItem.count}
-                    </span>
-                    {tab === tabItem.id && (
-                      <div className="absolute bottom-0 left-3 right-3 h-0.5 bg-brand" />
-                    )}
-                  </button>
-                ))}
-              </div>
-            </div>
+            <ProfileContentTabs
+              activeTab={tab}
+              isRoutePending={isRoutePending}
+              tabs={tabs}
+              onSelectTab={(nextTab) => {
+                void prefetchTab(nextTab)
+                navigateSearch({ tab: nextTab })
+              }}
+            />
 
             <div className="pt-7">
               {contentIsLoading && (

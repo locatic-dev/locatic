@@ -27,33 +27,35 @@ features/
 
 ## WHERE TO LOOK
 
-| Task                      | Location                                   | Notes                                                                                                      |
-| ------------------------- | ------------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
-| Add new feature           | `features/<name>/`                         | Create dir with hooks, types, components                                                                   |
-| Shared types              | `contracts.ts`                             | Cross-feature type definitions                                                                             |
-| Search state              | `explore/state.ts`, `profile/state.ts`     | Normalize route search params; `getExploreLoaderDeps` for stable deps                                      |
-| Debounced search          | `explore/use-debounced-route-search.ts`    | Route-synced debounced input with rapid clear/backspace handling                                           |
-| Notification routing      | `notifications/navigation.ts`              | `getNotificationDestination` — converts db target to router dest                                           |
-| Inbox destinations        | `inbox/navigation.ts`                      | `getInboxDestinationSearch` for conversation nav, `getInboxComposeSearch` for compose flow                 |
-| Inbox compose flow        | `inbox/` + `routes/_app/inbox.tsx`         | Two-phase: `findWithUser` query → navigate to compose → `sendFirstMessage` mutation                        |
-| Project card preview      | `project-card-preview.ts`                  | `toProjectCardData`, `getProjectCardRouteParams` mapping helpers                                           |
-| Liked-by display          | `projects/likes/liked-by-summary.tsx`      | Avatar stack + count + expandable dialog with paginated likers                                             |
-| Feed copy                 | `home/activity-labels.ts`                  | Activity labels and card copy                                                                              |
-| GitHub sync logic         | `github/`                                  | API calls, webhook handlers                                                                                |
-| City search               | `cities/`                                  | Geolocation, city data                                                                                     |
-| Current user data         | `viewer/`                                  | Authenticated user context, route payloads                                                                 |
-| Onboarding helpers        | `onboarding/helpers.ts`                    | Repo-derived stack prefs, owned projects                                                                   |
-| Profile posts UI          | `profile/post-list.tsx`                    | `ProfilePostList` component; tab-gated query for profile posts tab                                         |
-| Profile content tabs      | `profile/content-tabs.tsx`                 | Responsive grid `grid-cols-2 min-[520px]:grid-cols-3 lg:grid-cols-5`; supports `posts` tab                 |
-| Profile network UI        | `profile/network-section.tsx`              | Follow graph section; loading skeleton + private visibility gating                                         |
-| Project likes             | `projects/mutations.ts`                    | Locatic-only like/unlike actions; no GitHub star sync                                                      |
-| Project post feed         | `projects/posts/project-posts-section.tsx` | Paginated post list via `usePaginatedQuery` on project detail                                              |
-| Explore post click        | `explore/components/explore-feed.tsx`      | Post results click navigates to project page via `onOpenPostResult`                                        |
-| Explore post dismiss      | `explore/mutations.ts`                     | `useDismissExplorePost`, `useResetExplorePosts`                                                            |
-| Explore load more         | `explore/components/explore-feed.tsx`      | Incremental via `onLoadMoreProjects`/`onLoadMorePosts` with limit step                                     |
-| Explore query transitions | `explore/query-transitions.ts`             | `keepPreviousExploreFeedData`/`keepPreviousPostSearchData` for smooth data retention during filter changes |
-| Home feed render state    | `home/render-state.ts`                     | `getHomeFeedRenderState` for loading/empty/items states                                                    |
-| Comment composer styles   | `projects/comments/composer-styles.ts`     | `commentComposerTextareaClass` shared textarea style constant                                              |
+| Task                       | Location                                   | Notes                                                                                                                                                               |
+| -------------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Add new feature            | `features/<name>/`                         | Create dir with hooks, types, components                                                                                                                            |
+| Shared types               | `contracts.ts`                             | Cross-feature type definitions                                                                                                                                      |
+| Search state               | `explore/state.ts`, `profile/state.ts`     | Normalize route search params; `getExploreLoaderDeps` for stable deps                                                                                               |
+| Debounced search           | `explore/use-debounced-route-search.ts`    | Route-synced debounced input with rapid clear/backspace handling                                                                                                    |
+| Notification routing       | `notifications/navigation.ts`              | `getNotificationDestination` — converts db target to router dest                                                                                                    |
+| Inbox destinations         | `inbox/navigation.ts`                      | `getInboxDestinationSearch` for conversation nav, `getInboxComposeSearch` for compose flow                                                                          |
+| Inbox compose flow         | `inbox/` + `routes/_app/inbox.tsx`         | Two-phase: `findWithUser` query → navigate to compose → `sendFirstMessage` mutation                                                                                 |
+| Project card preview       | `project-card-preview.ts`                  | `toProjectCardData`, `getProjectCardRouteParams` mapping helpers                                                                                                    |
+| Liked-by display           | `projects/likes/liked-by-summary.tsx`      | Avatar stack + count + expandable dialog with paginated likers                                                                                                      |
+| Feed copy                  | `home/activity-labels.ts`                  | Activity labels and card copy                                                                                                                                       |
+| GitHub sync logic          | `github/`                                  | API calls, webhook handlers                                                                                                                                         |
+| City search                | `cities/`                                  | Geolocation, city data                                                                                                                                              |
+| Current user data          | `viewer/`                                  | Authenticated user context, route payloads                                                                                                                          |
+| Onboarding helpers         | `onboarding/helpers.ts`                    | Repo-derived stack prefs, owned projects                                                                                                                            |
+| Profile posts UI           | `profile/post-list.tsx`                    | `ProfilePostList` component; tab-gated query for profile posts tab                                                                                                  |
+| Profile content tabs       | `profile/content-tabs.tsx`                 | Responsive grid `grid-cols-2 min-[520px]:grid-cols-3 lg:grid-cols-5`; supports `posts` tab                                                                          |
+| Profile network UI         | `profile/network-section.tsx`              | Follow graph section; loading skeleton + private visibility gating                                                                                                  |
+| Project likes              | `projects/mutations.ts`                    | Locatic-only like/unlike actions; no GitHub star sync                                                                                                               |
+| Project post feed          | `projects/posts/project-posts-section.tsx` | Paginated post list via `usePaginatedQuery` on project detail                                                                                                       |
+| Explore post click         | `explore/components/explore-feed.tsx`      | Post results click navigates to project page via `onOpenPostResult`                                                                                                 |
+| Explore post dismiss       | `explore/mutations.ts`                     | `useDismissExplorePost`, `useResetExplorePosts`                                                                                                                     |
+| Explore load more          | `explore/components/explore-feed.tsx`      | Incremental via `onLoadMoreProjects`/`onLoadMorePosts` with limit step                                                                                              |
+| Explore query transitions  | `explore/query-transitions.ts`             | `keepPreviousExploreFeedData`/`keepPreviousPostSearchData` for smooth data retention during filter changes                                                          |
+| Home feed render state     | `home/render-state.ts`                     | `getHomeFeedRenderState` for loading/empty/items states                                                                                                             |
+| Comment composer styles    | `projects/comments/composer-styles.ts`     | `commentComposerTextareaClass` shared textarea style constant                                                                                                       |
+| Profile comment navigation | `profile/comment-navigation.ts`            | `getProfileCommentDestination` builds deep-link with `comment`/`commentPath`/`thread`/`post` search params; `isCommentTargetOpenable` gates by `targetAvailability` |
+| Project deep link          | `projects/deep-link.ts`                    | `getProjectDeepLinkTab`, `parseCommentPathSearch`, `getCommentExpansionPath`, `shouldAutoLoadDeepLinkPage`; tab routing + comment expansion from URL search params  |
 
 ## CONVENTIONS
 
@@ -72,6 +74,9 @@ features/
 - Profile content tabs use responsive grid: `grid-cols-2 min-[520px]:grid-cols-3 lg:grid-cols-5`; supports `posts` tab alongside projects/contributions/liked.
 - Profile posts tab uses tab-gated queries: enabled only when `tab === 'posts'`; matches pattern set by projects/contributions tabs.
 - Profile network section has `isPrivate` + `loading` props; hides follower/following tab switcher when follow graph is private.
+- Profile comment navigation: `getProfileCommentDestination` builds route with `comment`/`commentPath`/`thread`/`post` search params; supports both `project` and `post` target types; `isCommentTargetOpenable` gates by `targetAvailability`
+- Project deep link tab routing: `getProjectDeepLinkTab({commentId, postId, postsCount})` — comment param selects `discussion` tab, post param selects `posts` tab, default falls back to `posts` if count > 0 else `readme`
+- Deep link pagination: `shouldAutoLoadDeepLinkPage` gates auto-load with attempt limit (`DEEP_LINK_LOAD_MORE_ATTEMPT_LIMIT = 5`); `getCommentExpansionPath` prefers explicit `ancestorCommentIds` over `rootCommentId` fallback
 
 ## ANTI-PATTERNS
 
