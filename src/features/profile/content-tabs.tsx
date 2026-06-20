@@ -20,7 +20,7 @@ export function ProfileContentTabs({
 }) {
   return (
     <div className="border-b border-line">
-      <div className="grid grid-cols-4 items-stretch gap-0">
+      <div className="grid grid-cols-2 items-stretch gap-0 min-[520px]:grid-cols-3 lg:grid-cols-5">
         {tabs.map((tabItem) => (
           <button
             key={tabItem.id}

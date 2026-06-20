@@ -15,6 +15,7 @@ import {
   privateProfileContributionsQueryOptions,
   privateProfileLikedProjectsQueryOptions,
   privateProfileOverviewQueryOptions,
+  privateProfilePostsQueryOptions,
   privateProfileProjectsQueryOptions,
 } from '@/features/profile/queries'
 import {
@@ -25,6 +26,7 @@ import {
 import { ProfileContentTabs } from '@/features/profile/content-tabs'
 import { ProfileMobileAccountActions } from '@/features/profile/mobile-account-actions'
 import { ProfileNetworkSection } from '@/features/profile/network-section'
+import { ProfilePostList } from '@/features/profile/post-list'
 import { LxAvatar } from '@/components/ui/lx-avatar'
 import { StatusPill } from '@/components/ui/status-pill'
 import { BrandIcon } from '@/components/ui/brand-icon'
@@ -45,6 +47,7 @@ import {
   type ContributedProjectPreview,
   type ProjectCardPreview,
   type ProfileCommentPreview,
+  type ProfilePostPreview,
   type PrivateProfileOverviewPayload,
   type ProfileSocialPagePayload,
 } from '@/features/contracts'
@@ -93,14 +96,17 @@ export const Route = createFileRoute('/_app/profile')({
   loaderDeps: ({ search }) => ({
     network: search.network ?? 'followers',
   }),
-  loader: ({ context, deps }) => {
+  loader: async ({ context, deps }) => {
     if (!shouldPrefetchPrivateConvexQueries()) {
       return
     }
 
-    return Promise.all([
-      context.queryClient.ensureQueryData(privateProfileOverviewQueryOptions()),
-      context.queryClient.ensureQueryData(
+    const overview = await context.queryClient.ensureQueryData(
+      privateProfileOverviewQueryOptions(),
+    )
+
+    if (overview.viewer.privacy.followGraphVisibility === 'public') {
+      await context.queryClient.ensureQueryData(
         privateFollowGraphQueryOptions({
           kind: deps.network,
           paginationOpts: {
@@ -108,8 +114,10 @@ export const Route = createFileRoute('/_app/profile')({
             numItems: SOCIAL_PAGE_SIZE,
           },
         }),
-      ),
-    ])
+      )
+    }
+
+    return overview
   },
   pendingComponent: FormRoutePending,
   pendingMs: ROUTE_PENDING_MS,
@@ -174,12 +182,18 @@ function ProfilePage() {
         numItems: SOCIAL_PAGE_SIZE,
       },
     }),
+    enabled: overview.viewer.privacy.followGraphVisibility === 'public',
     staleTime: TAB_QUERY_STALE_TIME,
   })
 
   const projectsQuery = useQuery({
     ...privateProfileProjectsQueryOptions(),
     enabled: tab === 'projects',
+    staleTime: TAB_QUERY_STALE_TIME,
+  })
+  const postsQuery = useQuery({
+    ...privateProfilePostsQueryOptions(),
+    enabled: tab === 'posts',
     staleTime: TAB_QUERY_STALE_TIME,
   })
   const contributionsQuery = useQuery({
@@ -214,28 +228,31 @@ function ProfilePage() {
 
   useEffect(() => {
     void queryClient.prefetchQuery(privateProfileProjectsQueryOptions())
+    void queryClient.prefetchQuery(privateProfilePostsQueryOptions())
     void queryClient.prefetchQuery(privateProfileContributionsQueryOptions())
     void queryClient.prefetchQuery(privateProfileCommentsQueryOptions())
     void queryClient.prefetchQuery(privateProfileLikedProjectsQueryOptions())
-    void queryClient.prefetchQuery(
-      privateFollowGraphQueryOptions({
-        kind: 'followers',
-        paginationOpts: {
-          cursor: null,
-          numItems: SOCIAL_PAGE_SIZE,
-        },
-      }),
-    )
-    void queryClient.prefetchQuery(
-      privateFollowGraphQueryOptions({
-        kind: 'following',
-        paginationOpts: {
-          cursor: null,
-          numItems: SOCIAL_PAGE_SIZE,
-        },
-      }),
-    )
-  }, [queryClient])
+    if (overview.viewer.privacy.followGraphVisibility === 'public') {
+      void queryClient.prefetchQuery(
+        privateFollowGraphQueryOptions({
+          kind: 'followers',
+          paginationOpts: {
+            cursor: null,
+            numItems: SOCIAL_PAGE_SIZE,
+          },
+        }),
+      )
+      void queryClient.prefetchQuery(
+        privateFollowGraphQueryOptions({
+          kind: 'following',
+          paginationOpts: {
+            cursor: null,
+            numItems: SOCIAL_PAGE_SIZE,
+          },
+        }),
+      )
+    }
+  }, [overview.viewer.privacy.followGraphVisibility, queryClient])
 
   useEffect(() => {
     const syncedAt = overview.viewer.githubContributions?.syncedAt
@@ -278,6 +295,8 @@ function ProfilePage() {
     'website',
     overview.viewer.socialLinks.website,
   )
+  const isFollowGraphPublic =
+    overview.viewer.privacy.followGraphVisibility === 'public'
 
   const tabs = [
     {
@@ -285,6 +304,12 @@ function ProfilePage() {
       label: 'projects',
       mobileLabel: 'projects',
       count: overview.viewer.stats.projectsCount,
+    },
+    {
+      id: 'posts',
+      label: 'posts',
+      mobileLabel: 'posts',
+      count: overview.viewer.stats.postsCount ?? 0,
     },
     {
       id: 'contributions',
@@ -308,6 +333,7 @@ function ProfilePage() {
 
   const projects =
     (projectsQuery.data as Array<ProjectCardPreview> | undefined) ?? []
+  const posts = (postsQuery.data as Array<ProfilePostPreview> | undefined) ?? []
   const contributions =
     (contributionsQuery.data as Array<ContributedProjectPreview> | undefined) ??
     []
@@ -325,6 +351,7 @@ function ProfilePage() {
 
   const contentIsLoading =
     (tab === 'projects' && projectsQuery.isLoading) ||
+    (tab === 'posts' && postsQuery.isLoading) ||
     (tab === 'contributions' && contributionsQuery.isLoading) ||
     (tab === 'comments' && commentsQuery.isLoading) ||
     (tab === 'liked' && likedProjectsQuery.isLoading)
@@ -341,6 +368,8 @@ function ProfilePage() {
     switch (nextTab) {
       case 'projects':
         return queryClient.prefetchQuery(privateProfileProjectsQueryOptions())
+      case 'posts':
+        return queryClient.prefetchQuery(privateProfilePostsQueryOptions())
       case 'contributions':
         return queryClient.prefetchQuery(
           privateProfileContributionsQueryOptions(),
@@ -421,7 +450,7 @@ function ProfilePage() {
     }
 
     const currentPage = kind === 'followers' ? followersPage : followingPage
-    if (currentPage.isDone) {
+    if (currentPage.isDone || !isFollowGraphPublic) {
       return
     }
 
@@ -455,6 +484,11 @@ function ProfilePage() {
       setLoadingMoreGraph(null)
     }
   }
+
+  const networkIsLoading =
+    isFollowGraphPublic &&
+    activeSocialQuery.isLoading &&
+    activeSocialQuery.data === undefined
 
   return (
     <div className="lx-page-shell">
@@ -490,26 +524,57 @@ function ProfilePage() {
                     </p>
                   )}
                   <div className="flex flex-wrap items-center gap-4.5 font-mono text-xs">
-                    <button
-                      type="button"
-                      onClick={() => navigateSearch({ network: 'followers' })}
-                      className="bg-transparent p-0 text-left font-mono text-xs text-inherit"
-                    >
-                      <strong className="text-text">
-                        {compactNumber(overview.viewer.stats.followersCount)}
-                      </strong>{' '}
-                      <span className="text-text-faint">followers</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => navigateSearch({ network: 'following' })}
-                      className="bg-transparent p-0 text-left font-mono text-xs text-inherit"
-                    >
-                      <strong className="text-text">
-                        {compactNumber(overview.viewer.stats.followingCount)}
-                      </strong>{' '}
-                      <span className="text-text-faint">following</span>
-                    </button>
+                    {isFollowGraphPublic ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            navigateSearch({ network: 'followers' })
+                          }
+                          className="bg-transparent p-0 text-left font-mono text-xs text-inherit"
+                        >
+                          <strong className="text-text">
+                            {compactNumber(
+                              overview.viewer.stats.followersCount,
+                            )}
+                          </strong>{' '}
+                          <span className="text-text-faint">followers</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            navigateSearch({ network: 'following' })
+                          }
+                          className="bg-transparent p-0 text-left font-mono text-xs text-inherit"
+                        >
+                          <strong className="text-text">
+                            {compactNumber(
+                              overview.viewer.stats.followingCount,
+                            )}
+                          </strong>{' '}
+                          <span className="text-text-faint">following</span>
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <span>
+                          <strong className="text-text">
+                            {compactNumber(
+                              overview.viewer.stats.followersCount,
+                            )}
+                          </strong>{' '}
+                          <span className="text-text-faint">followers</span>
+                        </span>
+                        <span>
+                          <strong className="text-text">
+                            {compactNumber(
+                              overview.viewer.stats.followingCount,
+                            )}
+                          </strong>{' '}
+                          <span className="text-text-faint">following</span>
+                        </span>
+                      </>
+                    )}
                     <span className="ml-1.5 inline-flex items-center gap-2.5 text-text-faint">
                       {githubHref && (
                         <a
@@ -620,14 +685,18 @@ function ProfilePage() {
                       : 'not following anyone yet.'
                   }
                   hasMore={hasMoreSocial}
+                  isPrivate={!isFollowGraphPublic}
                   items={socialItems.map((item) => ({
                     ...item,
                     userId: String(item.userId),
                   }))}
+                  loading={networkIsLoading}
                   loadingMore={loadingMoreGraph === network}
-                  onChangeTab={(nextTab) =>
-                    navigateSearch({ network: nextTab })
-                  }
+                  onChangeTab={(nextTab) => {
+                    if (isFollowGraphPublic) {
+                      navigateSearch({ network: nextTab })
+                    }
+                  }}
                   onLoadMore={() => void handleLoadMoreGraph(network)}
                   onSelectUser={(username) =>
                     void navigate({
@@ -754,6 +823,10 @@ function ProfilePage() {
                       )
                     })}
                   </div>
+                )}
+
+                {!contentIsLoading && tab === 'posts' && (
+                  <ProfilePostList posts={posts} emptyLabel="no posts yet." />
                 )}
 
                 {!contentIsLoading && tab === 'contributions' && (

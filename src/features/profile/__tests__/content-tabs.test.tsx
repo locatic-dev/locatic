@@ -5,6 +5,7 @@ import { ProfileContentTabs } from '../content-tabs'
 
 const tabs = [
   { id: 'projects', label: 'projects', mobileLabel: 'projects', count: 4 },
+  { id: 'posts', label: 'posts', mobileLabel: 'posts', count: 2 },
   {
     id: 'contributions',
     label: 'contributions',
@@ -59,5 +60,6 @@ describe('ProfileContentTabs', () => {
 
     expect(container.querySelector('.overflow-x-auto')).toBeNull()
     expect(container.querySelector('.min-w-max')).toBeNull()
+    expect(container.querySelector('.grid-cols-4')).toBeNull()
   })
 })

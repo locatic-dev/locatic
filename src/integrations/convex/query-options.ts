@@ -17,6 +17,9 @@ export const privateProfileOverviewQueryOptions = () =>
 export const privateProfileProjectsQueryOptions = () =>
   convexQuery(api.users.privateProfileProjects, {})
 
+export const privateProfilePostsQueryOptions = () =>
+  convexQuery(api.users.privateProfilePosts, {})
+
 export const privateProfileContributionsQueryOptions = () =>
   convexQuery(api.users.privateProfileContributions, {})
 
@@ -46,6 +49,9 @@ export const publicProfileOverviewQueryOptions = (username: string) =>
 
 export const publicProfileProjectsQueryOptions = (username: string) =>
   convexQuery(api.users.publicProfileProjects, { username })
+
+export const publicProfilePostsQueryOptions = (username: string) =>
+  convexQuery(api.users.publicProfilePosts, { username })
 
 export const publicProfileContributionsQueryOptions = (username: string) =>
   convexQuery(api.users.publicProfileContributions, { username })
