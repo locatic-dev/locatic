@@ -29,6 +29,7 @@ import {
   type ContributedProjectPreview,
   type ProjectCardPreview,
   type ProfileCommentPreview,
+  type ProfilePostPreview,
   type ProfileSocialPagePayload,
   type PublicProfileOverviewPayload,
   type ViewerBootstrapPayload,
@@ -46,6 +47,7 @@ import {
   publicProfileContributionsQueryOptions,
   publicProfileLikedProjectsQueryOptions,
   publicProfileOverviewQueryOptions,
+  publicProfilePostsQueryOptions,
   publicProfileProjectsQueryOptions,
 } from '@/features/profile/queries'
 import {
@@ -54,6 +56,7 @@ import {
   type ProfileNetworkTab,
 } from '@/features/profile/state'
 import { ProfileNetworkSection } from '@/features/profile/network-section'
+import { ProfilePostList } from '@/features/profile/post-list'
 import { socialLinkHref } from '@/lib/social-links'
 import { useFollowUser, useUnfollowUser } from '@/features/follows/mutations'
 import { viewerQueryOptions } from '@/features/viewer/queries'
@@ -99,16 +102,18 @@ export const Route = createFileRoute('/u/$username')({
       publicProfileOverviewQueryOptions(params.username),
     )
 
-    void context.queryClient.prefetchQuery(
-      publicFollowGraphQueryOptions({
-        username: params.username,
-        kind: deps.network,
-        paginationOpts: {
-          cursor: null,
-          numItems: SOCIAL_PAGE_SIZE,
-        },
-      }),
-    )
+    if (overview?.privacy.followGraphVisibility === 'public') {
+      void context.queryClient.prefetchQuery(
+        publicFollowGraphQueryOptions({
+          username: params.username,
+          kind: deps.network,
+          paginationOpts: {
+            cursor: null,
+            numItems: SOCIAL_PAGE_SIZE,
+          },
+        }),
+      )
+    }
 
     return overview
   },
@@ -256,6 +261,11 @@ function PublicProfileContent({
     enabled: tab === 'projects',
     staleTime: TAB_QUERY_STALE_TIME,
   })
+  const postsQuery = useQuery({
+    ...publicProfilePostsQueryOptions(username),
+    enabled: tab === 'posts',
+    staleTime: TAB_QUERY_STALE_TIME,
+  })
   const contributionsQuery = useQuery({
     ...publicProfileContributionsQueryOptions(username),
     enabled: tab === 'contributions',
@@ -291,6 +301,7 @@ function PublicProfileContent({
 
   useEffect(() => {
     void queryClient.prefetchQuery(publicProfileProjectsQueryOptions(username))
+    void queryClient.prefetchQuery(publicProfilePostsQueryOptions(username))
     void queryClient.prefetchQuery(
       publicProfileContributionsQueryOptions(username),
     )
@@ -353,6 +364,8 @@ function PublicProfileContent({
 
   const projects =
     (projectsQuery.data as Array<ProjectCardPreview> | null | undefined) ?? []
+  const posts =
+    (postsQuery.data as Array<ProfilePostPreview> | null | undefined) ?? []
   const contributions =
     (contributionsQuery.data as
       | Array<ContributedProjectPreview>
@@ -374,6 +387,7 @@ function PublicProfileContent({
 
   const contentIsLoading =
     (tab === 'projects' && projectsQuery.isLoading) ||
+    (tab === 'posts' && postsQuery.isLoading) ||
     (tab === 'contributions' && contributionsQuery.isLoading) ||
     (tab === 'comments' &&
       overview.privacy.commentHistoryVisibility === 'public' &&
@@ -393,6 +407,10 @@ function PublicProfileContent({
       case 'projects':
         return queryClient.prefetchQuery(
           publicProfileProjectsQueryOptions(username),
+        )
+      case 'posts':
+        return queryClient.prefetchQuery(
+          publicProfilePostsQueryOptions(username),
         )
       case 'contributions':
         return queryClient.prefetchQuery(
@@ -532,6 +550,11 @@ function PublicProfileContent({
   const tabs = [
     { count: overview.stats.projectsCount, id: 'projects', label: 'projects' },
     {
+      count: overview.stats.postsCount ?? 0,
+      id: 'posts',
+      label: 'posts',
+    },
+    {
       count: overview.stats.contributionsCount,
       id: 'contributions',
       label: 'contributions',
@@ -543,6 +566,10 @@ function PublicProfileContent({
   const sortedComments = [...comments].sort(
     (left, right) => right.createdAt - left.createdAt,
   )
+  const networkIsLoading =
+    isFollowGraphPublic &&
+    activeSocialQuery.isLoading &&
+    activeSocialQuery.data === undefined
 
   const openCommentTarget = (comment: ProfileCommentPreview) => {
     if (!isCommentTargetOpenable(comment)) {
@@ -722,7 +749,20 @@ function PublicProfileContent({
                   </button>
                 </>
               ) : (
-                <span className="text-text-faint">follow graph is private</span>
+                <>
+                  <span>
+                    <strong className="text-text">
+                      {compactNumber(overview.stats.followersCount)}
+                    </strong>{' '}
+                    <span className="text-text-faint">followers</span>
+                  </span>
+                  <span>
+                    <strong className="text-text">
+                      {compactNumber(overview.stats.followingCount)}
+                    </strong>{' '}
+                    <span className="text-text-faint">following</span>
+                  </span>
+                </>
               )}
               <span className="ml-1.5 inline-flex items-center gap-2.5 text-text-faint">
                 {githubHref && (
@@ -816,8 +856,13 @@ function PublicProfileContent({
                   ...item,
                   userId: String(item.userId),
                 }))}
+                loading={networkIsLoading}
                 loadingMore={loadingMoreGraph === network}
-                onChangeTab={(nextTab) => navigateSearch({ network: nextTab })}
+                onChangeTab={(nextTab) => {
+                  if (isFollowGraphPublic) {
+                    navigateSearch({ network: nextTab })
+                  }
+                }}
                 onLoadMore={() => void handleLoadMoreGraph(network)}
                 onSelectUser={(nextUsername) =>
                   void navigate({
@@ -893,6 +938,13 @@ function PublicProfileContent({
                     })
                   )}
                 </div>
+              )}
+
+              {!contentIsLoading && tab === 'posts' && (
+                <ProfilePostList
+                  posts={posts}
+                  emptyLabel="no public posts yet."
+                />
               )}
 
               {!contentIsLoading && tab === 'contributions' && (

@@ -424,8 +424,8 @@ function SettingsPage() {
                       },
                       {
                         key: 'followGraphVisibility',
-                        label: 'show follow counts',
-                        desc: 'show follower and following counts on your profile',
+                        label: 'show follow graph',
+                        desc: 'allow people to open your followers and following lists',
                       },
                       // Pulse has backend privacy state only. Keep this out of the UI until the frontend exists.
                     ] as const

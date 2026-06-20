@@ -43,7 +43,9 @@ features/
 | City search               | `cities/`                                  | Geolocation, city data                                                                                     |
 | Current user data         | `viewer/`                                  | Authenticated user context, route payloads                                                                 |
 | Onboarding helpers        | `onboarding/helpers.ts`                    | Repo-derived stack prefs, owned projects                                                                   |
-| Profile network UI        | `profile/network-section.tsx`              | Follow graph section                                                                                       |
+| Profile posts UI          | `profile/post-list.tsx`                    | `ProfilePostList` component; tab-gated query for profile posts tab                                         |
+| Profile content tabs      | `profile/content-tabs.tsx`                 | Responsive grid `grid-cols-2 min-[520px]:grid-cols-3 lg:grid-cols-5`; supports `posts` tab                 |
+| Profile network UI        | `profile/network-section.tsx`              | Follow graph section; loading skeleton + private visibility gating                                         |
 | Project likes             | `projects/mutations.ts`                    | Locatic-only like/unlike actions; no GitHub star sync                                                      |
 | Project post feed         | `projects/posts/project-posts-section.tsx` | Paginated post list via `usePaginatedQuery` on project detail                                              |
 | Explore post click        | `explore/components/explore-feed.tsx`      | Post results click navigates to project page via `onOpenPostResult`                                        |
@@ -67,6 +69,9 @@ features/
 - Explore feed uses `placeholderData` with `keepPreviousExploreFeedData`/`keepPreviousPostSearchData` for smooth filter transitions; retains previous data when scope/cityIds/search query unchanged.
 - Home feed uses `getHomeFeedRenderState` (empty/loading/items) for distinct render states.
 - Comment composer textarea styles live in `projects/comments/composer-styles.ts` as the `commentComposerTextareaClass` constant; shared between `comment-thread.tsx` and `project-post-card.tsx`.
+- Profile content tabs use responsive grid: `grid-cols-2 min-[520px]:grid-cols-3 lg:grid-cols-5`; supports `posts` tab alongside projects/contributions/liked.
+- Profile posts tab uses tab-gated queries: enabled only when `tab === 'posts'`; matches pattern set by projects/contributions tabs.
+- Profile network section has `isPrivate` + `loading` props; hides follower/following tab switcher when follow graph is private.
 
 ## ANTI-PATTERNS
 

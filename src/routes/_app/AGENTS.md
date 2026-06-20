@@ -36,6 +36,8 @@ _app/
 - `home.tsx` uses Convex `usePaginatedQuery` directly (not TanStack Query) for paginated feed list; uses `getHomeFeedRenderState` for loading/empty/items states with `HomeFeedSkeletonRows` during `LoadingFirstPage`.
 - `explore.tsx` supports post dismissal (dismissed set + load-more limit stepping) and reset dismissed for both projects and posts; uses `placeholderData` with `keepPreviousExploreFeedData`/`keepPreviousPostSearchData` for smooth filter transitions.
 - `inbox.tsx` uses two-phase compose flow: validates `compose` search param, shows recipient preview via `conversationRecipientPreviewQueryOptions`.
+- `profile.tsx` uses tab-gated queries for posts/projects/contributions/liked tabs; follow graph data is loaded only when `followGraphVisibility === 'public'`.
+- `profile.tsx` preloader fetches overview first, then conditionally fetches follow graph; loader returns overview for immediate render.
 
 ## ANTI-PATTERNS
 

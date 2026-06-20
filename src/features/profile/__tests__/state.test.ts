@@ -10,6 +10,7 @@ describe('profile state helpers', () => {
   it('exposes the supported primary content tabs', () => {
     expect(PROFILE_CONTENT_TAB_VALUES).toEqual([
       'projects',
+      'posts',
       'contributions',
       'comments',
       'liked',
@@ -26,12 +27,12 @@ describe('profile state helpers', () => {
   it('keeps valid content tabs and network selections', () => {
     expect(
       normalizeProfileSearch({
-        tab: 'comments',
+        tab: 'posts',
         network: 'following',
       }),
     ).toEqual({
       network: 'following',
-      tab: 'comments',
+      tab: 'posts',
     })
   })
 

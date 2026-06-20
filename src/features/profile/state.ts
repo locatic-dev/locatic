@@ -1,5 +1,6 @@
 export const PROFILE_CONTENT_TAB_VALUES = [
   'projects',
+  'posts',
   'contributions',
   'comments',
   'liked',
@@ -40,7 +41,10 @@ export function normalizeProfileSearch(
   return {
     network,
     tab:
-      rawTab === 'contributions' || rawTab === 'comments' || rawTab === 'liked'
+      rawTab === 'posts' ||
+      rawTab === 'contributions' ||
+      rawTab === 'comments' ||
+      rawTab === 'liked'
         ? rawTab
         : 'projects',
   }
