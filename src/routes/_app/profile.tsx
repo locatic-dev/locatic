@@ -105,17 +105,15 @@ export const Route = createFileRoute('/_app/profile')({
       privateProfileOverviewQueryOptions(),
     )
 
-    if (overview.viewer.privacy.followGraphVisibility === 'public') {
-      await context.queryClient.ensureQueryData(
-        privateFollowGraphQueryOptions({
-          kind: deps.network,
-          paginationOpts: {
-            cursor: null,
-            numItems: SOCIAL_PAGE_SIZE,
-          },
-        }),
-      )
-    }
+    await context.queryClient.ensureQueryData(
+      privateFollowGraphQueryOptions({
+        kind: deps.network,
+        paginationOpts: {
+          cursor: null,
+          numItems: SOCIAL_PAGE_SIZE,
+        },
+      }),
+    )
 
     return overview
   },
@@ -147,6 +145,22 @@ function emptySocialPage(): ProfileSocialPagePayload {
     pageStatus: null,
     splitCursor: null,
   }
+}
+
+function resolveVisibleSocialPage(
+  statePage: ProfileSocialPagePayload,
+  queriedPage: ProfileSocialPagePayload | undefined,
+) {
+  if (!queriedPage) {
+    return statePage
+  }
+
+  const stateHasLoadedPage =
+    statePage.page.length > 0 ||
+    statePage.continueCursor !== '' ||
+    !statePage.isDone
+
+  return stateHasLoadedPage ? statePage : queriedPage
 }
 
 function ProfilePage() {
@@ -182,9 +196,11 @@ function ProfilePage() {
         numItems: SOCIAL_PAGE_SIZE,
       },
     }),
-    enabled: overview.viewer.privacy.followGraphVisibility === 'public',
     staleTime: TAB_QUERY_STALE_TIME,
   })
+  const activeSocialPage = activeSocialQuery.data as
+    | ProfileSocialPagePayload
+    | undefined
 
   const projectsQuery = useQuery({
     ...privateProfileProjectsQueryOptions(),
@@ -213,18 +229,17 @@ function ProfilePage() {
   })
 
   useEffect(() => {
-    const page = activeSocialQuery.data as ProfileSocialPagePayload | undefined
-    if (!page) {
+    if (!activeSocialPage) {
       return
     }
 
     if (network === 'followers') {
-      setFollowersPage(page)
+      setFollowersPage(activeSocialPage)
       return
     }
 
-    setFollowingPage(page)
-  }, [activeSocialQuery.data, network])
+    setFollowingPage(activeSocialPage)
+  }, [activeSocialPage, network])
 
   useEffect(() => {
     void queryClient.prefetchQuery(privateProfileProjectsQueryOptions())
@@ -232,27 +247,25 @@ function ProfilePage() {
     void queryClient.prefetchQuery(privateProfileContributionsQueryOptions())
     void queryClient.prefetchQuery(privateProfileCommentsQueryOptions())
     void queryClient.prefetchQuery(privateProfileLikedProjectsQueryOptions())
-    if (overview.viewer.privacy.followGraphVisibility === 'public') {
-      void queryClient.prefetchQuery(
-        privateFollowGraphQueryOptions({
-          kind: 'followers',
-          paginationOpts: {
-            cursor: null,
-            numItems: SOCIAL_PAGE_SIZE,
-          },
-        }),
-      )
-      void queryClient.prefetchQuery(
-        privateFollowGraphQueryOptions({
-          kind: 'following',
-          paginationOpts: {
-            cursor: null,
-            numItems: SOCIAL_PAGE_SIZE,
-          },
-        }),
-      )
-    }
-  }, [overview.viewer.privacy.followGraphVisibility, queryClient])
+    void queryClient.prefetchQuery(
+      privateFollowGraphQueryOptions({
+        kind: 'followers',
+        paginationOpts: {
+          cursor: null,
+          numItems: SOCIAL_PAGE_SIZE,
+        },
+      }),
+    )
+    void queryClient.prefetchQuery(
+      privateFollowGraphQueryOptions({
+        kind: 'following',
+        paginationOpts: {
+          cursor: null,
+          numItems: SOCIAL_PAGE_SIZE,
+        },
+      }),
+    )
+  }, [queryClient])
 
   useEffect(() => {
     const syncedAt = overview.viewer.githubContributions?.syncedAt
@@ -295,9 +308,6 @@ function ProfilePage() {
     'website',
     overview.viewer.socialLinks.website,
   )
-  const isFollowGraphPublic =
-    overview.viewer.privacy.followGraphVisibility === 'public'
-
   const tabs = [
     {
       id: 'projects',
@@ -360,9 +370,13 @@ function ProfilePage() {
     overview.viewer.pinnedProfileProjectIds.map(String),
   )
   const socialItems =
-    network === 'followers' ? followersPage.page : followingPage.page
+    network === 'followers'
+      ? resolveVisibleSocialPage(followersPage, activeSocialPage).page
+      : resolveVisibleSocialPage(followingPage, activeSocialPage).page
   const hasMoreSocial =
-    network === 'followers' ? !followersPage.isDone : !followingPage.isDone
+    network === 'followers'
+      ? !resolveVisibleSocialPage(followersPage, activeSocialPage).isDone
+      : !resolveVisibleSocialPage(followingPage, activeSocialPage).isDone
 
   const prefetchTab = (nextTab: ProfileContentTab) => {
     switch (nextTab) {
@@ -449,8 +463,12 @@ function ProfilePage() {
       return
     }
 
-    const currentPage = kind === 'followers' ? followersPage : followingPage
-    if (currentPage.isDone || !isFollowGraphPublic) {
+    const statePage = kind === 'followers' ? followersPage : followingPage
+    const currentPage = resolveVisibleSocialPage(
+      statePage,
+      kind === network ? activeSocialPage : undefined,
+    )
+    if (currentPage.isDone) {
       return
     }
 
@@ -486,9 +504,7 @@ function ProfilePage() {
   }
 
   const networkIsLoading =
-    isFollowGraphPublic &&
-    activeSocialQuery.isLoading &&
-    activeSocialQuery.data === undefined
+    activeSocialQuery.isLoading && activeSocialQuery.data === undefined
 
   return (
     <div className="lx-page-shell">
@@ -524,57 +540,26 @@ function ProfilePage() {
                     </p>
                   )}
                   <div className="flex flex-wrap items-center gap-4.5 font-mono text-xs">
-                    {isFollowGraphPublic ? (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            navigateSearch({ network: 'followers' })
-                          }
-                          className="bg-transparent p-0 text-left font-mono text-xs text-inherit"
-                        >
-                          <strong className="text-text">
-                            {compactNumber(
-                              overview.viewer.stats.followersCount,
-                            )}
-                          </strong>{' '}
-                          <span className="text-text-faint">followers</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            navigateSearch({ network: 'following' })
-                          }
-                          className="bg-transparent p-0 text-left font-mono text-xs text-inherit"
-                        >
-                          <strong className="text-text">
-                            {compactNumber(
-                              overview.viewer.stats.followingCount,
-                            )}
-                          </strong>{' '}
-                          <span className="text-text-faint">following</span>
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <span>
-                          <strong className="text-text">
-                            {compactNumber(
-                              overview.viewer.stats.followersCount,
-                            )}
-                          </strong>{' '}
-                          <span className="text-text-faint">followers</span>
-                        </span>
-                        <span>
-                          <strong className="text-text">
-                            {compactNumber(
-                              overview.viewer.stats.followingCount,
-                            )}
-                          </strong>{' '}
-                          <span className="text-text-faint">following</span>
-                        </span>
-                      </>
-                    )}
+                    <button
+                      type="button"
+                      onClick={() => navigateSearch({ network: 'followers' })}
+                      className="bg-transparent p-0 text-left font-mono text-xs text-inherit"
+                    >
+                      <strong className="text-text">
+                        {compactNumber(overview.viewer.stats.followersCount)}
+                      </strong>{' '}
+                      <span className="text-text-faint">followers</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => navigateSearch({ network: 'following' })}
+                      className="bg-transparent p-0 text-left font-mono text-xs text-inherit"
+                    >
+                      <strong className="text-text">
+                        {compactNumber(overview.viewer.stats.followingCount)}
+                      </strong>{' '}
+                      <span className="text-text-faint">following</span>
+                    </button>
                     <span className="ml-1.5 inline-flex items-center gap-2.5 text-text-faint">
                       {githubHref && (
                         <a
@@ -685,18 +670,15 @@ function ProfilePage() {
                       : 'not following anyone yet.'
                   }
                   hasMore={hasMoreSocial}
-                  isPrivate={!isFollowGraphPublic}
                   items={socialItems.map((item) => ({
                     ...item,
                     userId: String(item.userId),
                   }))}
                   loading={networkIsLoading}
                   loadingMore={loadingMoreGraph === network}
-                  onChangeTab={(nextTab) => {
-                    if (isFollowGraphPublic) {
-                      navigateSearch({ network: nextTab })
-                    }
-                  }}
+                  onChangeTab={(nextTab) =>
+                    navigateSearch({ network: nextTab })
+                  }
                   onLoadMore={() => void handleLoadMoreGraph(network)}
                   onSelectUser={(username) =>
                     void navigate({
