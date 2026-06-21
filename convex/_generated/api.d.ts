@@ -19,6 +19,7 @@ import type * as follows from "../follows.js";
 import type * as github from "../github.js";
 import type * as github_actions from "../github_actions.js";
 import type * as home from "../home.js";
+import type * as homeBackfill from "../homeBackfill.js";
 import type * as http from "../http.js";
 import type * as lib_account_deletion from "../lib/account_deletion.js";
 import type * as lib_auth from "../lib/auth.js";
@@ -70,6 +71,7 @@ declare const fullApi: ApiFromModules<{
   github: typeof github;
   github_actions: typeof github_actions;
   home: typeof home;
+  homeBackfill: typeof homeBackfill;
   http: typeof http;
   "lib/account_deletion": typeof lib_account_deletion;
   "lib/auth": typeof lib_auth;

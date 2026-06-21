@@ -37,6 +37,7 @@ convex/
 ├── conversations.ts    # Messaging
 ├── explore.ts          # Discovery queries
 ├── home.ts             # Feed generation
+├── homeBackfill.ts     # Feed backfill for legacy events
 ├── pulse.ts            # Activity pulse/metrics
 ├── github.ts           # GitHub API integration
 ├── github_actions.ts   # GitHub Actions sync
@@ -76,7 +77,8 @@ convex/
 | Notification state                       | `notifications.ts`, `lib/notifications.ts` | Read state + backfill helpers                                                                                                                                                                                                    |
 | Conversation flow                        | `conversations.ts`                         | Two-phase: `findWithUser` query → `sendFirstMessage` mutation; no `startOrGet`                                                                                                                                                   |
 | Home feed                                | `home.ts`                                  | Paginated via `paginationOptsValidator` + `paginationResultValidator`; uses `getHomeFeedLegacyTarget`                                                                                                                            |
-| Home feed fan-out                        | `lib/homeFeed.ts`                          | `fanOutActivityEventToFollowers` — groupKey-based dedup, event grouping with preview targets                                                                                                                                     |
+| Home feed fan-out                        | `lib/homeFeed.ts`                          | `fanOutActivityEventToFollowers` — groupKey-based dedup, event grouping with preview targets; `upsertHomeFeedItemForEvent` exported as internal for backfill                                                                     |
+| Home feed backfill                       | `homeBackfill.ts`                          | `buildHomeFeedBackfillTarget`, `backfillHomeFeedTargets`, `backfillAllHomeFeedTargets` — batch backfill targets for legacy events missing them                                                                                   |
 | Comment system                           | `comments.ts`                              | `buildCommentNavigationTarget` walks ancestor chain via `parentId` traversal (max 20 hops, cycle-detected)                                                                                                                       |
 | Follow events                            | `follows.ts`                               | Follow now creates `activity_events` with `followed` type + `profile` target; fans out to followers                                                                                                                              |
 | Schema (activity_events/home_feed_items) | `schema.ts` + `lib/validators.ts`          | `projectId`/`projectSnapshot` nullable; new `target`, `rowKind`, `groupKey`, `eventCount`, `previewTargets`, `sourceEventIds` fields                                                                                             |

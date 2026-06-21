@@ -36,7 +36,7 @@ function actionNoun(eventType: HomeFeedEventType) {
     case 'project_posted':
       return 'project'
     case 'post_created':
-      return 'update'
+      return 'post'
     case 'project_commented':
     case 'post_commented':
       return 'comment'
@@ -59,7 +59,7 @@ export function getHomeFeedSummary(item: HomeFeedItem) {
       case 'project_posted':
         return `${actor} published ${count} projects`
       case 'post_created':
-        return `${actor} posted ${count} updates`
+        return `${actor} posted ${count} times to a project`
       case 'project_commented':
       case 'post_commented':
         return `${actor} left ${count} comments`
@@ -72,7 +72,7 @@ export function getHomeFeedSummary(item: HomeFeedItem) {
     case 'project_posted':
       return `${actor} published a project`
     case 'post_created':
-      return `${actor} posted an update`
+      return `${actor} posted to a project`
     case 'project_liked':
       return `${actor} liked a project`
     case 'project_commented':
