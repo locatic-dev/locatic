@@ -48,7 +48,7 @@ convex/lib/
 | Add discoverability      | `discoverability.ts`  | Search index, visibility logic                                                                                                                         |
 | Add explore helper       | `explore.ts`          | Search scope / city defaults                                                                                                                           |
 | Add GitHub helper        | `github.ts`           | Repo data fetching helpers                                                                                                                             |
-| Add feed helper          | `homeFeed.ts`         | Feed aggregation logic                                                                                                                                 |
+| Add feed helper          | `homeFeed.ts`         | Feed aggregation logic; `upsertHomeFeedItemForEvent` exported for backfill usage                                                                       |
 | Add notification helper  | `notifications.ts`    | Notification targets / state                                                                                                                           |
 | Add project access gate  | `project_access.ts`   | `isProjectPubliclyInteractable`, `getPubliclyInteractableProject`, `isCommentPubliclyInteractable`                                                     |
 | Add rate limiting        | `rate_limits.ts`      | `enforceRateLimit` via `@convex-dev/rate-limiter` component                                                                                            |
