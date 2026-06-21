@@ -127,6 +127,8 @@ function renderFeed(
     pendingFollows: new Set<string>(),
     pendingLikes: new Set<string>(),
     pendingUserId: null,
+    projectFeedLoading: false,
+    projectSearchLoading: false,
     postSearchLoading: false,
     postResults: [],
     ...overrides,
@@ -198,6 +200,32 @@ describe('ExploreFeed', () => {
     expect(screen.queryByText(/no posts found/)).toBeNull()
   })
 
+  it('suppresses city project empty copy while the project feed is loading', () => {
+    renderFeed({
+      projectFeedLoading: true,
+    })
+
+    expect(screen.queryByText('no projects match these cities yet.')).toBeNull()
+  })
+
+  it('suppresses global project empty copy while the project feed is loading', () => {
+    renderFeed({
+      isGlobalFeed: true,
+      projectFeedLoading: true,
+    })
+
+    expect(screen.queryByText('nothing to explore right now.')).toBeNull()
+  })
+
+  it('suppresses project search no-results copy while project search is loading', () => {
+    renderFeed({
+      isProjectSearchActive: true,
+      projectSearchLoading: true,
+    })
+
+    expect(screen.queryByText('no projects found.')).toBeNull()
+  })
+
   it('dismisses post search rows independently from the project link', () => {
     const { props } = renderFeed({
       isPostSearchActive: true,
@@ -221,6 +249,24 @@ describe('ExploreFeed', () => {
     fireEvent.click(screen.getByRole('button', { name: 'load more posts' }))
 
     expect(props.onLoadMorePosts).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps post results visible while a load-more request is pending', () => {
+    renderFeed({
+      hasMorePosts: true,
+      isPostSearchActive: true,
+      isPostsMode: true,
+      loadMorePending: true,
+      postResults: [post],
+      postSearchLoading: false,
+    })
+
+    expect(screen.getByText(/Shipping map-based discovery/)).toBeTruthy()
+    expect(screen.queryByText('searching posts…')).toBeNull()
+    expect(screen.getByRole('button', { name: 'loading…' })).toHaveProperty(
+      'disabled',
+      true,
+    )
   })
 
   it('renders a project load-more action for bounded explore expansion', () => {

@@ -97,9 +97,40 @@ http.route({
   path: '/clerk/webhooks',
   method: 'POST',
   handler: httpAction(async (ctx, request) => {
+    const svixEventId = request.headers.get('svix-id')
+    let event
+
     try {
-      const event = await verifyWebhook(request)
-      const payload = event.data as unknown as Record<string, unknown>
+      event = await verifyWebhook(request)
+    } catch (error) {
+      console.error('Failed to verify Clerk webhook', error)
+      return new Response('invalid webhook', { status: 400 })
+    }
+
+    const payload = event.data as unknown as Record<string, unknown>
+    const eventId =
+      (typeof (event as unknown as { id?: unknown }).id === 'string'
+        ? (event as unknown as { id: string }).id
+        : null) ??
+      svixEventId ??
+      ''
+
+    if (!eventId) {
+      return new Response('missing event id', { status: 400 })
+    }
+
+    try {
+      const eventState = await ctx.runMutation(
+        internal.users.markClerkWebhookEventProcessing,
+        {
+          eventId,
+          eventType: event.type,
+        },
+      )
+
+      if (!eventState.shouldProcess) {
+        return new Response('ok', { status: 200 })
+      }
 
       if (event.type === 'user.created' || event.type === 'user.updated') {
         const email = getPrimaryEmailAddress(payload)
@@ -127,6 +158,13 @@ http.route({
           displayName: getDisplayName(payload, email),
           avatarUrl,
         })
+
+        await ctx.runMutation(internal.users.markClerkWebhookEventProcessed, {
+          eventId,
+          status: 'processed',
+        })
+
+        return new Response('ok', { status: 200 })
       }
 
       if (event.type === 'user.deleted') {
@@ -142,12 +180,28 @@ http.route({
             clerkId,
           })
         }
+
+        await ctx.runMutation(internal.users.markClerkWebhookEventProcessed, {
+          eventId,
+          status: 'processed',
+        })
+
+        return new Response('ok', { status: 200 })
       }
+
+      await ctx.runMutation(internal.users.markClerkWebhookEventProcessed, {
+        eventId,
+        status: 'ignored',
+      })
 
       return new Response('ok', { status: 200 })
     } catch (error) {
-      console.error('Failed to verify Clerk webhook', error)
-      return new Response('invalid webhook', { status: 400 })
+      await ctx.runMutation(internal.users.markClerkWebhookEventFailed, {
+        eventId,
+        error: error instanceof Error ? error.message : String(error),
+      })
+      console.error('Failed to process Clerk webhook', error)
+      return new Response('webhook processing failed', { status: 500 })
     }
   }),
 })

@@ -14,6 +14,7 @@ export function ProfileNetworkSection({
   emptyLabel,
   hasMore,
   isPrivate = false,
+  loading = false,
   items,
   loadingMore,
   onChangeTab,
@@ -24,6 +25,7 @@ export function ProfileNetworkSection({
   emptyLabel: string
   hasMore: boolean
   isPrivate?: boolean
+  loading?: boolean
   items: SocialPreview[]
   loadingMore: boolean
   onChangeTab: (tab: ProfileNetworkTab) => void
@@ -46,27 +48,41 @@ export function ProfileNetworkSection({
         </div>
       </div>
 
-      <div className="flex gap-1 border-b border-line px-3 py-3">
-        {(['followers', 'following'] as const).map((tab) => (
-          <button
-            key={tab}
-            type="button"
-            onClick={() => onChangeTab(tab)}
-            className={`min-h-11 rounded-pill px-3.5 font-mono text-[11.5px] transition-colors ${
-              activeTab === tab
-                ? 'bg-surface-alt text-text'
-                : 'text-text-faint hover:text-text'
-            }`}
-          >
-            {tab}
-          </button>
-        ))}
-      </div>
+      {!isPrivate && (
+        <div className="flex gap-1 border-b border-line px-3 py-3">
+          {(['followers', 'following'] as const).map((tab) => (
+            <button
+              key={tab}
+              type="button"
+              onClick={() => onChangeTab(tab)}
+              className={`min-h-11 rounded-pill px-3.5 font-mono text-[11.5px] transition-colors ${
+                activeTab === tab
+                  ? 'bg-surface-alt text-text'
+                  : 'text-text-faint hover:text-text'
+              }`}
+            >
+              {tab}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="px-3 py-2">
         {isPrivate ? (
           <div className="px-2 py-6 font-mono text-[12px] text-text-faint">
             follow graph is private on this profile.
+          </div>
+        ) : loading ? (
+          <div className="space-y-3 px-2 py-4" aria-label="loading network">
+            {[0, 1, 2].map((item) => (
+              <div key={item} className="flex min-h-14 items-center gap-3">
+                <div className="size-9 rounded-full bg-surface-alt" />
+                <div className="min-w-0 flex-1 space-y-2">
+                  <div className="h-3 w-28 rounded-pill bg-surface-alt" />
+                  <div className="h-2.5 w-20 rounded-pill bg-surface-alt" />
+                </div>
+              </div>
+            ))}
           </div>
         ) : items.length === 0 ? (
           <div className="px-2 py-6 font-mono text-[12px] text-text-faint">

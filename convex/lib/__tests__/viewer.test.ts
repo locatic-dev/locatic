@@ -18,6 +18,7 @@ describe('createDefaultViewerProfile', () => {
     expect(profile.privacy.commentHistoryVisibility).toBe('public')
     expect(profile.privacy.likedProjectsVisibility).toBe('public')
     expect(profile.privacy.appearInPulse).toBe(true)
+    expect(profile.stats.postsCount).toBe(0)
     expect(profile.notificationPrefs.weeklyDigest).toBe(false)
     expect(profile.onboardingCompletedAt).toBeNull()
   })

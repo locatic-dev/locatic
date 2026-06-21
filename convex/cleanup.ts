@@ -69,8 +69,29 @@ export const runDailyCleanup = internalMutation({
       }),
     ])
 
+    const purgeCandidates = await ctx.db
+      .query('users')
+      .withIndex('by_purge_after', (query) =>
+        query.gt('purgeAfter', null).lt('purgeAfter', now),
+      )
+      .take(CLEANUP_BATCH_SIZE)
+    const duePurgeUsers = purgeCandidates.filter(
+      (user) => user.deletedAt && !user.purgedAt,
+    )
+
+    await Promise.all(
+      duePurgeUsers.map((user) =>
+        ctx.scheduler.runAfter(0, internal.users.purgeDeletedAccountIfDue, {
+          userId: user._id,
+        }),
+      ),
+    )
+
     const scheduledContinuation =
-      feedItems.hasMore || notifications.hasMore || activities.hasMore
+      feedItems.hasMore ||
+      notifications.hasMore ||
+      activities.hasMore ||
+      purgeCandidates.length === CLEANUP_BATCH_SIZE
 
     if (scheduledContinuation) {
       await ctx.scheduler.runAfter(0, internal.cleanup.runDailyCleanup, {})
@@ -80,6 +101,7 @@ export const runDailyCleanup = internalMutation({
       deletedFeedItems: feedItems.deletedCount,
       deletedNotifications: notifications.deletedCount,
       deletedActivities: activities.deletedCount,
+      scheduledAccountPurges: duePurgeUsers.length,
       scheduledContinuation,
     }
   },

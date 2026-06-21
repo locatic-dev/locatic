@@ -1,6 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { usePaginatedQuery } from 'convex/react'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { api } from '../../../../convex/_generated/api'
 import type { Doc, Id } from '../../../../convex/_generated/dataModel'
@@ -9,6 +9,7 @@ import { LxAvatar } from '@/components/ui/lx-avatar'
 import { Textarea } from '@/components/ui/textarea'
 import { relativeTime } from '@/lib/time'
 import { Heart, MessageSquare, Pencil, Trash2 } from '@/lib/icons'
+import { shouldAutoLoadDeepLinkPage } from '@/features/projects/deep-link'
 import {
   useAddComment,
   useDeleteComment,
@@ -18,6 +19,8 @@ import {
   useUpdatePost,
 } from '@/features/projects/mutations'
 import { CommentThread } from '@/features/projects/comments/comment-thread'
+import { commentComposerTextareaClass } from '@/features/projects/comments/composer-styles'
+import { removeReplyDraft } from '@/features/projects/comments/drafts'
 import { useCommentThreadState } from '@/features/projects/comments/use-comment-thread-state'
 import type {
   ProjectCommentLikeOverride,
@@ -29,12 +32,16 @@ type ProjectPost = Doc<'posts'> & {
 }
 
 export function ProjectPostCard({
+  activeHighlightedCommentId,
+  highlightedCommentPath,
   isOwner,
   isSignedIn,
   post,
   projectDetailQueryKey,
   viewerId,
 }: {
+  activeHighlightedCommentId: string | null
+  highlightedCommentPath: string[]
   isOwner: boolean
   isSignedIn: boolean
   post: ProjectPost
@@ -75,6 +82,8 @@ export function ProjectPostCard({
   const [editBody, setEditBody] = useState(post.body)
   const [savingEdit, setSavingEdit] = useState(false)
   const [deletingPost, setDeletingPost] = useState(false)
+  const commentLoadAttemptsRef = useRef(0)
+  const commentLoadTargetRef = useRef<string | null>(null)
   const commentRefs = useRef<Record<string, HTMLElement | null>>({})
   const {
     expand: expandCommentThread,
@@ -97,6 +106,59 @@ export function ProjectPostCard({
   )
   const postLiked = postLikeOverride?.liked ?? post.viewerHasLiked
   const postLikes = postLikeOverride?.count ?? post.reactionCounts.like ?? 0
+  const highlightedRootCommentId =
+    highlightedCommentPath[0] ?? activeHighlightedCommentId
+
+  useEffect(() => {
+    if (!highlightedRootCommentId || commentRoots.status !== 'CanLoadMore') {
+      return
+    }
+    if (commentLoadTargetRef.current !== highlightedRootCommentId) {
+      commentLoadTargetRef.current = highlightedRootCommentId
+      commentLoadAttemptsRef.current = 0
+    }
+
+    const rootIsLoaded = comments.some(
+      (commentItem) => String(commentItem._id) === highlightedRootCommentId,
+    )
+    if (
+      shouldAutoLoadDeepLinkPage({
+        attempts: commentLoadAttemptsRef.current,
+        isLoaded: rootIsLoaded,
+        status: commentRoots.status,
+        targetId: highlightedRootCommentId,
+      })
+    ) {
+      commentLoadAttemptsRef.current += 1
+      commentRoots.loadMore(6)
+    }
+  }, [commentRoots, comments, highlightedRootCommentId])
+
+  useEffect(() => {
+    if (!activeHighlightedCommentId) {
+      return
+    }
+
+    for (const commentId of highlightedCommentPath) {
+      expandCommentThread(commentId)
+    }
+  }, [activeHighlightedCommentId, expandCommentThread, highlightedCommentPath])
+
+  useEffect(() => {
+    if (!activeHighlightedCommentId) {
+      return
+    }
+
+    const commentElement = commentRefs.current[activeHighlightedCommentId]
+    if (!commentElement) {
+      return
+    }
+
+    commentElement.scrollIntoView({
+      behavior: 'smooth',
+      block: 'center',
+    })
+  }, [activeHighlightedCommentId, comments.length, expandedIds])
 
   const handleTogglePostLike = async () => {
     if (!isSignedIn || postLikePending) {
@@ -203,6 +265,7 @@ export function ProjectPostCard({
       ...current,
       [parentKey]: [...(current[parentKey] ?? []), pendingReply],
     }))
+    setReplyDrafts((current) => removeReplyDraft(current, parentKey))
 
     try {
       await addComment({
@@ -211,13 +274,12 @@ export function ProjectPostCard({
         targetId: String(post._id),
         targetType: 'post',
       })
-      setReplyDrafts((current) => {
-        const next = { ...current }
-        delete next[parentKey]
-        return next
-      })
     } catch (error) {
       console.error(error)
+      setReplyDrafts((current) => ({
+        ...current,
+        [parentKey]: draft,
+      }))
     } finally {
       setPendingReplies((current) => ({
         ...current,
@@ -449,7 +511,7 @@ export function ProjectPostCard({
             onChange={(event) => setComment(event.target.value)}
             placeholder="reply to this repo post..."
             rows={2}
-            className="min-h-18 flex-1 resize-none border-0 bg-transparent px-0 py-0 font-sans text-[13.5px] text-text shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+            className={commentComposerTextareaClass}
           />
           <div className="flex items-end gap-2">
             <Button
@@ -481,7 +543,7 @@ export function ProjectPostCard({
           {visibleRootComments.map((commentItem) => (
             <CommentThread
               key={String(commentItem._id)}
-              activeHighlightedCommentId={null}
+              activeHighlightedCommentId={activeHighlightedCommentId}
               commentItem={commentItem}
               commentLikeOverrides={commentLikeOverrides}
               commentRefs={commentRefs}

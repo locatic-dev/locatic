@@ -33,6 +33,9 @@ export type ProfileCommentPreview = {
   _id: Id<'comments'>
   targetType: Doc<'comments'>['targetType']
   targetId: string
+  targetPostId: string | null
+  rootCommentId: string
+  ancestorCommentIds: string[]
   content: string
   replyCount: number
   likesCount: number
@@ -42,6 +45,10 @@ export type ProfileCommentPreview = {
   projectRepo: string | null
   targetLabel: string
   targetAvailability: 'available' | 'hidden' | 'deleted'
+}
+
+export type ProfilePostPreview = Doc<'posts'> & {
+  viewerHasLiked: boolean
 }
 
 export type ProjectRouteParams = {
@@ -84,6 +91,7 @@ export type PrivateProfilePayload = {
   cityName: string | null
   projects: Array<ProjectCardPreview>
   comments: Array<ProfileCommentPreview>
+  posts: Array<ProfilePostPreview>
   contributions: Array<ContributedProjectPreview>
   followers: Array<ProfileSocialPreview>
   likedProjects: Array<{
@@ -146,6 +154,7 @@ export type PublicProfilePayload = {
   githubContributions?: Doc<'users'>['githubContributions'] | null
   projects: Array<ProjectCardPreview>
   comments: Array<ProfileCommentPreview>
+  posts: Array<ProfilePostPreview>
   contributions: Array<ContributedProjectPreview>
   followers: Array<ProfileSocialPreview>
   likedProjects: Array<{
@@ -300,6 +309,7 @@ export function mapPrivateProfile(payload: PrivateProfilePayload | undefined) {
     followers: payload.followers,
     following: payload.following,
     likedProjects: payload.likedProjects,
+    posts: payload.posts,
     projects: payload.projects,
     viewer: mapViewer(payload.viewer, payload.cityName),
   }
@@ -360,6 +370,7 @@ export function mapPublicProfile(
     githubContributions: payload.githubContributions ?? null,
     following: payload.following,
     likedProjects: payload.likedProjects,
+    posts: payload.posts,
     privacy: payload.privacy,
     profile: payload.profile,
     projects: payload.projects,

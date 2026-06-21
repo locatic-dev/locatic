@@ -29,6 +29,7 @@ import {
   type ContributedProjectPreview,
   type ProjectCardPreview,
   type ProfileCommentPreview,
+  type ProfilePostPreview,
   type ProfileSocialPagePayload,
   type PublicProfileOverviewPayload,
   type ViewerBootstrapPayload,
@@ -46,6 +47,7 @@ import {
   publicProfileContributionsQueryOptions,
   publicProfileLikedProjectsQueryOptions,
   publicProfileOverviewQueryOptions,
+  publicProfilePostsQueryOptions,
   publicProfileProjectsQueryOptions,
 } from '@/features/profile/queries'
 import {
@@ -53,7 +55,14 @@ import {
   type ProfileContentTab,
   type ProfileNetworkTab,
 } from '@/features/profile/state'
+import { ProfileContentTabs } from '@/features/profile/content-tabs'
+import {
+  commentAvailabilityCopy,
+  getProfileCommentDestination,
+  isCommentTargetOpenable,
+} from '@/features/profile/comment-navigation'
 import { ProfileNetworkSection } from '@/features/profile/network-section'
+import { ProfilePostList } from '@/features/profile/post-list'
 import { socialLinkHref } from '@/lib/social-links'
 import { useFollowUser, useUnfollowUser } from '@/features/follows/mutations'
 import { viewerQueryOptions } from '@/features/viewer/queries'
@@ -62,32 +71,6 @@ import { useOpenConversation } from '@/features/inbox/use-open-conversation'
 
 const TAB_QUERY_STALE_TIME = 60_000
 const SOCIAL_PAGE_SIZE = 12
-
-function isCommentTargetOpenable(
-  comment: ProfileCommentPreview,
-): comment is ProfileCommentPreview & {
-  projectOwner: string
-  projectRepo: string
-  targetAvailability: 'available'
-} {
-  return (
-    comment.targetAvailability === 'available' &&
-    Boolean(comment.projectOwner) &&
-    Boolean(comment.projectRepo)
-  )
-}
-
-function commentAvailabilityCopy(comment: ProfileCommentPreview) {
-  switch (comment.targetAvailability) {
-    case 'available':
-      return 'open in project'
-    case 'hidden':
-      return 'hidden from profile'
-    case 'deleted':
-    default:
-      return 'project removed'
-  }
-}
 
 export const Route = createFileRoute('/u/$username')({
   validateSearch: normalizeProfileSearch,
@@ -99,16 +82,18 @@ export const Route = createFileRoute('/u/$username')({
       publicProfileOverviewQueryOptions(params.username),
     )
 
-    void context.queryClient.prefetchQuery(
-      publicFollowGraphQueryOptions({
-        username: params.username,
-        kind: deps.network,
-        paginationOpts: {
-          cursor: null,
-          numItems: SOCIAL_PAGE_SIZE,
-        },
-      }),
-    )
+    if (overview?.privacy.followGraphVisibility === 'public') {
+      void context.queryClient.prefetchQuery(
+        publicFollowGraphQueryOptions({
+          username: params.username,
+          kind: deps.network,
+          paginationOpts: {
+            cursor: null,
+            numItems: SOCIAL_PAGE_SIZE,
+          },
+        }),
+      )
+    }
 
     return overview
   },
@@ -256,6 +241,11 @@ function PublicProfileContent({
     enabled: tab === 'projects',
     staleTime: TAB_QUERY_STALE_TIME,
   })
+  const postsQuery = useQuery({
+    ...publicProfilePostsQueryOptions(username),
+    enabled: tab === 'posts',
+    staleTime: TAB_QUERY_STALE_TIME,
+  })
   const contributionsQuery = useQuery({
     ...publicProfileContributionsQueryOptions(username),
     enabled: tab === 'contributions',
@@ -291,6 +281,7 @@ function PublicProfileContent({
 
   useEffect(() => {
     void queryClient.prefetchQuery(publicProfileProjectsQueryOptions(username))
+    void queryClient.prefetchQuery(publicProfilePostsQueryOptions(username))
     void queryClient.prefetchQuery(
       publicProfileContributionsQueryOptions(username),
     )
@@ -353,6 +344,8 @@ function PublicProfileContent({
 
   const projects =
     (projectsQuery.data as Array<ProjectCardPreview> | null | undefined) ?? []
+  const posts =
+    (postsQuery.data as Array<ProfilePostPreview> | null | undefined) ?? []
   const contributions =
     (contributionsQuery.data as
       | Array<ContributedProjectPreview>
@@ -374,6 +367,7 @@ function PublicProfileContent({
 
   const contentIsLoading =
     (tab === 'projects' && projectsQuery.isLoading) ||
+    (tab === 'posts' && postsQuery.isLoading) ||
     (tab === 'contributions' && contributionsQuery.isLoading) ||
     (tab === 'comments' &&
       overview.privacy.commentHistoryVisibility === 'public' &&
@@ -393,6 +387,10 @@ function PublicProfileContent({
       case 'projects':
         return queryClient.prefetchQuery(
           publicProfileProjectsQueryOptions(username),
+        )
+      case 'posts':
+        return queryClient.prefetchQuery(
+          publicProfilePostsQueryOptions(username),
         )
       case 'contributions':
         return queryClient.prefetchQuery(
@@ -530,34 +528,53 @@ function PublicProfileContent({
   }
 
   const tabs = [
-    { count: overview.stats.projectsCount, id: 'projects', label: 'projects' },
+    {
+      count: overview.stats.projectsCount,
+      id: 'projects',
+      label: 'projects',
+      mobileLabel: 'projects',
+    },
+    {
+      count: overview.stats.postsCount ?? 0,
+      id: 'posts',
+      label: 'posts',
+      mobileLabel: 'posts',
+    },
     {
       count: overview.stats.contributionsCount,
       id: 'contributions',
       label: 'contributions',
+      mobileLabel: 'contrib',
     },
-    { count: overview.stats.commentsCount, id: 'comments', label: 'comments' },
-    { count: overview.stats.likedCount, id: 'liked', label: 'liked' },
+    {
+      count: overview.stats.commentsCount,
+      id: 'comments',
+      label: 'comments',
+      mobileLabel: 'comments',
+    },
+    {
+      count: overview.stats.likedCount,
+      id: 'liked',
+      label: 'liked',
+      mobileLabel: 'liked',
+    },
   ] as const
 
   const sortedComments = [...comments].sort(
     (left, right) => right.createdAt - left.createdAt,
   )
+  const networkIsLoading =
+    isFollowGraphPublic &&
+    activeSocialQuery.isLoading &&
+    activeSocialQuery.data === undefined
 
   const openCommentTarget = (comment: ProfileCommentPreview) => {
-    if (!isCommentTargetOpenable(comment)) {
+    const destination = getProfileCommentDestination(comment)
+    if (!destination) {
       return
     }
 
-    void navigate({
-      to: '/project/$owner/$repo',
-      params: {
-        owner: comment.projectOwner,
-        repo: comment.projectRepo,
-      },
-      search: { comment: String(comment._id) },
-      hash: `comment-${String(comment._id)}`,
-    })
+    void navigate(destination)
   }
 
   return (
@@ -622,7 +639,7 @@ function PublicProfileContent({
         </header>
       )}
 
-      <div className="lx-page-width-detail py-8 pb-20">
+      <div className="lx-page-width-profile py-8 pb-20">
         {inAppShell && (
           <div className="mb-6 flex flex-wrap justify-end gap-2">
             {isOwnProfile ? (
@@ -722,7 +739,20 @@ function PublicProfileContent({
                   </button>
                 </>
               ) : (
-                <span className="text-text-faint">follow graph is private</span>
+                <>
+                  <span>
+                    <strong className="text-text">
+                      {compactNumber(overview.stats.followersCount)}
+                    </strong>{' '}
+                    <span className="text-text-faint">followers</span>
+                  </span>
+                  <span>
+                    <strong className="text-text">
+                      {compactNumber(overview.stats.followingCount)}
+                    </strong>{' '}
+                    <span className="text-text-faint">following</span>
+                  </span>
+                </>
               )}
               <span className="ml-1.5 inline-flex items-center gap-2.5 text-text-faint">
                 {githubHref && (
@@ -816,8 +846,13 @@ function PublicProfileContent({
                   ...item,
                   userId: String(item.userId),
                 }))}
+                loading={networkIsLoading}
                 loadingMore={loadingMoreGraph === network}
-                onChangeTab={(nextTab) => navigateSearch({ network: nextTab })}
+                onChangeTab={(nextTab) => {
+                  if (isFollowGraphPublic) {
+                    navigateSearch({ network: nextTab })
+                  }
+                }}
                 onLoadMore={() => void handleLoadMoreGraph(network)}
                 onSelectUser={(nextUsername) =>
                   void navigate({
@@ -831,34 +866,15 @@ function PublicProfileContent({
           </aside>
 
           <section>
-            <div className="overflow-x-auto overflow-y-hidden border-b border-line">
-              <div className="flex min-w-max items-stretch gap-1">
-                {tabs.map((tabItem) => (
-                  <button
-                    key={tabItem.id}
-                    onClick={() => {
-                      void prefetchTab(tabItem.id)
-                      navigateSearch({ tab: tabItem.id })
-                    }}
-                    className={`relative inline-flex min-h-11 min-w-24 shrink-0 flex-1 items-center justify-center gap-1.75 px-3 py-3.5 text-center font-mono text-[12.5px] ${
-                      tab === tabItem.id
-                        ? 'font-semibold text-text'
-                        : 'text-text-faint'
-                    }`}
-                    type="button"
-                    aria-busy={isRoutePending && tab === tabItem.id}
-                  >
-                    {tabItem.label}
-                    <span className="rounded-pill bg-surface-alt px-1.5 py-px text-[10.5px] leading-[1.3] text-text-faint">
-                      {tabItem.count}
-                    </span>
-                    {tab === tabItem.id && (
-                      <div className="absolute bottom-0 left-3 right-3 h-0.5 bg-brand" />
-                    )}
-                  </button>
-                ))}
-              </div>
-            </div>
+            <ProfileContentTabs
+              activeTab={tab}
+              isRoutePending={isRoutePending}
+              tabs={tabs}
+              onSelectTab={(nextTab) => {
+                void prefetchTab(nextTab)
+                navigateSearch({ tab: nextTab })
+              }}
+            />
 
             <div className="pt-7">
               {contentIsLoading && (
@@ -893,6 +909,13 @@ function PublicProfileContent({
                     })
                   )}
                 </div>
+              )}
+
+              {!contentIsLoading && tab === 'posts' && (
+                <ProfilePostList
+                  posts={posts}
+                  emptyLabel="no public posts yet."
+                />
               )}
 
               {!contentIsLoading && tab === 'contributions' && (

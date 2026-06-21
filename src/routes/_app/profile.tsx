@@ -15,6 +15,7 @@ import {
   privateProfileContributionsQueryOptions,
   privateProfileLikedProjectsQueryOptions,
   privateProfileOverviewQueryOptions,
+  privateProfilePostsQueryOptions,
   privateProfileProjectsQueryOptions,
 } from '@/features/profile/queries'
 import {
@@ -23,8 +24,14 @@ import {
   type ProfileNetworkTab,
 } from '@/features/profile/state'
 import { ProfileContentTabs } from '@/features/profile/content-tabs'
+import {
+  commentAvailabilityCopy,
+  getProfileCommentDestination,
+  isCommentTargetOpenable,
+} from '@/features/profile/comment-navigation'
 import { ProfileMobileAccountActions } from '@/features/profile/mobile-account-actions'
 import { ProfileNetworkSection } from '@/features/profile/network-section'
+import { ProfilePostList } from '@/features/profile/post-list'
 import { LxAvatar } from '@/components/ui/lx-avatar'
 import { StatusPill } from '@/components/ui/status-pill'
 import { BrandIcon } from '@/components/ui/brand-icon'
@@ -45,6 +52,7 @@ import {
   type ContributedProjectPreview,
   type ProjectCardPreview,
   type ProfileCommentPreview,
+  type ProfilePostPreview,
   type PrivateProfileOverviewPayload,
   type ProfileSocialPagePayload,
 } from '@/features/contracts'
@@ -59,32 +67,6 @@ import { socialLinkHref } from '@/lib/social-links'
 import { Pin } from '@/lib/icons'
 import { shouldPrefetchPrivateConvexQueries } from '@/lib/auth-routing'
 
-function isCommentTargetOpenable(
-  comment: ProfileCommentPreview,
-): comment is ProfileCommentPreview & {
-  projectOwner: string
-  projectRepo: string
-  targetAvailability: 'available'
-} {
-  return (
-    comment.targetAvailability === 'available' &&
-    Boolean(comment.projectOwner) &&
-    Boolean(comment.projectRepo)
-  )
-}
-
-function commentAvailabilityCopy(comment: ProfileCommentPreview) {
-  switch (comment.targetAvailability) {
-    case 'available':
-      return 'open in project'
-    case 'hidden':
-      return 'hidden from profile'
-    case 'deleted':
-    default:
-      return 'project removed'
-  }
-}
-
 const TAB_QUERY_STALE_TIME = 60_000
 const SOCIAL_PAGE_SIZE = 12
 
@@ -93,23 +75,26 @@ export const Route = createFileRoute('/_app/profile')({
   loaderDeps: ({ search }) => ({
     network: search.network ?? 'followers',
   }),
-  loader: ({ context, deps }) => {
+  loader: async ({ context, deps }) => {
     if (!shouldPrefetchPrivateConvexQueries()) {
       return
     }
 
-    return Promise.all([
-      context.queryClient.ensureQueryData(privateProfileOverviewQueryOptions()),
-      context.queryClient.ensureQueryData(
-        privateFollowGraphQueryOptions({
-          kind: deps.network,
-          paginationOpts: {
-            cursor: null,
-            numItems: SOCIAL_PAGE_SIZE,
-          },
-        }),
-      ),
-    ])
+    const overview = await context.queryClient.ensureQueryData(
+      privateProfileOverviewQueryOptions(),
+    )
+
+    await context.queryClient.ensureQueryData(
+      privateFollowGraphQueryOptions({
+        kind: deps.network,
+        paginationOpts: {
+          cursor: null,
+          numItems: SOCIAL_PAGE_SIZE,
+        },
+      }),
+    )
+
+    return overview
   },
   pendingComponent: FormRoutePending,
   pendingMs: ROUTE_PENDING_MS,
@@ -139,6 +124,22 @@ function emptySocialPage(): ProfileSocialPagePayload {
     pageStatus: null,
     splitCursor: null,
   }
+}
+
+function resolveVisibleSocialPage(
+  statePage: ProfileSocialPagePayload,
+  queriedPage: ProfileSocialPagePayload | undefined,
+) {
+  if (!queriedPage) {
+    return statePage
+  }
+
+  const stateHasLoadedPage =
+    statePage.page.length > 0 ||
+    statePage.continueCursor !== '' ||
+    !statePage.isDone
+
+  return stateHasLoadedPage ? statePage : queriedPage
 }
 
 function ProfilePage() {
@@ -176,10 +177,18 @@ function ProfilePage() {
     }),
     staleTime: TAB_QUERY_STALE_TIME,
   })
+  const activeSocialPage = activeSocialQuery.data as
+    | ProfileSocialPagePayload
+    | undefined
 
   const projectsQuery = useQuery({
     ...privateProfileProjectsQueryOptions(),
     enabled: tab === 'projects',
+    staleTime: TAB_QUERY_STALE_TIME,
+  })
+  const postsQuery = useQuery({
+    ...privateProfilePostsQueryOptions(),
+    enabled: tab === 'posts',
     staleTime: TAB_QUERY_STALE_TIME,
   })
   const contributionsQuery = useQuery({
@@ -199,21 +208,21 @@ function ProfilePage() {
   })
 
   useEffect(() => {
-    const page = activeSocialQuery.data as ProfileSocialPagePayload | undefined
-    if (!page) {
+    if (!activeSocialPage) {
       return
     }
 
     if (network === 'followers') {
-      setFollowersPage(page)
+      setFollowersPage(activeSocialPage)
       return
     }
 
-    setFollowingPage(page)
-  }, [activeSocialQuery.data, network])
+    setFollowingPage(activeSocialPage)
+  }, [activeSocialPage, network])
 
   useEffect(() => {
     void queryClient.prefetchQuery(privateProfileProjectsQueryOptions())
+    void queryClient.prefetchQuery(privateProfilePostsQueryOptions())
     void queryClient.prefetchQuery(privateProfileContributionsQueryOptions())
     void queryClient.prefetchQuery(privateProfileCommentsQueryOptions())
     void queryClient.prefetchQuery(privateProfileLikedProjectsQueryOptions())
@@ -278,13 +287,18 @@ function ProfilePage() {
     'website',
     overview.viewer.socialLinks.website,
   )
-
   const tabs = [
     {
       id: 'projects',
       label: 'projects',
       mobileLabel: 'projects',
       count: overview.viewer.stats.projectsCount,
+    },
+    {
+      id: 'posts',
+      label: 'posts',
+      mobileLabel: 'posts',
+      count: overview.viewer.stats.postsCount ?? 0,
     },
     {
       id: 'contributions',
@@ -308,6 +322,7 @@ function ProfilePage() {
 
   const projects =
     (projectsQuery.data as Array<ProjectCardPreview> | undefined) ?? []
+  const posts = (postsQuery.data as Array<ProfilePostPreview> | undefined) ?? []
   const contributions =
     (contributionsQuery.data as Array<ContributedProjectPreview> | undefined) ??
     []
@@ -325,6 +340,7 @@ function ProfilePage() {
 
   const contentIsLoading =
     (tab === 'projects' && projectsQuery.isLoading) ||
+    (tab === 'posts' && postsQuery.isLoading) ||
     (tab === 'contributions' && contributionsQuery.isLoading) ||
     (tab === 'comments' && commentsQuery.isLoading) ||
     (tab === 'liked' && likedProjectsQuery.isLoading)
@@ -333,14 +349,20 @@ function ProfilePage() {
     overview.viewer.pinnedProfileProjectIds.map(String),
   )
   const socialItems =
-    network === 'followers' ? followersPage.page : followingPage.page
+    network === 'followers'
+      ? resolveVisibleSocialPage(followersPage, activeSocialPage).page
+      : resolveVisibleSocialPage(followingPage, activeSocialPage).page
   const hasMoreSocial =
-    network === 'followers' ? !followersPage.isDone : !followingPage.isDone
+    network === 'followers'
+      ? !resolveVisibleSocialPage(followersPage, activeSocialPage).isDone
+      : !resolveVisibleSocialPage(followingPage, activeSocialPage).isDone
 
   const prefetchTab = (nextTab: ProfileContentTab) => {
     switch (nextTab) {
       case 'projects':
         return queryClient.prefetchQuery(privateProfileProjectsQueryOptions())
+      case 'posts':
+        return queryClient.prefetchQuery(privateProfilePostsQueryOptions())
       case 'contributions':
         return queryClient.prefetchQuery(
           privateProfileContributionsQueryOptions(),
@@ -400,19 +422,12 @@ function ProfilePage() {
   }
 
   const openCommentTarget = (comment: ProfileCommentPreview) => {
-    if (!isCommentTargetOpenable(comment)) {
+    const destination = getProfileCommentDestination(comment)
+    if (!destination) {
       return
     }
 
-    void navigate({
-      to: '/project/$owner/$repo',
-      params: {
-        owner: comment.projectOwner,
-        repo: comment.projectRepo,
-      },
-      search: { comment: String(comment._id) },
-      hash: `comment-${String(comment._id)}`,
-    })
+    void navigate(destination)
   }
 
   const handleLoadMoreGraph = async (kind: ProfileNetworkTab) => {
@@ -420,7 +435,11 @@ function ProfilePage() {
       return
     }
 
-    const currentPage = kind === 'followers' ? followersPage : followingPage
+    const statePage = kind === 'followers' ? followersPage : followingPage
+    const currentPage = resolveVisibleSocialPage(
+      statePage,
+      kind === network ? activeSocialPage : undefined,
+    )
     if (currentPage.isDone) {
       return
     }
@@ -456,10 +475,13 @@ function ProfilePage() {
     }
   }
 
+  const networkIsLoading =
+    activeSocialQuery.isLoading && activeSocialQuery.data === undefined
+
   return (
     <div className="lx-page-shell">
       <div className="lx-page-scroll flex-1">
-        <div className="lx-page-width-detail">
+        <div className="lx-page-width-profile">
           <div className="relative border-b border-line py-8 pb-7">
             <div className="flex flex-col items-start gap-6">
               <LxAvatar
@@ -624,6 +646,7 @@ function ProfilePage() {
                     ...item,
                     userId: String(item.userId),
                   }))}
+                  loading={networkIsLoading}
                   loadingMore={loadingMoreGraph === network}
                   onChangeTab={(nextTab) =>
                     navigateSearch({ network: nextTab })
@@ -754,6 +777,10 @@ function ProfilePage() {
                       )
                     })}
                   </div>
+                )}
+
+                {!contentIsLoading && tab === 'posts' && (
+                  <ProfilePostList posts={posts} emptyLabel="no posts yet." />
                 )}
 
                 {!contentIsLoading && tab === 'contributions' && (

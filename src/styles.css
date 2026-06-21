@@ -61,6 +61,7 @@
   --lx-feed-max: 720px;
   --lx-form-max: 720px;
   --lx-detail-max: 1040px;
+  --lx-profile-max: 1280px;
   --lx-public-max: 1184px;
   --lx-sidebar-width: 220px;
   --lx-right-rail-width: 280px;
@@ -309,6 +310,7 @@ html[data-skip-link-modality='keyboard'] .lx-skip-link:focus-visible {
 .lx-page-width-feed,
 .lx-page-width-form,
 .lx-page-width-detail,
+.lx-page-width-profile,
 .lx-page-width-public {
   width: min(100%, var(--lx-feed-max));
   margin-inline: auto;
@@ -327,6 +329,10 @@ html[data-skip-link-modality='keyboard'] .lx-skip-link:focus-visible {
 
 .lx-page-width-detail {
   width: min(100%, var(--lx-detail-max));
+}
+
+.lx-page-width-profile {
+  width: min(100%, var(--lx-profile-max));
 }
 
 .lx-page-width-public {

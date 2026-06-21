@@ -97,6 +97,7 @@ export default defineSchema({
       followersCount: v.number(),
       followingCount: v.number(),
       projectsCount: v.number(),
+      postsCount: v.optional(v.number()),
       contributionsCount: v.number(),
       commentsCount: v.number(),
       likedCount: v.number(),
@@ -149,6 +150,8 @@ export default defineSchema({
     updatedAt: v.number(),
     deactivatedAt: optionalTimestampValidator,
     deletedAt: optionalTimestampValidator,
+    purgeAfter: v.optional(optionalTimestampValidator),
+    purgedAt: v.optional(optionalTimestampValidator),
   })
     .index('by_clerk_id', ['clerkId'])
     .index('by_github_id', ['github.id'])
@@ -168,10 +171,28 @@ export default defineSchema({
       'stats.followersCount',
     ])
     .index('by_created_at', ['createdAt'])
+    .index('by_purge_after', ['purgeAfter'])
     .searchIndex('search_identity', {
       searchField: 'discoverability.searchText',
       filterFields: ['appearInExplore', 'deletedAt', 'deactivatedAt'],
     }),
+
+  webhook_events: defineTable({
+    source: v.string(),
+    eventId: v.string(),
+    eventType: v.string(),
+    status: v.union(
+      v.literal('processing'),
+      v.literal('processed'),
+      v.literal('ignored'),
+      v.literal('failed'),
+    ),
+    receivedAt: v.number(),
+    processedAt: optionalTimestampValidator,
+    error: optionalStringValidator,
+  })
+    .index('by_source_event', ['source', 'eventId'])
+    .index('by_status_received', ['status', 'receivedAt']),
 
   projects: defineTable({
     ownerId: v.id('users'),

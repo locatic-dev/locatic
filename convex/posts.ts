@@ -266,6 +266,13 @@ export const create = mutation({
       },
       updatedAt: now,
     })
+    await ctx.db.patch(viewer._id, {
+      stats: {
+        ...viewer.stats,
+        postsCount: (viewer.stats.postsCount ?? 0) + 1,
+      },
+      updatedAt: now,
+    })
 
     const post = await ctx.db.get(postId)
     if (!post) {
@@ -367,6 +374,13 @@ export const remove = mutation({
         updatedAt: now,
       })
     }
+    await ctx.db.patch(viewer._id, {
+      stats: {
+        ...viewer.stats,
+        postsCount: Math.max(0, (viewer.stats.postsCount ?? 0) - 1),
+      },
+      updatedAt: now,
+    })
 
     return null
   },

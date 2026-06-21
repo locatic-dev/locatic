@@ -21,12 +21,13 @@ integrations/
 
 ## WHERE TO LOOK
 
-| Task                      | Location                           | Notes                               |
-| ------------------------- | ---------------------------------- | ----------------------------------- |
-| Modify auth provider      | `clerk/provider.tsx`               | Clerk configuration                 |
-| Modify backend connection | `convex/provider.tsx`              | Convex client setup                 |
-| Modify query client       | `tanstack-query/root-provider.tsx` | QueryClient config, SSR integration |
-| Shared Convex queries     | `convex/query-options.ts`          | Route-loader/query helper options   |
+| Task                      | Location                           | Notes                                                                |
+| ------------------------- | ---------------------------------- | -------------------------------------------------------------------- |
+| Modify auth provider      | `clerk/provider.tsx`               | Clerk configuration                                                  |
+| Modify backend connection | `convex/provider.tsx`              | Convex client setup                                                  |
+| Modify query client       | `tanstack-query/root-provider.tsx` | QueryClient config, SSR integration                                  |
+| Shared Convex queries     | `convex/query-options.ts`          | Route-loader/query helper options                                    |
+| Profile posts queries     | `convex/query-options.ts`          | `privateProfilePostsQueryOptions` / `publicProfilePostsQueryOptions` |
 
 ## CONVENTIONS
 
@@ -37,6 +38,7 @@ integrations/
 - Convex query options split into separate helpers: `projectSearchQueryOptions`, `postSearchQueryOptions`, `builderSearchQueryOptions`.
 - `builderSearchQueryOptions` accepts `{cityIds, limit, q}` object — filters builder search by active city and result count.
 - `conversationRecipientPreviewQueryOptions` fetches recipient profile for inbox compose flow.
+- `privateProfilePostsQueryOptions` / `publicProfilePostsQueryOptions` provide tab-gated profile posts queries; used by profile routes.
 - SSR auth flows through `createServerFn` in `__root.tsx`
 - No devtools integration — TanStack Query devtools removed for production
 

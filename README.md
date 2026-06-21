@@ -134,7 +134,7 @@ npx convex env set CLERK_WEBHOOK_SIGNING_SECRET whsec_...
 npx convex env set --prod CLERK_WEBHOOK_SIGNING_SECRET whsec_...
 ```
 
-There is also a Clerk webhook handler at `/clerk/webhooks`. If you enable webhook syncing locally or in production, configure the Clerk webhook signing secret in Convex as well.
+The Clerk webhook handler lives at `/clerk/webhooks` in Convex HTTP actions and verifies every request signature. If you enable webhook syncing locally or in production, set `CLERK_WEBHOOK_SIGNING_SECRET` in the matching Convex deployment; `.env.local` does not reach the Convex runtime.
 
 ### Run the App
 

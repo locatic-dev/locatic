@@ -12,6 +12,7 @@ import { viewerLikedProjectIdsQueryOptions } from '@/features/viewer/queries'
 import { ProjectCard } from '@/components/ui/project-card'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
+import { Skeleton } from '@/components/ui/skeleton'
 import { PageHeader } from '@/components/app-shell/page-header'
 import { relativeTime } from '@/lib/time'
 import { useLikeProject, useUnlikeProject } from '@/features/projects/mutations'
@@ -34,6 +35,7 @@ import {
 } from '@/components/app-shell/route-pending'
 import { shouldPrefetchPrivateConvexQueries } from '@/lib/auth-routing'
 import { getFreshExploreSearch } from '@/features/explore/state'
+import { getHomeFeedRenderState } from '@/features/home/render-state'
 
 export const Route = createFileRoute('/_app/home')({
   loader: ({ context }) => {
@@ -72,6 +74,10 @@ function HomePage() {
     viewerState?.likedProjectIds.map(String) ?? [],
   )
   const items = (homeFeed.results ?? []) as HomeFeedItem[]
+  const homeFeedRenderState = getHomeFeedRenderState({
+    itemCount: items.length,
+    status: homeFeed.status,
+  })
   const likedProjectIdsQueryKey = viewerLikedProjectIdsQueryOptions().queryKey
   const likeMutation = useMutation({
     mutationFn: async ({
@@ -150,7 +156,9 @@ function HomePage() {
 
       <div className="lx-page-scroll" data-scroll-restoration-id="home-feed">
         <div className="lx-page-width-feed">
-          {items.length === 0 && (
+          {homeFeedRenderState === 'loading' && <HomeFeedSkeletonRows />}
+
+          {homeFeedRenderState === 'empty' && (
             <EmptyState
               title="you're not following anyone yet."
               description="your feed shows activity from people you follow. start with explore to find builders nearby."
@@ -165,7 +173,7 @@ function HomePage() {
             />
           )}
 
-          {items.length > 0 && (
+          {homeFeedRenderState === 'items' && (
             <>
               <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
                 <span className="font-mono text-[11.5px] lowercase text-text-faint">
@@ -276,6 +284,38 @@ function HomePage() {
           )}
         </div>
       </div>
+    </div>
+  )
+}
+
+function HomeFeedSkeletonRows() {
+  return (
+    <div
+      role="status"
+      aria-label="Loading home feed"
+      className="flex flex-col gap-3.5"
+    >
+      {Array.from({ length: 3 }, (_, index) => (
+        <div
+          key={index}
+          className="rounded-[6px] border border-line bg-surface px-4 py-4"
+        >
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <Skeleton className="h-3 w-36" />
+            <Skeleton className="h-3 w-16" />
+          </div>
+          <div className="space-y-3">
+            <Skeleton className="h-4 w-[min(24rem,78%)]" />
+            <Skeleton className="h-3.5 w-full" />
+            <Skeleton className="h-3.5 w-[min(34rem,70%)]" />
+          </div>
+          <div className="mt-5 flex flex-wrap gap-2">
+            <Skeleton className="h-7 w-20 rounded-md" />
+            <Skeleton className="h-7 w-24 rounded-md" />
+            <Skeleton className="h-7 w-16 rounded-md" />
+          </div>
+        </div>
+      ))}
     </div>
   )
 }
