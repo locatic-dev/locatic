@@ -43,6 +43,8 @@ export function ExploreFeed({
   pendingFollows,
   pendingLikes,
   pendingUserId,
+  projectFeedLoading,
+  projectSearchLoading,
   postSearchLoading,
   postResults,
   viewerId,
@@ -80,6 +82,8 @@ export function ExploreFeed({
   pendingFollows: Set<string>
   pendingLikes: Set<string>
   pendingUserId: string | null
+  projectFeedLoading: boolean
+  projectSearchLoading: boolean
   postSearchLoading: boolean
   postResults: ExplorePostPreview[]
   viewerId?: Id<'users'>
@@ -103,6 +107,7 @@ export function ExploreFeed({
         !isPostsMode &&
         !isProjectSearchActive &&
         !isGlobalFeed &&
+        !projectFeedLoading &&
         visibleItems.length === 0 && (
           <div className="py-10">
             <EmptyState
@@ -116,6 +121,7 @@ export function ExploreFeed({
         !isPostsMode &&
         !isProjectSearchActive &&
         isGlobalFeed &&
+        !projectFeedLoading &&
         visibleItems.length === 0 && (
           <div className="py-10">
             <EmptyState
@@ -177,6 +183,7 @@ export function ExploreFeed({
       {!isBuildersMode &&
         !isPostsMode &&
         isProjectSearchActive &&
+        !projectSearchLoading &&
         visibleItems.length === 0 && (
           <div className="py-5 text-center font-mono text-[12.5px] text-text-faint">
             no projects found.

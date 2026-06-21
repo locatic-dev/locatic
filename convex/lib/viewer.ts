@@ -45,6 +45,7 @@ export function createDefaultViewerProfile(
       followersCount: 0,
       followingCount: 0,
       projectsCount: 0,
+      postsCount: 0,
       contributionsCount: 0,
       commentsCount: 0,
       likedCount: 0,
@@ -84,5 +85,7 @@ export function createDefaultViewerProfile(
     updatedAt: now,
     deactivatedAt: null,
     deletedAt: null,
+    purgeAfter: null,
+    purgedAt: null,
   }
 }

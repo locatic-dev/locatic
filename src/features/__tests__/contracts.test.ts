@@ -111,6 +111,7 @@ describe('contract mappers', () => {
       cityName: 'Bengaluru, India',
       comments: [],
       likedProjects: [],
+      posts: [],
       projects: [],
       viewer: {
         _id: 'user_1',
@@ -182,6 +183,7 @@ describe('contract mappers', () => {
       githubUsername: 'octocat',
       following: [],
       likedProjects: [],
+      posts: [],
       privacy: {
         appearInPulse: true,
         cityVisibility: 'exact_city',

@@ -5,6 +5,7 @@ import { ProfileContentTabs } from '../content-tabs'
 
 const tabs = [
   { id: 'projects', label: 'projects', mobileLabel: 'projects', count: 4 },
+  { id: 'posts', label: 'posts', mobileLabel: 'posts', count: 2 },
   {
     id: 'contributions',
     label: 'contributions',
@@ -47,7 +48,7 @@ describe('ProfileContentTabs', () => {
     expect(handleSelectTab).toHaveBeenCalledWith('contributions')
   })
 
-  it('does not render the old horizontal-scroll tab rail', () => {
+  it('uses a mobile-first wrapping grid instead of forcing horizontal overflow', () => {
     const { container } = render(
       <ProfileContentTabs
         activeTab="projects"
@@ -57,7 +58,13 @@ describe('ProfileContentTabs', () => {
       />,
     )
 
+    expect(container.querySelector('.grid-cols-2')).toBeTruthy()
+    expect(
+      container.querySelector('.min-\\[520px\\]\\:grid-cols-3'),
+    ).toBeTruthy()
+    expect(container.querySelector('.lg\\:grid-cols-5')).toBeTruthy()
     expect(container.querySelector('.overflow-x-auto')).toBeNull()
     expect(container.querySelector('.min-w-max')).toBeNull()
+    expect(container.querySelector('.whitespace-nowrap')).toBeTruthy()
   })
 })

@@ -29,6 +29,9 @@ convex/lib/
 ├── types.ts             # Shared TypeScript types
 ├── viewer.ts            # Current user context helpers
 ├── posts.ts             # Post helpers: `filterVisiblePosts`, `isPublicPostVisible`, `withCurrentProjectPostFields`, `getVisiblePostProject`, `buildPostSearchText`, `normalizePostSearchQuery`
+├── account_deletion.ts  # Account deletion lifecycle: `getAccountDeletionWindow`, `shouldPurgeDeletedAccount`
+├── post_counts.ts       # Post count backfill: `shouldPatchUserPostsCount`, `getNextUserPostsCountBackfillCursor`
+├── webhook_events.ts    # Webhook idempotency: `compactWebhookError`, `getWebhookProcessingDecision`
 └── __tests__/           # Library tests
 ```
 
@@ -55,6 +58,9 @@ convex/lib/
 | Add pulse/metrics helper | `pulse.ts`            | Activity metrics                                                                                   |
 | Add snapshot helper      | `snapshots.ts`        | Denormalized data utilities                                                                        |
 | Add topic helper         | `topics.ts`           | Topic extraction / labels                                                                          |
+| Add account deletion     | `account_deletion.ts` | `getAccountDeletionWindow`, `shouldPurgeDeletedAccount`; 30d retention window                      |
+| Add post count helper    | `post_counts.ts`      | `shouldPatchUserPostsCount`, backfill cursor helpers                                               |
+| Add webhook event helper | `webhook_events.ts`   | `compactWebhookError`, `getWebhookProcessingDecision` for idempotent processing                    |
 | Add viewer helper        | `viewer.ts`           | Bootstrap payloads                                                                                 |
 
 ## CONVENTIONS

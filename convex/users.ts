@@ -28,6 +28,12 @@ import {
   buildProjectCardPreview,
   resolvePublicCityLabel,
 } from './lib/project_previews'
+import { filterVisiblePosts, getVisiblePostProject } from './lib/posts'
+import { isProjectPubliclyInteractable } from './lib/project_access'
+import {
+  getAccountDeletionWindow,
+  shouldPurgeDeletedAccount,
+} from './lib/account_deletion'
 import { getExploreCityIdsAfterProfileCityChange } from './lib/explore'
 import {
   buildActorSnapshot,
@@ -35,6 +41,14 @@ import {
   buildProjectExploreOwner,
 } from './lib/snapshots'
 import { createDefaultViewerProfile } from './lib/viewer'
+import {
+  compactWebhookError,
+  getWebhookProcessingDecision,
+} from './lib/webhook_events'
+import {
+  getNextUserPostsCountBackfillCursor,
+  shouldPatchUserPostsCount,
+} from './lib/post_counts'
 import {
   buildStatusValidator,
   cityReferenceValidator,
@@ -73,6 +87,7 @@ const serializedViewerValidator = v.object({
     followersCount: v.number(),
     followingCount: v.number(),
     projectsCount: v.number(),
+    postsCount: v.optional(v.number()),
     contributionsCount: v.number(),
     commentsCount: v.number(),
     likedCount: v.number(),
@@ -125,11 +140,76 @@ const serializedViewerValidator = v.object({
   deletedAt: optionalTimestampValidator,
 })
 
+const profileCommentPreviewValidator = v.object({
+  _id: v.id('comments'),
+  targetType: v.union(v.literal('project'), v.literal('post')),
+  targetId: v.string(),
+  targetPostId: v.union(v.string(), v.null()),
+  rootCommentId: v.string(),
+  ancestorCommentIds: v.array(v.string()),
+  content: v.string(),
+  replyCount: v.number(),
+  likesCount: v.number(),
+  createdAt: v.number(),
+  projectFullName: v.union(v.string(), v.null()),
+  projectOwner: v.union(v.string(), v.null()),
+  projectRepo: v.union(v.string(), v.null()),
+  targetLabel: v.string(),
+  targetAvailability: v.union(
+    v.literal('available'),
+    v.literal('hidden'),
+    v.literal('deleted'),
+  ),
+})
+
 const viewerBootstrapValidator = v.object({
   isAuthenticated: v.boolean(),
   needsOnboarding: v.boolean(),
   status: viewerBootstrapStatusValidator,
   viewer: v.union(serializedViewerValidator, v.null()),
+})
+
+const PROFILE_POSTS_LIMIT = 50
+
+const profilePostPreviewValidator = v.object({
+  _id: v.id('posts'),
+  _creationTime: v.number(),
+  projectId: v.id('projects'),
+  ownerId: v.id('users'),
+  actorId: v.id('users'),
+  authorRole: v.union(
+    v.literal('owner'),
+    v.literal('collaborator'),
+    v.literal('contributor'),
+  ),
+  body: v.string(),
+  searchText: v.optional(v.string()),
+  reactionCounts: v.record(v.string(), v.number()),
+  commentsCount: v.number(),
+  projectCityId: v.union(v.id('cities'), v.null()),
+  projectTopics: v.array(v.string()),
+  actorSnapshot: v.object({
+    displayName: v.string(),
+    avatarUrl: v.string(),
+    cityId: v.union(v.id('cities'), v.null()),
+    cityName: v.union(v.string(), v.null()),
+  }),
+  projectSnapshot: v.object({
+    name: v.string(),
+    fullName: v.string(),
+    ownerLogin: v.string(),
+    primaryLanguage: v.union(v.string(), v.null()),
+    languages: v.array(
+      v.object({
+        name: v.string(),
+        bytes: v.number(),
+      }),
+    ),
+  }),
+  createdAt: v.number(),
+  updatedAt: v.number(),
+  deletedAt: v.union(v.number(), v.null()),
+  viewerHasLiked: v.boolean(),
 })
 
 function serializeViewer(
@@ -189,6 +269,38 @@ async function syncOwnedProjectOwnerState(
         exploreOwner: buildProjectExploreOwner(user, project.locatic.isVisible),
       }),
     ),
+  )
+}
+
+async function requestAccountDeletion(ctx: MutationCtx, user: Doc<'users'>) {
+  const now = Date.now()
+  const { deletedAt, deactivatedAt, purgeAfter } = getAccountDeletionWindow(
+    user,
+    now,
+  )
+
+  await ctx.db.patch(user._id, {
+    deletedAt,
+    deactivatedAt,
+    purgeAfter,
+    appearInExplore: false,
+    updatedAt: now,
+  })
+
+  await syncOwnedProjectOwnerState(ctx, {
+    ...user,
+    deletedAt,
+    deactivatedAt,
+    purgeAfter,
+    appearInExplore: false,
+  })
+
+  await ctx.scheduler.runAfter(
+    Math.max(0, purgeAfter - now),
+    internal.users.purgeDeletedAccountIfDue,
+    {
+      userId: user._id,
+    },
   )
 }
 
@@ -423,6 +535,28 @@ async function buildProfileCommentPreview(
   let projectRepo = comment.targetSnapshot.projectRepo
   let targetLabel = comment.targetSnapshot.targetLabel
   let targetAvailability: 'available' | 'hidden' | 'deleted' = 'deleted'
+  let targetPostId: string | null = null
+  const ancestorCommentIds: string[] = []
+  let rootCommentId = String(comment._id)
+
+  let parentId = comment.parentId
+  const seenParentIds = new Set<string>()
+  while (parentId && seenParentIds.size < 20) {
+    const parentKey = String(parentId)
+    if (seenParentIds.has(parentKey)) {
+      break
+    }
+
+    seenParentIds.add(parentKey)
+    const parent = await ctx.db.get(parentId)
+    if (!parent) {
+      break
+    }
+
+    ancestorCommentIds.unshift(parentKey)
+    rootCommentId = parentKey
+    parentId = parent.parentId
+  }
 
   if (comment.targetType === 'project') {
     const projectId = ctx.db.normalizeId('projects', comment.targetId)
@@ -432,7 +566,27 @@ async function buildProfileCommentPreview(
       projectOwner = resolveProjectOwnerLogin(project)
       projectRepo = project.github.name
       targetLabel = project.github.fullName
-      targetAvailability = project.locatic.isVisible ? 'available' : 'hidden'
+      targetAvailability = (await isProjectPubliclyInteractable(ctx, project))
+        ? 'available'
+        : 'hidden'
+    }
+  } else {
+    targetPostId = comment.targetId
+    const postId = ctx.db.normalizeId('posts', comment.targetId)
+    const post = postId ? await ctx.db.get(postId) : null
+    if (post && post.deletedAt === null) {
+      const project = await ctx.db.get(post.projectId)
+      if (project) {
+        projectFullName = project.github.fullName
+        projectOwner = resolveProjectOwnerLogin(project)
+        projectRepo = project.github.name
+        targetLabel = `${project.github.fullName} post`
+        targetAvailability = (await getVisiblePostProject(ctx, post))
+          ? 'available'
+          : 'hidden'
+      } else {
+        targetAvailability = 'hidden'
+      }
     }
   }
 
@@ -440,6 +594,9 @@ async function buildProfileCommentPreview(
     _id: comment._id,
     targetType: comment.targetType,
     targetId: comment.targetId,
+    targetPostId,
+    rootCommentId,
+    ancestorCommentIds,
     content: comment.content,
     replyCount: comment.replyCount,
     likesCount: comment.likesCount,
@@ -584,6 +741,66 @@ async function listPublicLikedProjects(
   )
 }
 
+async function getViewerPostLikeTargetIds(
+  ctx: QueryCtx,
+  viewer: Doc<'users'> | null,
+  posts: Array<Doc<'posts'>>,
+) {
+  if (!viewer || posts.length === 0) {
+    return new Set<string>()
+  }
+
+  const reactions = await Promise.all(
+    posts.map((post) =>
+      ctx.db
+        .query('reactions')
+        .withIndex('by_user_target_type_id_reaction', (query) =>
+          query
+            .eq('userId', viewer._id)
+            .eq('targetType', 'post')
+            .eq('targetId', String(post._id))
+            .eq('reactionType', 'like'),
+        )
+        .unique(),
+    ),
+  )
+
+  return new Set(
+    reactions
+      .filter((reaction): reaction is Doc<'reactions'> => Boolean(reaction))
+      .map((reaction) => reaction.targetId),
+  )
+}
+
+async function listProfilePosts(
+  ctx: QueryCtx,
+  args: {
+    audience: 'private' | 'public'
+    requester: Doc<'users'> | null
+    userId: Doc<'users'>['_id']
+  },
+) {
+  const posts = await ctx.db
+    .query('posts')
+    .withIndex('by_owner_deleted_created', (query) =>
+      query.eq('ownerId', args.userId).eq('deletedAt', null),
+    )
+    .order('desc')
+    .take(PROFILE_POSTS_LIMIT)
+  const visiblePosts =
+    args.audience === 'public' ? await filterVisiblePosts(ctx, posts) : posts
+  const likedPostIds = await getViewerPostLikeTargetIds(
+    ctx,
+    args.requester,
+    visiblePosts,
+  )
+
+  return visiblePosts.map((post) => ({
+    ...post,
+    viewerHasLiked: likedPostIds.has(String(post._id)),
+  }))
+}
+
 function emptyFollowPreviewPage(cursor: string | null = null) {
   return {
     continueCursor: cursor ?? '',
@@ -641,12 +858,14 @@ async function getAccessiblePublicProfileViewer(
 async function getPublicProfilePayload(
   ctx: QueryCtx,
   viewer: NonNullable<Awaited<ReturnType<typeof getViewerByClerkId>>>,
+  requester: Doc<'users'> | null = null,
 ) {
   const city = viewer.profile.cityId
     ? await ctx.db.get(viewer.profile.cityId)
     : null
   const [
     projects,
+    posts,
     comments,
     likedProjects,
     contributions,
@@ -654,6 +873,11 @@ async function getPublicProfilePayload(
     following,
   ] = await Promise.all([
     listPublicProfileProjects(ctx, viewer),
+    listProfilePosts(ctx, {
+      audience: 'public',
+      requester,
+      userId: viewer._id,
+    }),
     listPublicProfileComments(ctx, viewer),
     listPublicLikedProjects(ctx, viewer),
     listContributedProjects(ctx, viewer._id, 'public'),
@@ -686,6 +910,7 @@ async function getPublicProfilePayload(
     stats: viewer.stats,
     githubContributions: viewer.githubContributions ?? null,
     projects,
+    posts,
     comments,
     contributions,
     followers,
@@ -734,6 +959,7 @@ export const privateProfile = query({
     const [
       city,
       projects,
+      posts,
       comments,
       contributions,
       followers,
@@ -742,6 +968,11 @@ export const privateProfile = query({
     ] = await Promise.all([
       viewer.profile.cityId ? ctx.db.get(viewer.profile.cityId) : null,
       listPrivateProfileProjects(ctx, viewer),
+      listProfilePosts(ctx, {
+        audience: 'private',
+        requester: viewer,
+        userId: viewer._id,
+      }),
       listPrivateProfileComments(ctx, viewer._id),
       listContributedProjects(ctx, viewer._id, 'private'),
       listFollowPreviewSlice(ctx, {
@@ -761,6 +992,7 @@ export const privateProfile = query({
       viewer: serializeViewer(viewer),
       cityName: city?.displayName ?? null,
       projects,
+      posts,
       comments,
       contributions,
       followers,
@@ -793,6 +1025,19 @@ export const privateProfileProjects = query({
   },
 })
 
+export const privateProfilePosts = query({
+  args: {},
+  returns: v.array(profilePostPreviewValidator),
+  handler: async (ctx) => {
+    const viewer = await getViewerOrThrow(ctx)
+    return await listProfilePosts(ctx, {
+      audience: 'private',
+      requester: viewer,
+      userId: viewer._id,
+    })
+  },
+})
+
 export const privateProfileContributions = query({
   args: {},
   handler: async (ctx) => {
@@ -803,6 +1048,7 @@ export const privateProfileContributions = query({
 
 export const privateProfileComments = query({
   args: {},
+  returns: v.array(profileCommentPreviewValidator),
   handler: async (ctx) => {
     const viewer = await getViewerOrThrow(ctx)
     return await listPrivateProfileComments(ctx, viewer._id)
@@ -951,7 +1197,7 @@ export const publicProfile = query({
     return {
       userId: viewer._id,
       viewerFollowsProfile: Boolean(followRecord),
-      ...(await getPublicProfilePayload(ctx, viewer)),
+      ...(await getPublicProfilePayload(ctx, viewer, requester)),
     }
   },
 })
@@ -1018,6 +1264,28 @@ export const publicProfileProjects = query({
   },
 })
 
+export const publicProfilePosts = query({
+  args: {
+    username: v.string(),
+  },
+  returns: v.union(v.array(profilePostPreviewValidator), v.null()),
+  handler: async (ctx, args) => {
+    const { requester, viewer } = await getAccessiblePublicProfileViewer(
+      ctx,
+      args.username,
+    )
+    if (!viewer) {
+      return null
+    }
+
+    return await listProfilePosts(ctx, {
+      audience: 'public',
+      requester,
+      userId: viewer._id,
+    })
+  },
+})
+
 export const publicProfileContributions = query({
   args: {
     username: v.string(),
@@ -1039,6 +1307,7 @@ export const publicProfileComments = query({
   args: {
     username: v.string(),
   },
+  returns: v.union(v.array(profileCommentPreviewValidator), v.null()),
   handler: async (ctx, args) => {
     const { viewer } = await getAccessiblePublicProfileViewer(
       ctx,
@@ -1322,6 +1591,7 @@ export const completeOnboarding = mutation({
 
 export const deactivateAccount = mutation({
   args: {},
+  returns: v.null(),
   handler: async (ctx) => {
     const viewer = await getViewerOrThrow(ctx)
     const now = Date.now()
@@ -1344,29 +1614,73 @@ export const deactivateAccount = mutation({
 
 export const deleteAccount = mutation({
   args: {},
+  returns: v.null(),
   handler: async (ctx) => {
     const viewer = await getViewerOrThrow(ctx)
-    const now = Date.now()
-
-    await ctx.db.patch(viewer._id, {
-      deletedAt: now,
-      deactivatedAt: now,
-      appearInExplore: false,
-      updatedAt: now,
-    })
-
-    await syncOwnedProjectOwnerState(ctx, {
-      ...viewer,
-      deletedAt: now,
-      deactivatedAt: now,
-      appearInExplore: false,
-    })
-
-    await ctx.scheduler.runAfter(0, internal.users.finalizeDeletedAccount, {
-      userId: viewer._id,
-    })
+    await requestAccountDeletion(ctx, viewer)
 
     return null
+  },
+})
+
+export const backfillUserPostCounts = internalMutation({
+  args: {
+    afterCreatedAt: optionalTimestampValidator,
+    limit: v.optional(v.number()),
+  },
+  returns: v.object({
+    scannedCount: v.number(),
+    patchedCount: v.number(),
+    nextAfterCreatedAt: optionalTimestampValidator,
+    scheduledContinuation: v.boolean(),
+  }),
+  handler: async (ctx, args) => {
+    const limit = Math.min(Math.max(args.limit ?? 50, 1), 100)
+    const afterCreatedAt = args.afterCreatedAt ?? null
+    const users = await ctx.db
+      .query('users')
+      .withIndex('by_created_at', (query) =>
+        afterCreatedAt === null ? query : query.gt('createdAt', afterCreatedAt),
+      )
+      .take(limit)
+    let patchedCount = 0
+
+    for (const user of users) {
+      const posts = await ctx.db
+        .query('posts')
+        .withIndex('by_owner_deleted_created', (query) =>
+          query.eq('ownerId', user._id).eq('deletedAt', null),
+        )
+        .collect()
+      const postsCount = posts.length
+
+      if (shouldPatchUserPostsCount(user.stats.postsCount, postsCount)) {
+        patchedCount += 1
+        await ctx.db.patch(user._id, {
+          stats: {
+            ...user.stats,
+            postsCount,
+          },
+          updatedAt: Date.now(),
+        })
+      }
+    }
+
+    const nextAfterCreatedAt = getNextUserPostsCountBackfillCursor(users, limit)
+    const scheduledContinuation = nextAfterCreatedAt !== null
+    if (scheduledContinuation) {
+      await ctx.scheduler.runAfter(0, internal.users.backfillUserPostCounts, {
+        afterCreatedAt: nextAfterCreatedAt,
+        limit,
+      })
+    }
+
+    return {
+      scannedCount: users.length,
+      patchedCount,
+      nextAfterCreatedAt,
+      scheduledContinuation,
+    }
   },
 })
 
@@ -1374,10 +1688,59 @@ export const finalizeDeletedAccount = internalAction({
   args: {
     userId: v.id('users'),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
     await ctx.runMutation(internal.users.scrubDeletedAccount, {
       userId: args.userId,
     })
+    return null
+  },
+})
+
+export const purgeDeletedAccountIfDue = internalAction({
+  args: {
+    userId: v.id('users'),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const user = await ctx.runQuery(internal.users.deletedAccountPurgeState, {
+      userId: args.userId,
+    })
+    if (!user || !shouldPurgeDeletedAccount(user, Date.now())) {
+      return null
+    }
+
+    await ctx.runMutation(internal.users.scrubDeletedAccount, {
+      userId: args.userId,
+    })
+
+    return null
+  },
+})
+
+export const deletedAccountPurgeState = internalQuery({
+  args: {
+    userId: v.id('users'),
+  },
+  returns: v.union(
+    v.object({
+      deletedAt: optionalTimestampValidator,
+      purgeAfter: optionalTimestampValidator,
+      purgedAt: optionalTimestampValidator,
+    }),
+    v.null(),
+  ),
+  handler: async (ctx, args) => {
+    const user = await ctx.db.get(args.userId)
+    if (!user) {
+      return null
+    }
+
+    return {
+      deletedAt: user.deletedAt ?? null,
+      purgeAfter: user.purgeAfter ?? null,
+      purgedAt: user.purgedAt ?? null,
+    }
   },
 })
 
@@ -1385,14 +1748,19 @@ export const scrubDeletedAccount = internalMutation({
   args: {
     userId: v.id('users'),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const user = await ctx.db.get(args.userId)
     if (!user) {
       return null
     }
+    if (user.purgedAt) {
+      return null
+    }
 
     const [
       ownedProjects,
+      ownedPosts,
       comments,
       reactions,
       followsAsFollower,
@@ -1411,6 +1779,12 @@ export const scrubDeletedAccount = internalMutation({
       ctx.db
         .query('projects')
         .withIndex('by_owner', (query) => query.eq('ownerId', args.userId))
+        .collect(),
+      ctx.db
+        .query('posts')
+        .withIndex('by_owner_deleted_created', (query) =>
+          query.eq('ownerId', args.userId).eq('deletedAt', null),
+        )
         .collect(),
       ctx.db
         .query('comments')
@@ -1592,6 +1966,24 @@ export const scrubDeletedAccount = internalMutation({
       })
     }
 
+    for (const post of ownedPosts) {
+      const project = await ctx.db.get(post.projectId)
+      if (project) {
+        await ctx.db.patch(project._id, {
+          locatic: {
+            ...project.locatic,
+            postsCount: Math.max(0, (project.locatic.postsCount ?? 0) - 1),
+          },
+          updatedAt: Date.now(),
+        })
+      }
+
+      await ctx.db.patch(post._id, {
+        deletedAt: Date.now(),
+        updatedAt: Date.now(),
+      })
+    }
+
     for (const conversation of conversations) {
       const conversationMessages = await ctx.db
         .query('messages')
@@ -1663,9 +2055,12 @@ export const scrubDeletedAccount = internalMutation({
       },
       stats: {
         ...user.stats,
+        postsCount: 0,
         commentsCount: 0,
         likedCount: 0,
       },
+      purgeAfter: null,
+      purgedAt: Date.now(),
       updatedAt: Date.now(),
     })
 
@@ -1702,6 +2097,10 @@ export const upsertFromClerkWebhook = internalMutation({
       )
 
       return await ctx.db.get(userId)
+    }
+
+    if (existingViewer.deletedAt) {
+      return existingViewer
     }
 
     await ctx.db.patch(existingViewer._id, {
@@ -1757,23 +2156,140 @@ export const deleteFromClerkWebhook = internalMutation({
   args: {
     clerkId: v.string(),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const viewer = await getViewerByClerkId(ctx, args.clerkId)
     if (!viewer) {
       return null
     }
 
-    await ctx.db.patch(viewer._id, {
-      deletedAt: Date.now(),
-      deactivatedAt: Date.now(),
-      updatedAt: Date.now(),
-    })
+    await requestAccountDeletion(ctx, viewer)
 
-    await syncOwnedProjectOwnerState(ctx, {
-      ...viewer,
-      deletedAt: Date.now(),
-      deactivatedAt: Date.now(),
-    })
+    return null
+  },
+})
+
+export const markClerkWebhookEventProcessing = internalMutation({
+  args: {
+    eventId: v.string(),
+    eventType: v.string(),
+  },
+  returns: v.object({
+    shouldProcess: v.boolean(),
+    status: v.union(
+      v.literal('processing'),
+      v.literal('processed'),
+      v.literal('ignored'),
+      v.literal('failed'),
+    ),
+  }),
+  handler: async (ctx, args) => {
+    const now = Date.now()
+    const existingEvents = await ctx.db
+      .query('webhook_events')
+      .withIndex('by_source_event', (query) =>
+        query.eq('source', 'clerk').eq('eventId', args.eventId),
+      )
+      .collect()
+    const decision = getWebhookProcessingDecision(existingEvents, now)
+
+    if (!decision.shouldProcess) {
+      return {
+        shouldProcess: false,
+        status: decision.status,
+      }
+    }
+
+    if (existingEvents.length > 0) {
+      await Promise.all(
+        existingEvents.map((event) =>
+          ctx.db.patch(event._id, {
+            eventType: args.eventType,
+            status: 'processing',
+            error: null,
+            receivedAt: now,
+            processedAt: null,
+          }),
+        ),
+      )
+    } else {
+      await ctx.db.insert('webhook_events', {
+        source: 'clerk',
+        eventId: args.eventId,
+        eventType: args.eventType,
+        status: 'processing',
+        receivedAt: now,
+        processedAt: null,
+        error: null,
+      })
+    }
+
+    return {
+      shouldProcess: true,
+      status: 'processing' as const,
+    }
+  },
+})
+
+export const markClerkWebhookEventProcessed = internalMutation({
+  args: {
+    eventId: v.string(),
+    status: v.union(v.literal('processed'), v.literal('ignored')),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const events = await ctx.db
+      .query('webhook_events')
+      .withIndex('by_source_event', (query) =>
+        query.eq('source', 'clerk').eq('eventId', args.eventId),
+      )
+      .collect()
+    if (events.length === 0) {
+      return null
+    }
+
+    const now = Date.now()
+    await Promise.all(
+      events.map((event) =>
+        ctx.db.patch(event._id, {
+          status: args.status,
+          processedAt: now,
+          error: null,
+        }),
+      ),
+    )
+
+    return null
+  },
+})
+
+export const markClerkWebhookEventFailed = internalMutation({
+  args: {
+    eventId: v.string(),
+    error: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const events = await ctx.db
+      .query('webhook_events')
+      .withIndex('by_source_event', (query) =>
+        query.eq('source', 'clerk').eq('eventId', args.eventId),
+      )
+      .collect()
+    if (events.length === 0) {
+      return null
+    }
+
+    const now = Date.now()
+    await Promise.all(
+      events.map((event) =>
+        ctx.db.patch(event._id, {
+          status: 'failed',
+          processedAt: now,
+          error: compactWebhookError(args.error),
+        }),
+      ),
+    )
 
     return null
   },
