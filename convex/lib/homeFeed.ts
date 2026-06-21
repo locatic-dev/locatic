@@ -162,7 +162,7 @@ function appendSourceEventId(
   )
 }
 
-async function upsertHomeFeedItemForEvent(
+export async function upsertHomeFeedItemForEvent(
   ctx: MutationCtx,
   item: HomeFeedItemInput,
   target: HomeFeedTarget,
@@ -179,7 +179,10 @@ async function upsertHomeFeedItemForEvent(
     existing?.sourceEventId === item.sourceEventId ||
     existing?.sourceEventIds?.some((eventId) => eventId === item.sourceEventId)
   ) {
-    return existing._id
+    return {
+      action: 'deduped' as const,
+      id: existing._id,
+    }
   }
 
   if (existing) {
@@ -215,10 +218,13 @@ async function upsertHomeFeedItemForEvent(
       createdAt: Math.max(existing.createdAt, item.createdAt),
     })
 
-    return existing._id
+    return {
+      action: 'merged' as const,
+      id: existing._id,
+    }
   }
 
-  return await ctx.db.insert('home_feed_items', {
+  const id = await ctx.db.insert('home_feed_items', {
     ...item,
     dedupeKey: groupKey,
     rowKind: 'single_event',
@@ -231,6 +237,11 @@ async function upsertHomeFeedItemForEvent(
     previewTargets: [target],
     target,
   })
+
+  return {
+    action: 'inserted' as const,
+    id,
+  }
 }
 
 export async function fanOutActivityEventToFollowers(
