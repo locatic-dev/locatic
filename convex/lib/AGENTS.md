@@ -37,31 +37,31 @@ convex/lib/
 
 ## WHERE TO LOOK
 
-| Task                     | File                  | Notes                                                                                              |
-| ------------------------ | --------------------- | -------------------------------------------------------------------------------------------------- |
-| Add schema validator     | `validators.ts`       | Import in `schema.ts`                                                                              |
-| Add auth helper          | `auth.ts`             | Backend auth logic                                                                                 |
-| Post visibility/search   | `posts.ts`            | `buildPostSearchText`, `normalizePostSearchQuery` for search index                                 |
-| Add cleanup helper       | `cleanup.ts`          | Data cleanup, migrations                                                                           |
-| Add constant             | `constants.ts`        | Shared values                                                                                      |
-| Add conversation helper  | `conversation.ts`     | DM/thread helpers                                                                                  |
-| Add discoverability      | `discoverability.ts`  | Search index, visibility logic                                                                     |
-| Add explore helper       | `explore.ts`          | Search scope / city defaults                                                                       |
-| Add GitHub helper        | `github.ts`           | Repo data fetching helpers                                                                         |
-| Add feed helper          | `homeFeed.ts`         | Feed aggregation logic                                                                             |
-| Add notification helper  | `notifications.ts`    | Notification targets / state                                                                       |
-| Add project access gate  | `project_access.ts`   | `isProjectPubliclyInteractable`, `getPubliclyInteractableProject`, `isCommentPubliclyInteractable` |
-| Add rate limiting        | `rate_limits.ts`      | `enforceRateLimit` via `@convex-dev/rate-limiter` component                                        |
-| Add pinning helper       | `project_pins.ts`     | Project pin/unpin helpers                                                                          |
-| Add preview helper       | `project_previews.ts` | Project preview/metadata                                                                           |
-| Add route helper         | `project_route.ts`    | Route-safe key normalization, owner login resolution                                               |
-| Add pulse/metrics helper | `pulse.ts`            | Activity metrics                                                                                   |
-| Add snapshot helper      | `snapshots.ts`        | Denormalized data utilities                                                                        |
-| Add topic helper         | `topics.ts`           | Topic extraction / labels                                                                          |
-| Add account deletion     | `account_deletion.ts` | `getAccountDeletionWindow`, `shouldPurgeDeletedAccount`; 30d retention window                      |
-| Add post count helper    | `post_counts.ts`      | `shouldPatchUserPostsCount`, backfill cursor helpers                                               |
-| Add webhook event helper | `webhook_events.ts`   | `compactWebhookError`, `getWebhookProcessingDecision` for idempotent processing                    |
-| Add viewer helper        | `viewer.ts`           | Bootstrap payloads                                                                                 |
+| Task                     | File                  | Notes                                                                                                                                                  |
+| ------------------------ | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Add schema validator     | `validators.ts`       | Includes `homeFeedTargetValidator`, `profileTargetSnapshotValidator`, `homeFeedRowKindValidator`, `homeFeedGroupKindValidator` — import in `schema.ts` |
+| Add auth helper          | `auth.ts`             | Backend auth logic                                                                                                                                     |
+| Post visibility/search   | `posts.ts`            | `buildPostSearchText`, `normalizePostSearchQuery` for search index                                                                                     |
+| Add cleanup helper       | `cleanup.ts`          | Data cleanup, migrations                                                                                                                               |
+| Add constant             | `constants.ts`        | Enum arrays: event/notification types, feed reasons, `HOME_FEED_ROW_KIND_VALUES`, `HOME_FEED_GROUP_KIND_VALUES`, `HOME_FEED_EXPANDED_PREVIEW_LIMIT`    |
+| Add conversation helper  | `conversation.ts`     | DM/thread helpers                                                                                                                                      |
+| Add discoverability      | `discoverability.ts`  | Search index, visibility logic                                                                                                                         |
+| Add explore helper       | `explore.ts`          | Search scope / city defaults                                                                                                                           |
+| Add GitHub helper        | `github.ts`           | Repo data fetching helpers                                                                                                                             |
+| Add feed helper          | `homeFeed.ts`         | Feed aggregation logic                                                                                                                                 |
+| Add notification helper  | `notifications.ts`    | Notification targets / state                                                                                                                           |
+| Add project access gate  | `project_access.ts`   | `isProjectPubliclyInteractable`, `getPubliclyInteractableProject`, `isCommentPubliclyInteractable`                                                     |
+| Add rate limiting        | `rate_limits.ts`      | `enforceRateLimit` via `@convex-dev/rate-limiter` component                                                                                            |
+| Add pinning helper       | `project_pins.ts`     | Project pin/unpin helpers                                                                                                                              |
+| Add preview helper       | `project_previews.ts` | Project preview/metadata                                                                                                                               |
+| Add route helper         | `project_route.ts`    | Route-safe key normalization, owner login resolution                                                                                                   |
+| Add pulse/metrics helper | `pulse.ts`            | Activity metrics                                                                                                                                       |
+| Add snapshot helper      | `snapshots.ts`        | Denormalized data utilities                                                                                                                            |
+| Add topic helper         | `topics.ts`           | Topic extraction / labels                                                                                                                              |
+| Add account deletion     | `account_deletion.ts` | `getAccountDeletionWindow`, `shouldPurgeDeletedAccount`; 30d retention window                                                                          |
+| Add post count helper    | `post_counts.ts`      | `shouldPatchUserPostsCount`, backfill cursor helpers                                                                                                   |
+| Add webhook event helper | `webhook_events.ts`   | `compactWebhookError`, `getWebhookProcessingDecision` for idempotent processing                                                                        |
+| Add viewer helper        | `viewer.ts`           | Bootstrap payloads                                                                                                                                     |
 
 ## CONVENTIONS
 

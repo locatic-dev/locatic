@@ -9,25 +9,20 @@ import { useState } from 'react'
 import { api } from '../../../convex/_generated/api'
 import type { Id } from '../../../convex/_generated/dataModel'
 import { viewerLikedProjectIdsQueryOptions } from '@/features/viewer/queries'
-import { ProjectCard } from '@/components/ui/project-card'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Skeleton } from '@/components/ui/skeleton'
 import { PageHeader } from '@/components/app-shell/page-header'
-import { relativeTime } from '@/lib/time'
 import { useLikeProject, useUnlikeProject } from '@/features/projects/mutations'
-import { useOpenConversation } from '@/features/inbox/use-open-conversation'
-import { getHomeCardDmTargetUserId } from '@/features/home/project-card-targets'
-import { getHomeFeedActivityLabel } from '@/features/home/activity-labels'
 import {
   type HomeFeedItem,
   updateLikedProjectIdsPayload,
 } from '@/features/home/cache'
+import { HomeFeedCard } from '@/features/home/home-feed-card'
 import {
   mapViewerLikedProjectIds,
   type ViewerLikedProjectIdsPayload,
 } from '@/features/contracts'
-import { toProjectCardData } from '@/features/project-card-preview'
 import {
   FeedRoutePending,
   ROUTE_PENDING_MIN_MS,
@@ -66,7 +61,6 @@ function HomePage() {
 
   const likeProject = useLikeProject()
   const unlikeProject = useUnlikeProject()
-  const { openConversation, pendingUserId } = useOpenConversation()
 
   const [pendingLikes, setPendingLikes] = useState<Set<string>>(new Set())
 
@@ -182,85 +176,17 @@ function HomePage() {
               </div>
 
               <div className="flex flex-col gap-3.5">
-                {items.map((item) => {
-                  const snapshot = item.projectSnapshot
-                  const owner = snapshot.ownerLogin
-                  const repo = snapshot.name
-                  const projectId = item.projectId
-                  const projectIdKey = String(item.projectId)
-                  const activityLabel = getHomeFeedActivityLabel({
-                    actorDisplayName: item.actorSnapshot.displayName,
-                    eventType: item.eventType,
-                  })
-                  const dmTargetUserId = getHomeCardDmTargetUserId({
-                    actorUserId: item.actorId,
-                    ownerUserId: snapshot.ownerId,
-                    viewerUserId: viewerState?.viewerId ?? null,
-                  })
-                  const liked = likedProjectIds.has(projectIdKey)
-                  const project = item.project
-                  const cardData = item.projectPreview
-                    ? {
-                        ...toProjectCardData(item.projectPreview),
-                        liked,
-                      }
-                    : {
-                        id: projectIdKey,
-                        owner,
-                        repo,
-                        fullName: snapshot.fullName,
-                        description: snapshot.description,
-                        lang:
-                          project?.github.primaryLanguage ??
-                          snapshot.primaryLanguage,
-                        languages:
-                          project?.github.languages ?? snapshot.languages ?? [],
-                        lastCommitLabel: undefined,
-                        githubStars:
-                          project?.github.stargazersCount ??
-                          snapshot.stargazersCount,
-                        locaticLikes:
-                          project?.locatic.likesCount ?? snapshot.likesCount,
-                        commentsCount:
-                          project?.locatic.commentsCount ??
-                          snapshot.commentsCount,
-                        authorName: snapshot.ownerDisplayName,
-                        authorHandle: owner,
-                        authorAvatarUrl: snapshot.ownerAvatarUrl,
-                        city: snapshot.cityName,
-                        liked,
-                      }
-
-                  return (
-                    <div key={String(item._id)}>
-                      <div className="mb-2 flex flex-wrap items-center justify-between gap-2 px-1">
-                        <span className="font-mono text-[11px] text-text-faint">
-                          {activityLabel}
-                        </span>
-                        <span className="font-mono text-[10.5px] text-text-faint">
-                          {relativeTime(item.createdAt)}
-                        </span>
-                      </div>
-                      <ProjectCard
-                        project={cardData}
-                        onLike={() => void handleLike(projectId, projectIdKey)}
-                        authorLink={{ username: cardData.authorHandle }}
-                        projectLink={{ owner, repo }}
-                        onDM={
-                          dmTargetUserId
-                            ? () => void openConversation(dmTargetUserId)
-                            : undefined
-                        }
-                        likePending={pendingLikes.has(projectIdKey)}
-                        dmPending={
-                          dmTargetUserId
-                            ? pendingUserId === String(dmTargetUserId)
-                            : false
-                        }
-                      />
-                    </div>
-                  )
-                })}
+                {items.map((item) => (
+                  <HomeFeedCard
+                    key={String(item._id)}
+                    item={item}
+                    likedProjectIds={likedProjectIds}
+                    pendingLikes={pendingLikes}
+                    onLikeProject={(projectId, projectKey) =>
+                      void handleLike(projectId, projectKey)
+                    }
+                  />
+                ))}
                 {homeFeed.status === 'CanLoadMore' && (
                   <div className="flex justify-center pt-1">
                     <Button
