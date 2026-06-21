@@ -213,6 +213,15 @@ Comment targets also carry root/ancestor comment ids so Home uses the same
 deep-link contract as profile comment navigation. Grouped rows keep a bounded
 recent source-event id list for dedupe; `eventCount` is the durable total.
 
+Legacy Home rows created before grouping may only have `sourceEventId`,
+project ids, and snapshots. The internal grouped-feed backfill rebuilds those
+rows from `activity_events`, merges them through the same grouped upsert helper
+used by new writes, and then deletes the old ungrouped row. It should be run in
+small dry-run/resumable batches. Home feed rows are automatically purged after
+30 days by daily cleanup, while `activity_events` are retained for 90 days, so
+legacy rows older than the Home retention window are intentionally not
+recoverable.
+
 Home should answer: "What are people I follow doing?"
 
 Explore should answer: "Who and what can I discover by city?"

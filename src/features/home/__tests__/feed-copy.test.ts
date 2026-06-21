@@ -46,4 +46,35 @@ describe('home feed grouped copy', () => {
     expect(getHomeFeedSummary(item)).toBe('Avi left 2 comments')
     expect(getHomeFeedTimeCopy(item)).toBe('2 comments in 3h')
   })
+
+  it('uses project-post copy for single and grouped post activity', () => {
+    const now = new Date('2026-06-21T10:00:00.000Z').getTime()
+    vi.useFakeTimers()
+    vi.setSystemTime(now)
+
+    expect(
+      getHomeFeedSummary({
+        actorSnapshot,
+        createdAt: now,
+        eventType: 'post_created',
+      } as any),
+    ).toBe('Avi posted to a project')
+
+    const groupedItem = {
+      actorSnapshot,
+      createdAt: now,
+      eventCount: 3,
+      eventType: 'post_created',
+      firstEventAt: now - 1000 * 60 * 30,
+      groupKind: 'post_created',
+      latestEventAt: now,
+    } as any
+
+    expect(getHomeFeedSummary(groupedItem)).toBe(
+      'Avi posted 3 times to a project',
+    )
+    expect(getHomeFeedTimeCopy(groupedItem)).toBe('3 posts today')
+
+    vi.useRealTimers()
+  })
 })
