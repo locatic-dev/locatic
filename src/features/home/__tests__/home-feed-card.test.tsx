@@ -1,0 +1,141 @@
+import { renderToStaticMarkup } from 'react-dom/server'
+import { describe, expect, it } from 'vitest'
+
+import type { Id } from '../../../../convex/_generated/dataModel'
+import {
+  getHomeFeedPreviewState,
+  getHomeFeedTargetRoute,
+  HomeFeedCard,
+} from '../home-feed-card'
+import type { HomeFeedCommentTarget, HomeFeedItem } from '../cache'
+
+const actorSnapshot = {
+  avatarUrl: '',
+  cityId: null,
+  cityName: null,
+  displayName: 'Avi',
+}
+
+const projectSnapshot = {
+  cityId: null,
+  cityName: null,
+  commentsCount: 0,
+  description: 'Tiny test project',
+  fullName: 'avi/test',
+  languages: [],
+  likesCount: 0,
+  name: 'test',
+  ownerAvatarUrl: '',
+  ownerDisplayName: 'Avi',
+  ownerId: 'user_owner' as Id<'users'>,
+  ownerLogin: 'avi',
+  primaryLanguage: 'TypeScript',
+  stargazersCount: 0,
+}
+
+function projectTarget(index: number) {
+  return {
+    kind: 'project' as const,
+    projectId: `project_${index}` as Id<'projects'>,
+    projectSnapshot: {
+      ...projectSnapshot,
+      fullName: `avi/test-${index}`,
+      name: `test-${index}`,
+    },
+  }
+}
+
+function feedItem(overrides: Partial<HomeFeedItem>): HomeFeedItem {
+  return {
+    _creationTime: 0,
+    _id: 'feed_1' as Id<'home_feed_items'>,
+    actorId: 'user_actor' as Id<'users'>,
+    actorSnapshot,
+    createdAt: Date.parse('2026-06-21T10:00:00.000Z'),
+    dedupeKey: 'group',
+    eventType: 'project_liked',
+    priority: 1,
+    project: null,
+    projectId: null,
+    projectPreview: null,
+    projectSnapshot: null,
+    reason: 'following',
+    sourceEventId: 'event_1' as Id<'activity_events'>,
+    userId: 'user_viewer' as Id<'users'>,
+    ...overrides,
+  }
+}
+
+describe('HomeFeedCard helpers', () => {
+  it('builds reply comment routes with root thread and ancestor path', () => {
+    const target: HomeFeedCommentTarget = {
+      ancestorCommentIds: [
+        'comment_root' as Id<'comments'>,
+        'comment_parent' as Id<'comments'>,
+      ],
+      commentId: 'comment_child' as Id<'comments'>,
+      content: 'Looks good',
+      kind: 'comment',
+      postId: 'post_1' as Id<'posts'>,
+      projectId: 'project_1' as Id<'projects'>,
+      projectSnapshot,
+      rootCommentId: 'comment_root' as Id<'comments'>,
+      targetLabel: 'test',
+      targetType: 'post',
+    }
+
+    expect(getHomeFeedTargetRoute(target)).toMatchObject({
+      hash: 'comment-comment_child',
+      search: {
+        comment: 'comment_child',
+        commentPath: 'comment_root,comment_parent',
+        post: 'post_1',
+        thread: 'comment_root',
+      },
+    })
+  })
+
+  it('caps collapsed and expanded previews without leaving an enabled expansion after cap', () => {
+    const item = feedItem({
+      eventCount: 15,
+      previewTargets: Array.from({ length: 10 }, (_, index) =>
+        projectTarget(index),
+      ),
+    })
+
+    const collapsed = getHomeFeedPreviewState(item, false)
+    expect(collapsed.visibleTargets).toHaveLength(3)
+    expect(collapsed.remainingCount).toBe(12)
+    expect(collapsed.hasStoredTargetsToExpand).toBe(true)
+
+    const expanded = getHomeFeedPreviewState(item, true)
+    expect(expanded.visibleTargets).toHaveLength(10)
+    expect(expanded.remainingCount).toBe(5)
+    expect(expanded.hasStoredTargetsToExpand).toBe(false)
+  })
+
+  it('does not render a like button for non-openable project targets', () => {
+    const item = feedItem({
+      eventType: 'project_liked',
+      previewTargets: [
+        {
+          ...projectTarget(1),
+          isOpenable: false,
+        },
+      ],
+      projectId: 'project_1' as Id<'projects'>,
+      projectSnapshot,
+    })
+
+    const html = renderToStaticMarkup(
+      <HomeFeedCard
+        item={item}
+        likedProjectIds={new Set()}
+        pendingLikes={new Set()}
+        onLikeProject={() => undefined}
+      />,
+    )
+
+    expect(html).not.toContain('Like avi/test-1')
+  })
+})

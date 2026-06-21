@@ -4,11 +4,20 @@ import {
   paginationResultValidator,
 } from 'convex/server'
 
-import { mutation, query, type QueryCtx } from './_generated/server'
+import {
+  mutation,
+  query,
+  type MutationCtx,
+  type QueryCtx,
+} from './_generated/server'
 import { getViewerOrThrow } from './lib/auth'
 import { fanOutActivityEventToFollowers } from './lib/homeFeed'
 import type { Doc } from './lib/types'
-import { buildActorSnapshot, buildProjectSnapshot } from './lib/snapshots'
+import {
+  buildActorSnapshot,
+  buildPostSnapshot,
+  buildProjectSnapshot,
+} from './lib/snapshots'
 import {
   buildProjectNotificationTarget,
   createNotificationIfEnabled,
@@ -107,6 +116,39 @@ function withViewerLikes(
     viewerHasLiked: viewerReactionIds.has(String(comment._id)),
     replies: [],
   }))
+}
+
+async function buildCommentNavigationTarget(
+  ctx: MutationCtx,
+  commentId: Doc<'comments'>['_id'],
+  parentId: Doc<'comments'>['parentId'],
+) {
+  const ancestorCommentIds: Array<Doc<'comments'>['_id']> = []
+  let rootCommentId = commentId
+  let currentParentId = parentId
+  const seenParentIds = new Set<string>()
+
+  while (currentParentId && seenParentIds.size < 20) {
+    const parentKey = String(currentParentId)
+    if (seenParentIds.has(parentKey)) {
+      break
+    }
+
+    seenParentIds.add(parentKey)
+    const parent = await ctx.db.get(currentParentId)
+    if (!parent) {
+      break
+    }
+
+    ancestorCommentIds.unshift(currentParentId)
+    rootCommentId = currentParentId
+    currentParentId = parent.parentId
+  }
+
+  return {
+    ancestorCommentIds,
+    rootCommentId,
+  }
 }
 
 async function addPreviewReplies(
@@ -409,6 +451,11 @@ export const create = mutation({
       }),
       createdAt: Date.now(),
     })
+    const commentNavigationTarget = await buildCommentNavigationTarget(
+      ctx,
+      commentId,
+      args.parentId,
+    )
 
     await ctx.db.patch(viewer._id, {
       stats: {
@@ -458,6 +505,17 @@ export const create = mutation({
           commentId,
           actorSnapshot,
           projectSnapshot: buildProjectSnapshot(project),
+          target: {
+            kind: 'comment',
+            projectId: project._id,
+            postId: null,
+            commentId,
+            ...commentNavigationTarget,
+            targetType: 'project',
+            content: args.content.trim(),
+            targetLabel: project.github.fullName,
+            projectSnapshot: buildProjectSnapshot(project),
+          },
           createdAt: Date.now(),
         })
 
@@ -497,6 +555,38 @@ export const create = mutation({
               },
             ),
           })
+        }
+
+        const project = await ctx.db.get(post.projectId)
+        if (project) {
+          const eventId = await ctx.db.insert('activity_events', {
+            actorId: viewer._id,
+            eventType: 'post_commented',
+            projectId: project._id,
+            postId: post._id,
+            commentId,
+            actorSnapshot,
+            projectSnapshot: buildProjectSnapshot(project),
+            postSnapshot: buildPostSnapshot(post),
+            target: {
+              kind: 'comment',
+              projectId: project._id,
+              postId: post._id,
+              commentId,
+              ...commentNavigationTarget,
+              targetType: 'post',
+              content: args.content.trim(),
+              targetLabel: post.projectSnapshot.name,
+              projectSnapshot: buildProjectSnapshot(project),
+              postSnapshot: buildPostSnapshot(post),
+            },
+            createdAt: Date.now(),
+          })
+
+          const event = await ctx.db.get(eventId)
+          if (event) {
+            await fanOutActivityEventToFollowers(ctx, event)
+          }
         }
       }
     }

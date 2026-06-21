@@ -76,3 +76,16 @@ export function buildPostSnapshot(post: Doc<'posts'>) {
     commentsCount: post.commentsCount,
   }
 }
+
+export function buildProfileTargetSnapshot(
+  user: Doc<'users'>,
+  cityName: string | null = null,
+) {
+  return {
+    userId: user._id,
+    githubUsername: user.github.username,
+    displayName: user.profile.displayName,
+    avatarUrl: user.profile.avatarUrl,
+    cityName,
+  }
+}
