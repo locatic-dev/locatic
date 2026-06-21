@@ -1,4 +1,4 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, Link } from '@tanstack/react-router'
 import {
   useQuery,
   useQueryClient,
@@ -402,6 +402,24 @@ function SettingsPage() {
                       </span>
                     )}
                   </div>
+                </div>
+
+                <div>
+                  <div className={sectionTitleClassName}>legal</div>
+                  <nav className="flex flex-wrap gap-x-5 gap-y-1 font-mono text-[12px]">
+                    <Link
+                      to="/privacy"
+                      className="inline-flex min-h-11 items-center text-text-muted no-underline transition-colors hover:text-text"
+                    >
+                      privacy policy
+                    </Link>
+                    <Link
+                      to="/terms"
+                      className="inline-flex min-h-11 items-center text-text-muted no-underline transition-colors hover:text-text"
+                    >
+                      terms of service
+                    </Link>
+                  </nav>
                 </div>
               </div>
             )}
