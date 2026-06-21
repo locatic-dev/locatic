@@ -13,6 +13,9 @@ import {
   githubSyncStatusValidator,
   githubSyncTypeValidator,
   githubTokenStatusValidator,
+  homeFeedGroupKindValidator,
+  homeFeedRowKindValidator,
+  homeFeedTargetValidator,
   notificationTypeValidator,
   notificationTargetValidator,
   optionalStringValidator,
@@ -503,15 +506,17 @@ export default defineSchema({
   activity_events: defineTable({
     actorId: v.id('users'),
     eventType: eventTypeValidator,
-    projectId: v.id('projects'),
+    projectId: v.optional(v.union(v.id('projects'), v.null())),
     postId: v.optional(v.union(v.id('posts'), v.null())),
     commentId: v.union(v.id('comments'), v.null()),
     actorSnapshot: actorSnapshotValidator,
-    projectSnapshot: projectSnapshotValidator,
+    projectSnapshot: v.optional(v.union(projectSnapshotValidator, v.null())),
     postSnapshot: v.optional(postSnapshotValidator),
+    target: v.optional(homeFeedTargetValidator),
     createdAt: v.number(),
   })
     .index('by_actor', ['actorId'])
+    .index('by_actor_created_at', ['actorId', 'createdAt'])
     .index('by_project_event', ['projectId', 'eventType'])
     .index('by_created_at', ['createdAt']),
 
@@ -523,18 +528,28 @@ export default defineSchema({
     priority: v.union(v.literal(1), v.literal(2), v.literal(3)),
     actorId: v.id('users'),
     eventType: eventTypeValidator,
-    projectId: v.id('projects'),
+    projectId: v.optional(v.union(v.id('projects'), v.null())),
     postId: v.optional(v.union(v.id('posts'), v.null())),
     actorSnapshot: actorSnapshotValidator,
-    projectSnapshot: projectSnapshotValidator,
+    projectSnapshot: v.optional(v.union(projectSnapshotValidator, v.null())),
     postSnapshot: v.optional(postSnapshotValidator),
+    rowKind: v.optional(homeFeedRowKindValidator),
+    groupKey: v.optional(v.string()),
+    groupKind: v.optional(homeFeedGroupKindValidator),
+    eventCount: v.optional(v.number()),
+    firstEventAt: v.optional(v.number()),
+    latestEventAt: v.optional(v.number()),
+    sourceEventIds: v.optional(v.array(v.id('activity_events'))),
+    previewTargets: v.optional(v.array(homeFeedTargetValidator)),
+    target: v.optional(homeFeedTargetValidator),
     createdAt: v.number(),
   })
     .index('by_user_priority', ['userId', 'priority'])
     .index('by_user_created', ['userId', 'createdAt'])
     .index('by_created_at', ['createdAt'])
     .index('by_actor_created', ['actorId', 'createdAt'])
-    .index('by_user_dedupe', ['userId', 'dedupeKey']),
+    .index('by_user_dedupe', ['userId', 'dedupeKey'])
+    .index('by_user_group_key', ['userId', 'groupKey']),
 
   conversations: defineTable({
     conversationKey: v.string(),

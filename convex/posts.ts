@@ -288,6 +288,13 @@ export const create = mutation({
       actorSnapshot,
       projectSnapshot: buildProjectSnapshot(project),
       postSnapshot: buildPostSnapshot(post),
+      target: {
+        kind: 'post',
+        projectId: project._id,
+        postId,
+        projectSnapshot: buildProjectSnapshot(project),
+        postSnapshot: buildPostSnapshot(post),
+      },
       createdAt: now,
     })
 

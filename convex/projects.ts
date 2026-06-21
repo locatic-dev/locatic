@@ -150,6 +150,10 @@ export const backfillRouteFields = internalMutation({
 
     const events = await ctx.db.query('activity_events').collect()
     for (const event of events) {
+      if (!event.projectId || !event.projectSnapshot?.fullName) {
+        continue
+      }
+
       if (event.projectSnapshot.ownerLogin) {
         continue
       }
@@ -169,6 +173,10 @@ export const backfillRouteFields = internalMutation({
 
     const feedItems = await ctx.db.query('home_feed_items').collect()
     for (const item of feedItems) {
+      if (!item.projectId || !item.projectSnapshot?.fullName) {
+        continue
+      }
+
       if (item.projectSnapshot.ownerLogin) {
         continue
       }
@@ -730,6 +738,11 @@ export const upsertImportedRepositories = internalMutation({
         },
         projectSnapshot: buildProjectSnapshot(project),
         postSnapshot: null,
+        target: {
+          kind: 'project',
+          projectId,
+          projectSnapshot: buildProjectSnapshot(project),
+        },
         createdAt: now,
       })
 
