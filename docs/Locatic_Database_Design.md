@@ -570,7 +570,7 @@ interface ActivityEvent {
   _id: string
   actorId: string
   eventType: EventType
-  projectId: string
+  projectId: string | null
   postId: string | null
   commentId: string | null
   actorSnapshot: {
@@ -586,31 +586,39 @@ interface ActivityEvent {
     primaryLanguage: string | null
     likesCount: number
     commentsCount: number
-  }
+  } | null
   postSnapshot: {
     body: string
     reactionCounts: Record<string, number>
     commentsCount: number
   } | null
+  target?: HomeFeedTarget
   createdAt: Date
 }
 ```
+
+`HomeFeedTarget` comment variants may include `rootCommentId` and
+`ancestorCommentIds` so Home can deep-link replies by opening the root thread
+and expanding the ancestor path.
 
 ### Field notes
 
 - `actorId`: User who generated the event
 - `eventType`: Type of activity
-- `projectId`: Always populated
+- `projectId`: Populated for project-backed activity; null for profile-only events such as follows
 - `postId`: Populated for post-related activity
 - `commentId`: Populated for comment-related activity
 - `actorSnapshot`: Feed render cache
 - `projectSnapshot`: Feed render cache
 - `postSnapshot`: Feed render cache for post events
+- `target`: Typed render/navigation target snapshot for Home feed rows
 
 ### Indexes
 
 - `by_actor -> ["actorId"]`
+- `by_actor_created_at -> ["actorId", "createdAt"]`
 - `by_project_event -> ["projectId", "eventType"]`
+- `by_created_at -> ["createdAt"]`
 
 ---
 
@@ -628,7 +636,7 @@ interface HomeFeedItem {
   priority: 1 | 2 | 3
   actorId: string
   eventType: EventType
-  projectId: string
+  projectId: string | null
   postId: string | null
   actorSnapshot: {
     displayName: string
@@ -643,12 +651,21 @@ interface HomeFeedItem {
     primaryLanguage: string | null
     likesCount: number
     commentsCount: number
-  }
+  } | null
   postSnapshot: {
     body: string
     reactionCounts: Record<string, number>
     commentsCount: number
   } | null
+  rowKind?: 'single_event' | 'event_group'
+  groupKey?: string
+  groupKind?: EventType
+  eventCount?: number
+  firstEventAt?: Date
+  latestEventAt?: Date
+  sourceEventIds?: string[]
+  target?: HomeFeedTarget
+  previewTargets?: HomeFeedTarget[]
   createdAt: Date
 }
 ```
@@ -660,12 +677,19 @@ interface HomeFeedItem {
 - `dedupeKey`: Used to avoid duplicate feed rows for the same recipient context
 - `reason`: Why the item exists for this user
 - `priority`: Feed ranking group
+- `groupKey`: Same-actor same-UTC-day grouping key used by feed upserts
+- `eventCount`: Total events represented by a grouped row
+- `firstEventAt` / `latestEventAt`: Range for softer grouped time copy
+- `sourceEventIds`: Bounded recent source-event dedupe for grouped rows
+- `target`: Primary target snapshot
+- `previewTargets`: Capped preview rows for multi-target groups; collapsed UI shows three rows
 
 ### Indexes
 
 - `by_user_priority -> ["userId", "priority"]`
 - `by_user_created -> ["userId", "createdAt"]`
 - `by_user_dedupe -> ["userId", "dedupeKey"]`
+- `by_user_group_key -> ["userId", "groupKey"]`
 
 ---
 

@@ -136,6 +136,11 @@ export const applyProjectLike = internalMutation({
         commentId: null,
         actorSnapshot: await buildActorSnapshot(ctx.db, viewer),
         projectSnapshot: buildProjectSnapshot(project),
+        target: {
+          kind: 'project',
+          projectId: project._id,
+          projectSnapshot: buildProjectSnapshot(project),
+        },
         createdAt: Date.now(),
       })
 

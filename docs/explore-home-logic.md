@@ -181,14 +181,37 @@ does not query "projects in my city" and it does not read Explore filters.
 Home feed lifecycle:
 
 1. Product events are recorded as `activity_events`.
-2. `fanOutActivityEventToFollowers` inserts one `home_feed_items` row for each
+2. `fanOutActivityEventToFollowers` upserts a `home_feed_items` row for each
    follower of the actor.
 3. Following a builder backfills recent activity from that builder into the
-   viewer's Home feed.
+   viewer's Home feed using the actor + created-at activity index.
 4. Unfollowing a builder removes feed items whose actor is that builder.
 5. The Home page reads `home_feed_items` by viewer and `createdAt` descending.
-6. Where a project is still visible, Home joins the canonical project row at
-   read time for current project-card data.
+6. Where a project or profile is still visible, Home joins canonical data at
+   read time for current previews.
+
+Home groups activity in the read model, not in React. V1 grouping is same actor
+only and uses a UTC same-day bucket so writes do not depend on client timezone.
+The UI may still describe the latest event as today, yesterday, or older from
+the viewer's browser clock.
+
+Grouping rules:
+
+- `project_commented`: same actor, same project, same UTC day.
+- `post_commented`: same actor, same post, same UTC day.
+- `post_created`: same actor, same project, same UTC day.
+- `project_liked`: same actor, same event family, same UTC day.
+- `followed`: same actor, same event family, same UTC day.
+- `project_posted`: same actor, same event family, same UTC day.
+- `contributor_matched`: same actor, same project, same UTC day.
+
+Feed rows carry a `target` and capped `previewTargets` array. Cards show at most
+three preview rows while collapsed and expand multi-target rows to at most ten
+stored previews. `eventCount` remains the source of truth for the total count,
+so cards can show `+N more` when a same-day group has more events than previews.
+Comment targets also carry root/ancestor comment ids so Home uses the same
+deep-link contract as profile comment navigation. Grouped rows keep a bounded
+recent source-event id list for dedupe; `eventCount` is the durable total.
 
 Home should answer: "What are people I follow doing?"
 
