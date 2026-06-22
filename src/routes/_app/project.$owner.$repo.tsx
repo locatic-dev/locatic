@@ -34,8 +34,6 @@ import {
   useUnlikeProject,
   useAddComment,
   useDeleteComment,
-  useReactToTarget,
-  useUnreactFromTarget,
   useUpdateProjectTopics,
 } from '@/features/projects/mutations'
 import { useFollowUser, useUnfollowUser } from '@/features/follows/mutations'
@@ -53,10 +51,7 @@ import { CommentThread } from '@/features/projects/comments/comment-thread'
 import { commentComposerTextareaClass } from '@/features/projects/comments/composer-styles'
 import { removeReplyDraft } from '@/features/projects/comments/drafts'
 import { useCommentThreadState } from '@/features/projects/comments/use-comment-thread-state'
-import type {
-  ProjectCommentLikeOverride,
-  ProjectCommentView,
-} from '@/features/projects/comments/types'
+import type { ProjectCommentView } from '@/features/projects/comments/types'
 import { ProjectReadmeSection } from '@/features/projects/readme/project-readme-section'
 import { ProjectPostsSection } from '@/features/projects/posts/project-posts-section'
 import { LikedBySummary } from '@/features/projects/likes/liked-by-summary'
@@ -180,8 +175,6 @@ function ProjectDetailPage() {
   const unlikeProject = useUnlikeProject()
   const addComment = useAddComment()
   const deleteComment = useDeleteComment()
-  const reactToTarget = useReactToTarget()
-  const unreactFromTarget = useUnreactFromTarget()
   const updateProjectTopics = useUpdateProjectTopics()
   const followUser = useFollowUser()
   const unfollowUser = useUnfollowUser()
@@ -236,12 +229,6 @@ function ProjectDetailPage() {
   const [pendingReplies, setPendingReplies] = useState<
     Record<string, ProjectCommentView[]>
   >({})
-  const [commentLikeOverrides, setCommentLikeOverrides] = useState<
-    Record<string, ProjectCommentLikeOverride>
-  >({})
-  const [pendingCommentLikeId, setPendingCommentLikeId] = useState<
-    string | null
-  >(null)
 
   const likeMutation = useMutation({
     mutationFn: async ({
@@ -478,6 +465,7 @@ function ProjectDetailPage() {
       likesCount: 0,
       parentId,
       pending: true,
+      reactionCounts: {},
       replyCount: 0,
       replies: [],
       targetId: String(detail.project._id),
@@ -490,6 +478,7 @@ function ProjectDetailPage() {
       },
       targetType: 'project',
       viewerHasLiked: false,
+      viewerReactionTypes: [],
     }
     setPendingReplies((current) => ({
       ...current,
@@ -524,59 +513,6 @@ function ProjectDetailPage() {
         }
       })
       setReplyingToId(null)
-    }
-  }
-
-  const handleToggleCommentLike = async (
-    commentId: string,
-    currentlyLiked: boolean,
-    likesCount: number,
-  ) => {
-    if (!isSignedIn || pendingCommentLikeId === commentId) {
-      return
-    }
-
-    const nextLiked = !currentlyLiked
-    const nextLikesCount = Math.max(0, likesCount + (nextLiked ? 1 : -1))
-    setCommentLikeOverrides((current) => ({
-      ...current,
-      [commentId]: {
-        likesCount: nextLikesCount,
-        viewerHasLiked: nextLiked,
-      },
-    }))
-    setPendingCommentLikeId(commentId)
-
-    try {
-      if (currentlyLiked) {
-        await unreactFromTarget({
-          reactionType: 'like',
-          targetId: commentId,
-          targetType: 'comment',
-        })
-      } else {
-        await reactToTarget({
-          reactionType: 'like',
-          targetId: commentId,
-          targetType: 'comment',
-        })
-      }
-      window.setTimeout(() => {
-        setCommentLikeOverrides((current) => {
-          const next = { ...current }
-          delete next[commentId]
-          return next
-        })
-      }, 1200)
-    } catch (error) {
-      console.error(error)
-      setCommentLikeOverrides((current) => {
-        const next = { ...current }
-        delete next[commentId]
-        return next
-      })
-    } finally {
-      setPendingCommentLikeId(null)
     }
   }
 
@@ -1106,16 +1042,13 @@ function ProjectDetailPage() {
                         key={String(commentItem._id)}
                         activeHighlightedCommentId={activeHighlightedCommentId}
                         commentItem={commentItem}
-                        commentLikeOverrides={commentLikeOverrides}
                         commentRefs={commentRefs}
                         depth={0}
                         expandedIds={expandedIds}
                         handleDeleteComment={handleDeleteComment}
                         handleReply={handleReply}
-                        handleToggleCommentLike={handleToggleCommentLike}
                         isSignedIn={Boolean(isSignedIn)}
                         onToggleReplies={toggleCommentThread}
-                        pendingCommentLikeId={pendingCommentLikeId}
                         pendingDeleteIds={pendingDeleteIds}
                         pendingReplies={pendingReplies}
                         replyDrafts={replyDrafts}

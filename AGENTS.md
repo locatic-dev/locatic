@@ -15,12 +15,12 @@ Locatic — "GitHub with a map." Developer activity platform: discover projects,
 │   ├── router.tsx          # Router + SSR query integration
 │   ├── routeTree.gen.ts    # Generated TanStack route tree (DO NOT EDIT)
 │   ├── routes/             # File-based routing (TanStack Router)
-│   ├── features/           # Feature modules (domain logic + hooks)
+│   ├── features/           # Feature modules (domain logic + hooks, includes reactions/)
 │   ├── components/         # Shared UI (shadcn/ui + app-shell)
 │   ├── integrations/       # 3rd-party providers (Clerk, Convex, TanStack Query)
 │   └── lib/                # Shared utilities
 ├── convex/                 # Backend (Convex serverless functions + schema)
-│   ├── lib/                # Shared backend utilities
+│   ├── lib/                # Shared backend utilities (includes reactions.ts)
 │   ├── lib/__tests__/      # Unit tests for lib utilities (Vitest)
 │   └── _generated/         # Auto-generated Convex types (DO NOT EDIT)
 ├── docs/                   # Product docs (PRD, design notes, issue trackers)
@@ -68,6 +68,10 @@ Locatic — "GitHub with a map." Developer activity platform: discover projects,
 | Explore post dismissal          | `convex/schema.ts` (explore_post_history table) + `convex/explore.ts`             | `dismissPost` mutation, filtered in `searchPosts` via `by_user_dismissed` index; analogous to project dismissal                                                                                                          |
 | Explore reset dismissed         | `src/features/explore/mutations.ts` + `convex/explore.ts`                         | `resetDismissedProjects` and `resetDismissedPosts` mutations; reset button in `ExploreHeader`                                                                                                                            |
 | Reaction seed config            | `convex/reactionConfigSeed.ts`                                                    | `DEFAULT_REACTIONS` array + `scripts/reactions-to-seed.mjs` for generating seed JSON                                                                                                                                     |
+| Reaction helpers                | `convex/lib/reactions.ts`                                                         | `getCommentReactionCounts`, `getViewerReactionTypesByTargetId` — shared backend helpers for multi-reaction queries                                                                                                       |
+| Reaction bar UI                 | `src/features/projects/reactions/reaction-bar.tsx`                                | `ReactionBar` component — supports multiple reaction types (like/rocket/flame etc.) with emoji icons, popover picker, and optimistic updates                                                                             |
+| Reaction bar tests              | `src/features/projects/reactions/__tests__/reaction-bar.test.tsx`                 | Vitest + Testing Library tests for ReactionBar component                                                                                                                                                                 |
+| Comment/Post reaction data      | `src/features/contracts.ts`                                                       | `viewerReactionTypes`, `reactionCounts` on `ThreadedProjectComment`, `ProfilePostPreview`                                                                                                                                |
 | App shell/layout                | `src/components/app-shell/`                                                       | Sidebar, header, navigation                                                                                                                                                                                              |
 | Vite config                     | `vite.config.ts`                                                                  | Code splitting groups, plugins                                                                                                                                                                                           |
 | Post visibility                 | `convex/lib/posts.ts`                                                             | Helpers: `filterVisiblePosts`, `normalizePostSearchQuery`, `buildPostSearchText`                                                                                                                                         |
@@ -162,6 +166,9 @@ Locatic — "GitHub with a map." Developer activity platform: discover projects,
 - Comment navigation target: `buildCommentNavigationTarget` in `convex/comments.ts` walks ancestor chain via `parentId` traversal (max 20 hops, cycle-detected) for `ancestorCommentIds`/`rootCommentId`
 - Project deep link tab routing: `getProjectDeepLinkTab({commentId, postId, postsCount})` — comment param selects `discussion` tab, post param selects `posts` tab, default falls back to `posts` if count > 0 else `readme`
 - Deep link pagination: `shouldAutoLoadDeepLinkPage` gates auto-load with attempt limit (`DEEP_LINK_LOAD_MORE_ATTEMPT_LIMIT = 5`); `getCommentExpansionPath` prefers explicit `ancestorCommentIds` over `rootCommentId` fallback for availability
+- Reaction helpers: `getCommentReactionCounts` preserves legacy `likesCount` as fallback when `reactionCounts` is undefined; `getViewerReactionTypesByTargetId` batch-queries reactions with target ID dedup
+- Reaction bar uses `reactToTarget`/`unreactFromTarget` mutations with optimistic updates; fetches reaction config via `reactions.listConfig` query
+- Reactions schema uses `by_user_target_type_id` index for efficient user-target lookups alongside the existing `by_user_target_type_id_reaction` per-type index
 
 ## ANTI-PATTERNS (THIS PROJECT)
 
