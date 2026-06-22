@@ -166,7 +166,6 @@ describe('ExploreFeed', () => {
   it('renders posts only in posts mode', () => {
     renderFeed({
       builderResults: [builder],
-      isPostSearchActive: true,
       isPostsMode: true,
       items: [project],
       postResults: [post],
@@ -175,6 +174,43 @@ describe('ExploreFeed', () => {
     expect(screen.getByText(/Shipping map-based discovery/)).toBeTruthy()
     expect(screen.getByText('#react')).toBeTruthy()
     expect(screen.queryByText('Mira Builder')).toBeNull()
+    expect(screen.queryByText('search posts by body or topic.')).toBeNull()
+    expect(screen.getByText('posts')).toBeTruthy()
+  })
+
+  it('shows scoped post browse empty copy when there are no browsable posts', () => {
+    renderFeed({
+      isPostsMode: true,
+      postResults: [],
+    })
+
+    expect(
+      screen.getByText('no posts found for this city context.'),
+    ).toBeTruthy()
+    expect(screen.queryByText('search posts by body or topic.')).toBeNull()
+  })
+
+  it('shows global post browse empty copy when browsing everywhere', () => {
+    renderFeed({
+      isGlobalFeed: true,
+      isPostsMode: true,
+      postResults: [],
+    })
+
+    expect(screen.getByText('no posts to explore right now.')).toBeTruthy()
+  })
+
+  it('shows post browse loading before browse empty copy', () => {
+    renderFeed({
+      isPostsMode: true,
+      postResults: [],
+      postSearchLoading: true,
+    })
+
+    expect(screen.getByText('loading posts…')).toBeTruthy()
+    expect(
+      screen.queryByText('no posts found for this city context.'),
+    ).toBeNull()
   })
 
   it('renders post search results as project links', () => {
@@ -185,6 +221,7 @@ describe('ExploreFeed', () => {
     })
 
     expect(screen.getByRole('link', { name: /locatic\/app/i })).toBeTruthy()
+    expect(screen.getByText('matching posts')).toBeTruthy()
   })
 
   it('shows post loading before no-results copy', () => {

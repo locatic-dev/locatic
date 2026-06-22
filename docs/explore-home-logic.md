@@ -6,7 +6,7 @@ contracts, not incidental implementation details.
 
 ## Explore
 
-Explore is city-filtered discovery for builders and projects.
+Explore is city-filtered discovery for builders, projects, and posts.
 
 ### Scopes
 
@@ -108,6 +108,27 @@ Explore does not show a `recommended` badge. The ranked order is only a feed
 ordering signal, not a user-facing recommendation model or match percentage.
 Do not add recommendation copy without explicit ranking metadata that explains
 why an item was selected.
+
+### Posts
+
+Explore post browsing is a first-class mode, not only a text-search surface.
+When the post search input is empty, Explore loads recent posts for the active
+scope:
+
+- `default`: posts from the resolved default Explore city context.
+- `custom`: posts from the selected city chips in the URL.
+- `global`: posts everywhere.
+
+The backend query for post browsing is `api.explore.listPosts`. It uses normal
+post indexes, not the text-search index:
+
+- Global browsing uses `posts.by_deleted_created`.
+- City browsing uses `posts.by_city_deleted_created` for each selected city.
+
+The query returns newest visible posts, excludes dismissed posts through
+`explore_post_history`, and applies the same public visibility checks used by
+post search. Text search remains separate in `api.explore.searchPosts` and only
+runs when the search input has a non-empty debounced query.
 
 ### Nearby Builders
 

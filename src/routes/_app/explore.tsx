@@ -11,6 +11,7 @@ import {
   builderSearchQueryOptions,
   exploreFeedQueryOptions,
   nearbyBuildersQueryOptions,
+  postListQueryOptions,
   projectSearchQueryOptions,
   postSearchQueryOptions,
 } from '@/features/explore/queries'
@@ -61,6 +62,7 @@ import { ExploreHeader } from '@/features/explore/components/explore-header'
 import { ExploreFeed } from '@/features/explore/components/explore-feed'
 import {
   keepPreviousExploreFeedData,
+  keepPreviousPostListData,
   keepPreviousPostSearchData,
 } from '@/features/explore/query-transitions'
 import { useDebouncedRouteSearch } from '@/features/explore/use-debounced-route-search'
@@ -209,6 +211,8 @@ function ExplorePage() {
     currentMode === 'projects' && debouncedSearchQuery.length > 0
   const isPostSearchActive =
     currentMode === 'posts' && debouncedSearchQuery.length > 0
+  const isPostBrowseActive =
+    currentMode === 'posts' && debouncedSearchQuery.length === 0
 
   const selectedCitiesQuery = useQuery({
     ...citiesByIdsQueryOptions(selectedCityIds),
@@ -307,8 +311,33 @@ function ExplorePage() {
           }),
         ),
   )
+  const postListQuery = useQuery(
+    isPostBrowseActive
+      ? {
+          ...postListQueryOptions({
+            limit: postLimit,
+            scope: currentScope,
+            selectedCityIds: queryCityIds,
+          }),
+          placeholderData: keepPreviousPostListData({
+            currentScope,
+            currentSelectedCityIds: queryCityIds,
+          }),
+        }
+      : disabledQuery(
+          postListQueryOptions({
+            scope: 'global',
+            selectedCityIds: [],
+          }),
+        ),
+  )
   const feedQueryKey = exploreFeedQueryOptions({
     limit: projectLimit,
+    scope: currentScope,
+    selectedCityIds: queryCityIds,
+  }).queryKey
+  const postListQueryKey = postListQueryOptions({
+    limit: postLimit,
     scope: currentScope,
     selectedCityIds: queryCityIds,
   }).queryKey
@@ -445,7 +474,14 @@ function ExplorePage() {
         hasMore: boolean
       }
     | undefined
-  const postResults = postSearchData?.posts ?? []
+  const postListData = postListQuery.data as
+    | {
+        posts: Array<Doc<'posts'>>
+        hasMore: boolean
+      }
+    | undefined
+  const activePostData = isPostSearchActive ? postSearchData : postListData
+  const postResults = activePostData?.posts ?? []
   const displayedItems = isProjectSearchActive
     ? (projectSearchData?.projects ?? [])
     : items
@@ -454,8 +490,8 @@ function ExplorePage() {
     displayedItems.length >= projectLimit &&
     projectLimit < EXPLORE_MAX_LIMIT
   const hasMorePosts =
-    isPostSearchActive &&
-    Boolean(postSearchData?.hasMore) &&
+    currentMode === 'posts' &&
+    Boolean(activePostData?.hasMore) &&
     postLimit < EXPLORE_MAX_LIMIT
   const canonicalSelectedCities = dedupeExploreCities(selectedCities)
   const selectedCityIdentities = new Set(
@@ -602,7 +638,10 @@ function ExplorePage() {
       if (currentMode === 'posts') {
         await resetPosts({})
         setDismissedPostIds(new Set())
-        await queryClient.invalidateQueries({ queryKey: postSearchQueryKey })
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: postListQueryKey }),
+          queryClient.invalidateQueries({ queryKey: postSearchQueryKey }),
+        ])
         return
       }
 
@@ -715,6 +754,7 @@ function ExplorePage() {
         pendingCityIds={pendingCityIds}
         resetPending={resetPending}
         searchQuery={localSearchQuery}
+        searchStatusActive={debouncedSearchQuery.length > 0}
         selectedCityChips={selectedCityChips}
       />
 
@@ -739,7 +779,9 @@ function ExplorePage() {
             items={displayedItems}
             likedProjectIds={likedProjectIds}
             loadMorePending={
-              scopedFeedQuery.isFetching || postSearchQuery.isFetching
+              scopedFeedQuery.isFetching ||
+              postListQuery.isFetching ||
+              postSearchQuery.isFetching
             }
             onDismissPost={handleDismissPost}
             onDismissProject={handleDismiss}
@@ -776,8 +818,12 @@ function ExplorePage() {
               projectSearchQuery.isLoading || projectSearchQuery.isFetching
             }
             postSearchLoading={
-              postSearchQuery.isLoading ||
-              (postSearchQuery.isFetching && !postSearchQuery.isPlaceholderData)
+              isPostSearchActive
+                ? postSearchQuery.isLoading ||
+                  (postSearchQuery.isFetching &&
+                    !postSearchQuery.isPlaceholderData)
+                : postListQuery.isLoading ||
+                  (postListQuery.isFetching && !postListQuery.isPlaceholderData)
             }
             postResults={postResults}
             viewerId={viewerId}
