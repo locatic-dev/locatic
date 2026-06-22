@@ -5,6 +5,7 @@ import {
   builderSearchQueryOptions,
   conversationRecipientPreviewQueryOptions,
   nearbyBuildersQueryOptions,
+  postListQueryOptions,
   postSearchQueryOptions,
   privateFollowGraphQueryOptions,
   projectSearchQueryOptions,
@@ -76,6 +77,22 @@ describe('postSearchQueryOptions', () => {
       cityIds: ['city_1'],
       limit: 10,
       q: '#react',
+    })
+  })
+})
+
+describe('postListQueryOptions', () => {
+  it('targets scoped post browse args separately from post search', () => {
+    const query = postListQueryOptions({
+      limit: 20,
+      scope: 'custom',
+      selectedCityIds: ['city_1' as never],
+    })
+
+    expect(query.queryKey[2]).toMatchObject({
+      limit: 20,
+      scope: 'custom',
+      selectedCityIds: ['city_1'],
     })
   })
 })

@@ -4,7 +4,11 @@ import { mutation, query, type QueryCtx } from './_generated/server'
 import type { Doc, Id } from './_generated/dataModel'
 import { getViewerFromAuth, getViewerOrThrow } from './lib/auth'
 import { mergeBuilderSearchCandidates } from './lib/discoverability'
-import { buildExploreCandidates, rankNearbyBuilders } from './lib/explore'
+import {
+  buildExploreCandidates,
+  rankNearbyBuilders,
+  selectExplorePostPage,
+} from './lib/explore'
 import { buildProjectCardPreview } from './lib/project_previews'
 import { getProjectTopics } from './lib/topics'
 import {
@@ -91,6 +95,12 @@ const postSearchPayloadValidator = v.object({
   hasMore: v.boolean(),
 })
 
+const exploreScopeValidator = v.union(
+  v.literal('default'),
+  v.literal('global'),
+  v.literal('custom'),
+)
+
 const builderSearchResultValidator = v.object({
   userId: v.id('users'),
   displayName: v.string(),
@@ -103,11 +113,7 @@ const builderSearchResultValidator = v.object({
 })
 
 const exploreFeedResultValidator = v.object({
-  scope: v.union(
-    v.literal('default'),
-    v.literal('global'),
-    v.literal('custom'),
-  ),
+  scope: exploreScopeValidator,
   appliedCityIds: v.array(v.id('cities')),
   isCityFiltered: v.boolean(),
   projects: v.array(projectSearchResultValidator),
@@ -220,12 +226,63 @@ async function fetchCityExploreProjects(
   )
 }
 
+function getExploreScopedCityIds({
+  selectedCityIds,
+  scope,
+  viewer,
+}: {
+  selectedCityIds?: Array<Id<'cities'>>
+  scope?: 'default' | 'global' | 'custom'
+  viewer: Doc<'users'>
+}) {
+  const resolvedScope = scope ?? 'default'
+  const defaultCityIds =
+    viewer.exploreConfig.cityIds.length > 0
+      ? viewer.exploreConfig.cityIds
+      : viewer.profile.cityId
+        ? [viewer.profile.cityId]
+        : []
+
+  return {
+    scope: resolvedScope,
+    selectedCityIds:
+      resolvedScope === 'global'
+        ? []
+        : resolvedScope === 'custom'
+          ? Array.from(new Set(selectedCityIds ?? []))
+          : defaultCityIds,
+  }
+}
+
+function getExplorePostLimit(limit: number | undefined) {
+  return Math.min(limit ?? 10, 50)
+}
+
+async function getDismissedExplorePostIds(
+  ctx: QueryCtx,
+  viewerId: Id<'users'>,
+) {
+  const dismissedPosts = await ctx.db
+    .query('explore_post_history')
+    .withIndex('by_user_dismissed', (query) =>
+      query.eq('userId', viewerId).gt('dismissedAt', 0),
+    )
+    .collect()
+
+  return new Set(dismissedPosts.map((item) => String(item.postId)))
+}
+
+function normalizeCityIds(ctx: QueryCtx, cityIds: Array<Id<'cities'>>) {
+  return [...new Set(cityIds.map(String))].flatMap((cityId) => {
+    const normalizedCityId = ctx.db.normalizeId('cities', cityId)
+    return normalizedCityId ? [normalizedCityId] : []
+  })
+}
+
 export const list = query({
   args: {
     limit: v.optional(v.number()),
-    scope: v.optional(
-      v.union(v.literal('default'), v.literal('global'), v.literal('custom')),
-    ),
+    scope: v.optional(exploreScopeValidator),
     selectedCityIds: v.optional(v.array(v.id('cities'))),
   },
   returns: exploreFeedResultValidator,
@@ -233,19 +290,11 @@ export const list = query({
     const viewer = await getViewerOrThrow(ctx)
     const limit = Math.min(args.limit ?? 20, 50)
 
-    const scope = args.scope ?? 'default'
-    const defaultCityIds =
-      viewer.exploreConfig.cityIds.length > 0
-        ? viewer.exploreConfig.cityIds
-        : viewer.profile.cityId
-          ? [viewer.profile.cityId]
-          : []
-    const selectedCityIds =
-      scope === 'global'
-        ? []
-        : scope === 'custom'
-          ? Array.from(new Set(args.selectedCityIds ?? []))
-          : defaultCityIds
+    const { scope, selectedCityIds } = getExploreScopedCityIds({
+      scope: args.scope,
+      selectedCityIds: args.selectedCityIds,
+      viewer,
+    })
     const perIndexLimit = Math.min(Math.max(limit * 2, 12), 40)
     const [projects, ownedProjects, dismissedProjects] = await Promise.all([
       selectedCityIds.length > 0
@@ -320,6 +369,69 @@ export const list = query({
           }),
         ),
       ),
+    }
+  },
+})
+
+export const listPosts = query({
+  args: {
+    limit: v.optional(v.number()),
+    scope: v.optional(exploreScopeValidator),
+    selectedCityIds: v.optional(v.array(v.id('cities'))),
+  },
+  returns: postSearchPayloadValidator,
+  handler: async (ctx, args) => {
+    const viewer = await getViewerFromAuth(ctx)
+    if (!viewer) {
+      return { hasMore: false, posts: [] }
+    }
+
+    const limit = getExplorePostLimit(args.limit)
+    const candidateTake = Math.min(Math.max((limit + 1) * 4, 40), 200)
+    const dismissedPostIds = await getDismissedExplorePostIds(ctx, viewer._id)
+    const { selectedCityIds } = getExploreScopedCityIds({
+      scope: args.scope,
+      selectedCityIds: args.selectedCityIds,
+      viewer,
+    })
+    const cityIdValues = normalizeCityIds(ctx, selectedCityIds)
+    const perCityTake =
+      cityIdValues.length > 0
+        ? Math.ceil(candidateTake / cityIdValues.length)
+        : candidateTake
+    const posts =
+      cityIdValues.length > 0
+        ? (
+            await Promise.all(
+              cityIdValues.map((cityId) =>
+                ctx.db
+                  .query('posts')
+                  .withIndex('by_city_deleted_created', (query) =>
+                    query.eq('projectCityId', cityId).eq('deletedAt', null),
+                  )
+                  .order('desc')
+                  .take(perCityTake),
+              ),
+            )
+          ).flat()
+        : await ctx.db
+            .query('posts')
+            .withIndex('by_deleted_created', (query) =>
+              query.eq('deletedAt', null),
+            )
+            .order('desc')
+            .take(candidateTake)
+
+    const visiblePosts = await filterVisiblePosts(ctx, posts)
+    const page = selectExplorePostPage({
+      dismissedPostIds,
+      limit,
+      posts: visiblePosts,
+    })
+
+    return {
+      hasMore: page.hasMore,
+      posts: page.posts,
     }
   },
 })
@@ -476,22 +588,10 @@ export const searchPosts = query({
       return { hasMore: false, posts: [] }
     }
 
-    const limit = Math.min(args.limit ?? 10, 50)
+    const limit = getExplorePostLimit(args.limit)
     const candidateTake = Math.min(Math.max((limit + 1) * 4, 40), 200)
-    const dismissedPosts = await ctx.db
-      .query('explore_post_history')
-      .withIndex('by_user_dismissed', (query) =>
-        query.eq('userId', viewer._id).gt('dismissedAt', 0),
-      )
-      .collect()
-    const dismissedPostIds = new Set(
-      dismissedPosts.map((item) => String(item.postId)),
-    )
-    const cityIds = new Set((args.cityIds ?? []).map(String))
-    const cityIdValues = [...cityIds].flatMap((cityId) => {
-      const normalizedCityId = ctx.db.normalizeId('cities', cityId)
-      return normalizedCityId ? [normalizedCityId] : []
-    })
+    const dismissedPostIds = await getDismissedExplorePostIds(ctx, viewer._id)
+    const cityIdValues = normalizeCityIds(ctx, args.cityIds ?? [])
     const perCityTake =
       cityIdValues.length > 0
         ? Math.ceil(candidateTake / cityIdValues.length)
