@@ -4,6 +4,7 @@ import {
   buildExploreCandidates,
   getExploreCityIdsAfterProfileCityChange,
   rankNearbyBuilders,
+  selectExplorePostPage,
   type ExploreCandidate,
 } from '../explore'
 
@@ -144,5 +145,53 @@ describe('rankNearbyBuilders', () => {
       'gamma',
       'alpha',
     ])
+  })
+})
+
+describe('selectExplorePostPage', () => {
+  test('returns newest non-dismissed posts up to the requested limit', () => {
+    const result = selectExplorePostPage({
+      dismissedPostIds: new Set(['dismissed']),
+      limit: 2,
+      posts: [
+        { _id: 'old', createdAt: 100 },
+        { _id: 'dismissed', createdAt: 400 },
+        { _id: 'newest', createdAt: 500 },
+        { _id: 'newer', createdAt: 300 },
+      ],
+    })
+
+    expect(result.posts.map((post) => post._id)).toEqual(['newest', 'newer'])
+  })
+
+  test('sets hasMore when one extra visible post exists', () => {
+    const result = selectExplorePostPage({
+      dismissedPostIds: new Set(['dismissed']),
+      limit: 2,
+      posts: [
+        { _id: 'first', createdAt: 500 },
+        { _id: 'dismissed', createdAt: 400 },
+        { _id: 'second', createdAt: 300 },
+        { _id: 'third', createdAt: 100 },
+      ],
+    })
+
+    expect(result.hasMore).toBe(true)
+    expect(result.posts.map((post) => post._id)).toEqual(['first', 'second'])
+  })
+
+  test('clears hasMore when dismissed posts are the only extra rows', () => {
+    const result = selectExplorePostPage({
+      dismissedPostIds: new Set(['dismissed']),
+      limit: 2,
+      posts: [
+        { _id: 'first', createdAt: 500 },
+        { _id: 'dismissed', createdAt: 400 },
+        { _id: 'second', createdAt: 300 },
+      ],
+    })
+
+    expect(result.hasMore).toBe(false)
+    expect(result.posts.map((post) => post._id)).toEqual(['first', 'second'])
   })
 })
