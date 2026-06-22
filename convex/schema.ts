@@ -454,6 +454,7 @@ export default defineSchema({
     ])
     .index('by_user', ['userId'])
     .index('by_user_target_type', ['userId', 'targetType', 'reactionType'])
+    .index('by_user_target_type_id', ['userId', 'targetType', 'targetId'])
     .index('by_user_target_type_id_reaction', [
       'userId',
       'targetType',
@@ -470,6 +471,7 @@ export default defineSchema({
     content: v.string(),
     replyCount: v.number(),
     likesCount: v.number(),
+    reactionCounts: v.optional(v.record(v.string(), v.number())),
     isDeleted: v.boolean(),
     authorSnapshot: actorSnapshotValidator,
     targetSnapshot: commentTargetSnapshotValidator,

@@ -59,6 +59,7 @@ import {
   socialLinksValidator,
   tabVisibilityValidator,
 } from './lib/validators'
+import { getViewerReactionTypesByTargetId } from './lib/reactions'
 
 const viewerBootstrapStatusValidator = v.union(
   v.literal('unauthenticated'),
@@ -210,6 +211,7 @@ const profilePostPreviewValidator = v.object({
   updatedAt: v.number(),
   deletedAt: v.union(v.number(), v.null()),
   viewerHasLiked: v.boolean(),
+  viewerReactionTypes: v.array(v.string()),
 })
 
 function serializeViewer(
@@ -741,37 +743,6 @@ async function listPublicLikedProjects(
   )
 }
 
-async function getViewerPostLikeTargetIds(
-  ctx: QueryCtx,
-  viewer: Doc<'users'> | null,
-  posts: Array<Doc<'posts'>>,
-) {
-  if (!viewer || posts.length === 0) {
-    return new Set<string>()
-  }
-
-  const reactions = await Promise.all(
-    posts.map((post) =>
-      ctx.db
-        .query('reactions')
-        .withIndex('by_user_target_type_id_reaction', (query) =>
-          query
-            .eq('userId', viewer._id)
-            .eq('targetType', 'post')
-            .eq('targetId', String(post._id))
-            .eq('reactionType', 'like'),
-        )
-        .unique(),
-    ),
-  )
-
-  return new Set(
-    reactions
-      .filter((reaction): reaction is Doc<'reactions'> => Boolean(reaction))
-      .map((reaction) => reaction.targetId),
-  )
-}
-
 async function listProfilePosts(
   ctx: QueryCtx,
   args: {
@@ -789,16 +760,25 @@ async function listProfilePosts(
     .take(PROFILE_POSTS_LIMIT)
   const visiblePosts =
     args.audience === 'public' ? await filterVisiblePosts(ctx, posts) : posts
-  const likedPostIds = await getViewerPostLikeTargetIds(
+  const viewerReactionTypesByTargetId = await getViewerReactionTypesByTargetId(
     ctx,
     args.requester,
-    visiblePosts,
+    {
+      targetIds: visiblePosts.map((post) => String(post._id)),
+      targetType: 'post',
+    },
   )
 
-  return visiblePosts.map((post) => ({
-    ...post,
-    viewerHasLiked: likedPostIds.has(String(post._id)),
-  }))
+  return visiblePosts.map((post) => {
+    const viewerReactionTypes =
+      viewerReactionTypesByTargetId.get(String(post._id)) ?? []
+
+    return {
+      ...post,
+      viewerHasLiked: viewerReactionTypes.includes('like'),
+      viewerReactionTypes,
+    }
+  })
 }
 
 function emptyFollowPreviewPage(cursor: string | null = null) {

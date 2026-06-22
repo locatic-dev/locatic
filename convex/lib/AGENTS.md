@@ -31,8 +31,9 @@ convex/lib/
 ├── posts.ts             # Post helpers: `filterVisiblePosts`, `isPublicPostVisible`, `withCurrentProjectPostFields`, `getVisiblePostProject`, `buildPostSearchText`, `normalizePostSearchQuery`
 ├── account_deletion.ts  # Account deletion lifecycle: `getAccountDeletionWindow`, `shouldPurgeDeletedAccount`
 ├── post_counts.ts       # Post count backfill: `shouldPatchUserPostsCount`, `getNextUserPostsCountBackfillCursor`
+├── reactions.ts         # Reaction helpers: `getCommentReactionCounts`, `getViewerReactionTypesByTargetId`
 ├── webhook_events.ts    # Webhook idempotency: `compactWebhookError`, `getWebhookProcessingDecision`
-└── __tests__/           # Library tests
+└── __tests__/           # Library tests (includes reactions.test.ts)
 ```
 
 ## WHERE TO LOOK
@@ -61,6 +62,7 @@ convex/lib/
 | Add account deletion     | `account_deletion.ts` | `getAccountDeletionWindow`, `shouldPurgeDeletedAccount`; 30d retention window                                                                          |
 | Add post count helper    | `post_counts.ts`      | `shouldPatchUserPostsCount`, backfill cursor helpers                                                                                                   |
 | Add webhook event helper | `webhook_events.ts`   | `compactWebhookError`, `getWebhookProcessingDecision` for idempotent processing                                                                        |
+| Add reaction helper      | `reactions.ts`        | `getCommentReactionCounts` (legacy `likesCount` fallback), `getViewerReactionTypesByTargetId` (batch query with target ID dedup)                       |
 | Add viewer helper        | `viewer.ts`           | Bootstrap payloads                                                                                                                                     |
 
 ## CONVENTIONS
