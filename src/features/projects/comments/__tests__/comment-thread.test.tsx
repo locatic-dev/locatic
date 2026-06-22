@@ -13,10 +13,26 @@ let paginatedState: {
 
 vi.mock('convex/react', () => ({
   usePaginatedQuery: () => paginatedState,
+  useQuery: () => [
+    {
+      key: 'like',
+      label: 'Like',
+      emoji: 'heart',
+      icon: 'heart-filled',
+    },
+  ],
 }))
 
 vi.mock('../../../../../convex/_generated/api', () => ({
-  api: { comments: { listReplies: 'comments.listReplies' } },
+  api: {
+    comments: { listReplies: 'comments.listReplies' },
+    reactions: { listConfig: 'reactions.listConfig' },
+  },
+}))
+
+vi.mock('@/features/projects/mutations', () => ({
+  useReactToTarget: () => vi.fn(),
+  useUnreactFromTarget: () => vi.fn(),
 }))
 
 function makeComment(
@@ -39,6 +55,7 @@ function makeComment(
     isDeleted: false,
     likesCount: 0,
     parentId: null,
+    reactionCounts: {},
     replies: [],
     replyCount: 0,
     targetId: 'project_1',
@@ -49,6 +66,7 @@ function makeComment(
     },
     targetType: 'project',
     viewerHasLiked: false,
+    viewerReactionTypes: [],
     ...overrides,
   } as ProjectCommentView
 }
@@ -60,16 +78,13 @@ function renderThread(overrides: Partial<Parameters<typeof CommentThread>[0]>) {
     <CommentThread
       activeHighlightedCommentId={null}
       commentItem={commentItem}
-      commentLikeOverrides={{}}
       commentRefs={{ current: {} }}
       depth={0}
       expandedIds={new Set([String(commentItem._id)])}
       handleDeleteComment={vi.fn()}
       handleReply={vi.fn()}
-      handleToggleCommentLike={vi.fn()}
       isSignedIn={true}
       onToggleReplies={vi.fn()}
-      pendingCommentLikeId={null}
       pendingDeleteIds={new Set()}
       pendingReplies={{}}
       replyDrafts={{}}

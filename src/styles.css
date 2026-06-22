@@ -229,10 +229,76 @@ button {
   animation: lx-fade-up 600ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
+@keyframes lx-reaction-pop {
+  0% {
+    transform: scale(1);
+  }
+  42% {
+    transform: scale(1.18) translateY(-1px);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes lx-reaction-burst {
+  0% {
+    opacity: 0.8;
+    transform: translate(-50%, -50%) rotate(var(--burst-rotate)) translateY(0)
+      scale(0.4);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) rotate(var(--burst-rotate))
+      translateY(-18px) scale(1);
+  }
+}
+
+.lx-reaction-pop {
+  animation: lx-reaction-pop 240ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.lx-reaction-burst {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+}
+
+.lx-reaction-burst span {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  height: 4px;
+  width: 4px;
+  border-radius: 999px;
+  background: var(--lx-accent);
+  animation: lx-reaction-burst 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.lx-reaction-burst span:nth-child(1) {
+  --burst-rotate: -34deg;
+}
+
+.lx-reaction-burst span:nth-child(2) {
+  --burst-rotate: 0deg;
+  animation-delay: 35ms;
+}
+
+.lx-reaction-burst span:nth-child(3) {
+  --burst-rotate: 34deg;
+  animation-delay: 70ms;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .lx-skeleton,
-  .lx-fade-up {
+  .lx-fade-up,
+  .lx-reaction-pop,
+  .lx-reaction-burst span {
     animation: none;
+  }
+
+  .lx-reaction-burst {
+    display: none;
   }
 }
 
