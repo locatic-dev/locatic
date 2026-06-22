@@ -12,6 +12,11 @@ export interface ExploreCandidate {
   addedToLocaticAt: number
 }
 
+export type ExplorePostCandidate = {
+  _id: unknown
+  createdAt: number
+}
+
 interface BuildExploreCandidatesOptions {
   candidates: ExploreCandidate[]
   ownedProjectIds: Set<string>
@@ -151,4 +156,24 @@ export function buildExploreCandidates({
     .map((entry) => entry.candidate)
 
   return [...popular, ...fresh].slice(0, limit)
+}
+
+export function selectExplorePostPage<TPost extends ExplorePostCandidate>({
+  dismissedPostIds,
+  limit,
+  posts,
+}: {
+  dismissedPostIds: Set<string>
+  limit: number
+  posts: TPost[]
+}) {
+  const page = posts
+    .filter((post) => !dismissedPostIds.has(String(post._id)))
+    .sort((left, right) => right.createdAt - left.createdAt)
+    .slice(0, limit + 1)
+
+  return {
+    hasMore: page.length > limit,
+    posts: page.slice(0, limit),
+  }
 }

@@ -159,6 +159,21 @@ export const postSearchQueryOptions = ({
     q,
   })
 
+export const postListQueryOptions = ({
+  limit = 10,
+  scope = 'default',
+  selectedCityIds = [],
+}: {
+  limit?: number
+  scope?: 'default' | 'global' | 'custom'
+  selectedCityIds?: Array<Id<'cities'>>
+}) =>
+  convexQuery(api.explore.listPosts, {
+    limit,
+    scope,
+    selectedCityIds,
+  })
+
 export const citiesSearchQueryOptions = (query: string, limit = 10) =>
   convexQuery(api.cities.search, { query, limit })
 
