@@ -10,6 +10,19 @@ export type GithubContributionCalendar = {
 
 export type GithubLanguages = Record<string, number>
 
+export type GithubContributor = {
+  id: number | null
+  login: string
+  contributions: number
+  type: string
+}
+
+export type GithubContributorImport = {
+  githubId: number
+  githubUsername: string
+  commitCount: number
+}
+
 export type GithubRepository = {
   id: number
   full_name: string
@@ -80,6 +93,13 @@ const GITHUB_REPOSITORIES_PER_PAGE = 100
 const MAX_REPOSITORY_LIST_PAGES = 10
 const MAX_README_PREVIEW_LENGTH = 20_000
 const GITHUB_RAW_README_HOST = 'raw.githubusercontent.com'
+const HOUR_MS = 60 * 60 * 1000
+const CONTRIBUTOR_SYNC_INTERVALS_MS = {
+  daily: 24 * HOUR_MS,
+  weekly: 7 * 24 * HOUR_MS,
+  monthly: 30 * 24 * HOUR_MS,
+} as const
+export const CONTRIBUTOR_SYNC_RETRY_INTERVAL_MS = 6 * HOUR_MS
 const GITHUB_REPOSITORY_FULL_NAME_REGEX =
   /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?\/[A-Za-z0-9._-]{1,100}$/
 const EMPTY_README_URL_BASES: GithubReadmeUrlBases = {
@@ -162,6 +182,51 @@ export function encodeRepositoryFullNamePath(fullName: string) {
   }
 
   return `${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`
+}
+
+export function mapGithubContributorsForImport(
+  contributors: GithubContributor[],
+): GithubContributorImport[] {
+  return contributors.flatMap((contributor) =>
+    contributor.id === null || contributor.type !== 'User'
+      ? []
+      : [
+          {
+            githubId: contributor.id,
+            githubUsername: contributor.login,
+            commitCount: contributor.contributions,
+          },
+        ],
+  )
+}
+
+export function isProjectContributorSyncDue(args: {
+  lastSyncAttemptedAt?: number | null
+  lastSyncedAt: number | null
+  now: number
+  refreshAll?: boolean
+  syncCadence: keyof typeof CONTRIBUTOR_SYNC_INTERVALS_MS
+}) {
+  if (args.refreshAll) {
+    return true
+  }
+
+  const lastAttemptedAt = args.lastSyncAttemptedAt ?? null
+  if (
+    lastAttemptedAt !== null &&
+    args.now - lastAttemptedAt < CONTRIBUTOR_SYNC_RETRY_INTERVAL_MS
+  ) {
+    return false
+  }
+
+  if (args.lastSyncedAt === null) {
+    return true
+  }
+
+  return (
+    args.now - args.lastSyncedAt >=
+    CONTRIBUTOR_SYNC_INTERVALS_MS[args.syncCadence]
+  )
 }
 
 export async function listGithubRepositoryPages<T>(args: {
