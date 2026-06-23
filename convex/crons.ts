@@ -29,6 +29,12 @@ crons.interval(
   {},
 )
 crons.interval(
+  'refresh project contributors every six hours',
+  { hours: 6 },
+  internal.github_actions.refreshDueProjectContributors,
+  { limit: 20 },
+)
+crons.interval(
   'cleanup feed and notification history daily',
   { hours: 24 },
   internal.cleanup.runDailyCleanup,

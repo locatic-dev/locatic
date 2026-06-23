@@ -13,12 +13,16 @@ import {
 } from './lib/project_route'
 import { getPubliclyInteractableProject } from './lib/project_access'
 import {
+  isProjectContributorSyncDue,
   needsGithubReadmeUrlBaseKeyNormalization,
   normalizeLegacyGithubReadmeUrlBaseKeys,
 } from './lib/github'
+import { recomputeContributionCountsForUsers } from './lib/project_contributor_sync'
 
 const MAX_README_BACKFILL_BATCH = 100
 const README_BACKFILL_SCAN_PAGE_SIZE = 100
+const MAX_CONTRIBUTOR_SYNC_BATCH = 50
+const CONTRIBUTOR_SYNC_SCAN_PAGE_SIZE = 200
 
 const projectReadmeBackfillTargetValidator = v.object({
   currentReadmeLength: v.number(),
@@ -52,6 +56,16 @@ const githubContributorImportValidator = v.object({
   githubId: v.number(),
   githubUsername: v.string(),
   commitCount: v.number(),
+})
+
+const projectContributorSyncTargetValidator = v.object({
+  fullName: v.string(),
+  projectId: v.id('projects'),
+})
+
+const projectContributorSyncTargetsValidator = v.object({
+  scanned: v.number(),
+  targets: v.array(projectContributorSyncTargetValidator),
 })
 
 const projectReadmeUrlBaseVerificationValidator = v.object({
@@ -425,6 +439,110 @@ export const listProjectReadmeBackfillTargets = internalQuery({
   },
 })
 
+export const listProjectContributorSyncTargets = internalQuery({
+  args: {
+    limit: v.optional(v.number()),
+    refreshAll: v.optional(v.boolean()),
+  },
+  returns: projectContributorSyncTargetsValidator,
+  handler: async (ctx, args) => {
+    const now = Date.now()
+    const limit = Math.min(
+      Math.max(Math.floor(args.limit ?? 20), 1),
+      MAX_CONTRIBUTOR_SYNC_BATCH,
+    )
+    const refreshAll = args.refreshAll ?? false
+    const projects = await ctx.db
+      .query('projects')
+      .withIndex('by_visible_contributor_sync_attempted', (query) =>
+        query.eq('locatic.isVisible', true),
+      )
+      .order('asc')
+      .take(Math.max(CONTRIBUTOR_SYNC_SCAN_PAGE_SIZE, limit))
+    const targets = projects
+      .filter((project) =>
+        isProjectContributorSyncDue({
+          lastSyncAttemptedAt: project.contributorStats.lastSyncAttemptedAt,
+          lastSyncedAt: project.contributorStats.lastSyncedAt,
+          now,
+          refreshAll,
+          syncCadence: project.contributorStats.syncCadence,
+        }),
+      )
+      .slice(0, limit)
+      .map((project) => ({
+        fullName: project.github.fullName,
+        projectId: project._id,
+      }))
+
+    return {
+      scanned: projects.length,
+      targets,
+    }
+  },
+})
+
+export const markProjectContributorSyncAttempt = internalMutation({
+  args: {
+    projectId: v.id('projects'),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const project = await ctx.db.get(args.projectId)
+    if (!project) {
+      return null
+    }
+
+    const now = Date.now()
+    await ctx.db.patch(project._id, {
+      contributorStats: {
+        ...project.contributorStats,
+        lastSyncAttemptedAt: now,
+      },
+      updatedAt: now,
+    })
+
+    return null
+  },
+})
+
+export const recordProjectContributorSyncFailure = internalMutation({
+  args: {
+    error: v.string(),
+    projectId: v.id('projects'),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const project = await ctx.db.get(args.projectId)
+    if (!project) {
+      return null
+    }
+
+    const now = Date.now()
+    await ctx.db.patch(project._id, {
+      contributorStats: {
+        ...project.contributorStats,
+        lastSyncAttemptedAt: now,
+      },
+      updatedAt: now,
+    })
+
+    await ctx.db.insert('github_sync_log', {
+      userId: project.ownerId,
+      syncType: 'contributors',
+      reposFetched: 1,
+      reposNew: 0,
+      reposUpdated: 0,
+      status: 'failed',
+      error: args.error,
+      githubRateLimitRemaining: null,
+      syncedAt: now,
+    })
+
+    return null
+  },
+})
+
 export const patchProjectReadmePreview = internalMutation({
   args: {
     projectId: v.id('projects'),
@@ -637,7 +755,7 @@ export const patchProjectContributors = internalMutation({
       ]),
     )
     const seenGithubIds = new Set<number>()
-    const touchedUserIds = new Set<string>()
+    const touchedUserIds = new Set<typeof project.ownerId>()
     const matchedContributors: Array<{
       userId: typeof project.ownerId
       displayName: string
@@ -655,18 +773,23 @@ export const patchProjectContributors = internalMutation({
         .unique()
       const existing = existingByGithubId.get(contributor.githubId)
 
-      if (!user || user.deletedAt !== null || user.deactivatedAt !== null) {
+      if (
+        !user ||
+        user._id === project.ownerId ||
+        user.deletedAt !== null ||
+        user.deactivatedAt !== null
+      ) {
         if (existing?.isActive) {
           await ctx.db.patch(existing._id, {
             isActive: false,
             lastConfirmedAt: now,
           })
-          touchedUserIds.add(String(existing.userId))
+          touchedUserIds.add(existing.userId)
         }
         continue
       }
 
-      touchedUserIds.add(String(user._id))
+      touchedUserIds.add(user._id)
       matchedContributors.push({
         userId: user._id,
         displayName: user.profile.displayName,
@@ -705,30 +828,11 @@ export const patchProjectContributors = internalMutation({
           isActive: false,
           lastConfirmedAt: now,
         })
-        touchedUserIds.add(String(contributor.userId))
+        touchedUserIds.add(contributor.userId)
       }
     }
 
-    for (const userIdString of touchedUserIds) {
-      const userId = ctx.db.normalizeId('users', userIdString)
-      const user = userId ? await ctx.db.get(userId) : null
-      if (!user) {
-        continue
-      }
-      const activeContributions = await ctx.db
-        .query('project_contributors')
-        .withIndex('by_user', (query) => query.eq('userId', user._id))
-        .collect()
-      await ctx.db.patch(user._id, {
-        stats: {
-          ...user.stats,
-          contributionsCount: activeContributions.filter(
-            (contribution) => contribution.isActive,
-          ).length,
-        },
-        updatedAt: now,
-      })
-    }
+    await recomputeContributionCountsForUsers(ctx, touchedUserIds, now)
 
     const topContributorsSnapshot = matchedContributors
       .sort((left, right) => right.commitCount - left.commitCount)
@@ -745,6 +849,7 @@ export const patchProjectContributors = internalMutation({
       contributorStats: {
         ...project.contributorStats,
         matchedCount: matchedContributors.length,
+        lastSyncAttemptedAt: now,
         lastSyncedAt: now,
       },
       updatedAt: now,
