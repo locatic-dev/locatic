@@ -392,35 +392,46 @@ async function listContributedProjects(
   audience: 'private' | 'public',
   limit = 24,
 ) {
-  const rows = await ctx.db
-    .query('project_contributors')
-    .withIndex('by_user', (query) => query.eq('userId', userId))
-    .take(Math.min(limit, 50))
+  const itemLimit = Math.min(limit, 50)
+  const projects: Array<{
+    project: Awaited<ReturnType<typeof buildProjectCardPreview>>
+    commitCount: number
+  }> = []
+  let cursor: string | null = null
 
-  const projects = await Promise.all(
-    rows.map(async (row) => {
+  while (projects.length < itemLimit) {
+    const page = await ctx.db
+      .query('project_contributors')
+      .withIndex('by_user_active_confirmed', (query) =>
+        query.eq('userId', userId).eq('isActive', true),
+      )
+      .order('desc')
+      .paginate({
+        cursor,
+        numItems: itemLimit - projects.length,
+      })
+
+    for (const row of page.page) {
       const project = await ctx.db.get(row.projectId)
       if (!project || !project.locatic.isVisible) {
-        return null
+        continue
       }
 
-      return {
+      projects.push({
         project: await buildProjectCardPreview(ctx.db, project, {
           audience,
         }),
         commitCount: row.commitCount,
-      }
-    }),
-  )
+      })
+    }
 
-  return projects.filter(
-    (
-      project,
-    ): project is {
-      project: Awaited<ReturnType<typeof buildProjectCardPreview>>
-      commitCount: number
-    } => Boolean(project),
-  )
+    if (page.isDone || page.page.length === 0) {
+      break
+    }
+    cursor = page.continueCursor
+  }
+
+  return projects
 }
 
 async function listFollowPreviewSlice(

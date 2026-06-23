@@ -254,6 +254,7 @@ export default defineSchema({
     contributorStats: v.object({
       matchedCount: v.number(),
       lastSyncedAt: optionalTimestampValidator,
+      lastSyncAttemptedAt: v.optional(optionalTimestampValidator),
       syncCadence: contributorSyncCadenceValidator,
     }),
     addedToLocaticAt: v.number(),
@@ -274,6 +275,10 @@ export default defineSchema({
     .index('by_visible_metadata_attempted', [
       'locatic.isVisible',
       'github.lastMetadataSyncAttemptedAt',
+    ])
+    .index('by_visible_contributor_sync_attempted', [
+      'locatic.isVisible',
+      'contributorStats.lastSyncAttemptedAt',
     ])
     .index('by_owner', ['ownerId'])
     .index('by_owner_visible', ['ownerId', 'locatic.isVisible'])
@@ -354,6 +359,11 @@ export default defineSchema({
   })
     .index('by_project', ['projectId'])
     .index('by_user', ['userId'])
+    .index('by_user_active_confirmed', [
+      'userId',
+      'isActive',
+      'lastConfirmedAt',
+    ])
     .index('by_project_user', ['projectId', 'userId'])
     .index('by_github_id', ['githubId']),
 
