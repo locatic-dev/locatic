@@ -41,6 +41,8 @@ import {
   buildProjectExploreOwner,
 } from './lib/snapshots'
 import { createDefaultViewerProfile } from './lib/viewer'
+import { resolveStoredGithubId } from './lib/clerk'
+import { assertGithubUsernameAvailable } from './lib/github_identity'
 import {
   compactWebhookError,
   getWebhookProcessingDecision,
@@ -171,6 +173,7 @@ const viewerBootstrapValidator = v.object({
 })
 
 const PROFILE_POSTS_LIMIT = 50
+const MAX_USER_GITHUB_ID_BACKFILL_BATCH = 50
 
 const profilePostPreviewValidator = v.object({
   _id: v.id('posts'),
@@ -2072,6 +2075,9 @@ export const upsertFromClerkWebhook = internalMutation({
   handler: async (ctx, args) => {
     const existingViewer = await getViewerByClerkId(ctx, args.clerkId)
     const now = Date.now()
+    await assertGithubUsernameAvailable(ctx, args.githubUsername, {
+      exceptUserId: existingViewer?._id,
+    })
 
     if (!existingViewer) {
       const userId = await ctx.db.insert(
@@ -2094,10 +2100,15 @@ export const upsertFromClerkWebhook = internalMutation({
       return existingViewer
     }
 
+    const nextGithubId = resolveStoredGithubId(
+      existingViewer.github.id,
+      args.githubId,
+    )
+
     await ctx.db.patch(existingViewer._id, {
       email: args.email,
       github: {
-        id: args.githubId,
+        id: nextGithubId,
         username: args.githubUsername,
       },
       profile: {
@@ -2124,7 +2135,7 @@ export const upsertFromClerkWebhook = internalMutation({
       ...existingViewer,
       email: args.email,
       github: {
-        id: args.githubId,
+        id: nextGithubId,
         username: args.githubUsername,
       },
       profile: {
@@ -2140,6 +2151,123 @@ export const upsertFromClerkWebhook = internalMutation({
     })
 
     return await ctx.db.get(existingViewer._id)
+  },
+})
+
+const userGithubIdBackfillTargetValidator = v.object({
+  userId: v.id('users'),
+  username: v.string(),
+})
+
+export const listUsersMissingGithubIds = internalQuery({
+  args: {
+    limit: v.optional(v.number()),
+    username: v.optional(v.string()),
+  },
+  returns: v.array(userGithubIdBackfillTargetValidator),
+  handler: async (ctx, args) => {
+    const limit = Math.min(
+      Math.max(Math.floor(args.limit ?? 25), 1),
+      MAX_USER_GITHUB_ID_BACKFILL_BATCH,
+    )
+    const username = args.username?.trim()
+
+    if (username) {
+      const user = await ctx.db
+        .query('users')
+        .withIndex('by_github_username', (query) =>
+          query.eq('github.username', username),
+        )
+        .unique()
+
+      return user && user.github.id === null
+        ? [{ userId: user._id, username: user.github.username }]
+        : []
+    }
+
+    const targets: Array<{
+      userId: Id<'users'>
+      username: string
+    }> = []
+    let cursor: string | null = null
+
+    while (targets.length < limit) {
+      const page = await ctx.db
+        .query('users')
+        .withIndex('by_github_id', (query) => query.eq('github.id', null))
+        .paginate({
+          cursor,
+          numItems: limit - targets.length,
+        })
+
+      for (const user of page.page) {
+        const backfillUsername = user.github.username.trim()
+        if (backfillUsername.length > 0) {
+          targets.push({
+            userId: user._id,
+            username: backfillUsername,
+          })
+        }
+      }
+
+      if (page.isDone || page.page.length === 0) {
+        break
+      }
+      cursor = page.continueCursor
+    }
+
+    return targets
+  },
+})
+
+export const patchGithubIdFromBackfill = internalMutation({
+  args: {
+    userId: v.id('users'),
+    githubId: v.number(),
+  },
+  returns: v.object({
+    status: v.union(
+      v.literal('updated'),
+      v.literal('already_set'),
+      v.literal('missing_user'),
+      v.literal('skipped_existing_id'),
+      v.literal('skipped_conflict'),
+    ),
+  }),
+  handler: async (ctx, args) => {
+    const user = await ctx.db.get(args.userId)
+    if (!user) {
+      return { status: 'missing_user' as const }
+    }
+
+    if (user.github.id === args.githubId) {
+      return { status: 'already_set' as const }
+    }
+
+    if (user.github.id !== null) {
+      return { status: 'skipped_existing_id' as const }
+    }
+
+    const conflictingUser = await ctx.db
+      .query('users')
+      .withIndex('by_github_id', (query) =>
+        query.eq('github.id', args.githubId),
+      )
+      .unique()
+
+    if (conflictingUser && conflictingUser._id !== user._id) {
+      return { status: 'skipped_conflict' as const }
+    }
+
+    await ctx.db.patch(user._id, {
+      github: {
+        ...user.github,
+        id: args.githubId,
+      },
+      updatedAt: Date.now(),
+    })
+
+    return { status: 'updated' as const }
   },
 })
 
@@ -2340,6 +2468,8 @@ export const ensureViewerFromIdentity = internalMutation({
       }
       return existingViewer
     }
+
+    await assertGithubUsernameAvailable(ctx, args.githubUsername)
 
     const viewerId = await ctx.db.insert(
       'users',

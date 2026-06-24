@@ -23,6 +23,17 @@ export type GithubContributorImport = {
   commitCount: number
 }
 
+export type GithubUserIdentity = {
+  id: number | null
+  login: string | null
+  type: string
+}
+
+export type GithubUserIdentityImport = {
+  githubId: number
+  githubUsername: string
+}
+
 export type GithubRepository = {
   id: number
   full_name: string
@@ -198,6 +209,26 @@ export function mapGithubContributorsForImport(
           },
         ],
   )
+}
+
+export function mapGithubUserIdentityForBackfill(
+  user: GithubUserIdentity,
+): GithubUserIdentityImport | null {
+  if (
+    user.type !== 'User' ||
+    typeof user.login !== 'string' ||
+    user.login.trim().length === 0 ||
+    !Number.isSafeInteger(user.id) ||
+    user.id === null ||
+    user.id <= 0
+  ) {
+    return null
+  }
+
+  return {
+    githubId: user.id,
+    githubUsername: user.login,
+  }
 }
 
 export function isProjectContributorSyncDue(args: {
