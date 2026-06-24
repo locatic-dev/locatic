@@ -9,6 +9,7 @@ import {
   isProjectContributorSyncDue,
   listGithubRepositoryPages,
   mapGithubContributorsForImport,
+  mapGithubUserIdentityForBackfill,
   mapGithubLanguages,
   mapGithubRepositoryWithOptionalLanguages,
   needsGithubReadmeUrlBaseKeyNormalization,
@@ -433,6 +434,45 @@ describe('mapGithubContributorsForImport', () => {
         commitCount: 3,
       },
     ])
+  })
+})
+
+describe('mapGithubUserIdentityForBackfill', () => {
+  it('maps stable GitHub user ids by username', () => {
+    expect(
+      mapGithubUserIdentityForBackfill({
+        id: 74554800,
+        login: 'nabobery',
+        type: 'User',
+      }),
+    ).toEqual({
+      githubId: 74554800,
+      githubUsername: 'nabobery',
+    })
+  })
+
+  it('rejects non-user or invalid GitHub responses', () => {
+    expect(
+      mapGithubUserIdentityForBackfill({
+        id: 42,
+        login: 'locatic',
+        type: 'Organization',
+      }),
+    ).toBeNull()
+    expect(
+      mapGithubUserIdentityForBackfill({
+        id: null,
+        login: 'ghost',
+        type: 'User',
+      }),
+    ).toBeNull()
+    expect(
+      mapGithubUserIdentityForBackfill({
+        id: 42,
+        login: '',
+        type: 'User',
+      }),
+    ).toBeNull()
   })
 })
 
