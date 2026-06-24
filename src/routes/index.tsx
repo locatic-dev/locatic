@@ -7,6 +7,9 @@ import { ArrowRight, Star, Heart, MessageSquare, MapPin } from '@/lib/icons'
 import { viewerQueryOptions } from '@/features/viewer/queries'
 import type { ViewerBootstrapPayload } from '@/features/contracts'
 
+const footerLinkClassName =
+  'inline-flex min-h-11 items-center text-text-faint no-underline transition-colors hover:text-text focus-visible:text-text'
+
 export const Route = createFileRoute('/')({
   beforeLoad: async ({ context }) => {
     if (!context.auth.isAuthenticated) {
@@ -192,8 +195,25 @@ function LandingPage() {
       </section>
 
       {/* Footer */}
-      <footer className="px-(--lx-gutter) py-7 text-center font-mono text-[11.5px] text-text-faint">
-        <div>built with ❤️ for developers</div>
+      <footer className="border-t border-line px-(--lx-gutter) py-7 text-center font-mono text-[11.5px] text-text-faint">
+        <nav className="flex flex-wrap items-center justify-center gap-x-5 gap-y-1">
+          <a
+            href="mailto:contact@locatic.dev"
+            className={footerLinkClassName}
+            aria-label="Email Locatic at contact@locatic.dev"
+          >
+            contact
+          </a>
+          <a
+            href="https://github.com"
+            className={footerLinkClassName}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            github
+          </a>
+        </nav>
+        <div className="mt-3">built for developers</div>
         <div className="mt-2 opacity-70">
           locatic · {new Date().getFullYear()}
         </div>
