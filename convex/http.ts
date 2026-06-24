@@ -3,6 +3,7 @@ import { httpRouter } from 'convex/server'
 
 import { internal } from './_generated/api'
 import { httpAction } from './_generated/server'
+import { parseClerkGithubExternalAccount } from './lib/clerk'
 
 function getPrimaryEmailAddress(data: Record<string, unknown>) {
   const emailAddresses = Array.isArray(data.email_addresses)
@@ -48,7 +49,10 @@ function getGithubAccount(data: Record<string, unknown>) {
       return false
     }
 
-    return 'provider' in entry && entry.provider === 'oauth_github'
+    return (
+      'provider' in entry &&
+      (entry.provider === 'oauth_github' || entry.provider === 'github')
+    )
   }) as Record<string, unknown> | undefined
 }
 
@@ -136,13 +140,18 @@ http.route({
         const email = getPrimaryEmailAddress(payload)
         const githubAccount = getGithubAccount(payload)
         const clerkId = typeof payload.id === 'string' ? payload.id : ''
-        const githubId =
-          githubAccount &&
-          'provider_user_id' in githubAccount &&
-          typeof githubAccount.provider_user_id === 'string' &&
-          /^\d+$/.test(githubAccount.provider_user_id)
-            ? Number(githubAccount.provider_user_id)
-            : null
+        const githubParseResult = parseClerkGithubExternalAccount(
+          payload.external_accounts,
+        )
+        if (
+          githubParseResult.kind === 'missing_provider_user_id' ||
+          githubParseResult.kind === 'invalid_provider_user_id'
+        ) {
+          console.warn('Clerk GitHub account missing stable provider id', {
+            clerkId,
+            reason: githubParseResult.kind,
+          })
+        }
         const githubUsername = getGithubUsername(payload, githubAccount, email)
         const avatarUrl =
           typeof payload.image_url === 'string' ? payload.image_url : ''
@@ -150,7 +159,7 @@ http.route({
         await ctx.runMutation(internal.users.upsertFromClerkWebhook, {
           clerkId,
           email,
-          githubId,
+          githubId: githubParseResult.githubId,
           githubUsername,
           githubUrl: githubUsername
             ? `https://github.com/${githubUsername}`
