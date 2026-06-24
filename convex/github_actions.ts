@@ -18,6 +18,7 @@ import {
   normalizeGithubReadmeImport,
   assertGithubRawDownloadUrl,
   type GithubContributor,
+  type GithubUserIdentity,
   type GithubLanguages,
   type GithubReadmeImport,
   type GithubReadmeMetadata,
@@ -28,6 +29,12 @@ import {
   runProjectContributorSyncTargets,
   type ProjectContributorSyncSummary,
 } from './lib/project_contributor_sync'
+import {
+  runUserGithubIdBackfillTargets,
+  userGithubIdBackfillSummaryValidator,
+  type UserGithubIdBackfillSummary,
+  type UserGithubIdBackfillTarget,
+} from './lib/user_github_id_backfill'
 import { enforceRateLimit } from './lib/rate_limits'
 
 class GitHubRequestError extends Error {
@@ -156,6 +163,23 @@ async function githubRequest<T>(
   const headers = new Headers(init?.headers)
   headers.set('Accept', 'application/vnd.github+json')
   headers.set('Authorization', `Bearer ${accessToken}`)
+  headers.set('X-GitHub-Api-Version', '2022-11-28')
+
+  const response = await fetch(`https://api.github.com${url}`, {
+    ...init,
+    headers,
+  })
+
+  if (!response.ok) {
+    throw new GitHubRequestError(response.status)
+  }
+
+  return (await response.json()) as T
+}
+
+async function githubPublicRequest<T>(url: string, init?: RequestInit) {
+  const headers = new Headers(init?.headers)
+  headers.set('Accept', 'application/vnd.github+json')
   headers.set('X-GitHub-Api-Version', '2022-11-28')
 
   const response = await fetch(`https://api.github.com${url}`, {
@@ -929,6 +953,46 @@ export const backfillProjectContributors = internalAction({
       },
       scanned: batch.scanned,
       targets: batch.targets,
+    })
+  },
+})
+
+export const backfillUserGithubIds = internalAction({
+  args: {
+    dryRun: v.optional(v.boolean()),
+    limit: v.optional(v.number()),
+    username: v.optional(v.string()),
+  },
+  returns: userGithubIdBackfillSummaryValidator,
+  handler: async (ctx, args): Promise<UserGithubIdBackfillSummary> => {
+    const limit = Math.min(Math.max(Math.floor(args.limit ?? 25), 1), 50)
+    const dryRun = args.dryRun ?? false
+    const targets: UserGithubIdBackfillTarget[] = await ctx.runQuery(
+      internal.users.listUsersMissingGithubIds,
+      {
+        limit,
+        username: args.username,
+      },
+    )
+
+    return await runUserGithubIdBackfillTargets({
+      dryRun,
+      enforceRateLimit: () =>
+        enforceRateLimit(ctx, 'githubUserIdentityBackfill', 'global'),
+      fetchGithubUser: (username) =>
+        githubPublicRequest<GithubUserIdentity>(
+          `/users/${encodeURIComponent(username)}`,
+        ),
+      getErrorMessage: githubActionErrorMessage,
+      isNotFoundError: (error) =>
+        error instanceof GitHubRequestError && error.status === 404,
+      limit,
+      patchGithubId: (userId, githubId) =>
+        ctx.runMutation(internal.users.patchGithubIdFromBackfill, {
+          githubId,
+          userId,
+        }),
+      targets,
     })
   },
 })
