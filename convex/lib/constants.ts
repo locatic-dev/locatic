@@ -16,16 +16,38 @@ export const CONTRIBUTOR_SYNC_CADENCE_VALUES = [
 
 export const EVENT_TYPE_VALUES = [
   'project_posted',
+  'post_created',
   'project_liked',
   'project_commented',
+  'post_commented',
+  'followed',
   'contributor_matched',
 ] as const
 
 export const FEED_REASON_VALUES = ['following', 'liked_project_update'] as const
 
-export const NOTIFICATION_TYPE_VALUES = [
+export const HOME_FEED_ROW_KIND_VALUES = [
+  'single_event',
+  'event_group',
+] as const
+
+export const HOME_FEED_GROUP_KIND_VALUES = [
+  'project_posted',
+  'post_created',
   'project_liked',
   'project_commented',
+  'post_commented',
+  'followed',
+  'contributor_matched',
+] as const
+
+export const HOME_FEED_EXPANDED_PREVIEW_LIMIT = 10
+
+export const NOTIFICATION_TYPE_VALUES = [
+  'project_liked',
+  'post_reacted',
+  'project_commented',
+  'post_commented',
   'comment_replied',
   'followed',
   'dm_received',

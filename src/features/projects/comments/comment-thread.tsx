@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { relativeTime } from '@/lib/time'
 import { CommentActions } from './comment-actions'
 import { commentComposerTextareaClass } from './composer-styles'
-import type { ProjectCommentLikeOverride, ProjectCommentView } from './types'
+import type { ProjectCommentView } from './types'
 
 function ReplySkeleton() {
   return (
@@ -38,34 +38,16 @@ function ReplySkeleton() {
   )
 }
 
-function mergeLikeOverride(
-  comment: ProjectCommentView,
-  override: ProjectCommentLikeOverride | undefined,
-) {
-  if (!override) {
-    return comment
-  }
-
-  return {
-    ...comment,
-    likesCount: override.likesCount,
-    viewerHasLiked: override.viewerHasLiked,
-  }
-}
-
 export function CommentThread({
   activeHighlightedCommentId,
   commentItem,
-  commentLikeOverrides,
   commentRefs,
   depth,
   expandedIds,
   handleDeleteComment,
   handleReply,
-  handleToggleCommentLike,
   isSignedIn,
   onToggleReplies,
-  pendingCommentLikeId,
   pendingDeleteIds,
   pendingReplies,
   replyDrafts,
@@ -75,20 +57,13 @@ export function CommentThread({
 }: {
   activeHighlightedCommentId: string | null
   commentItem: ProjectCommentView
-  commentLikeOverrides: Record<string, ProjectCommentLikeOverride>
   commentRefs: React.MutableRefObject<Record<string, HTMLElement | null>>
   depth: number
   expandedIds: Set<string>
   handleDeleteComment: (commentId: Id<'comments'>) => Promise<void>
   handleReply: (parentId: Id<'comments'>) => Promise<void>
-  handleToggleCommentLike: (
-    commentId: string,
-    currentlyLiked: boolean,
-    likesCount: number,
-  ) => Promise<void>
   isSignedIn: boolean
   onToggleReplies: (commentId: string) => void
-  pendingCommentLikeId: string | null
   pendingDeleteIds: Set<string>
   pendingReplies: Record<string, ProjectCommentView[]>
   replyDrafts: Record<string, string>
@@ -97,10 +72,7 @@ export function CommentThread({
   viewerId: string | null
 }) {
   const commentId = String(commentItem._id)
-  const comment = mergeLikeOverride(
-    commentItem,
-    commentLikeOverrides[commentId],
-  )
+  const comment = commentItem
   const repliesOpen = expandedIds.has(commentId)
   const previewReplies = comment.previewReplies ?? []
   const pendingChildReplies = pendingReplies[commentId] ?? []
@@ -118,13 +90,9 @@ export function CommentThread({
   const previewIds = new Set(previewReplies.map((reply) => String(reply._id)))
   const loadedReplies = ((repliesPage.results ?? []) as ProjectCommentView[])
     .filter((reply) => !previewIds.has(String(reply._id)))
-    .map((reply) =>
-      mergeLikeOverride(reply, commentLikeOverrides[String(reply._id)]),
-    )
+    .map((reply) => reply)
   const visibleReplies = [
-    ...previewReplies.map((reply) =>
-      mergeLikeOverride(reply, commentLikeOverrides[String(reply._id)]),
-    ),
+    ...previewReplies,
     ...pendingChildReplies,
     ...loadedReplies,
   ].filter((reply) => !reply.isDeleted || reply.replyCount > 0 || reply.pending)
@@ -188,22 +156,17 @@ export function CommentThread({
               <CommentActions
                 canDelete={canDelete}
                 commentId={comment._id}
-                commentLiked={comment.viewerHasLiked}
-                commentLikes={comment.likesCount}
-                disabled={!isSignedIn || pendingCommentLikeId === commentId}
+                disabled={!isSignedIn}
                 hasReplies={hasReplies}
                 pendingDelete={pendingDeleteIds.has(commentId)}
+                reactionCounts={
+                  comment.reactionCounts ?? { like: comment.likesCount }
+                }
                 repliesOpen={repliesOpen}
                 replyCount={Math.max(comment.replyCount, visibleReplies.length)}
                 repliesRegionId={repliesRegionId}
+                viewerReactionTypes={comment.viewerReactionTypes ?? []}
                 onDelete={(id) => void handleDeleteComment(id)}
-                onLike={() =>
-                  void handleToggleCommentLike(
-                    commentId,
-                    comment.viewerHasLiked,
-                    comment.likesCount,
-                  )
-                }
                 onReply={() =>
                   setReplyDrafts((current) => ({
                     ...current,
@@ -271,16 +234,13 @@ export function CommentThread({
                     key={String(reply._id)}
                     activeHighlightedCommentId={activeHighlightedCommentId}
                     commentItem={reply}
-                    commentLikeOverrides={commentLikeOverrides}
                     commentRefs={commentRefs}
                     depth={depth + 1}
                     expandedIds={expandedIds}
                     handleDeleteComment={handleDeleteComment}
                     handleReply={handleReply}
-                    handleToggleCommentLike={handleToggleCommentLike}
                     isSignedIn={isSignedIn}
                     onToggleReplies={onToggleReplies}
-                    pendingCommentLikeId={pendingCommentLikeId}
                     pendingDeleteIds={pendingDeleteIds}
                     pendingReplies={pendingReplies}
                     replyDrafts={replyDrafts}

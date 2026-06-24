@@ -4,12 +4,14 @@ import { mutation, query } from './_generated/server'
 import { getViewerOrThrow } from './lib/auth'
 import {
   backfillHomeFeedForFollow,
+  fanOutActivityEventToFollowers,
   removeHomeFeedItemsForFollow,
 } from './lib/homeFeed'
 import {
   buildProfileNotificationTarget,
   createNotificationIfEnabled,
 } from './lib/notifications'
+import { buildActorSnapshot, buildProfileTargetSnapshot } from './lib/snapshots'
 
 export const listFollowers = query({
   args: {
@@ -86,6 +88,32 @@ export const follow = mutation({
     })
 
     await backfillHomeFeedForFollow(ctx, viewer._id, targetUser._id)
+
+    const targetSnapshot = await buildActorSnapshot(ctx.db, targetUser)
+    const eventId = await ctx.db.insert('activity_events', {
+      actorId: viewer._id,
+      eventType: 'followed',
+      projectId: null,
+      postId: null,
+      commentId: null,
+      actorSnapshot: await buildActorSnapshot(ctx.db, viewer),
+      projectSnapshot: null,
+      postSnapshot: null,
+      target: {
+        kind: 'profile',
+        profile: buildProfileTargetSnapshot(
+          targetUser,
+          targetSnapshot.cityName,
+        ),
+      },
+      createdAt: Date.now(),
+    })
+
+    const event = await ctx.db.get(eventId)
+    if (event) {
+      await fanOutActivityEventToFollowers(ctx, event)
+    }
+
     await createNotificationIfEnabled(ctx, {
       recipient: targetUser,
       actor: viewer,

@@ -8,27 +8,24 @@ import { Button } from '@/components/ui/button'
 import { LxAvatar } from '@/components/ui/lx-avatar'
 import { Textarea } from '@/components/ui/textarea'
 import { relativeTime } from '@/lib/time'
-import { Heart, MessageSquare, Pencil, Trash2 } from '@/lib/icons'
+import { MessageSquare, Pencil, Trash2 } from '@/lib/icons'
 import { shouldAutoLoadDeepLinkPage } from '@/features/projects/deep-link'
 import {
   useAddComment,
   useDeleteComment,
   useDeletePost,
-  useReactToTarget,
-  useUnreactFromTarget,
   useUpdatePost,
 } from '@/features/projects/mutations'
 import { CommentThread } from '@/features/projects/comments/comment-thread'
 import { commentComposerTextareaClass } from '@/features/projects/comments/composer-styles'
 import { removeReplyDraft } from '@/features/projects/comments/drafts'
 import { useCommentThreadState } from '@/features/projects/comments/use-comment-thread-state'
-import type {
-  ProjectCommentLikeOverride,
-  ProjectCommentView,
-} from '@/features/projects/comments/types'
+import type { ProjectCommentView } from '@/features/projects/comments/types'
+import { ReactionBar } from '@/features/projects/reactions/reaction-bar'
 
 type ProjectPost = Doc<'posts'> & {
   viewerHasLiked: boolean
+  viewerReactionTypes: string[]
 }
 
 export function ProjectPostCard({
@@ -51,8 +48,6 @@ export function ProjectPostCard({
   const queryClient = useQueryClient()
   const addComment = useAddComment()
   const deleteComment = useDeleteComment()
-  const reactToTarget = useReactToTarget()
-  const unreactFromTarget = useUnreactFromTarget()
   const updatePost = useUpdatePost()
   const deletePost = useDeletePost()
 
@@ -67,17 +62,6 @@ export function ProjectPostCard({
   const [pendingReplies, setPendingReplies] = useState<
     Record<string, ProjectCommentView[]>
   >({})
-  const [commentLikeOverrides, setCommentLikeOverrides] = useState<
-    Record<string, ProjectCommentLikeOverride>
-  >({})
-  const [pendingCommentLikeId, setPendingCommentLikeId] = useState<
-    string | null
-  >(null)
-  const [postLikeOverride, setPostLikeOverride] = useState<{
-    count: number
-    liked: boolean
-  } | null>(null)
-  const [postLikePending, setPostLikePending] = useState(false)
   const [editing, setEditing] = useState(false)
   const [editBody, setEditBody] = useState(post.body)
   const [savingEdit, setSavingEdit] = useState(false)
@@ -104,8 +88,6 @@ export function ProjectPostCard({
   const visibleRootComments = comments.filter(
     (commentItem) => !commentItem.isDeleted || commentItem.replyCount > 0,
   )
-  const postLiked = postLikeOverride?.liked ?? post.viewerHasLiked
-  const postLikes = postLikeOverride?.count ?? post.reactionCounts.like ?? 0
   const highlightedRootCommentId =
     highlightedCommentPath[0] ?? activeHighlightedCommentId
 
@@ -160,41 +142,6 @@ export function ProjectPostCard({
     })
   }, [activeHighlightedCommentId, comments.length, expandedIds])
 
-  const handleTogglePostLike = async () => {
-    if (!isSignedIn || postLikePending) {
-      return
-    }
-
-    const nextLiked = !postLiked
-    setPostLikeOverride({
-      count: Math.max(0, postLikes + (nextLiked ? 1 : -1)),
-      liked: nextLiked,
-    })
-    setPostLikePending(true)
-
-    try {
-      if (postLiked) {
-        await unreactFromTarget({
-          reactionType: 'like',
-          targetId: String(post._id),
-          targetType: 'post',
-        })
-      } else {
-        await reactToTarget({
-          reactionType: 'like',
-          targetId: String(post._id),
-          targetType: 'post',
-        })
-      }
-      window.setTimeout(() => setPostLikeOverride(null), 1000)
-    } catch (error) {
-      console.error(error)
-      setPostLikeOverride(null)
-    } finally {
-      setPostLikePending(false)
-    }
-  }
-
   const handlePostComment = async () => {
     const content = comment.trim()
     if (!content || postingComment || !isSignedIn) {
@@ -245,6 +192,7 @@ export function ProjectPostCard({
       likesCount: 0,
       parentId,
       pending: true,
+      reactionCounts: {},
       replyCount: 0,
       replies: [],
       targetId: String(post._id),
@@ -260,6 +208,7 @@ export function ProjectPostCard({
       },
       targetType: 'post',
       viewerHasLiked: false,
+      viewerReactionTypes: [],
     }
     setPendingReplies((current) => ({
       ...current,
@@ -288,58 +237,6 @@ export function ProjectPostCard({
         ),
       }))
       setReplyingToId(null)
-    }
-  }
-
-  const handleToggleCommentLike = async (
-    commentId: string,
-    currentlyLiked: boolean,
-    likesCount: number,
-  ) => {
-    if (!isSignedIn || pendingCommentLikeId === commentId) {
-      return
-    }
-
-    const nextLiked = !currentlyLiked
-    setCommentLikeOverrides((current) => ({
-      ...current,
-      [commentId]: {
-        likesCount: Math.max(0, likesCount + (nextLiked ? 1 : -1)),
-        viewerHasLiked: nextLiked,
-      },
-    }))
-    setPendingCommentLikeId(commentId)
-
-    try {
-      if (currentlyLiked) {
-        await unreactFromTarget({
-          reactionType: 'like',
-          targetId: commentId,
-          targetType: 'comment',
-        })
-      } else {
-        await reactToTarget({
-          reactionType: 'like',
-          targetId: commentId,
-          targetType: 'comment',
-        })
-      }
-      window.setTimeout(() => {
-        setCommentLikeOverrides((current) => {
-          const next = { ...current }
-          delete next[commentId]
-          return next
-        })
-      }, 1000)
-    } catch (error) {
-      console.error(error)
-      setCommentLikeOverrides((current) => {
-        const next = { ...current }
-        delete next[commentId]
-        return next
-      })
-    } finally {
-      setPendingCommentLikeId(null)
     }
   }
 
@@ -477,22 +374,13 @@ export function ProjectPostCard({
       )}
 
       <div className="mb-4 flex flex-wrap items-center gap-2 border-y border-line py-2">
-        <button
-          type="button"
-          onClick={() => void handleTogglePostLike()}
-          disabled={!isSignedIn || postLikePending}
-          aria-pressed={postLiked}
-          className={`inline-flex min-h-11 items-center gap-1.5 rounded-md bg-transparent px-2 py-2 font-mono text-[11.5px] transition-colors ${
-            postLiked ? 'text-brand' : 'text-text-faint hover:text-brand'
-          }`}
-        >
-          <Heart
-            size={14}
-            fill={postLiked ? 'currentColor' : 'none'}
-            strokeWidth={1.6}
-          />
-          {postLikes}
-        </button>
+        <ReactionBar
+          disabled={!isSignedIn}
+          reactionCounts={post.reactionCounts}
+          targetId={String(post._id)}
+          targetType="post"
+          viewerReactionTypes={post.viewerReactionTypes ?? []}
+        />
         <button
           type="button"
           onClick={() => setCommentComposerOpen((current) => !current)}
@@ -545,16 +433,13 @@ export function ProjectPostCard({
               key={String(commentItem._id)}
               activeHighlightedCommentId={activeHighlightedCommentId}
               commentItem={commentItem}
-              commentLikeOverrides={commentLikeOverrides}
               commentRefs={commentRefs}
               depth={0}
               expandedIds={expandedIds}
               handleDeleteComment={handleDeleteComment}
               handleReply={handleReply}
-              handleToggleCommentLike={handleToggleCommentLike}
               isSignedIn={isSignedIn}
               onToggleReplies={toggleCommentThread}
-              pendingCommentLikeId={pendingCommentLikeId}
               pendingDeleteIds={pendingDeleteIds}
               pendingReplies={pendingReplies}
               replyDrafts={replyDrafts}

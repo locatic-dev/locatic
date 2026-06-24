@@ -11,16 +11,30 @@ import {
   encodeRepositoryFullNamePath,
   extractContributionCalendar,
   listGithubRepositoryPages,
+  mapGithubContributorsForImport,
   mapGithubRepository,
   mapGithubRepositoryWithOptionalLanguages,
   normalizeRepositoryFullNames,
   normalizeGithubReadmeImport,
   assertGithubRawDownloadUrl,
+  type GithubContributor,
+  type GithubUserIdentity,
   type GithubLanguages,
   type GithubReadmeImport,
   type GithubReadmeMetadata,
   type GithubRepository,
 } from './lib/github'
+import {
+  projectContributorSyncSummaryValidator,
+  runProjectContributorSyncTargets,
+  type ProjectContributorSyncSummary,
+} from './lib/project_contributor_sync'
+import {
+  runUserGithubIdBackfillTargets,
+  userGithubIdBackfillSummaryValidator,
+  type UserGithubIdBackfillSummary,
+  type UserGithubIdBackfillTarget,
+} from './lib/user_github_id_backfill'
 import { enforceRateLimit } from './lib/rate_limits'
 
 class GitHubRequestError extends Error {
@@ -70,13 +84,6 @@ type ProjectReadmeBackfillSummary = {
   scanned: number
   totalCandidates: number
   updated: number
-}
-
-type GithubContributor = {
-  id: number | null
-  login: string
-  contributions: number
-  type: string
 }
 
 export type GithubRelease = {
@@ -156,6 +163,23 @@ async function githubRequest<T>(
   const headers = new Headers(init?.headers)
   headers.set('Accept', 'application/vnd.github+json')
   headers.set('Authorization', `Bearer ${accessToken}`)
+  headers.set('X-GitHub-Api-Version', '2022-11-28')
+
+  const response = await fetch(`https://api.github.com${url}`, {
+    ...init,
+    headers,
+  })
+
+  if (!response.ok) {
+    throw new GitHubRequestError(response.status)
+  }
+
+  return (await response.json()) as T
+}
+
+async function githubPublicRequest<T>(url: string, init?: RequestInit) {
+  const headers = new Headers(init?.headers)
+  headers.set('Accept', 'application/vnd.github+json')
   headers.set('X-GitHub-Api-Version', '2022-11-28')
 
   const response = await fetch(`https://api.github.com${url}`, {
@@ -804,6 +828,9 @@ export const syncProjectContributors = internalAction({
     if (!project) {
       return null
     }
+    if (!project.locatic.isVisible) {
+      return null
+    }
 
     const owner = await ctx.runQuery(internal.users.userById, {
       userId: project.ownerId,
@@ -812,48 +839,161 @@ export const syncProjectContributors = internalAction({
       return null
     }
 
-    await enforceRateLimit(ctx, 'githubContributionSync', String(owner._id))
-    const { accessToken } = await getGithubAccessToken(owner.clerkId)
-    const repositoryPath = encodeRepositoryFullNamePath(project.github.fullName)
-    const contributors = await listGithubRepositoryPages({
-      maxPages: 5,
-      perPage: 100,
-      fetchPage: (page, perPage) =>
-        githubRequest<GithubContributor[]>(
-          `/repos/${repositoryPath}/contributors?per_page=${perPage}&page=${page}`,
-          accessToken,
-        ),
+    await ctx.runMutation(internal.github.markProjectContributorSyncAttempt, {
+      projectId: project._id,
     })
-    const result = (await ctx.runMutation(
-      internal.github.patchProjectContributors,
+
+    try {
+      await enforceRateLimit(
+        ctx,
+        'githubProjectContributorSync',
+        String(owner._id),
+      )
+      const { accessToken } = await getGithubAccessToken(owner.clerkId)
+      const repositoryPath = encodeRepositoryFullNamePath(
+        project.github.fullName,
+      )
+      const contributors = await listGithubRepositoryPages({
+        maxPages: 5,
+        perPage: 100,
+        fetchPage: (page, perPage) =>
+          githubRequest<GithubContributor[]>(
+            `/repos/${repositoryPath}/contributors?per_page=${perPage}&page=${page}`,
+            accessToken,
+          ),
+      })
+      const result = (await ctx.runMutation(
+        internal.github.patchProjectContributors,
+        {
+          projectId: project._id,
+          contributors: mapGithubContributorsForImport(contributors),
+        },
+      )) as { matchedCount: number; totalFetched: number } | null
+
+      await ctx.runMutation(internal.github.recordGithubSyncResult, {
+        userId: owner._id,
+        syncType: 'contributors',
+        reposFetched: 1,
+        reposNew: 0,
+        reposUpdated: result ? 1 : 0,
+        status: 'success',
+        error: null,
+        githubRateLimitRemaining: null,
+      })
+
+      return result
+    } catch (error) {
+      await ctx.runMutation(
+        internal.github.recordProjectContributorSyncFailure,
+        {
+          error: githubActionErrorMessage(error),
+          projectId: project._id,
+        },
+      )
+      throw error
+    }
+  },
+})
+
+export const refreshDueProjectContributors = internalAction({
+  args: {
+    limit: v.optional(v.number()),
+  },
+  returns: projectContributorSyncSummaryValidator,
+  handler: async (ctx, args): Promise<ProjectContributorSyncSummary> => {
+    const batch = await ctx.runQuery(
+      internal.github.listProjectContributorSyncTargets,
       {
-        projectId: project._id,
-        contributors: contributors.flatMap((contributor) =>
-          contributor.id === null || contributor.type !== 'User'
-            ? []
-            : [
-                {
-                  githubId: contributor.id,
-                  githubUsername: contributor.login,
-                  commitCount: contributor.contributions,
-                },
-              ],
-        ),
+        limit: args.limit,
       },
-    )) as { matchedCount: number; totalFetched: number } | null
+    )
 
-    await ctx.runMutation(internal.github.recordGithubSyncResult, {
-      userId: owner._id,
-      syncType: 'contributors',
-      reposFetched: 1,
-      reposNew: 0,
-      reposUpdated: result ? 1 : 0,
-      status: 'success',
-      error: null,
-      githubRateLimitRemaining: null,
+    return await runProjectContributorSyncTargets({
+      getErrorMessage: githubActionErrorMessage,
+      logFailure: (target, message) => {
+        console.error(
+          `Scheduled GitHub contributor sync failed for ${target.fullName}: ${message}`,
+        )
+      },
+      refreshAll: false,
+      runSync: async (projectId) => {
+        await ctx.runAction(internal.github_actions.syncProjectContributors, {
+          projectId,
+        })
+      },
+      scanned: batch.scanned,
+      targets: batch.targets,
     })
+  },
+})
 
-    return result
+export const backfillProjectContributors = internalAction({
+  args: {
+    limit: v.optional(v.number()),
+    refreshAll: v.optional(v.boolean()),
+  },
+  returns: projectContributorSyncSummaryValidator,
+  handler: async (ctx, args): Promise<ProjectContributorSyncSummary> => {
+    const refreshAll = args.refreshAll ?? false
+    const batch = await ctx.runQuery(
+      internal.github.listProjectContributorSyncTargets,
+      {
+        limit: args.limit,
+        refreshAll,
+      },
+    )
+
+    return await runProjectContributorSyncTargets({
+      getErrorMessage: githubActionErrorMessage,
+      refreshAll,
+      runSync: async (projectId) => {
+        await ctx.runAction(internal.github_actions.syncProjectContributors, {
+          projectId,
+        })
+      },
+      scanned: batch.scanned,
+      targets: batch.targets,
+    })
+  },
+})
+
+export const backfillUserGithubIds = internalAction({
+  args: {
+    dryRun: v.optional(v.boolean()),
+    limit: v.optional(v.number()),
+    username: v.optional(v.string()),
+  },
+  returns: userGithubIdBackfillSummaryValidator,
+  handler: async (ctx, args): Promise<UserGithubIdBackfillSummary> => {
+    const limit = Math.min(Math.max(Math.floor(args.limit ?? 25), 1), 50)
+    const dryRun = args.dryRun ?? false
+    const targets: UserGithubIdBackfillTarget[] = await ctx.runQuery(
+      internal.users.listUsersMissingGithubIds,
+      {
+        limit,
+        username: args.username,
+      },
+    )
+
+    return await runUserGithubIdBackfillTargets({
+      dryRun,
+      enforceRateLimit: () =>
+        enforceRateLimit(ctx, 'githubUserIdentityBackfill', 'global'),
+      fetchGithubUser: (username) =>
+        githubPublicRequest<GithubUserIdentity>(
+          `/users/${encodeURIComponent(username)}`,
+        ),
+      getErrorMessage: githubActionErrorMessage,
+      isNotFoundError: (error) =>
+        error instanceof GitHubRequestError && error.status === 404,
+      limit,
+      patchGithubId: (userId, githubId) =>
+        ctx.runMutation(internal.users.patchGithubIdFromBackfill, {
+          githubId,
+          userId,
+        }),
+      targets,
+    })
   },
 })
 

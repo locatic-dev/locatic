@@ -2,10 +2,14 @@ import { describe, expect, it } from 'vitest'
 
 import {
   assertGithubRawDownloadUrl,
+  CONTRIBUTOR_SYNC_RETRY_INTERVAL_MS,
   encodeRepositoryFullNamePath,
   deriveGithubReadmeUrlBases,
   extractContributionCalendar,
+  isProjectContributorSyncDue,
   listGithubRepositoryPages,
+  mapGithubContributorsForImport,
+  mapGithubUserIdentityForBackfill,
   mapGithubLanguages,
   mapGithubRepositoryWithOptionalLanguages,
   needsGithubReadmeUrlBaseKeyNormalization,
@@ -378,6 +382,157 @@ describe('encodeRepositoryFullNamePath', () => {
     expect(encodeRepositoryFullNamePath('owner/repo.name')).toBe(
       'owner/repo.name',
     )
+  })
+})
+
+describe('mapGithubContributorsForImport', () => {
+  it('maps stable GitHub user ids and contribution counts', () => {
+    expect(
+      mapGithubContributorsForImport([
+        {
+          id: 123,
+          login: 'avinash',
+          contributions: 42,
+          type: 'User',
+        },
+      ]),
+    ).toEqual([
+      {
+        githubId: 123,
+        githubUsername: 'avinash',
+        commitCount: 42,
+      },
+    ])
+  })
+
+  it('filters anonymous and bot contributors before matching Locatic users', () => {
+    expect(
+      mapGithubContributorsForImport([
+        {
+          id: null,
+          login: 'ghost',
+          contributions: 10,
+          type: 'User',
+        },
+        {
+          id: 456,
+          login: 'dependabot[bot]',
+          contributions: 7,
+          type: 'Bot',
+        },
+        {
+          id: 789,
+          login: 'teammate',
+          contributions: 3,
+          type: 'User',
+        },
+      ]),
+    ).toEqual([
+      {
+        githubId: 789,
+        githubUsername: 'teammate',
+        commitCount: 3,
+      },
+    ])
+  })
+})
+
+describe('mapGithubUserIdentityForBackfill', () => {
+  it('maps stable GitHub user ids by username', () => {
+    expect(
+      mapGithubUserIdentityForBackfill({
+        id: 74554800,
+        login: 'nabobery',
+        type: 'User',
+      }),
+    ).toEqual({
+      githubId: 74554800,
+      githubUsername: 'nabobery',
+    })
+  })
+
+  it('rejects non-user or invalid GitHub responses', () => {
+    expect(
+      mapGithubUserIdentityForBackfill({
+        id: 42,
+        login: 'locatic',
+        type: 'Organization',
+      }),
+    ).toBeNull()
+    expect(
+      mapGithubUserIdentityForBackfill({
+        id: null,
+        login: 'ghost',
+        type: 'User',
+      }),
+    ).toBeNull()
+    expect(
+      mapGithubUserIdentityForBackfill({
+        id: 42,
+        login: '',
+        type: 'User',
+      }),
+    ).toBeNull()
+  })
+})
+
+describe('isProjectContributorSyncDue', () => {
+  const now = Date.UTC(2026, 5, 23)
+
+  it('syncs projects that have never completed a contributor sync', () => {
+    expect(
+      isProjectContributorSyncDue({
+        lastSyncAttemptedAt: null,
+        lastSyncedAt: null,
+        now,
+        syncCadence: 'weekly',
+      }),
+    ).toBe(true)
+  })
+
+  it('throttles failed attempts inside the retry window', () => {
+    expect(
+      isProjectContributorSyncDue({
+        lastSyncAttemptedAt: now - CONTRIBUTOR_SYNC_RETRY_INTERVAL_MS + 1,
+        lastSyncedAt: null,
+        now,
+        syncCadence: 'weekly',
+      }),
+    ).toBe(false)
+  })
+
+  it('syncs projects stale by cadence after the retry window', () => {
+    expect(
+      isProjectContributorSyncDue({
+        lastSyncAttemptedAt: now - CONTRIBUTOR_SYNC_RETRY_INTERVAL_MS,
+        lastSyncedAt: now - 7 * 24 * 60 * 60 * 1000,
+        now,
+        syncCadence: 'weekly',
+      }),
+    ).toBe(true)
+  })
+
+  it('skips projects still fresh by cadence', () => {
+    expect(
+      isProjectContributorSyncDue({
+        lastSyncAttemptedAt: now - CONTRIBUTOR_SYNC_RETRY_INTERVAL_MS,
+        lastSyncedAt: now - 6 * 24 * 60 * 60 * 1000,
+        now,
+        syncCadence: 'weekly',
+      }),
+    ).toBe(false)
+  })
+
+  it('lets manual refresh-all backfills bypass attempt throttling', () => {
+    expect(
+      isProjectContributorSyncDue({
+        lastSyncAttemptedAt: now - 1,
+        lastSyncedAt: now - 1,
+        now,
+        refreshAll: true,
+        syncCadence: 'monthly',
+      }),
+    ).toBe(true)
   })
 })
 

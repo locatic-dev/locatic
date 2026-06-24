@@ -11,18 +11,10 @@ export const DEFAULT_REACTIONS: SeedReaction[] = [
   {
     key: 'like',
     label: 'Like',
-    icon: 'heart',
+    icon: 'heart-filled',
     targetTypes: ['project', 'post', 'comment'],
     isActive: true,
     sortOrder: 10,
-  },
-  {
-    key: 'heart',
-    label: 'Heart',
-    icon: 'heart-filled',
-    targetTypes: ['post', 'comment'],
-    isActive: true,
-    sortOrder: 20,
   },
   {
     key: 'rocket',

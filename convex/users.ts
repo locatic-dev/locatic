@@ -41,6 +41,8 @@ import {
   buildProjectExploreOwner,
 } from './lib/snapshots'
 import { createDefaultViewerProfile } from './lib/viewer'
+import { resolveStoredGithubId } from './lib/clerk'
+import { assertGithubUsernameAvailable } from './lib/github_identity'
 import {
   compactWebhookError,
   getWebhookProcessingDecision,
@@ -59,6 +61,7 @@ import {
   socialLinksValidator,
   tabVisibilityValidator,
 } from './lib/validators'
+import { getViewerReactionTypesByTargetId } from './lib/reactions'
 
 const viewerBootstrapStatusValidator = v.union(
   v.literal('unauthenticated'),
@@ -170,6 +173,7 @@ const viewerBootstrapValidator = v.object({
 })
 
 const PROFILE_POSTS_LIMIT = 50
+const MAX_USER_GITHUB_ID_BACKFILL_BATCH = 50
 
 const profilePostPreviewValidator = v.object({
   _id: v.id('posts'),
@@ -210,6 +214,7 @@ const profilePostPreviewValidator = v.object({
   updatedAt: v.number(),
   deletedAt: v.union(v.number(), v.null()),
   viewerHasLiked: v.boolean(),
+  viewerReactionTypes: v.array(v.string()),
 })
 
 function serializeViewer(
@@ -390,35 +395,46 @@ async function listContributedProjects(
   audience: 'private' | 'public',
   limit = 24,
 ) {
-  const rows = await ctx.db
-    .query('project_contributors')
-    .withIndex('by_user', (query) => query.eq('userId', userId))
-    .take(Math.min(limit, 50))
+  const itemLimit = Math.min(limit, 50)
+  const projects: Array<{
+    project: Awaited<ReturnType<typeof buildProjectCardPreview>>
+    commitCount: number
+  }> = []
+  let cursor: string | null = null
 
-  const projects = await Promise.all(
-    rows.map(async (row) => {
+  while (projects.length < itemLimit) {
+    const page = await ctx.db
+      .query('project_contributors')
+      .withIndex('by_user_active_confirmed', (query) =>
+        query.eq('userId', userId).eq('isActive', true),
+      )
+      .order('desc')
+      .paginate({
+        cursor,
+        numItems: itemLimit - projects.length,
+      })
+
+    for (const row of page.page) {
       const project = await ctx.db.get(row.projectId)
       if (!project || !project.locatic.isVisible) {
-        return null
+        continue
       }
 
-      return {
+      projects.push({
         project: await buildProjectCardPreview(ctx.db, project, {
           audience,
         }),
         commitCount: row.commitCount,
-      }
-    }),
-  )
+      })
+    }
 
-  return projects.filter(
-    (
-      project,
-    ): project is {
-      project: Awaited<ReturnType<typeof buildProjectCardPreview>>
-      commitCount: number
-    } => Boolean(project),
-  )
+    if (page.isDone || page.page.length === 0) {
+      break
+    }
+    cursor = page.continueCursor
+  }
+
+  return projects
 }
 
 async function listFollowPreviewSlice(
@@ -741,37 +757,6 @@ async function listPublicLikedProjects(
   )
 }
 
-async function getViewerPostLikeTargetIds(
-  ctx: QueryCtx,
-  viewer: Doc<'users'> | null,
-  posts: Array<Doc<'posts'>>,
-) {
-  if (!viewer || posts.length === 0) {
-    return new Set<string>()
-  }
-
-  const reactions = await Promise.all(
-    posts.map((post) =>
-      ctx.db
-        .query('reactions')
-        .withIndex('by_user_target_type_id_reaction', (query) =>
-          query
-            .eq('userId', viewer._id)
-            .eq('targetType', 'post')
-            .eq('targetId', String(post._id))
-            .eq('reactionType', 'like'),
-        )
-        .unique(),
-    ),
-  )
-
-  return new Set(
-    reactions
-      .filter((reaction): reaction is Doc<'reactions'> => Boolean(reaction))
-      .map((reaction) => reaction.targetId),
-  )
-}
-
 async function listProfilePosts(
   ctx: QueryCtx,
   args: {
@@ -789,16 +774,25 @@ async function listProfilePosts(
     .take(PROFILE_POSTS_LIMIT)
   const visiblePosts =
     args.audience === 'public' ? await filterVisiblePosts(ctx, posts) : posts
-  const likedPostIds = await getViewerPostLikeTargetIds(
+  const viewerReactionTypesByTargetId = await getViewerReactionTypesByTargetId(
     ctx,
     args.requester,
-    visiblePosts,
+    {
+      targetIds: visiblePosts.map((post) => String(post._id)),
+      targetType: 'post',
+    },
   )
 
-  return visiblePosts.map((post) => ({
-    ...post,
-    viewerHasLiked: likedPostIds.has(String(post._id)),
-  }))
+  return visiblePosts.map((post) => {
+    const viewerReactionTypes =
+      viewerReactionTypesByTargetId.get(String(post._id)) ?? []
+
+    return {
+      ...post,
+      viewerHasLiked: viewerReactionTypes.includes('like'),
+      viewerReactionTypes,
+    }
+  })
 }
 
 function emptyFollowPreviewPage(cursor: string | null = null) {
@@ -2081,6 +2075,9 @@ export const upsertFromClerkWebhook = internalMutation({
   handler: async (ctx, args) => {
     const existingViewer = await getViewerByClerkId(ctx, args.clerkId)
     const now = Date.now()
+    await assertGithubUsernameAvailable(ctx, args.githubUsername, {
+      exceptUserId: existingViewer?._id,
+    })
 
     if (!existingViewer) {
       const userId = await ctx.db.insert(
@@ -2103,10 +2100,15 @@ export const upsertFromClerkWebhook = internalMutation({
       return existingViewer
     }
 
+    const nextGithubId = resolveStoredGithubId(
+      existingViewer.github.id,
+      args.githubId,
+    )
+
     await ctx.db.patch(existingViewer._id, {
       email: args.email,
       github: {
-        id: args.githubId,
+        id: nextGithubId,
         username: args.githubUsername,
       },
       profile: {
@@ -2133,7 +2135,7 @@ export const upsertFromClerkWebhook = internalMutation({
       ...existingViewer,
       email: args.email,
       github: {
-        id: args.githubId,
+        id: nextGithubId,
         username: args.githubUsername,
       },
       profile: {
@@ -2149,6 +2151,123 @@ export const upsertFromClerkWebhook = internalMutation({
     })
 
     return await ctx.db.get(existingViewer._id)
+  },
+})
+
+const userGithubIdBackfillTargetValidator = v.object({
+  userId: v.id('users'),
+  username: v.string(),
+})
+
+export const listUsersMissingGithubIds = internalQuery({
+  args: {
+    limit: v.optional(v.number()),
+    username: v.optional(v.string()),
+  },
+  returns: v.array(userGithubIdBackfillTargetValidator),
+  handler: async (ctx, args) => {
+    const limit = Math.min(
+      Math.max(Math.floor(args.limit ?? 25), 1),
+      MAX_USER_GITHUB_ID_BACKFILL_BATCH,
+    )
+    const username = args.username?.trim()
+
+    if (username) {
+      const user = await ctx.db
+        .query('users')
+        .withIndex('by_github_username', (query) =>
+          query.eq('github.username', username),
+        )
+        .unique()
+
+      return user && user.github.id === null
+        ? [{ userId: user._id, username: user.github.username }]
+        : []
+    }
+
+    const targets: Array<{
+      userId: Id<'users'>
+      username: string
+    }> = []
+    let cursor: string | null = null
+
+    while (targets.length < limit) {
+      const page = await ctx.db
+        .query('users')
+        .withIndex('by_github_id', (query) => query.eq('github.id', null))
+        .paginate({
+          cursor,
+          numItems: limit - targets.length,
+        })
+
+      for (const user of page.page) {
+        const backfillUsername = user.github.username.trim()
+        if (backfillUsername.length > 0) {
+          targets.push({
+            userId: user._id,
+            username: backfillUsername,
+          })
+        }
+      }
+
+      if (page.isDone || page.page.length === 0) {
+        break
+      }
+      cursor = page.continueCursor
+    }
+
+    return targets
+  },
+})
+
+export const patchGithubIdFromBackfill = internalMutation({
+  args: {
+    userId: v.id('users'),
+    githubId: v.number(),
+  },
+  returns: v.object({
+    status: v.union(
+      v.literal('updated'),
+      v.literal('already_set'),
+      v.literal('missing_user'),
+      v.literal('skipped_existing_id'),
+      v.literal('skipped_conflict'),
+    ),
+  }),
+  handler: async (ctx, args) => {
+    const user = await ctx.db.get(args.userId)
+    if (!user) {
+      return { status: 'missing_user' as const }
+    }
+
+    if (user.github.id === args.githubId) {
+      return { status: 'already_set' as const }
+    }
+
+    if (user.github.id !== null) {
+      return { status: 'skipped_existing_id' as const }
+    }
+
+    const conflictingUser = await ctx.db
+      .query('users')
+      .withIndex('by_github_id', (query) =>
+        query.eq('github.id', args.githubId),
+      )
+      .unique()
+
+    if (conflictingUser && conflictingUser._id !== user._id) {
+      return { status: 'skipped_conflict' as const }
+    }
+
+    await ctx.db.patch(user._id, {
+      github: {
+        ...user.github,
+        id: args.githubId,
+      },
+      updatedAt: Date.now(),
+    })
+
+    return { status: 'updated' as const }
   },
 })
 
@@ -2349,6 +2468,8 @@ export const ensureViewerFromIdentity = internalMutation({
       }
       return existingViewer
     }
+
+    await assertGithubUsernameAvailable(ctx, args.githubUsername)
 
     const viewerId = await ctx.db.insert(
       'users',

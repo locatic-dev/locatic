@@ -1,62 +1,45 @@
 import type { Id } from '../../../../convex/_generated/dataModel'
-import {
-  ChevronDown,
-  ChevronRight,
-  CornerUpLeft,
-  Heart,
-  Trash2,
-} from '@/lib/icons'
+import { ChevronDown, ChevronRight, CornerUpLeft, Trash2 } from '@/lib/icons'
+import { ReactionBar } from '@/features/projects/reactions/reaction-bar'
 
 export function CommentActions({
   canDelete,
   commentId,
-  commentLiked,
-  commentLikes,
   disabled,
   hasReplies,
   pendingDelete,
+  reactionCounts,
   repliesOpen,
   replyCount,
   repliesRegionId,
+  viewerReactionTypes,
   onDelete,
-  onLike,
   onReply,
   onToggleReplies,
 }: {
   canDelete: boolean
   commentId: Id<'comments'> | string
-  commentLiked: boolean
-  commentLikes: number
   disabled: boolean
   hasReplies: boolean
   pendingDelete: boolean
+  reactionCounts: Record<string, number>
   repliesOpen: boolean
   replyCount: number
   repliesRegionId: string
+  viewerReactionTypes: string[]
   onDelete: (commentId: Id<'comments'>) => void
-  onLike: () => void
   onReply: () => void
   onToggleReplies: () => void
 }) {
   return (
     <div className="mt-2 flex flex-wrap items-center gap-1.5 font-mono text-[11px] text-text-faint">
-      <button
-        type="button"
-        onClick={onLike}
-        aria-label={commentLiked ? 'Unlike comment' : 'Like comment'}
-        aria-pressed={commentLiked}
+      <ReactionBar
         disabled={disabled}
-        className={`inline-flex min-h-11 items-center gap-1.5 rounded-md px-2 py-2 transition-colors hover:text-text disabled:opacity-60 ${
-          commentLiked ? 'text-brand' : 'text-inherit'
-        }`}
-      >
-        <Heart
-          size={13}
-          fill={commentLiked ? 'currentColor' : 'none'}
-          strokeWidth={1.6}
-        />
-        <span>{commentLikes}</span>
-      </button>
+        reactionCounts={reactionCounts}
+        targetId={String(commentId)}
+        targetType="comment"
+        viewerReactionTypes={viewerReactionTypes}
+      />
       <button
         type="button"
         onClick={onReply}
