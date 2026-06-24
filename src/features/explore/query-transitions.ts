@@ -14,6 +14,12 @@ type PostSearchQueryArgs = {
   q?: string
 }
 
+type PostListQueryArgs = {
+  limit?: number
+  scope?: ExploreScope
+  selectedCityIds?: Array<Id<'cities'>>
+}
+
 type QueryWithArgs = Pick<
   Query<unknown, Error, unknown, readonly unknown[]>,
   'queryKey'
@@ -69,6 +75,33 @@ export function keepPreviousPostSearchData<TData>({
       !areExploreCityIdsEqual(
         (previousArgs.cityIds ?? []).map(String),
         currentCityIds.map(String),
+      )
+    ) {
+      return undefined
+    }
+
+    return previousData
+  }
+}
+
+export function keepPreviousPostListData<TData>({
+  currentScope,
+  currentSelectedCityIds,
+}: {
+  currentScope: ExploreScope
+  currentSelectedCityIds: Array<Id<'cities'>>
+}) {
+  return (
+    previousData: TData | undefined,
+    previousQuery: QueryWithArgs | undefined,
+  ) => {
+    const previousArgs = getQueryArgs<PostListQueryArgs>(previousQuery)
+    if (
+      !previousArgs ||
+      previousArgs.scope !== currentScope ||
+      !areExploreCityIdsEqual(
+        (previousArgs.selectedCityIds ?? []).map(String),
+        currentSelectedCityIds.map(String),
       )
     ) {
       return undefined

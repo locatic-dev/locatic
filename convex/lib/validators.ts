@@ -26,6 +26,7 @@ export const eventTypeValidator = v.union(
   v.literal('project_liked'),
   v.literal('project_commented'),
   v.literal('post_commented'),
+  v.literal('followed'),
   v.literal('contributor_matched'),
 )
 
@@ -206,6 +207,70 @@ export const postSnapshotValidator = v.union(
     commentsCount: v.number(),
   }),
   v.null(),
+)
+
+export const homeFeedRowKindValidator = v.union(
+  v.literal('single_event'),
+  v.literal('event_group'),
+)
+
+export const homeFeedGroupKindValidator = v.union(
+  v.literal('project_posted'),
+  v.literal('post_created'),
+  v.literal('project_liked'),
+  v.literal('project_commented'),
+  v.literal('post_commented'),
+  v.literal('followed'),
+  v.literal('contributor_matched'),
+)
+
+export const profileTargetSnapshotValidator = v.object({
+  userId: v.id('users'),
+  githubUsername: v.string(),
+  displayName: v.string(),
+  avatarUrl: optionalStringValidator,
+  cityName: optionalStringValidator,
+})
+
+export const homeFeedTargetValidator = v.union(
+  v.object({
+    kind: v.literal('project'),
+    projectId: v.id('projects'),
+    projectSnapshot: projectSnapshotValidator,
+  }),
+  v.object({
+    kind: v.literal('post'),
+    projectId: v.id('projects'),
+    postId: v.id('posts'),
+    projectSnapshot: projectSnapshotValidator,
+    postSnapshot: postSnapshotValidator,
+  }),
+  v.object({
+    kind: v.literal('comment'),
+    projectId: v.id('projects'),
+    postId: v.union(v.id('posts'), v.null()),
+    commentId: v.id('comments'),
+    rootCommentId: v.optional(v.id('comments')),
+    ancestorCommentIds: v.optional(v.array(v.id('comments'))),
+    targetType: commentTargetTypeValidator,
+    content: v.string(),
+    targetLabel: v.string(),
+    projectSnapshot: projectSnapshotValidator,
+    postSnapshot: v.optional(postSnapshotValidator),
+  }),
+  v.object({
+    kind: v.literal('profile'),
+    profile: profileTargetSnapshotValidator,
+  }),
+  v.object({
+    kind: v.literal('pull_request'),
+    projectId: v.id('projects'),
+    projectSnapshot: projectSnapshotValidator,
+    title: v.string(),
+    number: v.number(),
+    url: optionalStringValidator,
+    mergedAt: optionalTimestampValidator,
+  }),
 )
 
 export const notificationTargetValidator = v.object({

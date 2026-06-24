@@ -4,12 +4,7 @@ import {
 } from 'convex/server'
 import { ConvexError, v } from 'convex/values'
 
-import {
-  internalMutation,
-  mutation,
-  query,
-  type QueryCtx,
-} from './_generated/server'
+import { internalMutation, mutation, query } from './_generated/server'
 import { getViewerFromAuth, getViewerOrThrow } from './lib/auth'
 import { fanOutActivityEventToFollowers } from './lib/homeFeed'
 import { resolveProjectOwnerLogin } from './lib/project_route'
@@ -26,6 +21,7 @@ import {
   normalizePostSearchQuery,
   withCurrentProjectPostFields,
 } from './lib/posts'
+import { getViewerReactionTypesByTargetId } from './lib/reactions'
 
 const postPageItemValidator = v.object({
   _id: v.id('posts'),
@@ -66,6 +62,7 @@ const postPageItemValidator = v.object({
   updatedAt: v.number(),
   deletedAt: v.union(v.number(), v.null()),
   viewerHasLiked: v.boolean(),
+  viewerReactionTypes: v.array(v.string()),
 })
 
 const emptyPostPage = {
@@ -76,45 +73,20 @@ const emptyPostPage = {
   splitCursor: null,
 }
 
-async function getViewerLikeTargetIds(
-  ctx: QueryCtx,
-  viewer: Doc<'users'> | null,
+function withViewerPostReactions(
   posts: Array<Doc<'posts'>>,
+  viewerReactionTypesByTargetId: Map<string, string[]>,
 ) {
-  if (!viewer || posts.length === 0) {
-    return new Set<string>()
-  }
+  return posts.map((post) => {
+    const viewerReactionTypes =
+      viewerReactionTypesByTargetId.get(String(post._id)) ?? []
 
-  const reactions = await Promise.all(
-    posts.map((post) =>
-      ctx.db
-        .query('reactions')
-        .withIndex('by_user_target_type_id_reaction', (query) =>
-          query
-            .eq('userId', viewer._id)
-            .eq('targetType', 'post')
-            .eq('targetId', String(post._id))
-            .eq('reactionType', 'like'),
-        )
-        .unique(),
-    ),
-  )
-
-  return new Set(
-    reactions
-      .filter((reaction): reaction is Doc<'reactions'> => Boolean(reaction))
-      .map((reaction) => reaction.targetId),
-  )
-}
-
-function withViewerPostLikes(
-  posts: Array<Doc<'posts'>>,
-  viewerLikeTargetIds: Set<string>,
-) {
-  return posts.map((post) => ({
-    ...post,
-    viewerHasLiked: viewerLikeTargetIds.has(String(post._id)),
-  }))
+    return {
+      ...post,
+      viewerHasLiked: viewerReactionTypes.includes('like'),
+      viewerReactionTypes,
+    }
+  })
 }
 
 export const listByProject = query({
@@ -143,15 +115,15 @@ export const listByProject = query({
       .order('desc')
       .paginate(args.paginationOpts)
     const visiblePage = await filterVisiblePosts(ctx, page.page)
-    const viewerLikeTargetIds = await getViewerLikeTargetIds(
-      ctx,
-      viewer,
-      visiblePage,
-    )
+    const viewerReactionTypesByTargetId =
+      await getViewerReactionTypesByTargetId(ctx, viewer, {
+        targetIds: visiblePage.map((post) => String(post._id)),
+        targetType: 'post',
+      })
 
     return {
       ...page,
-      page: withViewerPostLikes(visiblePage, viewerLikeTargetIds),
+      page: withViewerPostReactions(visiblePage, viewerReactionTypesByTargetId),
     }
   },
 })
@@ -200,13 +172,13 @@ export const search = query({
             )
             .take(limit)
     const filtered = (await filterVisiblePosts(ctx, posts)).slice(0, limit)
-    const viewerLikeTargetIds = await getViewerLikeTargetIds(
-      ctx,
-      viewer,
-      filtered,
-    )
+    const viewerReactionTypesByTargetId =
+      await getViewerReactionTypesByTargetId(ctx, viewer, {
+        targetIds: filtered.map((post) => String(post._id)),
+        targetType: 'post',
+      })
 
-    return withViewerPostLikes(filtered, viewerLikeTargetIds)
+    return withViewerPostReactions(filtered, viewerReactionTypesByTargetId)
   },
 })
 
@@ -288,6 +260,13 @@ export const create = mutation({
       actorSnapshot,
       projectSnapshot: buildProjectSnapshot(project),
       postSnapshot: buildPostSnapshot(post),
+      target: {
+        kind: 'post',
+        projectId: project._id,
+        postId,
+        projectSnapshot: buildProjectSnapshot(project),
+        postSnapshot: buildPostSnapshot(post),
+      },
       createdAt: now,
     })
 
@@ -299,6 +278,7 @@ export const create = mutation({
     return {
       ...post,
       viewerHasLiked: false,
+      viewerReactionTypes: [],
     }
   },
 })
@@ -341,6 +321,7 @@ export const update = mutation({
       ? {
           ...visiblePost,
           viewerHasLiked: false,
+          viewerReactionTypes: [],
         }
       : null
   },
@@ -411,17 +392,16 @@ export const backfillSearchText = internalMutation({
       })
 
       if (
-        post.searchText === searchText &&
-        post.projectTopics.join('\0') === topics.join('\0')
+        post.searchText !== searchText ||
+        post.projectTopics.join('\u0000') !== topics.join('\u0000')
       ) {
-        continue
+        await ctx.db.patch(post._id, {
+          searchText,
+          projectTopics: topics,
+          updatedAt: Date.now(),
+        })
+        patched += 1
       }
-
-      await ctx.db.patch(post._id, {
-        projectTopics: topics,
-        searchText,
-      })
-      patched += 1
     }
 
     return patched
