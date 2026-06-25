@@ -73,7 +73,7 @@ function LandingPage() {
       {/* Hero */}
       <section className="relative z-1 mx-auto grid max-w-(--lx-public-max) grid-cols-1 items-center gap-8 px-(--lx-gutter) pt-12 md:grid-cols-[1fr_420px] md:gap-12 md:pt-20">
         <div className="lx-fade-up">
-          <h1 className="m-0 font-mono text-[clamp(56px,7vw,88px)] leading-[0.96] font-bold tracking-[-0.045em] text-text">
+          <h1 className="m-0 font-mono text-[clamp(40px,7vw,88px)] leading-[0.96] font-bold tracking-[-0.045em] text-text">
             GitHub
             <br />
             with a <span className="text-brand">map.</span>
@@ -87,7 +87,7 @@ function LandingPage() {
           <div className="mt-9 flex flex-wrap items-center gap-3">
             <Link
               to="/sign-in/$"
-              className="inline-flex min-h-11 items-center gap-2.5 rounded-[5px] border border-brand/30 bg-brand px-5.5 py-3.5 font-mono text-[13.5px] font-semibold text-white no-underline shadow-[0_4px_24px_oklch(74%_0.16_152_/_0.45)] transition-all hover:bg-brand/90 hover:shadow-[0_4px_32px_oklch(74%_0.16_152_/_0.6)] active:scale-[0.98]"
+              className="inline-flex min-h-11 items-center gap-2.5 rounded-[5px] border border-brand/30 bg-brand px-5.5 py-3.5 font-mono text-[13.5px] font-semibold text-brand-foreground no-underline shadow-card transition-all hover:bg-brand/90 hover:shadow-floating active:scale-[0.98]"
             >
               <BrandIcon name="github" size={16} />
               Sign in with GitHub
