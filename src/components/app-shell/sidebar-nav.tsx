@@ -94,7 +94,7 @@ export function SidebarNav({
   return (
     <TooltipProvider delayDuration={300}>
       <aside
-        className={`flex h-full shrink-0 flex-col overflow-y-auto border-r border-line bg-canvas px-0 pt-5 pb-2 transition-[width] duration-200 ${
+        className={`flex h-full shrink-0 flex-col overflow-y-auto border-r border-line bg-surface-chrome px-0 pt-5 pb-2 transition-[width] duration-200 ${
           collapsed ? 'w-[76px]' : 'w-(--lx-sidebar-width)'
         }`}
       >

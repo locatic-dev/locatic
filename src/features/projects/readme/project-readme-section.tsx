@@ -119,7 +119,7 @@ const readmeMarkdownComponents = {
       <p
         {...props}
         className={cn(
-          'my-3 font-sans text-sm leading-[1.7] text-text-muted wrap-anywhere',
+          'my-3 font-sans text-sm leading-[1.7] text-text wrap-anywhere',
           className,
         )}
       />

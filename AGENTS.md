@@ -37,7 +37,7 @@ Locatic — "GitHub with a map." Developer activity platform: discover projects,
 | Add route                       | `src/routes/`                                                                                   | File-based routing, `_app/` = auth-required                                                                                                                                                                                                                                                       |
 | Add feature                     | `src/features/`                                                                                 | Domain logic, hooks, types per feature                                                                                                                                                                                                                                                            |
 | Add UI component                | `src/components/ui/`                                                                            | shadcn/ui components                                                                                                                                                                                                                                                                              |
-| Add route pending UI            | `src/components/app-shell/route-pending.tsx`                                                    | Shared suspense fallback for auth routes                                                                                                                                                                                                                                                          |
+| Add route pending UI            | `src/components/app-shell/route-pending.tsx`                                                    | Shared suspense fallback for auth routes; `ContentRoutePending` for content-region loading (no chrome)                                                                                                                                                                                            |
 | Add Convex function             | `convex/`                                                                                       | Queries, mutations, HTTP endpoints                                                                                                                                                                                                                                                                |
 | Add DB table                    | `convex/schema.ts`                                                                              | Define table + validators in `convex/lib/validators.ts`                                                                                                                                                                                                                                           |
 | Add project route helper        | `convex/lib/project_route.ts`                                                                   | `normalizeProjectRouteKey`, `resolveProjectOwnerLogin`, `resolveProjectSnapshotOwnerLogin`                                                                                                                                                                                                        |
@@ -100,6 +100,8 @@ Locatic — "GitHub with a map." Developer activity platform: discover projects,
 | Home feed card tests            | `src/features/home/__tests__/home-feed-card.test.tsx`                                           | HomeFeedCard rendering, touch targets, event grouping display                                                                                                                                                                                                                                     |
 | Home feed copy tests            | `src/features/home/__tests__/feed-copy.test.ts`                                                 | `getHomeFeedSummary` copy correctness                                                                                                                                                                                                                                                             |
 | Home feed logic tests           | `convex/lib/__tests__/home_feed.test.ts`                                                        | `fanOutActivityEventToFollowers`, groupKey dedup, event grouping                                                                                                                                                                                                                                  |
+| Home feed handoff state         | `src/features/home/render-state.ts`                                                             | `getHomeFeedHandoffState` — SSR-to-live feed transition while paginated query loads                                                                                                                                                                                                               |
+| Dormant Home pulse rail         | `src/features/home/home-rail.tsx`                                                               | `HomePulseRail` — dead/dormant right-rail experiment for weekly pulse projects; not rendered by Home until the dashboard model is revisited                                                                                                                                                       |
 | Inbox page                      | `src/routes/_app/inbox.tsx`                                                                     | Conversation list + composer; mobile grid layout with `--lx-mobile-tab-height` clearance                                                                                                                                                                                                          |
 | Liked-by summary                | `src/features/projects/likes/liked-by-summary.tsx`                                              | Avatar stack + count + expandable dialog with paginated likers                                                                                                                                                                                                                                    |
 | GitHub API helpers              | `convex/lib/github.ts`                                                                          | Types, README import helpers (`GithubReadmeImport`, `normalizeGithubReadmeImport`, `assertGithubRawDownloadUrl`)                                                                                                                                                                                  |
@@ -110,6 +112,8 @@ Locatic — "GitHub with a map." Developer activity platform: discover projects,
 | Contributor sync tests          | `convex/lib/__tests__/project_contributor_sync.test.ts` + `convex/lib/__tests__/github.test.ts` | Unit tests for `runProjectContributorSyncTargets`, `recomputeContributionCountsForUsers`                                                                                                                                                                                                          |
 | Viewer auth helpers             | `src/features/viewer/auth.ts`                                                                   | `shouldEnableViewerSummaryQuery` — gate viewer summary queries behind auth state                                                                                                                                                                                                                  |
 | Explore query transitions       | `src/features/explore/query-transitions.ts`                                                     | `keepPreviousExploreFeedData`/`keepPreviousPostSearchData` for smooth data retention during filter changes                                                                                                                                                                                        |
+| Explore header command band     | `src/features/explore/components/explore-header.tsx`                                            | Chip-style mode toggle group, search in command band layout; uses `bg-selected`/`text-brand` for active mode                                                                                                                                                                                      |
+| Contrast check                  | `scripts/check-contrast.mjs`                                                                    | Self-contained OKLCH→sRGB converter; asserts WCAG 4.5:1 body / 3:1 large text; runs via `pnpm contrast:check`, part of `pnpm check`                                                                                                                                                               |
 | Comment composer styles         | `src/features/projects/comments/composer-styles.ts`                                             | `commentComposerTextareaClass` shared textarea style constant                                                                                                                                                                                                                                     |
 | Profile comment navigation      | `src/features/profile/comment-navigation.ts`                                                    | `getProfileCommentDestination` builds deep-link to project page with `comment`/`commentPath`/`thread`/`post` search params; `isCommentTargetOpenable` gates by availability                                                                                                                       |
 | Profile comment build           | `convex/users.ts`                                                                               | `buildProfileCommentPreview` supports both `targetType: 'project'` and `'post'`; tracks ancestor chain (`ancestorCommentIds`, `rootCommentId`); availability via `isProjectPubliclyInteractable`/`getVisiblePostProject`                                                                          |
@@ -151,6 +155,11 @@ Locatic — "GitHub with a map." Developer activity platform: discover projects,
 - Explore feed uses `placeholderData` with `keepPreviousExploreFeedData`/`keepPreviousPostSearchData` for smooth filter transitions; retains previous data when scope/cityIds/search query are unchanged.
 - Home feed uses direct Convex `usePaginatedQuery` (not TanStack Query) for paginated list with `paginationOptsValidator`.
 - Home feed uses `getHomeFeedRenderState` (empty/loading/items) for distinct render states; shows skeleton rows via `HomeFeedSkeletonRows` during initial `LoadingFirstPage`.
+- Home feed handoff: `getHomeFeedHandoffState` merges SSR items into live paginated state; SSR items display while first page loads, replaced by live results on resolution.
+- `HomePulseRail` exists as dormant/dead code for a future Home right rail; do not wire it into Home unless the pulse/dashboard product direction is intentionally revived.
+- Auth shell: routes under `_app` render the persistent shell frame (sidebar, main content region, mobile nav) immediately from SSR'd viewer bootstrap (`ensureQueryData` in `beforeLoad`); route headers still live inside `<Outlet/>`, so only the outlet content waits on Convex auth handshake via `ContentRoutePending`. The frame never blocks on Convex readiness.
+- Unread counts: gated on Convex auth handshake (`useConvexAuth`) so they never fire unauthenticated when the shell paints ahead of Convex readiness; badges appear once auth is ready.
+- Explore header: mode tabs render as chip-style toggle group inside a command band layout (`flex-col lg:flex-row`); active mode uses `bg-selected`/`text-brand`, inactive uses `text-text-muted`.
 - Home feed event grouping: `fanOutActivityEventToFollowers` uses `groupKey`-based dedup (composed of `userId:actorId:eventType:dayBucket:targetPart`); same-type events within a day are merged into a single `event_group` row with `previewTargets`, `eventCount`, `sourceEventIds` accumulation.
 - `activity_events` schema: `projectId` and `projectSnapshot` are now optional/nullable; target field uses `homeFeedTargetValidator` union (supports `project`/`post`/`comment`/`profile`/`pull_request` kinds).
 - Touch targets: all interactive icon buttons must be `min-h-11 min-w-11` (44px) per mobile accessibility guidelines; use negative margins (`-my-3 -mr-2` etc.) to offset spacing when needed; prefer `rounded-md` over `rounded-sm`.
@@ -161,6 +170,10 @@ Locatic — "GitHub with a map." Developer activity platform: discover projects,
 - `aria-label` for interactive buttons that lack visible text labels is required (conversation buttons, remove topic, dismiss, etc.)
 - Composer layout uses grid on mobile (`grid-cols-[minmax(0,1fr)_auto]`) and flex on desktop (`md:flex`)
 - Comment composer textarea styles live in `src/features/projects/comments/composer-styles.ts` as the `commentComposerTextareaClass` constant; shared between `comment-thread.tsx` and `project-post-card.tsx`
+- Surface token hierarchy: `bg-canvas` (page) < `bg-surface-chrome` (sidebar, tab bar) < `bg-surface` (content cards) < `bg-surface-raised` (active/popover surfaces)
+- Text token hierarchy: `text-text` (body emphasis) > `text-text-muted` (body) > `text-text-faint` (metadata) > `text-text-disabled` (disabled)
+- Highlight semantic tokens: `bg-selected` (active toggle/selection), `bg-outgoing` (own messages), `bg-unread` (unread badge), `--lx-selected-bar` (selection indicator), `--lx-focus-ring` (focus), `--lx-liked` (liked/heart)
+- Own/outgoing message bubbles use `border border-brand/30 bg-outgoing text-text`, not `bg-brand text-brand-foreground`
 - Profile content tabs use responsive grid: `grid-cols-2 min-[520px]:grid-cols-3 lg:grid-cols-5`; `posts` tab alongside projects/contributions/liked
 - Profile posts tab uses tab-gated queries: `privateProfilePostsQueryOptions`/`publicProfilePostsQueryOptions` enabled only when `tab === 'posts'`; matches pattern set by projects/contributions tabs
 - Profile network section has `isPrivate` + `loading` props; hides follower/following tab switcher when follow graph is private
@@ -190,6 +203,7 @@ Locatic — "GitHub with a map." Developer activity platform: discover projects,
 - DO NOT use direct `var(--lx-*)` in components — use semantic Tailwind utilities (`bg-surface`, `text-text-muted`, `rounded-card`, `shadow-card`, etc.) unless the value is genuinely runtime-only
 - DO NOT use inline `style={{}}` for layout — prefer Tailwind utility classes
 - DO NOT write product docs outside `docs/`.
+- DO NOT use `bg-brand` for own/outgoing message bubbles — use `bg-outgoing border border-brand/30` instead.
 
 ## UNIQUE STYLES
 
@@ -202,6 +216,9 @@ Locatic — "GitHub with a map." Developer activity platform: discover projects,
 - Mobile-first responsive layout: shared layout tokens, safe-area padding, and CSS custom properties in `src/styles.css`
 - Touch-friendly targets (min 44px), content wrapping, mobile tab bar for navigation
 - Semantic Tailwind tokens: `--color-*`, `--radius-*`, `--shadow-*` registered via `@theme` in `styles.css` — use utility classes like `bg-surface`, `text-text-muted`, `rounded-card`, `shadow-card` instead of direct `var(--lx-*)`
+- Surface token scale: canvas → chrome → surface → raised (distinct CSS vars: `--lx-bg`, `--lx-surface-chrome`, `--lx-surface`, `--lx-surface-raised`); `bg-surface-chrome` for frame elements (sidebar, mobile tab bar)
+- Highlight token set: `--lx-selected-fill`, `--lx-selected-bar`, `--lx-outgoing-surface`, `--lx-unread-dot`, `--lx-focus-ring`, `--lx-liked` — one job per token, green is not universal
+- Layout token `--lx-app-wide-max` (1180px) for wider page layouts
 - Auth routes use splat pattern: `sign-in.$.tsx`, `sign-up.$.tsx` (not flat `sign-in.tsx`)
 - `routeTree.gen.ts` is generated by TanStack Router and contains type suppressions from the generator; never hand-edit it.
 
@@ -231,7 +248,7 @@ pnpm test             # Vitest run
 pnpm lint             # oxlint
 pnpm typecheck        # tsc --noEmit
 pnpm format           # oxfmt + oxlint --fix
-pnpm check            # oxfmt --check + oxlint
+pnpm check            # oxfmt --check + oxlint + contrast check
 pnpm ci:quality       # check + typecheck + test
 pnpm ci:build                     # build only
 pnpm build:development            # Development-mode Vite build
@@ -246,6 +263,7 @@ pnpm e2e              # Playwright E2E tests (requires dev server)
 pnpm e2e:auth         # Playwright auth setup only
 pnpm e2e:headed       # Playwright headed mode
 pnpm e2e:ui           # Playwright UI mode
+pnpm contrast:check   # WCAG contrast gate for CSS token scale
 pnpm cities:generate  # Regenerate city seed data
 pnpm reactions:generate # Regenerate reaction seed data
 ```
@@ -264,7 +282,7 @@ pnpm reactions:generate # Regenerate reaction seed data
 
 ## RESPONSIVE LAYOUT
 
-- `src/styles.css` defines shared layout tokens such as `--lx-gutter`, `--lx-section-gap`, `--lx-feed-max`, `--lx-form-max`, `--lx-detail-max`, `--lx-profile-max`, and `--lx-public-max`
+- `src/styles.css` defines shared layout tokens such as `--lx-gutter`, `--lx-section-gap`, `--lx-feed-max`, `--lx-form-max`, `--lx-app-wide-max`, `--lx-detail-max`, `--lx-profile-max`, and `--lx-public-max`
 - Page-shell helpers: `.page-shell`, `.page-shell__content` for consistent route layouts
 - Mobile-first breakpoints: Tailwind `sm:` (640px), `md:` (768px), `lg:` (1024px)
 - App shell: sidebar collapses on mobile, mobile tab bar appears at bottom, header actions wrap

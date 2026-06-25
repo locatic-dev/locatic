@@ -56,7 +56,7 @@ export function MobileTabBar({
   return (
     <nav
       aria-label="Main navigation"
-      className="fixed inset-x-0 bottom-0 z-50 flex min-h-(--lx-mobile-tab-height) items-start justify-around border-t border-line bg-canvas px-2 pt-2 pb-[calc(env(safe-area-inset-bottom)+4px)]"
+      className="fixed inset-x-0 bottom-0 z-50 flex min-h-(--lx-mobile-tab-height) items-start justify-around border-t border-line bg-surface-chrome px-2 pt-2 pb-[calc(env(safe-area-inset-bottom)+4px)]"
     >
       {tabs.map((item) => {
         const isActive =
