@@ -57,9 +57,12 @@ const tokens = {
   textSecondary: { L: 0.68, C: 0.006, h: 230 },
   textTertiary: { L: 0.57, C: 0.006, h: 230 },
   textDisabled: { L: 0.43, C: 0.005, h: 230 },
-  brand: { L: 0.74, C: 0.16, h: 152 },
+  brand: { L: 0.72, C: 0.15, h: 195 },
   brandForeground: { L: 0.14, C: 0.005, h: 230 },
-  outgoingSurface: { L: 0.74, C: 0.16, h: 152, alpha: 0.16 },
+  selectedFill: { L: 0.72, C: 0.15, h: 195, alpha: 0.1 },
+  surfaceAccent: { L: 0.72, C: 0.15, h: 195, alpha: 0.06 },
+  outgoingSurface: { L: 0.72, C: 0.15, h: 195, alpha: 0.16 },
+  liked: { L: 0.62, C: 0.22, h: 25 },
 }
 
 const opaque = (t) => oklchToLinearSrgb(t.L, t.C, t.h)
@@ -87,7 +90,20 @@ const checks = [
     tokens.brand,
     4.5,
   ],
-  // Outgoing bubble: primary text over the translucent green surface, which is
+  ['liked on surface', tokens.liked, tokens.surface, 4.5],
+  [
+    'brand on selected-fill',
+    tokens.brand,
+    { ...tokens.selectedFill, over: tokens.surface },
+    4.5,
+  ],
+  [
+    'primary on surface-accent hover',
+    tokens.textPrimary,
+    { ...tokens.surfaceAccent, over: tokens.surface },
+    4.5,
+  ],
+  // Outgoing bubble: primary text over the translucent teal surface, which is
   // itself composited over canvas.
   [
     'outgoing text on outgoing-surface',

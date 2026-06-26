@@ -759,7 +759,7 @@ function ExplorePage() {
       />
 
       <div className="lx-page-scroll" data-scroll-restoration-id="explore-feed">
-        <div className="lx-page-width-detail min-w-0">
+        <div className="lx-page-width-wide min-w-0">
           <ExploreFeed
             builderResults={builderResults}
             builderSearchLoading={builderSearchQuery.isLoading}

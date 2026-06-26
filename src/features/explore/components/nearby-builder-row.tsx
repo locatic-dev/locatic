@@ -84,8 +84,17 @@ export function NearbyBuilderRow({
     )
   }
 
+  const stats = [
+    `${builder.projectsCount.toLocaleString()} ${
+      builder.projectsCount === 1 ? 'project' : 'projects'
+    }`,
+    `${builder.followersCount.toLocaleString()} ${
+      builder.followersCount === 1 ? 'follower' : 'followers'
+    }`,
+  ].join(' · ')
+
   return (
-    <div className="flex items-center gap-3 border-b border-line py-2 last:border-b-0">
+    <div className="lx-card flex flex-wrap items-center gap-x-3 gap-y-3 rounded-card border border-line bg-surface px-4 py-3.5">
       <button
         type="button"
         onClick={onOpenProfile}
@@ -94,18 +103,21 @@ export function NearbyBuilderRow({
         <LxAvatar
           name={builder.displayName}
           avatarUrl={builder.avatarUrl}
-          size={32}
+          size={40}
         />
         <div className="min-w-0 flex-1">
-          <div className="truncate font-mono text-[13px] font-semibold text-text">
+          <div className="truncate font-mono text-[14px] font-semibold text-text">
             {builder.displayName}
           </div>
-          <div className="truncate font-mono text-[11px] text-text-faint">
+          <div className="truncate font-mono text-[11.5px] text-text-muted">
             {metadata}
+          </div>
+          <div className="mt-0.5 truncate font-mono text-[11px] text-text-faint">
+            {stats}
           </div>
         </div>
       </button>
-      <div className="flex items-center gap-2">
+      <div className="flex shrink-0 items-center gap-2">
         {onMessage && (
           <button
             type="button"
@@ -124,7 +136,7 @@ export function NearbyBuilderRow({
             className={`min-h-11 min-w-22 rounded-md border px-3 py-2 font-mono text-[11.5px] transition-colors ${
               followed
                 ? 'border-text-muted bg-transparent text-text'
-                : 'border-line bg-transparent text-text-muted hover:border-text-muted hover:text-text'
+                : 'border-brand/40 bg-transparent text-brand hover:border-brand hover:bg-selected'
             }`}
           >
             {followPending ? '…' : followed ? 'following' : 'follow'}
