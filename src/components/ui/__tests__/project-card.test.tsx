@@ -77,6 +77,31 @@ describe('ProjectCard', () => {
     expect(navigate).not.toHaveBeenCalled()
   })
 
+  it('renders exactly one like affordance (no duplicate heart)', () => {
+    render(<ProjectCard project={project} onLike={vi.fn()} />)
+
+    expect(
+      screen.getAllByRole('button', { name: /^(like|unlike)$/i }),
+    ).toHaveLength(1)
+  })
+
+  it('marks the like control as red when liked, not brand teal', () => {
+    render(
+      <ProjectCard project={{ ...project, liked: true }} onLike={vi.fn()} />,
+    )
+
+    const like = screen.getByRole('button', { name: /unlike/i })
+    expect(like.className).toContain('text-liked')
+    expect(like.className).not.toContain('text-brand')
+  })
+
+  it('keeps the language signature in content instead of a side rail', () => {
+    const { container } = render(<ProjectCard project={project} />)
+
+    expect(screen.getByText('TypeScript')).toBeTruthy()
+    expect(container.innerHTML).not.toContain('w-[3px]')
+  })
+
   it('does not render a recommendation badge from legacy card data', () => {
     render(
       <ProjectCard
