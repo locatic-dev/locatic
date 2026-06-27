@@ -22,6 +22,16 @@ type ProfileTabLike = {
   label: string
 }
 
+type ContributionsPrivacyLike = {
+  contributionsVisibility?: 'public' | 'private'
+}
+
+export function isProfileContributionsPublic(
+  privacy: ContributionsPrivacyLike,
+) {
+  return privacy.contributionsVisibility !== 'private'
+}
+
 export function normalizeProfileSearch(
   search: Record<string, unknown>,
 ): ProfileSearch {

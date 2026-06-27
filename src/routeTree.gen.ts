@@ -9,6 +9,8 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as TermsRouteImport } from './routes/terms'
+import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as IndexRouteImport } from './routes/index'
@@ -23,6 +25,16 @@ import { Route as AppHomeRouteImport } from './routes/_app/home'
 import { Route as AppExploreRouteImport } from './routes/_app/explore'
 import { Route as AppProjectOwnerRepoRouteImport } from './routes/_app/project.$owner.$repo'
 
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const OnboardingRoute = OnboardingRouteImport.update({
   id: '/onboarding',
   path: '/onboarding',
@@ -91,6 +103,8 @@ const AppProjectOwnerRepoRoute = AppProjectOwnerRepoRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/onboarding': typeof OnboardingRoute
+  '/privacy': typeof PrivacyRoute
+  '/terms': typeof TermsRoute
   '/explore': typeof AppExploreRoute
   '/home': typeof AppHomeRoute
   '/inbox': typeof AppInboxRoute
@@ -105,6 +119,8 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/onboarding': typeof OnboardingRoute
+  '/privacy': typeof PrivacyRoute
+  '/terms': typeof TermsRoute
   '/explore': typeof AppExploreRoute
   '/home': typeof AppHomeRoute
   '/inbox': typeof AppInboxRoute
@@ -121,6 +137,8 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_app': typeof AppRouteWithChildren
   '/onboarding': typeof OnboardingRoute
+  '/privacy': typeof PrivacyRoute
+  '/terms': typeof TermsRoute
   '/_app/explore': typeof AppExploreRoute
   '/_app/home': typeof AppHomeRoute
   '/_app/inbox': typeof AppInboxRoute
@@ -137,6 +155,8 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/onboarding'
+    | '/privacy'
+    | '/terms'
     | '/explore'
     | '/home'
     | '/inbox'
@@ -151,6 +171,8 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/onboarding'
+    | '/privacy'
+    | '/terms'
     | '/explore'
     | '/home'
     | '/inbox'
@@ -166,6 +188,8 @@ export interface FileRouteTypes {
     | '/'
     | '/_app'
     | '/onboarding'
+    | '/privacy'
+    | '/terms'
     | '/_app/explore'
     | '/_app/home'
     | '/_app/inbox'
@@ -182,6 +206,8 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AppRoute: typeof AppRouteWithChildren
   OnboardingRoute: typeof OnboardingRoute
+  PrivacyRoute: typeof PrivacyRoute
+  TermsRoute: typeof TermsRoute
   SignInSplatRoute: typeof SignInSplatRoute
   SignUpSplatRoute: typeof SignUpSplatRoute
   UUsernameRoute: typeof UUsernameRoute
@@ -189,6 +215,20 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/terms': {
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/onboarding': {
       id: '/onboarding'
       path: '/onboarding'
@@ -309,6 +349,8 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AppRoute: AppRouteWithChildren,
   OnboardingRoute: OnboardingRoute,
+  PrivacyRoute: PrivacyRoute,
+  TermsRoute: TermsRoute,
   SignInSplatRoute: SignInSplatRoute,
   SignUpSplatRoute: SignUpSplatRoute,
   UUsernameRoute: UUsernameRoute,

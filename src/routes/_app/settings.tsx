@@ -1,4 +1,4 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, Link } from '@tanstack/react-router'
 import {
   useQuery,
   useQueryClient,
@@ -42,6 +42,7 @@ import {
   type PrivateProfileOverviewPayload,
 } from '@/features/contracts'
 import { normalizeSocialLinkValue } from '@/lib/social-links'
+import { PrivacyVisibilitySettings } from '@/features/settings/privacy-visibility-settings'
 
 export const Route = createFileRoute('/_app/settings')({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -403,6 +404,24 @@ function SettingsPage() {
                     )}
                   </div>
                 </div>
+
+                <div>
+                  <div className={sectionTitleClassName}>legal</div>
+                  <nav className="flex flex-wrap gap-x-5 gap-y-1 font-mono text-[12px]">
+                    <Link
+                      to="/privacy"
+                      className="inline-flex min-h-11 items-center text-text-muted no-underline transition-colors hover:text-text"
+                    >
+                      privacy policy
+                    </Link>
+                    <Link
+                      to="/terms"
+                      className="inline-flex min-h-11 items-center text-text-muted no-underline transition-colors hover:text-text"
+                    >
+                      terms of service
+                    </Link>
+                  </nav>
+                </div>
               </div>
             )}
 
@@ -410,51 +429,17 @@ function SettingsPage() {
               <div className="flex max-w-140 flex-col gap-7">
                 <div>
                   <div className={sectionTitleClassName}>visibility</div>
-                  {(
-                    [
-                      {
-                        key: 'commentHistoryVisibility',
-                        label: 'show comment history',
-                        desc: 'show your comment tab on your profile',
-                      },
-                      {
-                        key: 'likedProjectsVisibility',
-                        label: 'show liked projects',
-                        desc: 'show your liked tab on your profile',
-                      },
-                      {
-                        key: 'followGraphVisibility',
-                        label: 'show follow graph',
-                        desc: 'allow people to open your followers and following lists',
-                      },
-                      // Pulse has backend privacy state only. Keep this out of the UI until the frontend exists.
-                    ] as const
-                  ).map(({ key, label, desc }) => (
-                    <div key={key} className={settingsRowClassName}>
-                      <div>
-                        <div className="mb-0.5 font-mono text-[13px] text-text">
-                          {label}
-                        </div>
-                        <div className="font-sans text-xs text-text-faint">
-                          {desc}
-                        </div>
-                      </div>
-                      <Switch
-                        checked={profile.viewer.privacy[key] === 'public'}
-                        onCheckedChange={async (checked) => {
-                          const nextPrivacy = {
-                            ...profile.viewer.privacy,
-                            [key]: checked ? 'public' : 'private',
-                          }
-                          try {
-                            await updatePrivacy(nextPrivacy)
-                          } catch (error) {
-                            console.error(error)
-                          }
-                        }}
-                      />
-                    </div>
-                  ))}
+                  <PrivacyVisibilitySettings
+                    privacy={profile.viewer.privacy}
+                    settingsRowClassName={settingsRowClassName}
+                    onUpdate={async (nextPrivacy) => {
+                      try {
+                        await updatePrivacy(nextPrivacy)
+                      } catch (error) {
+                        console.error(error)
+                      }
+                    }}
+                  />
                 </div>
               </div>
             )}
