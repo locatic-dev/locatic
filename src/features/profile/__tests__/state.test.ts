@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  getVisibleProfileContentTab,
+  getVisibleProfileContentTabs,
   getProfileContentTabs,
+  isProfileContributionsPublic,
   normalizeProfileSearch,
   PROFILE_CONTENT_TAB_VALUES,
 } from '../state'
@@ -68,5 +71,38 @@ describe('profile state helpers', () => {
       { count: 3, id: 'projects', label: 'projects' },
       { count: 2, id: 'comments', label: 'comments' },
     ])
+  })
+
+  it('treats missing contribution visibility as public', () => {
+    expect(isProfileContributionsPublic({})).toBe(true)
+    expect(
+      isProfileContributionsPublic({ contributionsVisibility: 'public' }),
+    ).toBe(true)
+    expect(
+      isProfileContributionsPublic({ contributionsVisibility: 'private' }),
+    ).toBe(false)
+  })
+
+  it('hides the contribution tab and falls back to projects when contributions are private', () => {
+    const tabs = [
+      { count: 3, id: 'projects', label: 'projects' },
+      { count: 2, id: 'contributions', label: 'contributions' },
+      { count: 1, id: 'comments', label: 'comments' },
+    ]
+
+    expect(
+      getVisibleProfileContentTabs(tabs, { showContributions: false }),
+    ).toEqual([
+      { count: 3, id: 'projects', label: 'projects' },
+      { count: 1, id: 'comments', label: 'comments' },
+    ])
+    expect(
+      getVisibleProfileContentTabs(tabs, { showContributions: true }),
+    ).toEqual(tabs)
+    expect(
+      getVisibleProfileContentTab('contributions', {
+        showContributions: false,
+      }),
+    ).toBe('projects')
   })
 })
