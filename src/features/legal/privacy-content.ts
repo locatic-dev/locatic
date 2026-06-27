@@ -25,7 +25,7 @@ This data is sourced from the public GitHub API. We do not access private reposi
 
 ### 2b. User Activity Data
 
-Activity you perform on Locatic — such as liking projects, following developers, posting comments, writing project update posts, and selecting projects to showcase — is stored on the platform. By default, this activity is visible to other users, but you can restrict the visibility of your likes, comment history, and follow graph through your privacy settings (see Section 5).
+Activity you perform on Locatic — such as liking projects, following developers, posting comments, writing project update posts, contributing to projects, and selecting projects to showcase — is stored on the platform. By default, this activity is visible to other users, but you can restrict the visibility of your likes, contribution activity, comment history, and follow graph through your privacy settings (see Section 5).
 
 ### 2c. Direct Messages (Private)
 
@@ -63,6 +63,7 @@ We do not sell your personal data. We share data only with:
 Locatic gives you control over what others can see on your profile. Through your account settings you can currently:
 
 - **Hide your liked projects** — your likes are stored but not shown to other users
+- **Hide your contribution activity** — your contribution tab and GitHub contribution graph are stored but not shown on your public profile
 - **Hide your comment history** — your comments are stored but not browsable on your profile
 - **Hide your follow graph** — your follower and following counts and lists are not shown to others
 
@@ -72,6 +73,7 @@ Locatic gives you control over what others can see on your profile. Through your
 | Showcased projects | Public | Yes (remove from showcase) |
 | Project update posts | Public | No (inherits project visibility) |
 | Likes | Public | Yes |
+| Contribution activity | Public | Yes |
 | Comment history | Public | Yes |
 | Follower / following lists | Public | Yes |
 | Direct messages | Private (parties only) | N/A |

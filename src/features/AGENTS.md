@@ -17,7 +17,7 @@ features/
 ├── inbox/            # Messaging, conversations, destination helpers
 ├── notifications/    # Notification system, read state, routing
 ├── onboarding/       # New user onboarding flow, repo-derived prefs
-├── profile/          # User profiles (public + private), tab/search state
+├── profile/          # User profiles (public + private), tab/search state, contributions visibility
 ├── project-card-preview.ts  # Project card preview logic (standalone)
 ├── projects/         # Project detail, repo linking, sync feedback, post feed (posts/), reactions (reactions/)
 ├── settings/         # User settings, preferences
@@ -48,6 +48,11 @@ features/
 | Profile posts UI           | `profile/post-list.tsx`                              | `ProfilePostList` component; tab-gated query for profile posts tab                                                                                                  |
 | Profile content tabs       | `profile/content-tabs.tsx`                           | Responsive grid `grid-cols-2 min-[520px]:grid-cols-3 lg:grid-cols-5`; supports `posts` tab                                                                          |
 | Profile network UI         | `profile/network-section.tsx`                        | Follow graph section; loading skeleton + private visibility gating                                                                                                  |
+| Profile state helpers      | `profile/state.ts`                                   | `normalizeProfileSearch`, `isProfileContributionsPublic`, `getVisibleProfileContentTabs`, `getVisibleProfileContentTab` — tab + search visibility gating by privacy |
+| Public profile components  | `profile/public-profile-contributions.tsx`           | `PublicProfileContributionGraph` + `PublicProfileContributionsList` for public profile contributions tab                                                            |
+| Public profile projects    | `profile/public-profile-projects-list.tsx`           | `PublicProfileProjectsList` component for public profile projects tab                                                                                               |
+| Public profile liked       | `profile/public-profile-liked-projects-list.tsx`     | `PublicProfileLikedProjectsList` component; privacy-gated via `visible` prop                                                                                        |
+| Privacy settings           | `settings/privacy-visibility-settings.tsx`           | `PrivacyVisibilitySettings` component — toggles for comment/liked/contributions/follow graph visibility                                                             |
 | Project likes              | `projects/mutations.ts`                              | Locatic-only like/unlike actions; no GitHub star sync                                                                                                               |
 | Reaction bar UI            | `projects/reactions/reaction-bar.tsx`                | `ReactionBar` component — multi-reaction types (like/rocket/flame), emoji popover picker, optimistic updates                                                        |
 | Reaction bar tests         | `projects/reactions/__tests__/reaction-bar.test.tsx` | Vitest + Testing Library tests for ReactionBar                                                                                                                      |
