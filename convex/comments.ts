@@ -4,11 +4,20 @@ import {
   paginationResultValidator,
 } from 'convex/server'
 
-import { mutation, query, type QueryCtx } from './_generated/server'
+import {
+  mutation,
+  query,
+  type MutationCtx,
+  type QueryCtx,
+} from './_generated/server'
 import { getViewerOrThrow } from './lib/auth'
 import { fanOutActivityEventToFollowers } from './lib/homeFeed'
 import type { Doc } from './lib/types'
-import { buildActorSnapshot, buildProjectSnapshot } from './lib/snapshots'
+import {
+  buildActorSnapshot,
+  buildPostSnapshot,
+  buildProjectSnapshot,
+} from './lib/snapshots'
 import {
   buildProjectNotificationTarget,
   createNotificationIfEnabled,
@@ -27,6 +36,10 @@ import {
   isCommentPubliclyInteractable,
 } from './lib/project_access'
 import { enforceRateLimit } from './lib/rate_limits'
+import {
+  getCommentReactionCounts,
+  getViewerReactionTypesByTargetId,
+} from './lib/reactions'
 
 const commentPageItemValidator = v.object({
   _id: v.id('comments'),
@@ -38,11 +51,13 @@ const commentPageItemValidator = v.object({
   content: v.string(),
   replyCount: v.number(),
   likesCount: v.number(),
+  reactionCounts: v.optional(v.record(v.string(), v.number())),
   isDeleted: v.boolean(),
   authorSnapshot: actorSnapshotValidator,
   targetSnapshot: commentTargetSnapshotValidator,
   createdAt: v.number(),
   viewerHasLiked: v.boolean(),
+  viewerReactionTypes: v.array(v.string()),
   replies: v.array(v.any()),
   previewReplies: v.optional(v.array(v.any())),
 })
@@ -67,46 +82,55 @@ async function getRequester(ctx: QueryCtx) {
     .unique()
 }
 
-async function getViewerReactionIds(
-  ctx: QueryCtx,
-  requester: Doc<'users'> | null,
+function withViewerReactions(
   comments: Array<Doc<'comments'>>,
+  viewerReactionTypesByTargetId: Map<string, string[]>,
 ) {
-  if (!requester || comments.length === 0) {
-    return new Set<string>()
-  }
+  return comments.map((comment) => {
+    const viewerReactionTypes =
+      viewerReactionTypesByTargetId.get(String(comment._id)) ?? []
 
-  const reactions = await Promise.all(
-    comments.map((comment) =>
-      ctx.db
-        .query('reactions')
-        .withIndex('by_user_target_type_id_reaction', (query) =>
-          query
-            .eq('userId', requester._id)
-            .eq('targetType', 'comment')
-            .eq('targetId', String(comment._id))
-            .eq('reactionType', 'like'),
-        )
-        .unique(),
-    ),
-  )
-
-  return new Set(
-    reactions
-      .filter((reaction): reaction is Doc<'reactions'> => Boolean(reaction))
-      .map((reaction) => reaction.targetId),
-  )
+    return {
+      ...comment,
+      reactionCounts: getCommentReactionCounts(comment),
+      viewerHasLiked: viewerReactionTypes.includes('like'),
+      viewerReactionTypes,
+      replies: [],
+    }
+  })
 }
 
-function withViewerLikes(
-  comments: Array<Doc<'comments'>>,
-  viewerReactionIds: Set<string>,
+async function buildCommentNavigationTarget(
+  ctx: MutationCtx,
+  commentId: Doc<'comments'>['_id'],
+  parentId: Doc<'comments'>['parentId'],
 ) {
-  return comments.map((comment) => ({
-    ...comment,
-    viewerHasLiked: viewerReactionIds.has(String(comment._id)),
-    replies: [],
-  }))
+  const ancestorCommentIds: Array<Doc<'comments'>['_id']> = []
+  let rootCommentId = commentId
+  let currentParentId = parentId
+  const seenParentIds = new Set<string>()
+
+  while (currentParentId && seenParentIds.size < 20) {
+    const parentKey = String(currentParentId)
+    if (seenParentIds.has(parentKey)) {
+      break
+    }
+
+    seenParentIds.add(parentKey)
+    const parent = await ctx.db.get(currentParentId)
+    if (!parent) {
+      break
+    }
+
+    ancestorCommentIds.unshift(currentParentId)
+    rootCommentId = currentParentId
+    currentParentId = parent.parentId
+  }
+
+  return {
+    ancestorCommentIds,
+    rootCommentId,
+  }
 }
 
 async function addPreviewReplies(
@@ -133,14 +157,17 @@ async function addPreviewReplies(
     }),
   )
   const allPreviewReplies = previewRepliesByParent.flat()
-  const viewerReactionIds = await getViewerReactionIds(
+  const viewerReactionTypesByTargetId = await getViewerReactionTypesByTargetId(
     ctx,
     requester,
-    allPreviewReplies,
+    {
+      targetIds: allPreviewReplies.map((reply) => String(reply._id)),
+      targetType: 'comment',
+    },
   )
 
   return previewRepliesByParent.map((replies) =>
-    withViewerLikes(replies, viewerReactionIds),
+    withViewerReactions(replies, viewerReactionTypesByTargetId),
   )
 }
 
@@ -284,16 +311,16 @@ export const listRootsByTarget = query({
             )
             .order('desc')
             .paginate(args.paginationOpts)
-    const viewerReactionIds = await getViewerReactionIds(
-      ctx,
-      requester,
-      page.page,
-    )
+    const viewerReactionTypesByTargetId =
+      await getViewerReactionTypesByTargetId(ctx, requester, {
+        targetIds: page.page.map((comment) => String(comment._id)),
+        targetType: 'comment',
+      })
     const previewReplies = await addPreviewReplies(ctx, requester, page.page)
 
     return {
       ...page,
-      page: withViewerLikes(page.page, viewerReactionIds).map(
+      page: withViewerReactions(page.page, viewerReactionTypesByTargetId).map(
         (comment, index) => ({
           ...comment,
           previewReplies: previewReplies[index] ?? [],
@@ -326,15 +353,15 @@ export const listReplies = query({
       )
       .order('asc')
       .paginate(args.paginationOpts)
-    const viewerReactionIds = await getViewerReactionIds(
-      ctx,
-      requester,
-      page.page,
-    )
+    const viewerReactionTypesByTargetId =
+      await getViewerReactionTypesByTargetId(ctx, requester, {
+        targetIds: page.page.map((comment) => String(comment._id)),
+        targetType: 'comment',
+      })
 
     return {
       ...page,
-      page: withViewerLikes(page.page, viewerReactionIds),
+      page: withViewerReactions(page.page, viewerReactionTypesByTargetId),
     }
   },
 })
@@ -401,6 +428,7 @@ export const create = mutation({
       content: args.content,
       replyCount: 0,
       likesCount: 0,
+      reactionCounts: {},
       isDeleted: false,
       authorSnapshot: actorSnapshot,
       targetSnapshot: buildCommentTargetSnapshot({
@@ -409,6 +437,11 @@ export const create = mutation({
       }),
       createdAt: Date.now(),
     })
+    const commentNavigationTarget = await buildCommentNavigationTarget(
+      ctx,
+      commentId,
+      args.parentId,
+    )
 
     await ctx.db.patch(viewer._id, {
       stats: {
@@ -458,6 +491,17 @@ export const create = mutation({
           commentId,
           actorSnapshot,
           projectSnapshot: buildProjectSnapshot(project),
+          target: {
+            kind: 'comment',
+            projectId: project._id,
+            postId: null,
+            commentId,
+            ...commentNavigationTarget,
+            targetType: 'project',
+            content: args.content.trim(),
+            targetLabel: project.github.fullName,
+            projectSnapshot: buildProjectSnapshot(project),
+          },
           createdAt: Date.now(),
         })
 
@@ -497,6 +541,38 @@ export const create = mutation({
               },
             ),
           })
+        }
+
+        const project = await ctx.db.get(post.projectId)
+        if (project) {
+          const eventId = await ctx.db.insert('activity_events', {
+            actorId: viewer._id,
+            eventType: 'post_commented',
+            projectId: project._id,
+            postId: post._id,
+            commentId,
+            actorSnapshot,
+            projectSnapshot: buildProjectSnapshot(project),
+            postSnapshot: buildPostSnapshot(post),
+            target: {
+              kind: 'comment',
+              projectId: project._id,
+              postId: post._id,
+              commentId,
+              ...commentNavigationTarget,
+              targetType: 'post',
+              content: args.content.trim(),
+              targetLabel: post.projectSnapshot.name,
+              projectSnapshot: buildProjectSnapshot(project),
+              postSnapshot: buildPostSnapshot(post),
+            },
+            createdAt: Date.now(),
+          })
+
+          const event = await ctx.db.get(eventId)
+          if (event) {
+            await fanOutActivityEventToFollowers(ctx, event)
+          }
         }
       }
     }
@@ -542,8 +618,10 @@ export const create = mutation({
     return comment
       ? {
           ...comment,
+          reactionCounts: getCommentReactionCounts(comment),
           replies: [],
           viewerHasLiked: false,
+          viewerReactionTypes: [],
         }
       : null
   },

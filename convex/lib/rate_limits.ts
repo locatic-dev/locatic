@@ -27,6 +27,16 @@ const rateLimiter = new RateLimiter(components.rateLimiter, {
     rate: 12,
     period: HOUR,
   },
+  githubProjectContributorSync: {
+    kind: 'fixed window',
+    rate: 50,
+    period: HOUR,
+  },
+  githubUserIdentityBackfill: {
+    kind: 'fixed window',
+    rate: 50,
+    period: HOUR,
+  },
   githubRepoImport: {
     kind: 'token bucket',
     rate: 8,
@@ -54,6 +64,8 @@ type RateLimitName =
   | 'conversationMessage'
   | 'githubContributionSync'
   | 'githubMetadataRefresh'
+  | 'githubProjectContributorSync'
+  | 'githubUserIdentityBackfill'
   | 'githubRepoImport'
   | 'githubRepoList'
   | 'reactionWrite'

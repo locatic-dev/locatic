@@ -260,18 +260,23 @@ export function getExploreProjectCityIds(
 export function getExploreScopeStatusCopy(
   scope: ExploreScope,
   mode: ExploreMode = 'projects',
+  options: { isSearchActive?: boolean } = {},
 ) {
   switch (scope) {
     case 'custom':
       return 'strictly filtered to selected cities'
     case 'global':
       return mode === 'posts'
-        ? 'searching posts everywhere'
+        ? options.isSearchActive
+          ? 'searching posts everywhere'
+          : 'showing posts everywhere'
         : `showing ${mode} everywhere`
     case 'default':
     default:
       return mode === 'posts'
-        ? 'searching posts from your default city context'
+        ? options.isSearchActive
+          ? 'searching posts from your default city context'
+          : 'showing posts from your default city context'
         : `showing ${mode} from your default city context`
   }
 }

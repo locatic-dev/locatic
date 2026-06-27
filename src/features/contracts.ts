@@ -49,6 +49,7 @@ export type ProfileCommentPreview = {
 
 export type ProfilePostPreview = Doc<'posts'> & {
   viewerHasLiked: boolean
+  viewerReactionTypes: string[]
 }
 
 export type ProjectRouteParams = {
@@ -186,6 +187,8 @@ export type PublicProfileOverviewPayload = {
 
 export type ThreadedProjectComment = Doc<'comments'> & {
   viewerHasLiked: boolean
+  viewerReactionTypes: string[]
+  reactionCounts?: Record<string, number>
   replies: ThreadedProjectComment[]
 }
 

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { Id } from '../../../../convex/_generated/dataModel'
 import {
   keepPreviousExploreFeedData,
+  keepPreviousPostListData,
   keepPreviousPostSearchData,
 } from '../query-transitions'
 
@@ -123,6 +124,65 @@ describe('keepPreviousPostSearchData', () => {
           cityIds,
           limit: 20,
           q: 'react',
+        }),
+      ),
+    ).toBeUndefined()
+  })
+})
+
+describe('keepPreviousPostListData', () => {
+  const previousData = { hasMore: true, posts: ['post_1'] }
+  const selectedCityIds = ['city_1' as Id<'cities'>]
+
+  it('keeps post browse data when only the limit changes', () => {
+    const placeholderData = keepPreviousPostListData<typeof previousData>({
+      currentScope: 'custom',
+      currentSelectedCityIds: selectedCityIds,
+    })
+
+    expect(
+      placeholderData(
+        previousData,
+        makePreviousQuery({
+          limit: 20,
+          scope: 'custom',
+          selectedCityIds,
+        }),
+      ),
+    ).toBe(previousData)
+  })
+
+  it('drops post browse data when scope changes', () => {
+    const placeholderData = keepPreviousPostListData<typeof previousData>({
+      currentScope: 'global',
+      currentSelectedCityIds: [],
+    })
+
+    expect(
+      placeholderData(
+        previousData,
+        makePreviousQuery({
+          limit: 20,
+          scope: 'custom',
+          selectedCityIds,
+        }),
+      ),
+    ).toBeUndefined()
+  })
+
+  it('drops post browse data when selected cities change', () => {
+    const placeholderData = keepPreviousPostListData<typeof previousData>({
+      currentScope: 'custom',
+      currentSelectedCityIds: ['city_2' as Id<'cities'>],
+    })
+
+    expect(
+      placeholderData(
+        previousData,
+        makePreviousQuery({
+          limit: 20,
+          scope: 'custom',
+          selectedCityIds,
         }),
       ),
     ).toBeUndefined()

@@ -14,17 +14,32 @@ import {
   isCommentPubliclyInteractable,
 } from './lib/project_access'
 import { enforceRateLimit } from './lib/rate_limits'
+import { getCommentReactionCounts } from './lib/reactions'
 import type { Doc } from './lib/types'
 import { DEFAULT_REACTIONS } from './reactionConfigSeed'
 
+const reactionDocValidator = v.object({
+  _id: v.id('reactions'),
+  _creationTime: v.number(),
+  userId: v.id('users'),
+  targetType: v.union(
+    v.literal('project'),
+    v.literal('post'),
+    v.literal('comment'),
+  ),
+  targetId: v.string(),
+  reactionType: v.string(),
+  createdAt: v.number(),
+})
+
 async function upsertReaction(
   ctx: MutationCtx,
-  viewerId: Awaited<ReturnType<typeof getViewerOrThrow>>['_id'],
+  viewerId: Doc<'users'>['_id'],
   targetType: 'project' | 'post' | 'comment',
   targetId: string,
   reactionType: string,
 ): Promise<{
-  reaction: Awaited<ReturnType<MutationCtx['db']['get']>>
+  reaction: Doc<'reactions'>
   created: boolean
 }> {
   const existing = await ctx.db
@@ -50,7 +65,12 @@ async function upsertReaction(
     createdAt: Date.now(),
   })
 
-  return { reaction: await ctx.db.get(reactionId), created: true }
+  const reaction = await ctx.db.get(reactionId)
+  if (!reaction) {
+    throw new ConvexError('Reaction could not be created')
+  }
+
+  return { reaction, created: true }
 }
 
 async function assertConfiguredReaction(
@@ -84,6 +104,23 @@ export const listConfig = query({
       v.union(v.literal('project'), v.literal('post'), v.literal('comment')),
     ),
   },
+  returns: v.array(
+    v.object({
+      _id: v.id('reaction_config'),
+      _creationTime: v.number(),
+      key: v.optional(v.string()),
+      label: v.string(),
+      emoji: v.string(),
+      icon: v.optional(v.string()),
+      targetTypes: v.array(
+        v.union(v.literal('project'), v.literal('post'), v.literal('comment')),
+      ),
+      isActive: v.boolean(),
+      sortOrder: v.number(),
+      createdAt: v.number(),
+      updatedAt: v.number(),
+    }),
+  ),
   handler: async (ctx, args) => {
     const configs = await ctx.db
       .query('reaction_config')
@@ -108,8 +145,8 @@ export const reactToTarget = mutation({
     targetId: v.string(),
     reactionType: v.string(),
   },
-  returns: v.any(),
-  handler: async (ctx, args): Promise<unknown> => {
+  returns: reactionDocValidator,
+  handler: async (ctx, args): Promise<Doc<'reactions'>> => {
     const viewer = await getViewerOrThrow(ctx)
     await enforceRateLimit(ctx, 'reactionWrite', String(viewer._id))
     await assertConfiguredReaction(ctx, args)
@@ -197,8 +234,18 @@ export const reactToTarget = mutation({
     }
 
     if (commentTarget) {
+      const currentReactionCounts = getCommentReactionCounts(commentTarget)
+      const reactionCounts = {
+        ...currentReactionCounts,
+        [args.reactionType]:
+          (currentReactionCounts[args.reactionType] ?? 0) + 1,
+      }
       await ctx.db.patch(commentTarget._id, {
-        likesCount: commentTarget.likesCount + 1,
+        reactionCounts,
+        likesCount:
+          args.reactionType === 'like'
+            ? commentTarget.likesCount + 1
+            : commentTarget.likesCount,
       })
     }
 
@@ -279,8 +326,20 @@ export const unreactFromTarget = mutation({
       const commentId = ctx.db.normalizeId('comments', args.targetId)
       const comment = commentId ? await ctx.db.get(commentId) : null
       if (comment && (await isCommentPubliclyInteractable(ctx, comment))) {
+        const currentReactionCounts = getCommentReactionCounts(comment)
+        const nextReactionCount = Math.max(
+          0,
+          (currentReactionCounts[args.reactionType] ?? 0) - 1,
+        )
         await ctx.db.patch(comment._id, {
-          likesCount: Math.max(0, comment.likesCount - 1),
+          reactionCounts: {
+            ...currentReactionCounts,
+            [args.reactionType]: nextReactionCount,
+          },
+          likesCount:
+            args.reactionType === 'like'
+              ? Math.max(0, comment.likesCount - 1)
+              : comment.likesCount,
         })
       }
     }
