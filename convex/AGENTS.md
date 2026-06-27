@@ -51,7 +51,7 @@ convex/
 ├── citiesSeed.ts       # City data seeding
 ├── cleanup.ts          # Data cleanup utilities
 ├── posts.ts            # Project post / status update management
-└── reactionConfigSeed.ts # Reaction config seeding
+└── reactionConfigSeed.ts # Reaction config seeding (emoji+color fields, was icon-based)
 ```
 
 ## WHERE TO LOOK
@@ -87,6 +87,7 @@ convex/
 | Home feed                                | `home.ts`                                                           | Paginated via `paginationOptsValidator` + `paginationResultValidator`; uses `getHomeFeedLegacyTarget`                                                                                                                                                                                                                        |
 | Home feed fan-out                        | `lib/homeFeed.ts`                                                   | `fanOutActivityEventToFollowers` — groupKey-based dedup, event grouping with preview targets; `upsertHomeFeedItemForEvent` exported as internal for backfill                                                                                                                                                                 |
 | Home feed backfill                       | `homeBackfill.ts`                                                   | `buildHomeFeedBackfillTarget`, `backfillHomeFeedTargets`, `backfillAllHomeFeedTargets` — batch backfill targets for legacy events missing them                                                                                                                                                                               |
+| Reaction config                          | `lib/reaction_config.ts`                                            | `normalizeReactionEmoji` maps legacy icon slugs to emoji; `sanitizeReactionConfigForWrite` strips `icon` field for write; types: `ReactionConfigWrite`, `ReactionConfigTargetType`                                                                                                                                           |
 | Comment reaction data                    | `lib/reactions.ts`                                                  | `getCommentReactionCounts` (prefers `reactionCounts`, falls back to `likesCount`), `getViewerReactionTypesByTargetId` (batch query with target ID dedup)                                                                                                                                                                     |
 | Comment system                           | `comments.ts`                                                       | `buildCommentNavigationTarget` walks ancestor chain via `parentId` traversal (max 20 hops, cycle-detected)                                                                                                                                                                                                                   |
 | Follow events                            | `follows.ts`                                                        | Follow now creates `activity_events` with `followed` type + `profile` target; fans out to followers                                                                                                                                                                                                                          |
@@ -115,6 +116,7 @@ convex/
 - Account deletion lifecycle: `deletedAt` (first request) → `deactivatedAt` → `purgeAfter` (30d retention) → `purgedAt` (cleanup); cleanup cron schedules `purgeDeletedAccountIfDue` via `by_purge_after` index.
 - Webhook event processing: idempotent via `webhook_events` table with `by_source_event` index; `markClerkWebhookEventProcessing` mutation dedups before processing.
 - Post create/remove updates `user.stats.postsCount` atomically; post counts backfill via `lib/post_counts.ts`.
+- Reaction config schema migrated from `icon` slug to `emoji`+`color` fields; `icon` kept as optional in schema for migration (legacy rows replaced by emoji-only seed); use `lib/reaction_config.ts` `sanitizeReactionConfigForWrite` for writes to strip `icon`.
 - Profile comment build: `buildProfileCommentPreview` walks ancestor chain via `parentId` traversal (max 20 hops, cycle-detected) to populate `ancestorCommentIds` and `rootCommentId`; uses `isProjectPubliclyInteractable`/`getVisiblePostProject` for availability; supports both `project` and `post` target types.
 - Comment navigation target: `buildCommentNavigationTarget` in `comments.ts` walks ancestor chain via `parentId` traversal (max 20 hops, cycle-detected) for `ancestorCommentIds`/`rootCommentId`; used by both comment preview build and comment creation event fan-out.
 

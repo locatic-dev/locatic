@@ -285,7 +285,7 @@ function InboxPage() {
                         {conversation.otherUser?.cityName ?? 'location hidden'}
                       </span>
                       {unreadCount > 0 && (
-                        <span className="rounded-pill bg-brand px-1.5 py-px font-mono text-[10px] leading-[1.4] text-brand-foreground">
+                        <span className="rounded-pill bg-unread px-1.5 py-px font-mono text-[10px] leading-[1.4] text-brand-foreground">
                           {unreadCount}
                         </span>
                       )}
@@ -707,18 +707,14 @@ function SelectedConversationPanel({
               <div
                 className={`max-w-[min(100%,36rem)] rounded-lg px-3 py-2.5 ${
                   isMe
-                    ? 'bg-brand text-brand-foreground'
+                    ? 'border border-brand/30 bg-outgoing text-text'
                     : 'border border-line bg-surface text-text'
                 }`}
               >
                 <div className="whitespace-pre-wrap font-sans text-[13.5px] leading-6">
                   {message.content}
                 </div>
-                <div
-                  className={`mt-1.5 font-mono text-[10.5px] ${
-                    isMe ? 'text-brand-foreground/80' : 'text-text-faint'
-                  }`}
-                >
+                <div className="mt-1.5 font-mono text-[10.5px] text-text-faint">
                   {relativeTime(message.createdAt)}
                 </div>
               </div>
