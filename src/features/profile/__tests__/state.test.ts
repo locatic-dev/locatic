@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   getProfileContentTabs,
+  isProfileContributionsPublic,
   normalizeProfileSearch,
   PROFILE_CONTENT_TAB_VALUES,
 } from '../state'
@@ -68,5 +69,29 @@ describe('profile state helpers', () => {
       { count: 3, id: 'projects', label: 'projects' },
       { count: 2, id: 'comments', label: 'comments' },
     ])
+  })
+
+  it('treats missing contribution visibility as public', () => {
+    expect(isProfileContributionsPublic({})).toBe(true)
+    expect(
+      isProfileContributionsPublic({ contributionsVisibility: 'public' }),
+    ).toBe(true)
+    expect(
+      isProfileContributionsPublic({ contributionsVisibility: 'private' }),
+    ).toBe(false)
+  })
+
+  it('keeps contribution tabs in the primary tab list regardless of privacy', () => {
+    const tabs = [
+      { count: 3, id: 'projects', label: 'projects' },
+      { count: 2, id: 'contributions', label: 'contributions' },
+      { count: 1, id: 'comments', label: 'comments' },
+    ]
+
+    expect(getProfileContentTabs(tabs)).toEqual(tabs)
+    expect(normalizeProfileSearch({ tab: 'contributions' })).toEqual({
+      network: 'followers',
+      tab: 'contributions',
+    })
   })
 })
