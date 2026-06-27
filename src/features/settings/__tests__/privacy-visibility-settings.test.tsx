@@ -28,6 +28,10 @@ describe('PrivacyVisibilitySettings', () => {
         .getByRole('switch', { name: 'show contributions' })
         .getAttribute('aria-checked'),
     ).toBe('true')
+    expect(
+      screen.getByText('show your contribution details on your public profile'),
+    ).toBeTruthy()
+    expect(screen.queryByText(/contribution graph/i)).toBeNull()
   })
 
   it('persists private contribution visibility while preserving the full privacy object', async () => {

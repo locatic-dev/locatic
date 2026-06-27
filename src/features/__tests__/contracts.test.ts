@@ -285,10 +285,20 @@ describe('contract mappers', () => {
 
     const publicOverview = mapPublicProfileOverview({
       githubUsername: 'octocat',
+      githubContributions: {
+        totalContributions: 42,
+        syncedAt: 123,
+        weeks: [
+          {
+            days: [{ count: 7, date: '2026-06-01' }],
+          },
+        ],
+      },
       privacy: {
         appearInPulse: true,
         cityVisibility: 'exact_city',
         commentHistoryVisibility: 'public',
+        contributionsVisibility: 'private',
         followGraphVisibility: 'public',
         likedProjectsVisibility: 'public',
         profileVisibility: 'public',
@@ -322,6 +332,8 @@ describe('contract mappers', () => {
     expect(privateOverview?.viewer.cityName).toBe('Bengaluru, India')
     expect(publicOverview?.viewerFollowsProfile).toBe(true)
     expect(publicOverview?.profile.city).toBe('Berlin, Germany')
+    expect(publicOverview?.githubContributions?.totalContributions).toBe(42)
+    expect(publicOverview?.privacy.contributionsVisibility).toBe('private')
   })
 
   it('maps smaller viewer payloads without collapsing them into private profile', () => {
