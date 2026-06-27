@@ -8,31 +8,13 @@ import {
 } from '../public-profile-contributions'
 
 describe('public profile contributions surfaces', () => {
-  it('does not render the contribution graph when public contributions are hidden', () => {
+  it('renders the contribution graph independently of contribution detail visibility', () => {
     render(
       <PublicProfileContributionGraph
         githubContributions={{
           totalContributions: 17,
           weeks: [{ days: [{ count: 3, date: '2026-06-01' }] }],
         }}
-        show={false}
-      />,
-    )
-
-    expect(screen.queryByText(/contributions this year/i)).toBeNull()
-    expect(
-      screen.queryByLabelText(/GitHub contributions in the last year/i),
-    ).toBeNull()
-  })
-
-  it('renders the contribution graph when public contributions are visible', () => {
-    render(
-      <PublicProfileContributionGraph
-        githubContributions={{
-          totalContributions: 17,
-          weeks: [{ days: [{ count: 3, date: '2026-06-01' }] }],
-        }}
-        show
       />,
     )
 
@@ -43,8 +25,19 @@ describe('public profile contributions surfaces', () => {
   })
 
   it('renders the empty contribution list state', () => {
-    render(<PublicProfileContributionsList contributions={[]} />)
+    render(<PublicProfileContributionsList contributions={[]} visible />)
 
     expect(screen.getByText('no public contributions yet.')).toBeTruthy()
+  })
+
+  it('renders the private contribution details state', () => {
+    render(
+      <PublicProfileContributionsList contributions={[]} visible={false} />,
+    )
+
+    expect(
+      screen.getByText('contributions are private on this profile.'),
+    ).toBeTruthy()
+    expect(screen.queryByText('no public contributions yet.')).toBeNull()
   })
 })

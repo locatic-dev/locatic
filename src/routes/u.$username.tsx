@@ -42,8 +42,7 @@ import {
   publicProfileProjectsQueryOptions,
 } from '@/features/profile/queries'
 import {
-  getVisibleProfileContentTab,
-  getVisibleProfileContentTabs,
+  getProfileContentTabs,
   isProfileContributionsPublic,
   normalizeProfileSearch,
   type ProfileContentTab,
@@ -224,7 +223,6 @@ function PublicProfileContent({
   const isFollowGraphPublic =
     overview.privacy.followGraphVisibility === 'public'
   const showContributions = isProfileContributionsPublic(overview.privacy)
-  const visibleTab = getVisibleProfileContentTab(tab, { showContributions })
   const activeSocialQuery = useQuery({
     ...publicFollowGraphQueryOptions({
       username,
@@ -240,31 +238,30 @@ function PublicProfileContent({
 
   const projectsQuery = useQuery({
     ...publicProfileProjectsQueryOptions(username),
-    enabled: visibleTab === 'projects',
+    enabled: tab === 'projects',
     staleTime: TAB_QUERY_STALE_TIME,
   })
   const postsQuery = useQuery({
     ...publicProfilePostsQueryOptions(username),
-    enabled: visibleTab === 'posts',
+    enabled: tab === 'posts',
     staleTime: TAB_QUERY_STALE_TIME,
   })
   const contributionsQuery = useQuery({
     ...publicProfileContributionsQueryOptions(username),
-    enabled: visibleTab === 'contributions' && showContributions,
+    enabled: tab === 'contributions' && showContributions,
     staleTime: TAB_QUERY_STALE_TIME,
   })
   const commentsQuery = useQuery({
     ...publicProfileCommentsQueryOptions(username),
     enabled:
-      visibleTab === 'comments' &&
+      tab === 'comments' &&
       overview.privacy.commentHistoryVisibility === 'public',
     staleTime: TAB_QUERY_STALE_TIME,
   })
   const likedProjectsQuery = useQuery({
     ...publicProfileLikedProjectsQueryOptions(username),
     enabled:
-      visibleTab === 'liked' &&
-      overview.privacy.likedProjectsVisibility === 'public',
+      tab === 'liked' && overview.privacy.likedProjectsVisibility === 'public',
     staleTime: TAB_QUERY_STALE_TIME,
   })
 
@@ -281,19 +278,6 @@ function PublicProfileContent({
 
     setFollowingPage(page)
   }, [activeSocialQuery.data, network])
-
-  useEffect(() => {
-    if (tab === visibleTab) {
-      return
-    }
-
-    void navigate({
-      to: '/u/$username',
-      params: { username },
-      search: (current) => ({ ...current, tab: visibleTab }),
-      replace: true,
-    })
-  }, [navigate, tab, username, visibleTab])
 
   useEffect(() => {
     void queryClient.prefetchQuery(publicProfileProjectsQueryOptions(username))
@@ -385,13 +369,13 @@ function PublicProfileContent({
       | undefined) ?? []
 
   const contentIsLoading =
-    (visibleTab === 'projects' && projectsQuery.isLoading) ||
-    (visibleTab === 'posts' && postsQuery.isLoading) ||
-    (visibleTab === 'contributions' && contributionsQuery.isLoading) ||
-    (visibleTab === 'comments' &&
+    (tab === 'projects' && projectsQuery.isLoading) ||
+    (tab === 'posts' && postsQuery.isLoading) ||
+    (tab === 'contributions' && contributionsQuery.isLoading) ||
+    (tab === 'comments' &&
       overview.privacy.commentHistoryVisibility === 'public' &&
       commentsQuery.isLoading) ||
-    (visibleTab === 'liked' &&
+    (tab === 'liked' &&
       overview.privacy.likedProjectsVisibility === 'public' &&
       likedProjectsQuery.isLoading)
 
@@ -549,41 +533,38 @@ function PublicProfileContent({
     }
   }
 
-  const tabs = getVisibleProfileContentTabs(
-    [
-      {
-        count: overview.stats.projectsCount,
-        id: 'projects',
-        label: 'projects',
-        mobileLabel: 'projects',
-      },
-      {
-        count: overview.stats.postsCount ?? 0,
-        id: 'posts',
-        label: 'posts',
-        mobileLabel: 'posts',
-      },
-      {
-        count: overview.stats.contributionsCount,
-        id: 'contributions',
-        label: 'contributions',
-        mobileLabel: 'contrib',
-      },
-      {
-        count: overview.stats.commentsCount,
-        id: 'comments',
-        label: 'comments',
-        mobileLabel: 'comments',
-      },
-      {
-        count: overview.stats.likedCount,
-        id: 'liked',
-        label: 'liked',
-        mobileLabel: 'liked',
-      },
-    ] as const,
-    { showContributions },
-  )
+  const tabs = getProfileContentTabs([
+    {
+      count: overview.stats.projectsCount,
+      id: 'projects',
+      label: 'projects',
+      mobileLabel: 'projects',
+    },
+    {
+      count: overview.stats.postsCount ?? 0,
+      id: 'posts',
+      label: 'posts',
+      mobileLabel: 'posts',
+    },
+    {
+      count: overview.stats.contributionsCount,
+      id: 'contributions',
+      label: 'contributions',
+      mobileLabel: 'contrib',
+    },
+    {
+      count: overview.stats.commentsCount,
+      id: 'comments',
+      label: 'comments',
+      mobileLabel: 'comments',
+    },
+    {
+      count: overview.stats.likedCount,
+      id: 'liked',
+      label: 'liked',
+      mobileLabel: 'liked',
+    },
+  ] as const)
 
   const sortedComments = [...comments].sort(
     (left, right) => right.createdAt - left.createdAt,
@@ -837,7 +818,6 @@ function PublicProfileContent({
 
         <PublicProfileContributionGraph
           githubContributions={overview.githubContributions}
-          show={showContributions}
         />
 
         <div className="grid gap-8 lg:grid-cols-[minmax(0,1.75fr)_minmax(280px,0.95fr)]">
@@ -877,7 +857,7 @@ function PublicProfileContent({
 
           <section>
             <ProfileContentTabs
-              activeTab={visibleTab}
+              activeTab={tab}
               isRoutePending={isRoutePending}
               tabs={tabs}
               onSelectTab={(nextTab) => {
@@ -889,26 +869,29 @@ function PublicProfileContent({
             <div className="pt-7">
               {contentIsLoading && (
                 <div className="font-mono text-[12px] text-text-faint">
-                  loading {visibleTab}…
+                  loading {tab}…
                 </div>
               )}
 
-              {!contentIsLoading && visibleTab === 'projects' && (
+              {!contentIsLoading && tab === 'projects' && (
                 <PublicProfileProjectsList projects={projects} />
               )}
 
-              {!contentIsLoading && visibleTab === 'posts' && (
+              {!contentIsLoading && tab === 'posts' && (
                 <ProfilePostList
                   posts={posts}
                   emptyLabel="no public posts yet."
                 />
               )}
 
-              {!contentIsLoading && visibleTab === 'contributions' && (
-                <PublicProfileContributionsList contributions={contributions} />
+              {!contentIsLoading && tab === 'contributions' && (
+                <PublicProfileContributionsList
+                  contributions={contributions}
+                  visible={showContributions}
+                />
               )}
 
-              {!contentIsLoading && visibleTab === 'comments' && (
+              {!contentIsLoading && tab === 'comments' && (
                 <div className="flex flex-col gap-3.5">
                   {overview.privacy.commentHistoryVisibility !== 'public' ? (
                     <div className="py-4.5 font-sans text-sm text-text-muted">
@@ -959,7 +942,7 @@ function PublicProfileContent({
                 </div>
               )}
 
-              {!contentIsLoading && visibleTab === 'liked' && (
+              {!contentIsLoading && tab === 'liked' && (
                 <PublicProfileLikedProjectsList
                   likedProjects={likedProjects}
                   visible={
