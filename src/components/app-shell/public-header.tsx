@@ -10,9 +10,6 @@ export function PublicHeader() {
         <span className="font-mono text-base font-bold tracking-[-0.02em]">
           locatic
         </span>
-        <span className="ml-1 rounded-[3px] border border-line px-1.5 py-0.5 font-mono text-[10.5px] leading-none text-text-faint">
-          v0.1 · beta
-        </span>
       </Link>
       <nav className="flex flex-wrap items-center gap-3 font-mono text-[12.5px] text-text-muted">
         <a
