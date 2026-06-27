@@ -39,6 +39,7 @@ export function ExploreHeader({
   pendingCityIds,
   resetPending,
   searchQuery,
+  searchStatusActive,
   selectedCityChips,
 }: {
   availableCities: Array<Doc<'cities'>>
@@ -54,6 +55,7 @@ export function ExploreHeader({
   pendingCityIds: boolean
   resetPending?: boolean
   searchQuery: string
+  searchStatusActive?: boolean
   selectedCityChips: ExploreCityChip[]
 }) {
   const modeConfig = EXPLORE_MODE_CONFIG[mode]
@@ -71,7 +73,11 @@ export function ExploreHeader({
           </h1>
         </div>
         <div className="flex items-center gap-2 font-mono text-[11.5px] text-text-faint">
-          <span>{getExploreScopeStatusCopy(currentScope, mode)}</span>
+          <span>
+            {getExploreScopeStatusCopy(currentScope, mode, {
+              isSearchActive: searchStatusActive,
+            })}
+          </span>
           {pendingCityIds && <span>saving…</span>}
           {canResetExplore && onResetExplore && (
             <button

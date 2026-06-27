@@ -2,6 +2,7 @@ import { ConvexError } from 'convex/values'
 
 import type { ActionCtx, MutationCtx, QueryCtx } from '../_generated/server'
 import { createDefaultViewerProfile } from './viewer'
+import { assertGithubUsernameAvailable } from './github_identity'
 
 type AuthCapableCtx =
   | Pick<QueryCtx, 'auth'>
@@ -198,6 +199,8 @@ export async function getOrCreateViewer(ctx: MutationCtx) {
   }
 
   const seed = buildViewerSeedFromIdentity(identity)
+  await assertGithubUsernameAvailable(ctx, seed.githubUsername)
+
   const viewerId = await ctx.db.insert(
     'users',
     createDefaultViewerProfile({

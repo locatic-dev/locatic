@@ -190,18 +190,29 @@ export function ExploreFeed({
           </div>
         )}
 
-      {isPostsMode && !isPostSearchActive && (
-        <div className="py-10">
-          <EmptyState
-            title="search posts by body or topic."
-            description="Try a phrase from an update, or search a project topic with or without a hash."
-          />
-        </div>
-      )}
+      {isPostsMode &&
+        !isPostSearchActive &&
+        visiblePostResults.length === 0 &&
+        !postSearchLoading && (
+          <div className="py-10">
+            <EmptyState
+              title={
+                isGlobalFeed
+                  ? 'no posts to explore right now.'
+                  : 'no posts found for this city context.'
+              }
+              description={
+                isGlobalFeed
+                  ? 'Try searching for a phrase or check back after more project posts are published.'
+                  : 'Try another city, remove one of your selected filters, or search post text directly.'
+              }
+            />
+          </div>
+        )}
 
       {isPostsMode && postSearchLoading && (
         <div className="py-5 text-center font-mono text-[12.5px] text-text-faint">
-          searching posts…
+          {isPostSearchActive ? 'searching posts…' : 'loading posts…'}
         </div>
       )}
 
@@ -217,7 +228,7 @@ export function ExploreFeed({
       {isPostsMode && !postSearchLoading && visiblePostResults.length > 0 && (
         <div className="mb-8">
           <div className="mb-3 font-mono text-[10.5px] uppercase tracking-[0.06em] text-text-faint">
-            matching posts
+            {isPostSearchActive ? 'matching posts' : 'posts'}
           </div>
           <div className="flex flex-col gap-2">
             {visiblePostResults.map((post) => (

@@ -33,6 +33,7 @@ import {
   buildProjectExploreOwner,
   buildProjectSnapshot,
 } from './lib/snapshots'
+import { recomputeContributionCountsForUsers } from './lib/project_contributor_sync'
 import { normalizeProjectTopics } from './lib/topics'
 import { buildStatusValidator, socialLinksValidator } from './lib/validators'
 import { enforceRateLimit } from './lib/rate_limits'
@@ -150,6 +151,10 @@ export const backfillRouteFields = internalMutation({
 
     const events = await ctx.db.query('activity_events').collect()
     for (const event of events) {
+      if (!event.projectId || !event.projectSnapshot?.fullName) {
+        continue
+      }
+
       if (event.projectSnapshot.ownerLogin) {
         continue
       }
@@ -169,6 +174,10 @@ export const backfillRouteFields = internalMutation({
 
     const feedItems = await ctx.db.query('home_feed_items').collect()
     for (const item of feedItems) {
+      if (!item.projectId || !item.projectSnapshot?.fullName) {
+        continue
+      }
+
       if (item.projectSnapshot.ownerLogin) {
         continue
       }
@@ -444,6 +453,7 @@ export const updateVisibility = mutation({
     if (!args.isVisible) {
       pinnedProjectIds.delete(project._id)
     }
+    const now = Date.now()
 
     const nextProjectsCount = visibilityChanged
       ? args.isVisible
@@ -457,7 +467,7 @@ export const updateVisibility = mutation({
         isVisible: args.isVisible,
       },
       exploreOwner: buildProjectExploreOwner(viewer, args.isVisible),
-      updatedAt: Date.now(),
+      updatedAt: now,
     })
 
     await ctx.db.patch(viewer._id, {
@@ -466,8 +476,39 @@ export const updateVisibility = mutation({
         ...viewer.stats,
         projectsCount: nextProjectsCount,
       },
-      updatedAt: Date.now(),
+      updatedAt: now,
     })
+
+    if (visibilityChanged && !args.isVisible) {
+      const activeContributors = (
+        await ctx.db
+          .query('project_contributors')
+          .withIndex('by_project', (query) =>
+            query.eq('projectId', project._id),
+          )
+          .collect()
+      ).filter((contributor) => contributor.isActive)
+      const contributorUserIds = new Set(
+        activeContributors.map((contributor) => contributor.userId),
+      )
+
+      for (const contributor of activeContributors) {
+        await ctx.db.patch(contributor._id, {
+          isActive: false,
+          lastConfirmedAt: now,
+        })
+      }
+
+      await recomputeContributionCountsForUsers(ctx, contributorUserIds, now)
+    }
+
+    if (visibilityChanged && args.isVisible) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.github_actions.syncProjectContributors,
+        { projectId: project._id },
+      )
+    }
 
     return {
       projectId: project._id,
@@ -686,6 +727,7 @@ export const upsertImportedRepositories = internalMutation({
         topContributorsSnapshot: existing?.topContributorsSnapshot ?? [],
         contributorStats: existing?.contributorStats ?? {
           matchedCount: 0,
+          lastSyncAttemptedAt: null,
           lastSyncedAt: null,
           syncCadence: 'weekly',
         },
@@ -730,6 +772,11 @@ export const upsertImportedRepositories = internalMutation({
         },
         projectSnapshot: buildProjectSnapshot(project),
         postSnapshot: null,
+        target: {
+          kind: 'project',
+          projectId,
+          projectSnapshot: buildProjectSnapshot(project),
+        },
         createdAt: now,
       })
 
@@ -737,6 +784,12 @@ export const upsertImportedRepositories = internalMutation({
       if (event) {
         await fanOutActivityEventToFollowers(ctx, event)
       }
+
+      await ctx.scheduler.runAfter(
+        (createdProjectIds.length - 1) * 5_000,
+        internal.github_actions.syncProjectContributors,
+        { projectId },
+      )
     }
 
     await ctx.db.patch(owner._id, {
