@@ -1,5 +1,11 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ReactionBar } from '../reaction-bar'
 
@@ -12,20 +18,32 @@ const reactionConfigs = [
   {
     key: 'like',
     label: 'Like',
-    emoji: 'heart',
-    icon: 'heart-filled',
+    emoji: '❤️',
+    color: '#f2555f',
   },
   {
     key: 'rocket',
     label: 'Rocket',
-    emoji: 'rocket',
-    icon: 'rocket',
+    emoji: '🚀',
+    color: '#a78bfa',
   },
   {
-    key: 'flame',
+    key: 'fire',
     label: 'Fire',
-    emoji: 'flame',
-    icon: 'flame',
+    emoji: '🔥',
+    color: '#fbbf24',
+  },
+  {
+    key: 'eyes',
+    label: 'Watching',
+    emoji: '👀',
+    color: '#60a5fa',
+  },
+  {
+    key: 'bad-color',
+    label: 'Bad Color',
+    emoji: '🎉',
+    color: 'oklch(70% 0.18 350)',
   },
 ]
 
@@ -65,9 +83,15 @@ vi.mock('@/components/ui/popover', async () => {
         {children}
       </PopoverContext.Provider>
     ),
-    PopoverContent: ({ children }: { children: React.ReactNode }) => {
+    PopoverContent: ({
+      children,
+      className,
+    }: {
+      children: React.ReactNode
+      className?: string
+    }) => {
       const context = React.useContext(PopoverContext)
-      return context?.open ? <div>{children}</div> : null
+      return context?.open ? <div className={className}>{children}</div> : null
     },
     PopoverTrigger: ({ children }: { children: React.ReactElement }) => {
       const context = React.useContext(PopoverContext)
@@ -111,9 +135,16 @@ describe('ReactionBar', () => {
       screen.getByRole('button', { name: 'Add Like reaction' }).textContent,
     ).toContain('2')
     expect(
+      screen.getByRole('button', { name: 'Add Like reaction' }).textContent,
+    ).toContain('❤️')
+    expect(
       screen.getByRole('button', { name: 'Remove Rocket reaction' })
         .textContent,
     ).toContain('0')
+    expect(
+      screen.getByRole('button', { name: 'Remove Rocket reaction' })
+        .textContent,
+    ).toContain('🚀')
   })
 
   it('adds a reaction from the picker', async () => {
@@ -184,6 +215,121 @@ describe('ReactionBar', () => {
         screen.getByRole('button', { name: 'Add Like reaction' }).textContent,
       ).toContain('2'),
     )
+  })
+
+  it('colors an active reaction with its own color, not generic brand teal', () => {
+    renderReactionBar({
+      reactionCounts: { rocket: 1 },
+      viewerReactionTypes: ['rocket'],
+    })
+
+    const rocket = screen.getByRole('button', {
+      name: 'Remove Rocket reaction',
+    })
+    expect(rocket.style.color).not.toBe('')
+    expect(rocket.style.color).not.toBe('var(--lx-accent)')
+    expect(rocket.querySelector('svg')).toBeNull()
+    expect(rocket.textContent).toContain('🚀')
+    expect(rocket.className).not.toContain('text-brand')
+  })
+
+  it('gives different reactions different active colors', () => {
+    const { rerender } = render(
+      <ReactionBar
+        disabled={false}
+        reactionCounts={{ like: 1 }}
+        targetId="post_1"
+        targetType="post"
+        viewerReactionTypes={['like']}
+      />,
+    )
+    const likeColor = screen.getByRole('button', {
+      name: 'Remove Like reaction',
+    }).style.color
+
+    rerender(
+      <ReactionBar
+        disabled={false}
+        reactionCounts={{ rocket: 1 }}
+        targetId="post_1"
+        targetType="post"
+        viewerReactionTypes={['rocket']}
+      />,
+    )
+    const rocketColor = screen.getByRole('button', {
+      name: 'Remove Rocket reaction',
+    }).style.color
+
+    expect(likeColor).not.toBe('')
+    expect(rocketColor).not.toBe('')
+    expect(likeColor).not.toBe(rocketColor)
+  })
+
+  it('falls back to brand teal when a reaction config has an invalid color', () => {
+    renderReactionBar({
+      reactionCounts: { 'bad-color': 1 },
+      viewerReactionTypes: ['bad-color'],
+    })
+
+    const badColor = screen.getByRole('button', {
+      name: 'Remove Bad Color reaction',
+    })
+
+    expect(badColor.style.color).toBe('var(--lx-accent)')
+    expect(badColor.style.backgroundColor).toBe('')
+    expect(badColor.querySelector('svg')).toBeNull()
+    expect(badColor.textContent).toContain('🎉')
+  })
+
+  it('renders emoji picker items without svg icons', () => {
+    renderReactionBar({ reactionCounts: {} })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add post reaction' }))
+    const picker = screen.getByTestId('reaction-picker')
+
+    expect(picker.textContent).toContain('👀')
+    expect(picker.querySelector('svg')).toBeNull()
+    expect(
+      within(picker).getByRole('button', {
+        name: 'Add Watching reaction',
+      }),
+    ).toBeTruthy()
+  })
+
+  it('renders one content-sized picker button per configured reaction', () => {
+    renderReactionBar({ reactionCounts: {} })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add post reaction' }))
+
+    const picker = screen.getByTestId('reaction-picker')
+    const popover = picker.parentElement
+    expect(picker.className).toContain('inline-flex')
+    expect(picker.className).not.toContain('grid-cols-6')
+    expect(popover?.className).toContain('w-max')
+    expect(within(picker).getAllByRole('button')).toHaveLength(
+      reactionConfigs.length,
+    )
+  })
+
+  it('keeps pop and burst animation hooks for emoji reactions', async () => {
+    let resolveReaction: () => void = () => {}
+    mocks.reactToTarget.mockReturnValue(
+      new Promise((resolve) => {
+        resolveReaction = () => resolve({})
+      }),
+    )
+    renderReactionBar({ reactionCounts: { rocket: 1 } })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add Rocket reaction' }))
+
+    const rocket = screen.getByRole('button', {
+      name: 'Remove Rocket reaction',
+    })
+    expect(rocket.className).toContain('lx-reaction-pop')
+    expect(rocket.querySelector('.lx-reaction-burst')).toBeTruthy()
+
+    resolveReaction()
+    await waitFor(() => expect(mocks.reactToTarget).toHaveBeenCalled())
   })
 
   it('disables reaction controls when disabled', () => {

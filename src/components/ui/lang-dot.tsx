@@ -25,6 +25,14 @@ export const LANG_COLORS: Record<string, string> = {
   Dart: '#00B4AB',
 }
 
+const LANG_FALLBACK_COLOR = '#8b949e'
+
+/** Resolve a stable accent color for a language; used for card language signatures. */
+export function langColor(lang?: string | null): string {
+  if (!lang) return LANG_FALLBACK_COLOR
+  return LANG_COLORS[lang] ?? LANG_FALLBACK_COLOR
+}
+
 interface LangDotProps {
   lang: string
   size?: number
@@ -38,7 +46,7 @@ export function LangDot({
   showLabel = false,
   className,
 }: LangDotProps) {
-  const color = LANG_COLORS[lang] ?? '#8b949e'
+  const color = langColor(lang)
   return (
     <span
       className={`inline-flex items-center gap-1.5 font-mono text-[11.5px] ${className ?? ''}`}

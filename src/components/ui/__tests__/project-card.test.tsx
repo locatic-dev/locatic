@@ -77,6 +77,59 @@ describe('ProjectCard', () => {
     expect(navigate).not.toHaveBeenCalled()
   })
 
+  it('renders exactly one like affordance (no duplicate heart)', () => {
+    render(<ProjectCard project={project} onLike={vi.fn()} />)
+
+    expect(
+      screen.getAllByRole('button', { name: /^(like|unlike)$/i }),
+    ).toHaveLength(1)
+  })
+
+  it('marks the like control as red when liked, not brand teal', () => {
+    render(
+      <ProjectCard project={{ ...project, liked: true }} onLike={vi.fn()} />,
+    )
+
+    const like = screen.getByRole('button', { name: /unlike/i })
+    expect(like.className).toContain('text-liked')
+    expect(like.className).not.toContain('text-brand')
+  })
+
+  it('keeps the language signature in content instead of a side rail', () => {
+    const { container } = render(<ProjectCard project={project} />)
+
+    expect(screen.getByText('TypeScript')).toBeTruthy()
+    expect(container.innerHTML).not.toContain('w-[3px]')
+    // No colored left/right side stripe (impeccable ban).
+    expect(container.innerHTML).not.toContain('border-l-2')
+    expect(container.innerHTML).not.toContain('border-r-2')
+  })
+
+  it('renders a language proportion bar with an accessible label', () => {
+    render(
+      <ProjectCard
+        project={{
+          ...project,
+          lang: undefined,
+          languages: [
+            { name: 'TypeScript', bytes: 800 },
+            { name: 'CSS', bytes: 200 },
+          ],
+        }}
+      />,
+    )
+
+    expect(screen.getByText(/TypeScript 80%/)).toBeTruthy()
+    expect(screen.getByText(/CSS 20%/)).toBeTruthy()
+  })
+
+  it('renders a single full language segment when only one language', () => {
+    render(<ProjectCard project={project} />)
+
+    // The default project has a single language (TypeScript) -> 100% segment.
+    expect(screen.getByText(/TypeScript 100%/)).toBeTruthy()
+  })
+
   it('does not render a recommendation badge from legacy card data', () => {
     render(
       <ProjectCard

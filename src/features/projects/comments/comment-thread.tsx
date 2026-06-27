@@ -124,7 +124,7 @@ export function CommentThread({
       }
     >
       <div
-        className={`min-w-0 rounded-[6px] transition-[opacity,transform] duration-200 motion-reduce:transition-none ${
+        className={`min-w-0 rounded-[6px] transition-[opacity,transform,background-color] duration-300 motion-reduce:transition-none ${
           highlighted ? 'bg-brand-quiet px-3 py-3' : ''
         } ${comment.pending ? 'opacity-70' : 'opacity-100'}`}
       >
@@ -263,7 +263,7 @@ export function CommentThread({
                   <button
                     type="button"
                     onClick={() => repliesPage.loadMore(6)}
-                    className="ml-3 inline-flex min-h-11 items-center self-start rounded-md px-2 py-2 font-mono text-[11px] text-text-faint transition-colors hover:text-text"
+                    className="ml-3 inline-flex min-h-11 items-center self-start rounded-md px-2 py-2 font-mono text-[11px] text-text-muted transition-colors hover:text-text"
                   >
                     show more replies
                   </button>

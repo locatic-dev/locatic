@@ -139,10 +139,10 @@ export function ExploreFeed({
 
       {isBuildersMode && builderResults.length > 0 && (
         <div className="mb-8">
-          <div className="mb-3 font-mono text-[10.5px] uppercase tracking-[0.06em] text-text-faint">
+          <div className="mb-3 font-mono text-[10.5px] uppercase tracking-[0.06em] text-text-muted">
             {isBuilderSearchActive ? 'matching builders' : 'builders'}
           </div>
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-3">
             {builderResults.map((builder) => (
               <NearbyBuilderRow
                 key={builder.userId}
@@ -227,14 +227,14 @@ export function ExploreFeed({
 
       {isPostsMode && !postSearchLoading && visiblePostResults.length > 0 && (
         <div className="mb-8">
-          <div className="mb-3 font-mono text-[10.5px] uppercase tracking-[0.06em] text-text-faint">
+          <div className="mb-3 font-mono text-[10.5px] uppercase tracking-[0.06em] text-text-muted">
             {isPostSearchActive ? 'matching posts' : 'posts'}
           </div>
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-3">
             {visiblePostResults.map((post) => (
               <div
                 key={String(post._id)}
-                className="flex items-start gap-2 rounded-[6px] border border-line bg-surface transition-colors hover:border-line-strong hover:bg-surface-alt"
+                className="lx-card flex items-start gap-2 rounded-card border border-line bg-surface"
               >
                 <Link
                   to="/project/$owner/$repo"
@@ -245,13 +245,14 @@ export function ExploreFeed({
                       post.projectSnapshot.fullName,
                     repo: post.projectSnapshot.name,
                   }}
-                  search={{ comment: null, post: String(post._id) }}
+                  search={{ post: String(post._id) }}
                   hash={`post-${String(post._id)}`}
                   preload="intent"
-                  className="min-w-0 flex-1 px-4 py-3 text-left"
+                  className="min-w-0 flex-1 px-4 py-3.5 text-left"
                 >
-                  <div className="mb-2 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[11px] text-text-faint">
-                    <span className="font-semibold text-text">
+                  {/* Repo attribution — quiet mono prefix */}
+                  <div className="mb-1.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[11px] text-text-faint">
+                    <span className="text-text-muted">
                       {post.projectSnapshot.fullName}
                     </span>
                     <span>{relativeTime(post.createdAt)}</span>
@@ -259,7 +260,8 @@ export function ExploreFeed({
                       <span>by {post.actorSnapshot.displayName}</span>
                     )}
                   </div>
-                  <p className="m-0 line-clamp-2 font-sans text-[13px] leading-6 text-text-muted">
+                  {/* Post body leads — this is the content */}
+                  <p className="m-0 line-clamp-2 font-sans text-[14px] leading-6 text-text">
                     {post.body}
                   </p>
                   {post.projectTopics.length > 0 && (
@@ -267,7 +269,7 @@ export function ExploreFeed({
                       {post.projectTopics.slice(0, 4).map((topic) => (
                         <span
                           key={topic}
-                          className="rounded-pill border border-line px-2 py-1 font-mono text-[10.5px] text-text-faint"
+                          className="rounded-control border border-line px-2 py-0.5 font-mono text-[10.5px] text-text-muted"
                         >
                           #{topic}
                         </span>
@@ -303,38 +305,40 @@ export function ExploreFeed({
 
       {!isBuildersMode && !isPostsMode && visibleItems.length > 0 && (
         <div className="flex flex-col gap-3.5">
-          {visibleItems.map((item) => {
-            const projectId = item.projectId
-            const projectKey = String(item.projectId)
-            const ownerId = item.ownerUserId
-            const ownerKey = String(ownerId)
-            const liked = likedProjectIds.has(projectKey)
-            const followed = getFollowedState(ownerId)
+          <div className="flex flex-col gap-3.5">
+            {visibleItems.map((item) => {
+              const projectId = item.projectId
+              const projectKey = String(item.projectId)
+              const ownerId = item.ownerUserId
+              const ownerKey = String(ownerId)
+              const liked = likedProjectIds.has(projectKey)
+              const followed = getFollowedState(ownerId)
 
-            return (
-              <ProjectCard
-                key={projectId}
-                project={{
-                  ...toProjectCardData(item),
-                  liked,
-                  followed,
-                }}
-                onDismiss={() => onDismissProject(projectId, projectKey)}
-                onLike={() => onLikeProject(projectId, projectKey)}
-                authorLink={{ username: item.authorHandle }}
-                onFollow={() => onFollowUser(ownerId, ownerKey, followed)}
-                onDM={
-                  viewerId !== ownerId
-                    ? () => onMessageUser(ownerId)
-                    : undefined
-                }
-                projectLink={{ owner: item.owner, repo: item.repo }}
-                likePending={pendingLikes.has(projectKey)}
-                followPending={pendingFollows.has(ownerKey)}
-                dmPending={pendingUserId === ownerKey}
-              />
-            )
-          })}
+              return (
+                <ProjectCard
+                  key={projectId}
+                  project={{
+                    ...toProjectCardData(item),
+                    liked,
+                    followed,
+                  }}
+                  onDismiss={() => onDismissProject(projectId, projectKey)}
+                  onLike={() => onLikeProject(projectId, projectKey)}
+                  authorLink={{ username: item.authorHandle }}
+                  onFollow={() => onFollowUser(ownerId, ownerKey, followed)}
+                  onDM={
+                    viewerId !== ownerId
+                      ? () => onMessageUser(ownerId)
+                      : undefined
+                  }
+                  projectLink={{ owner: item.owner, repo: item.repo }}
+                  likePending={pendingLikes.has(projectKey)}
+                  followPending={pendingFollows.has(ownerKey)}
+                  dmPending={pendingUserId === ownerKey}
+                />
+              )
+            })}
+          </div>
           {hasMoreProjects && (
             <div className="flex justify-center pt-1">
               <button

@@ -42,6 +42,7 @@ import type * as lib_project_previews from "../lib/project_previews.js";
 import type * as lib_project_route from "../lib/project_route.js";
 import type * as lib_pulse from "../lib/pulse.js";
 import type * as lib_rate_limits from "../lib/rate_limits.js";
+import type * as lib_reaction_config from "../lib/reaction_config.js";
 import type * as lib_reactions from "../lib/reactions.js";
 import type * as lib_snapshots from "../lib/snapshots.js";
 import type * as lib_topics from "../lib/topics.js";
@@ -99,6 +100,7 @@ declare const fullApi: ApiFromModules<{
   "lib/project_route": typeof lib_project_route;
   "lib/pulse": typeof lib_pulse;
   "lib/rate_limits": typeof lib_rate_limits;
+  "lib/reaction_config": typeof lib_reaction_config;
   "lib/reactions": typeof lib_reactions;
   "lib/snapshots": typeof lib_snapshots;
   "lib/topics": typeof lib_topics;

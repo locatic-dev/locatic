@@ -2,6 +2,37 @@ export type ProjectTab = 'posts' | 'readme' | 'releases' | 'discussion'
 
 export const DEEP_LINK_LOAD_MORE_ATTEMPT_LIMIT = 5
 
+export function normalizeProjectSearchParam(value: unknown) {
+  if (typeof value !== 'string') {
+    return null
+  }
+
+  const trimmed = value.trim()
+  return trimmed && trimmed !== 'null' && trimmed !== 'undefined'
+    ? trimmed
+    : null
+}
+
+export function stripProjectCommentSearch<
+  TSearch extends Record<string, unknown>,
+>(search: TSearch) {
+  const { comment, commentPath, thread, ...rest } = search
+  void comment
+  void commentPath
+  void thread
+  return rest
+}
+
+export function shouldSyncProjectTab({
+  hasActiveDeepLinkTarget,
+  hasSyncedInitialTab,
+}: {
+  hasActiveDeepLinkTarget: boolean
+  hasSyncedInitialTab: boolean
+}) {
+  return !hasSyncedInitialTab || hasActiveDeepLinkTarget
+}
+
 export function parseCommentPathSearch(commentPath: string | null | undefined) {
   return (commentPath ?? '')
     .split(',')
@@ -41,6 +72,29 @@ export function getCommentExpansionPath({
   }
 
   return threadId ? [threadId] : []
+}
+
+export function getActiveHighlightedCommentId({
+  rawHighlightedCommentId,
+  releasedHighlightId,
+}: {
+  rawHighlightedCommentId: string | null
+  releasedHighlightId: string | null
+}) {
+  return rawHighlightedCommentId &&
+    rawHighlightedCommentId !== releasedHighlightId
+    ? rawHighlightedCommentId
+    : null
+}
+
+export function shouldResetReleasedHighlight({
+  rawHighlightedCommentId,
+  releasedHighlightId,
+}: {
+  rawHighlightedCommentId: string | null
+  releasedHighlightId: string | null
+}) {
+  return !rawHighlightedCommentId && releasedHighlightId !== null
 }
 
 export function shouldAutoLoadDeepLinkPage({

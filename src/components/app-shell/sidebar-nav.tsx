@@ -94,7 +94,7 @@ export function SidebarNav({
   return (
     <TooltipProvider delayDuration={300}>
       <aside
-        className={`flex h-full shrink-0 flex-col overflow-y-auto border-r border-line bg-canvas px-0 pt-5 pb-2 transition-[width] duration-200 ${
+        className={`flex h-full shrink-0 flex-col overflow-y-auto border-r border-line bg-surface-chrome px-0 pt-5 pb-2 transition-[width] duration-200 ${
           collapsed ? 'w-[76px]' : 'w-(--lx-sidebar-width)'
         }`}
       >
@@ -110,7 +110,7 @@ export function SidebarNav({
                   aria-label="Expand sidebar"
                   aria-expanded={false}
                 >
-                  <Logo size={20} />
+                  <Logo size={20} inline className="text-brand" />
                 </button>
               </TooltipTrigger>
               <TooltipContent side="right" sideOffset={8}>
@@ -121,7 +121,7 @@ export function SidebarNav({
         ) : (
           <div className="flex items-center gap-2.5 px-5 pb-7">
             <div className="flex min-w-0 items-center gap-2.5">
-              <Logo size={22} />
+              <Logo size={22} inline className="shrink-0 text-brand" />
               <span className="font-mono text-[15px] font-bold tracking-[-0.02em] text-text">
                 locatic
               </span>
