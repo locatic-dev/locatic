@@ -2,7 +2,6 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { ProfileContentTabs } from '../content-tabs'
-import { getVisibleProfileContentTabs } from '../state'
 
 const tabs = [
   { id: 'projects', label: 'projects', mobileLabel: 'projects', count: 4 },
@@ -49,20 +48,18 @@ describe('ProfileContentTabs', () => {
     expect(handleSelectTab).toHaveBeenCalledWith('contributions')
   })
 
-  it('omits the contribution tab when public contribution visibility is disabled', () => {
+  it('keeps the contribution tab available when contribution details are private', () => {
     render(
       <ProfileContentTabs
         activeTab="projects"
         isRoutePending={false}
-        tabs={getVisibleProfileContentTabs([...tabs], {
-          showContributions: false,
-        })}
+        tabs={tabs}
         onSelectTab={vi.fn()}
       />,
     )
 
-    expect(screen.queryByText('contrib')).toBeNull()
-    expect(screen.queryByText('contributions')).toBeNull()
+    expect(screen.getByText('contrib')).toBeTruthy()
+    expect(screen.getByText('contributions')).toBeTruthy()
   })
 
   it('uses a mobile-first wrapping grid instead of forcing horizontal overflow', () => {
