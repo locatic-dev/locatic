@@ -21,15 +21,9 @@ type GithubContributions = {
 
 export function PublicProfileContributionGraph({
   githubContributions,
-  show,
 }: {
   githubContributions: GithubContributions
-  show: boolean
 }) {
-  if (!show) {
-    return null
-  }
-
   return (
     <div className="mb-8">
       <div className="mb-2.5 font-mono text-[10.5px] uppercase tracking-[0.06em] text-text-faint">
@@ -55,9 +49,19 @@ export function PublicProfileContributionGraph({
 
 export function PublicProfileContributionsList({
   contributions,
+  visible,
 }: {
   contributions: ContributedProjectPreview[]
+  visible: boolean
 }) {
+  if (!visible) {
+    return (
+      <div className="py-4.5 font-sans text-sm text-text-muted">
+        contributions are private on this profile.
+      </div>
+    )
+  }
+
   if (contributions.length === 0) {
     return (
       <div className="py-4.5 font-sans text-sm text-text-muted">

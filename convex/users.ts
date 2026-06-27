@@ -947,9 +947,7 @@ async function getPublicProfilePayload(
       city: resolvePublicCityLabel(viewer, city?.displayName ?? null),
     },
     stats: viewer.stats,
-    githubContributions: contributionsArePublic
-      ? (viewer.githubContributions ?? null)
-      : null,
+    githubContributions: viewer.githubContributions ?? null,
     projects,
     posts,
     comments,
@@ -1268,9 +1266,6 @@ export const publicProfileOverview = query({
           )
           .unique()
       : null
-    const contributionsArePublic = isContributionsVisibleOnPublicProfile(
-      viewer.privacy,
-    )
 
     return {
       userId: viewer._id,
@@ -1285,9 +1280,7 @@ export const publicProfileOverview = query({
         city: resolvePublicCityLabel(viewer, city?.displayName ?? null),
       },
       stats: viewer.stats,
-      githubContributions: contributionsArePublic
-        ? (viewer.githubContributions ?? null)
-        : null,
+      githubContributions: viewer.githubContributions ?? null,
       privacy: viewer.privacy,
     }
   },

@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
 import {
-  getVisibleProfileContentTab,
-  getVisibleProfileContentTabs,
   getProfileContentTabs,
   isProfileContributionsPublic,
   normalizeProfileSearch,
@@ -83,26 +81,17 @@ describe('profile state helpers', () => {
     ).toBe(false)
   })
 
-  it('hides the contribution tab and falls back to projects when contributions are private', () => {
+  it('keeps contribution tabs in the primary tab list regardless of privacy', () => {
     const tabs = [
       { count: 3, id: 'projects', label: 'projects' },
       { count: 2, id: 'contributions', label: 'contributions' },
       { count: 1, id: 'comments', label: 'comments' },
     ]
 
-    expect(
-      getVisibleProfileContentTabs(tabs, { showContributions: false }),
-    ).toEqual([
-      { count: 3, id: 'projects', label: 'projects' },
-      { count: 1, id: 'comments', label: 'comments' },
-    ])
-    expect(
-      getVisibleProfileContentTabs(tabs, { showContributions: true }),
-    ).toEqual(tabs)
-    expect(
-      getVisibleProfileContentTab('contributions', {
-        showContributions: false,
-      }),
-    ).toBe('projects')
+    expect(getProfileContentTabs(tabs)).toEqual(tabs)
+    expect(normalizeProfileSearch({ tab: 'contributions' })).toEqual({
+      network: 'followers',
+      tab: 'contributions',
+    })
   })
 })

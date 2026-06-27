@@ -27,7 +27,7 @@ const VISIBILITY_SETTINGS: Array<{
   {
     key: 'contributionsVisibility',
     label: 'show contributions',
-    desc: 'show your contributions tab and GitHub contribution graph on your public profile',
+    desc: 'show your contribution details on your public profile',
   },
   {
     key: 'followGraphVisibility',
