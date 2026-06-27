@@ -17,7 +17,7 @@ features/
 ├── inbox/            # Messaging, conversations, destination helpers
 ├── notifications/    # Notification system, read state, routing
 ├── onboarding/       # New user onboarding flow, repo-derived prefs
-├── profile/          # User profiles (public + private), tab/search state
+├── profile/          # User profiles (public + private), tab/search state, contributions visibility
 ├── project-card-preview.ts  # Project card preview logic (standalone)
 ├── projects/         # Project detail, repo linking, sync feedback, post feed (posts/), reactions (reactions/)
 ├── settings/         # User settings, preferences
@@ -48,6 +48,11 @@ features/
 | Profile posts UI           | `profile/post-list.tsx`                              | `ProfilePostList` component; tab-gated query for profile posts tab                                                                                                  |
 | Profile content tabs       | `profile/content-tabs.tsx`                           | Responsive grid `grid-cols-2 min-[520px]:grid-cols-3 lg:grid-cols-5`; supports `posts` tab                                                                          |
 | Profile network UI         | `profile/network-section.tsx`                        | Follow graph section; loading skeleton + private visibility gating                                                                                                  |
+| Profile state helpers      | `profile/state.ts`                                   | `normalizeProfileSearch`, `isProfileContributionsPublic`, `getProfileContentTabs` — normalize profile search and gate contribution detail privacy                   |
+| Public profile components  | `profile/public-profile-contributions.tsx`           | `PublicProfileContributionGraph` + `PublicProfileContributionsList` for public profile contributions tab                                                            |
+| Public profile projects    | `profile/public-profile-projects-list.tsx`           | `PublicProfileProjectsList` component for public profile projects tab                                                                                               |
+| Public profile liked       | `profile/public-profile-liked-projects-list.tsx`     | `PublicProfileLikedProjectsList` component; privacy-gated via `visible` prop                                                                                        |
+| Privacy settings           | `settings/privacy-visibility-settings.tsx`           | `PrivacyVisibilitySettings` component — toggles for comment/liked/contributions/follow graph visibility                                                             |
 | Project likes              | `projects/mutations.ts`                              | Locatic-only like/unlike actions; no GitHub star sync                                                                                                               |
 | Reaction bar UI            | `projects/reactions/reaction-bar.tsx`                | `ReactionBar` component — multi-reaction types (like/rocket/flame), emoji popover picker, optimistic updates                                                        |
 | Reaction bar tests         | `projects/reactions/__tests__/reaction-bar.test.tsx` | Vitest + Testing Library tests for ReactionBar                                                                                                                      |
@@ -80,6 +85,9 @@ features/
 - Profile content tabs use responsive grid: `grid-cols-2 min-[520px]:grid-cols-3 lg:grid-cols-5`; supports `posts` tab alongside projects/contributions/liked.
 - Profile posts tab uses tab-gated queries: enabled only when `tab === 'posts'`; matches pattern set by projects/contributions tabs.
 - Profile network section has `isPrivate` + `loading` props; hides follower/following tab switcher when follow graph is private.
+- Public profile tabs keep contributions visible; use `isProfileContributionsPublic` to gate contribution detail queries/rendering while leaving the GitHub contribution graph visible.
+- Public profile projects/contributions/liked lists live in extracted components; keep tab rendering there instead of rebuilding inline route markup.
+- Privacy visibility settings live in `settings/privacy-visibility-settings.tsx`; keep comment, liked, contributions, and follow graph toggles together.
 - Profile comment navigation: `getProfileCommentDestination` builds route with `comment`/`commentPath`/`thread`/`post` search params; supports both `project` and `post` target types; `isCommentTargetOpenable` gates by `targetAvailability`
 - Project deep link tab routing: `getProjectDeepLinkTab({commentId, postId, postsCount})` — comment param selects `discussion` tab, post param selects `posts` tab, default falls back to `posts` if count > 0 else `readme`
 - Deep link pagination: `shouldAutoLoadDeepLinkPage` gates auto-load with attempt limit (`DEEP_LINK_LOAD_MORE_ATTEMPT_LIMIT = 5`); `getCommentExpansionPath` prefers explicit `ancestorCommentIds` over `rootCommentId` fallback
