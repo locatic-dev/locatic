@@ -37,9 +37,9 @@ export function getNotificationDestination(
 
     return {
       params: { owner, repo },
-      search: target.commentId
-        ? { comment: String(target.commentId) }
-        : { comment: null },
+      ...(target.commentId
+        ? { search: { comment: String(target.commentId) } }
+        : {}),
       to: '/project/$owner/$repo' as const,
     }
   }

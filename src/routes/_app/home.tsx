@@ -9,6 +9,7 @@ import { useState } from 'react'
 import { api } from '../../../convex/_generated/api'
 import type { Id } from '../../../convex/_generated/dataModel'
 import { viewerLikedProjectIdsQueryOptions } from '@/features/viewer/queries'
+import { homeFeedQueryOptions } from '@/integrations/convex/query-options'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -30,17 +31,24 @@ import {
 } from '@/components/app-shell/route-pending'
 import { shouldPrefetchPrivateConvexQueries } from '@/lib/auth-routing'
 import { getFreshExploreSearch } from '@/features/explore/state'
-import { getHomeFeedRenderState } from '@/features/home/render-state'
+import {
+  getHomeFeedHandoffState,
+  getHomeFeedRenderState,
+} from '@/features/home/render-state'
 
 export const Route = createFileRoute('/_app/home')({
-  loader: ({ context }) => {
+  loader: async ({ context }) => {
     if (!shouldPrefetchPrivateConvexQueries()) {
       return
     }
 
-    return context.queryClient.ensureQueryData(
-      viewerLikedProjectIdsQueryOptions(),
-    )
+    // SSR-render the first feed page (and viewer like state) so the home feed
+    // shows real content on first paint instead of a skeleton. The live
+    // `usePaginatedQuery` resumes from here after hydration.
+    await Promise.all([
+      context.queryClient.ensureQueryData(homeFeedQueryOptions()),
+      context.queryClient.ensureQueryData(viewerLikedProjectIdsQueryOptions()),
+    ])
   },
   pendingComponent: FeedRoutePending,
   pendingMs: ROUTE_PENDING_MS,
@@ -51,6 +59,9 @@ export const Route = createFileRoute('/_app/home')({
 function HomePage() {
   const navigate = Route.useNavigate()
   const queryClient = useQueryClient()
+  // SSR-rendered first page — resolved on first paint (prefetched in the loader).
+  const { data: firstPageData } = useSuspenseQuery(homeFeedQueryOptions())
+  // Live feed for "load older" and post-hydration freshness.
   const homeFeed = usePaginatedQuery(api.home.list, {}, { initialNumItems: 20 })
   const { data: viewerStateData } = useSuspenseQuery(
     viewerLikedProjectIdsQueryOptions(),
@@ -67,10 +78,17 @@ function HomePage() {
   const likedProjectIds = new Set(
     viewerState?.likedProjectIds.map(String) ?? [],
   )
-  const items = (homeFeed.results ?? []) as HomeFeedItem[]
+  const ssrItems = ((firstPageData as { page?: Array<unknown> } | undefined)
+    ?.page ?? []) as HomeFeedItem[]
+  const paginatedItems = (homeFeed.results ?? []) as HomeFeedItem[]
+  const { items, status: renderStatus } = getHomeFeedHandoffState({
+    paginatedItems,
+    ssrItems,
+    status: homeFeed.status,
+  })
   const homeFeedRenderState = getHomeFeedRenderState({
     itemCount: items.length,
-    status: homeFeed.status,
+    status: renderStatus,
   })
   const likedProjectIdsQueryKey = viewerLikedProjectIdsQueryOptions().queryKey
   const likeMutation = useMutation({
@@ -150,64 +168,68 @@ function HomePage() {
 
       <div className="lx-page-scroll" data-scroll-restoration-id="home-feed">
         <div className="lx-page-width-feed">
-          {homeFeedRenderState === 'loading' && <HomeFeedSkeletonRows />}
+          <div className="w-full min-w-0">
+            {homeFeedRenderState === 'loading' && <HomeFeedSkeletonRows />}
 
-          {homeFeedRenderState === 'empty' && (
-            <EmptyState
-              title="you're not following anyone yet."
-              description="your feed shows activity from people you follow. start with explore to find builders nearby."
-              action={{
-                label: 'go to explore',
-                onClick: () =>
-                  void navigate({
-                    to: '/explore',
-                    search: getFreshExploreSearch(),
-                  }),
-              }}
-            />
-          )}
+            {homeFeedRenderState === 'empty' && (
+              <EmptyState
+                title="you're not following anyone yet."
+                description="your feed shows activity from people you follow. start with explore to find builders nearby."
+                action={{
+                  label: 'go to explore',
+                  onClick: () =>
+                    void navigate({
+                      to: '/explore',
+                      search: getFreshExploreSearch(),
+                    }),
+                }}
+              />
+            )}
 
-          {homeFeedRenderState === 'items' && (
-            <>
-              <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-                <span className="font-mono text-[11.5px] lowercase text-text-faint">
-                  {'// activity from people you follow'}
-                </span>
-              </div>
+            {homeFeedRenderState === 'items' && (
+              <>
+                <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+                  <span className="font-mono text-[11.5px] lowercase text-text-faint">
+                    {'// activity from people you follow'}
+                  </span>
+                </div>
 
-              <div className="flex flex-col gap-3.5">
-                {items.map((item) => (
-                  <HomeFeedCard
-                    key={String(item._id)}
-                    item={item}
-                    likedProjectIds={likedProjectIds}
-                    pendingLikes={pendingLikes}
-                    onLikeProject={(projectId, projectKey) =>
-                      void handleLike(projectId, projectKey)
-                    }
-                  />
-                ))}
-                {homeFeed.status === 'CanLoadMore' && (
-                  <div className="flex justify-center pt-1">
-                    <Button
-                      type="button"
-                      variant="monoOutline"
-                      size="meta"
-                      onClick={() => homeFeed.loadMore(20)}
-                      className="min-h-11 font-mono"
-                    >
-                      load older activity
-                    </Button>
-                  </div>
-                )}
-                {homeFeed.status === 'LoadingMore' && (
-                  <div className="py-2 text-center font-mono text-[11.5px] text-text-faint">
-                    loading older activity…
-                  </div>
-                )}
-              </div>
-            </>
-          )}
+                <div className="flex flex-col gap-3.5">
+                  {items.map((item) => (
+                    <HomeFeedCard
+                      key={String(item._id)}
+                      item={item}
+                      likedProjectIds={likedProjectIds}
+                      pendingLikes={pendingLikes}
+                      onLikeProject={(projectId, projectKey) =>
+                        void handleLike(projectId, projectKey)
+                      }
+                    />
+                  ))}
+                  {homeFeed.status === 'CanLoadMore' && (
+                    <div className="flex justify-center pt-1">
+                      <Button
+                        type="button"
+                        variant="monoOutline"
+                        size="meta"
+                        onClick={() => homeFeed.loadMore(20)}
+                        className="min-h-11 font-mono"
+                      >
+                        load older activity
+                      </Button>
+                    </div>
+                  )}
+                  {homeFeed.status === 'LoadingMore' && (
+                    <div className="py-2 text-center font-mono text-[11.5px] text-text-faint">
+                      loading older activity…
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Pulse side rail intentionally hidden until the Home dashboard model is clearer. */}
         </div>
       </div>
     </div>

@@ -114,6 +114,54 @@ describe('HomeFeedCard helpers', () => {
     expect(expanded.hasStoredTargetsToExpand).toBe(false)
   })
 
+  it('never renders the non-interactive "Showing X of Y" dead-end footer', () => {
+    // 4 events but only 3 stored targets: nothing more to expand and not a
+    // comment group, so the footer must not render at all.
+    const item = feedItem({
+      eventType: 'project_posted',
+      eventCount: 4,
+      previewTargets: [0, 1, 2].map((index) => ({
+        ...projectTarget(index),
+        isOpenable: false,
+      })),
+    })
+
+    const html = renderToStaticMarkup(
+      <HomeFeedCard
+        item={item}
+        likedProjectIds={new Set()}
+        pendingLikes={new Set()}
+        onLikeProject={() => undefined}
+      />,
+    )
+
+    expect(html).not.toContain('Showing')
+    expect(html).not.toContain('more')
+  })
+
+  it('renders an interactive "+N more" when stored targets can expand', () => {
+    const item = feedItem({
+      eventType: 'project_posted',
+      eventCount: 15,
+      previewTargets: Array.from({ length: 10 }, (_, index) => ({
+        ...projectTarget(index),
+        isOpenable: false,
+      })),
+    })
+
+    const html = renderToStaticMarkup(
+      <HomeFeedCard
+        item={item}
+        likedProjectIds={new Set()}
+        pendingLikes={new Set()}
+        onLikeProject={() => undefined}
+      />,
+    )
+
+    expect(html).toContain('+12 more')
+    expect(html).not.toContain('Showing')
+  })
+
   it('does not render a like button for non-openable project targets', () => {
     const item = feedItem({
       eventType: 'project_liked',
@@ -137,5 +185,39 @@ describe('HomeFeedCard helpers', () => {
     )
 
     expect(html).not.toContain('Like avi/test-1')
+  })
+
+  it('does not render the retired stacked-card wrapper for grouped cards', () => {
+    const singleton = feedItem({
+      eventCount: 1,
+      previewTargets: [{ ...projectTarget(1), isOpenable: false }],
+    })
+    const grouped = feedItem({
+      eventCount: 2,
+      previewTargets: [
+        { ...projectTarget(1), isOpenable: false },
+        { ...projectTarget(2), isOpenable: false },
+      ],
+    })
+
+    const singletonHtml = renderToStaticMarkup(
+      <HomeFeedCard
+        item={singleton}
+        likedProjectIds={new Set()}
+        pendingLikes={new Set()}
+        onLikeProject={() => undefined}
+      />,
+    )
+    const groupedHtml = renderToStaticMarkup(
+      <HomeFeedCard
+        item={grouped}
+        likedProjectIds={new Set()}
+        pendingLikes={new Set()}
+        onLikeProject={() => undefined}
+      />,
+    )
+
+    expect(singletonHtml).not.toContain('lx-card-stack')
+    expect(groupedHtml).not.toContain('lx-card-stack')
   })
 })
