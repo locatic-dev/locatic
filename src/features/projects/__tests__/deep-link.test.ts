@@ -1,10 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import {
   DEEP_LINK_LOAD_MORE_ATTEMPT_LIMIT,
+  getActiveHighlightedCommentId,
   getCommentExpansionPath,
   getProjectDeepLinkTab,
+  normalizeProjectSearchParam,
   parseCommentPathSearch,
   shouldAutoLoadDeepLinkPage,
+  shouldResetReleasedHighlight,
+  shouldSyncProjectTab,
+  stripProjectCommentSearch,
 } from '../deep-link'
 
 describe('project deep links', () => {
@@ -15,6 +20,48 @@ describe('project deep links', () => {
       'child',
     ])
     expect(parseCommentPathSearch(undefined)).toEqual([])
+  })
+
+  it('normalizes empty and stringified-null project search params away', () => {
+    expect(normalizeProjectSearchParam('comment_1')).toBe('comment_1')
+    expect(normalizeProjectSearchParam(' comment_1 ')).toBe('comment_1')
+    expect(normalizeProjectSearchParam('')).toBeNull()
+    expect(normalizeProjectSearchParam('null')).toBeNull()
+    expect(normalizeProjectSearchParam('undefined')).toBeNull()
+    expect(normalizeProjectSearchParam(null)).toBeNull()
+  })
+
+  it('strips comment-only deep-link params without removing post context', () => {
+    expect(
+      stripProjectCommentSearch({
+        comment: 'comment_1',
+        commentPath: 'root,comment_1',
+        post: 'post_1',
+        tab: 'readme',
+        thread: 'root',
+      }),
+    ).toEqual({ post: 'post_1', tab: 'readme' })
+  })
+
+  it('syncs tabs initially and for active deep links only', () => {
+    expect(
+      shouldSyncProjectTab({
+        hasActiveDeepLinkTarget: false,
+        hasSyncedInitialTab: false,
+      }),
+    ).toBe(true)
+    expect(
+      shouldSyncProjectTab({
+        hasActiveDeepLinkTarget: true,
+        hasSyncedInitialTab: true,
+      }),
+    ).toBe(true)
+    expect(
+      shouldSyncProjectTab({
+        hasActiveDeepLinkTarget: false,
+        hasSyncedInitialTab: true,
+      }),
+    ).toBe(false)
   })
 
   it('selects the tab needed by route search', () => {
@@ -61,6 +108,33 @@ describe('project deep links', () => {
         threadId: 'root',
       }),
     ).toEqual(['root'])
+  })
+
+  it('releases a highlighted comment until the route target clears', () => {
+    expect(
+      getActiveHighlightedCommentId({
+        rawHighlightedCommentId: 'comment_1',
+        releasedHighlightId: null,
+      }),
+    ).toBe('comment_1')
+    expect(
+      getActiveHighlightedCommentId({
+        rawHighlightedCommentId: 'comment_1',
+        releasedHighlightId: 'comment_1',
+      }),
+    ).toBeNull()
+    expect(
+      shouldResetReleasedHighlight({
+        rawHighlightedCommentId: null,
+        releasedHighlightId: 'comment_1',
+      }),
+    ).toBe(true)
+    expect(
+      getActiveHighlightedCommentId({
+        rawHighlightedCommentId: 'comment_1',
+        releasedHighlightId: null,
+      }),
+    ).toBe('comment_1')
   })
 
   it('bounds automatic deep-link pagination', () => {

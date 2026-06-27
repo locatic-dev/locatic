@@ -35,9 +35,11 @@ _app/
 - `project.$owner.$repo.tsx` supports deep-link comment/post navigation via search params: `comment` scrolls to thread, `post` selects posts tab, `commentPath` expands ancestor chain; auto-loads more pages when target comment not yet loaded (max 5 attempts).
 - `profile.tsx` now passes deep-link search params (`comment`, `commentPath`, `thread`, `post`) through to project page navigation via `getProfileCommentDestination`.
 - `explore.tsx` search results navigate with function-form `search: (current) => ({...current, ...next})` — keep existing search params when updating.
-- `home.tsx` uses Convex `usePaginatedQuery` directly (not TanStack Query) for paginated feed list; uses `getHomeFeedRenderState` for loading/empty/items states with `HomeFeedSkeletonRows` during `LoadingFirstPage`.
+- `home.tsx` uses Convex `usePaginatedQuery` directly (not TanStack Query) for paginated feed list; uses `getHomeFeedRenderState` for loading/empty/items states with `HomeFeedSkeletonRows` during `LoadingFirstPage`; uses `getHomeFeedHandoffState` for SSR-to-live feed transition.
+- `home.tsx` does not render `HomePulseRail`; `src/features/home/home-rail.tsx` is dormant/dead code for a possible future pulse right rail.
 - `explore.tsx` supports post dismissal (dismissed set + load-more limit stepping) and reset dismissed for both projects and posts; empty post query uses scoped browse (`postListQueryOptions`), non-empty post query uses search (`postSearchQueryOptions`), and both use `placeholderData` helpers for smooth filter transitions.
 - `inbox.tsx` uses two-phase compose flow: validates `compose` search param, shows recipient preview via `conversationRecipientPreviewQueryOptions`.
+- `inbox.tsx` own message bubbles use `bg-outgoing border border-brand/30` (not `bg-brand`); unread badges use `bg-unread`.
 - `profile.tsx` uses tab-gated queries for posts/projects/contributions/liked tabs; the owner follow graph is always available on the private profile, regardless of public `followGraphVisibility`.
 - `profile.tsx` preloader fetches overview first, then fetches the active owner follow graph; loader returns overview for immediate render.
 
