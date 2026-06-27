@@ -11,7 +11,6 @@ import type { Id } from '../../convex/_generated/dataModel'
 import { LxAvatar } from '@/components/ui/lx-avatar'
 import { StatusPill } from '@/components/ui/status-pill'
 import { BrandIcon } from '@/components/ui/brand-icon'
-import { ContributionGraph } from '@/components/ui/contribution-graph'
 import { Button } from '@/components/ui/button'
 import { Logo } from '@/components/ui/logo'
 import { AppLayout } from '@/components/app-shell/app-layout'
@@ -22,7 +21,6 @@ import {
 } from '@/components/app-shell/route-pending'
 import { compactNumber } from '@/lib/format'
 import { relativeTime } from '@/lib/time'
-import { ProjectCard } from '@/components/ui/project-card'
 import {
   mapPublicProfileOverview,
   mapViewerBootstrap,
@@ -35,13 +33,6 @@ import {
   type ViewerBootstrapPayload,
 } from '@/features/contracts'
 import {
-  getProjectCardFullName,
-  getProjectCardId,
-  getProjectCardOwner,
-  getProjectCardRepo,
-  toProjectCardData,
-} from '@/features/project-card-preview'
-import {
   publicFollowGraphQueryOptions,
   publicProfileCommentsQueryOptions,
   publicProfileContributionsQueryOptions,
@@ -51,6 +42,9 @@ import {
   publicProfileProjectsQueryOptions,
 } from '@/features/profile/queries'
 import {
+  getVisibleProfileContentTab,
+  getVisibleProfileContentTabs,
+  isProfileContributionsPublic,
   normalizeProfileSearch,
   type ProfileContentTab,
   type ProfileNetworkTab,
@@ -63,6 +57,12 @@ import {
 } from '@/features/profile/comment-navigation'
 import { ProfileNetworkSection } from '@/features/profile/network-section'
 import { ProfilePostList } from '@/features/profile/post-list'
+import {
+  PublicProfileContributionGraph,
+  PublicProfileContributionsList,
+} from '@/features/profile/public-profile-contributions'
+import { PublicProfileLikedProjectsList } from '@/features/profile/public-profile-liked-projects-list'
+import { PublicProfileProjectsList } from '@/features/profile/public-profile-projects-list'
 import { socialLinkHref } from '@/lib/social-links'
 import { useFollowUser, useUnfollowUser } from '@/features/follows/mutations'
 import { viewerQueryOptions } from '@/features/viewer/queries'
@@ -223,6 +223,8 @@ function PublicProfileContent({
     useState<ProfileSocialPagePayload>(emptySocialPage)
   const isFollowGraphPublic =
     overview.privacy.followGraphVisibility === 'public'
+  const showContributions = isProfileContributionsPublic(overview.privacy)
+  const visibleTab = getVisibleProfileContentTab(tab, { showContributions })
   const activeSocialQuery = useQuery({
     ...publicFollowGraphQueryOptions({
       username,
@@ -238,30 +240,31 @@ function PublicProfileContent({
 
   const projectsQuery = useQuery({
     ...publicProfileProjectsQueryOptions(username),
-    enabled: tab === 'projects',
+    enabled: visibleTab === 'projects',
     staleTime: TAB_QUERY_STALE_TIME,
   })
   const postsQuery = useQuery({
     ...publicProfilePostsQueryOptions(username),
-    enabled: tab === 'posts',
+    enabled: visibleTab === 'posts',
     staleTime: TAB_QUERY_STALE_TIME,
   })
   const contributionsQuery = useQuery({
     ...publicProfileContributionsQueryOptions(username),
-    enabled: tab === 'contributions',
+    enabled: visibleTab === 'contributions' && showContributions,
     staleTime: TAB_QUERY_STALE_TIME,
   })
   const commentsQuery = useQuery({
     ...publicProfileCommentsQueryOptions(username),
     enabled:
-      tab === 'comments' &&
+      visibleTab === 'comments' &&
       overview.privacy.commentHistoryVisibility === 'public',
     staleTime: TAB_QUERY_STALE_TIME,
   })
   const likedProjectsQuery = useQuery({
     ...publicProfileLikedProjectsQueryOptions(username),
     enabled:
-      tab === 'liked' && overview.privacy.likedProjectsVisibility === 'public',
+      visibleTab === 'liked' &&
+      overview.privacy.likedProjectsVisibility === 'public',
     staleTime: TAB_QUERY_STALE_TIME,
   })
 
@@ -280,11 +283,26 @@ function PublicProfileContent({
   }, [activeSocialQuery.data, network])
 
   useEffect(() => {
+    if (tab === visibleTab) {
+      return
+    }
+
+    void navigate({
+      to: '/u/$username',
+      params: { username },
+      search: (current) => ({ ...current, tab: visibleTab }),
+      replace: true,
+    })
+  }, [navigate, tab, username, visibleTab])
+
+  useEffect(() => {
     void queryClient.prefetchQuery(publicProfileProjectsQueryOptions(username))
     void queryClient.prefetchQuery(publicProfilePostsQueryOptions(username))
-    void queryClient.prefetchQuery(
-      publicProfileContributionsQueryOptions(username),
-    )
+    if (showContributions) {
+      void queryClient.prefetchQuery(
+        publicProfileContributionsQueryOptions(username),
+      )
+    }
     if (overview.privacy.commentHistoryVisibility === 'public') {
       void queryClient.prefetchQuery(
         publicProfileCommentsQueryOptions(username),
@@ -322,6 +340,7 @@ function PublicProfileContent({
     isFollowGraphPublic,
     overview.privacy.likedProjectsVisibility,
     queryClient,
+    showContributions,
     username,
   ])
 
@@ -366,13 +385,13 @@ function PublicProfileContent({
       | undefined) ?? []
 
   const contentIsLoading =
-    (tab === 'projects' && projectsQuery.isLoading) ||
-    (tab === 'posts' && postsQuery.isLoading) ||
-    (tab === 'contributions' && contributionsQuery.isLoading) ||
-    (tab === 'comments' &&
+    (visibleTab === 'projects' && projectsQuery.isLoading) ||
+    (visibleTab === 'posts' && postsQuery.isLoading) ||
+    (visibleTab === 'contributions' && contributionsQuery.isLoading) ||
+    (visibleTab === 'comments' &&
       overview.privacy.commentHistoryVisibility === 'public' &&
       commentsQuery.isLoading) ||
-    (tab === 'liked' &&
+    (visibleTab === 'liked' &&
       overview.privacy.likedProjectsVisibility === 'public' &&
       likedProjectsQuery.isLoading)
 
@@ -393,6 +412,9 @@ function PublicProfileContent({
           publicProfilePostsQueryOptions(username),
         )
       case 'contributions':
+        if (!showContributions) {
+          return Promise.resolve()
+        }
         return queryClient.prefetchQuery(
           publicProfileContributionsQueryOptions(username),
         )
@@ -527,38 +549,41 @@ function PublicProfileContent({
     }
   }
 
-  const tabs = [
-    {
-      count: overview.stats.projectsCount,
-      id: 'projects',
-      label: 'projects',
-      mobileLabel: 'projects',
-    },
-    {
-      count: overview.stats.postsCount ?? 0,
-      id: 'posts',
-      label: 'posts',
-      mobileLabel: 'posts',
-    },
-    {
-      count: overview.stats.contributionsCount,
-      id: 'contributions',
-      label: 'contributions',
-      mobileLabel: 'contrib',
-    },
-    {
-      count: overview.stats.commentsCount,
-      id: 'comments',
-      label: 'comments',
-      mobileLabel: 'comments',
-    },
-    {
-      count: overview.stats.likedCount,
-      id: 'liked',
-      label: 'liked',
-      mobileLabel: 'liked',
-    },
-  ] as const
+  const tabs = getVisibleProfileContentTabs(
+    [
+      {
+        count: overview.stats.projectsCount,
+        id: 'projects',
+        label: 'projects',
+        mobileLabel: 'projects',
+      },
+      {
+        count: overview.stats.postsCount ?? 0,
+        id: 'posts',
+        label: 'posts',
+        mobileLabel: 'posts',
+      },
+      {
+        count: overview.stats.contributionsCount,
+        id: 'contributions',
+        label: 'contributions',
+        mobileLabel: 'contrib',
+      },
+      {
+        count: overview.stats.commentsCount,
+        id: 'comments',
+        label: 'comments',
+        mobileLabel: 'comments',
+      },
+      {
+        count: overview.stats.likedCount,
+        id: 'liked',
+        label: 'liked',
+        mobileLabel: 'liked',
+      },
+    ] as const,
+    { showContributions },
+  )
 
   const sortedComments = [...comments].sort(
     (left, right) => right.createdAt - left.createdAt,
@@ -810,25 +835,10 @@ function PublicProfileContent({
           </div>
         </div>
 
-        <div className="mb-8">
-          <div className="mb-2.5 font-mono text-[10.5px] uppercase tracking-[0.06em] text-text-faint">
-            {overview.githubContributions?.totalContributions != null
-              ? `${overview.githubContributions.totalContributions.toLocaleString()} contributions this year`
-              : 'contributions this year'}
-          </div>
-          <div className="overflow-x-auto">
-            <ContributionGraph
-              weeks={overview.githubContributions?.weeks ?? undefined}
-              totalContributions={
-                overview.githubContributions?.totalContributions ?? undefined
-              }
-              unavailable={
-                !overview.githubContributions?.weeks ||
-                overview.githubContributions.weeks.length === 0
-              }
-            />
-          </div>
-        </div>
+        <PublicProfileContributionGraph
+          githubContributions={overview.githubContributions}
+          show={showContributions}
+        />
 
         <div className="grid gap-8 lg:grid-cols-[minmax(0,1.75fr)_minmax(280px,0.95fr)]">
           <aside className="order-first lg:order-last">
@@ -867,7 +877,7 @@ function PublicProfileContent({
 
           <section>
             <ProfileContentTabs
-              activeTab={tab}
+              activeTab={visibleTab}
               isRoutePending={isRoutePending}
               tabs={tabs}
               onSelectTab={(nextTab) => {
@@ -879,83 +889,26 @@ function PublicProfileContent({
             <div className="pt-7">
               {contentIsLoading && (
                 <div className="font-mono text-[12px] text-text-faint">
-                  loading {tab}…
+                  loading {visibleTab}…
                 </div>
               )}
 
-              {!contentIsLoading && tab === 'projects' && (
-                <div className="flex flex-col gap-3.5">
-                  {projects.length === 0 ? (
-                    <div className="py-4.5 font-sans text-sm text-text-muted">
-                      no public projects yet.
-                    </div>
-                  ) : (
-                    projects.map((project) => {
-                      const owner = getProjectCardOwner(project)
-                      const repo = getProjectCardRepo(project)
-
-                      return (
-                        <ProjectCard
-                          key={getProjectCardId(project)}
-                          project={toProjectCardData(project)}
-                          authorLink={{
-                            username: project.authorHandle,
-                            search: { tab: 'projects' },
-                          }}
-                          projectLink={{ owner, repo }}
-                          showActions={false}
-                        />
-                      )
-                    })
-                  )}
-                </div>
+              {!contentIsLoading && visibleTab === 'projects' && (
+                <PublicProfileProjectsList projects={projects} />
               )}
 
-              {!contentIsLoading && tab === 'posts' && (
+              {!contentIsLoading && visibleTab === 'posts' && (
                 <ProfilePostList
                   posts={posts}
                   emptyLabel="no public posts yet."
                 />
               )}
 
-              {!contentIsLoading && tab === 'contributions' && (
-                <div className="flex flex-col gap-3.5">
-                  {contributions.length === 0 ? (
-                    <div className="py-4.5 font-sans text-sm text-text-muted">
-                      no public contributions yet.
-                    </div>
-                  ) : (
-                    contributions.map((entry) => {
-                      const owner = getProjectCardOwner(entry.project)
-                      const repo = getProjectCardRepo(entry.project)
-
-                      return (
-                        <div
-                          key={getProjectCardId(entry.project)}
-                          className="rounded-card border border-line bg-transparent"
-                        >
-                          <div className="border-b border-line px-4 py-3 font-mono text-[11px] text-text-faint">
-                            contributor · {compactNumber(entry.commitCount)}{' '}
-                            commits matched
-                          </div>
-                          <ProjectCard
-                            project={toProjectCardData(entry.project)}
-                            authorLink={{
-                              username: entry.project.authorHandle,
-                              search: { tab: 'projects' },
-                            }}
-                            projectLink={{ owner, repo }}
-                            showActions={false}
-                            className="rounded-none border-0"
-                          />
-                        </div>
-                      )
-                    })
-                  )}
-                </div>
+              {!contentIsLoading && visibleTab === 'contributions' && (
+                <PublicProfileContributionsList contributions={contributions} />
               )}
 
-              {!contentIsLoading && tab === 'comments' && (
+              {!contentIsLoading && visibleTab === 'comments' && (
                 <div className="flex flex-col gap-3.5">
                   {overview.privacy.commentHistoryVisibility !== 'public' ? (
                     <div className="py-4.5 font-sans text-sm text-text-muted">
@@ -1006,40 +959,13 @@ function PublicProfileContent({
                 </div>
               )}
 
-              {!contentIsLoading && tab === 'liked' && (
-                <div className="flex flex-col gap-3">
-                  {overview.privacy.likedProjectsVisibility !== 'public' ? (
-                    <div className="py-4.5 font-sans text-sm text-text-muted">
-                      liked projects are private on this profile.
-                    </div>
-                  ) : likedProjects.length === 0 ? (
-                    <div className="py-4.5 font-sans text-sm text-text-muted">
-                      no public likes yet.
-                    </div>
-                  ) : (
-                    likedProjects.map((project) => {
-                      const owner = getProjectCardOwner(project.project)
-                      const repo = getProjectCardRepo(project.project)
-                      return (
-                        <Link
-                          key={String(project.reactionId)}
-                          to="/project/$owner/$repo"
-                          params={{ owner, repo }}
-                          search={{ comment: null }}
-                          preload="intent"
-                          className="rounded-[6px] border border-line bg-surface px-4 py-3.5 text-left"
-                        >
-                          <div className="mb-1 font-mono text-[13px] font-semibold text-text">
-                            {getProjectCardFullName(project.project)}
-                          </div>
-                          <div className="font-mono text-[11px] text-text-faint">
-                            liked {relativeTime(project.likedAt)}
-                          </div>
-                        </Link>
-                      )
-                    })
-                  )}
-                </div>
+              {!contentIsLoading && visibleTab === 'liked' && (
+                <PublicProfileLikedProjectsList
+                  likedProjects={likedProjects}
+                  visible={
+                    overview.privacy.likedProjectsVisibility === 'public'
+                  }
+                />
               )}
             </div>
           </section>

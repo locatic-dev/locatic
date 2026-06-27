@@ -51,6 +51,7 @@ import {
   getNextUserPostsCountBackfillCursor,
   shouldPatchUserPostsCount,
 } from './lib/post_counts'
+import { isContributionsVisibleOnPublicProfile } from './lib/privacy'
 import {
   buildStatusValidator,
   cityReferenceValidator,
@@ -104,6 +105,7 @@ const serializedViewerValidator = v.object({
     followGraphVisibility: tabVisibilityValidator,
     commentHistoryVisibility: tabVisibilityValidator,
     likedProjectsVisibility: tabVisibilityValidator,
+    contributionsVisibility: v.optional(tabVisibilityValidator),
     cityVisibility: cityVisibilityValidator,
     appearInPulse: v.boolean(),
   }),
@@ -215,6 +217,44 @@ const profilePostPreviewValidator = v.object({
   deletedAt: v.union(v.number(), v.null()),
   viewerHasLiked: v.boolean(),
   viewerReactionTypes: v.array(v.string()),
+})
+
+const projectCardPreviewValidator = v.object({
+  projectId: v.id('projects'),
+  ownerUserId: v.id('users'),
+  fullName: v.string(),
+  owner: v.string(),
+  repo: v.string(),
+  description: v.union(v.string(), v.null()),
+  primaryLanguage: v.union(v.string(), v.null()),
+  languages: v.array(
+    v.object({
+      name: v.string(),
+      bytes: v.number(),
+    }),
+  ),
+  githubStars: v.number(),
+  locaticLikes: v.number(),
+  commentsCount: v.number(),
+  postsCount: v.number(),
+  topics: v.array(v.string()),
+  lastCommitAt: v.number(),
+  updatedAt: v.number(),
+  authorName: v.string(),
+  authorHandle: v.string(),
+  authorAvatarUrl: v.union(v.string(), v.null()),
+  cityLabel: v.union(v.string(), v.null()),
+  cityVisibilityState: v.union(
+    v.literal('exact_city'),
+    v.literal('region_only'),
+    v.literal('hidden'),
+    v.literal('unset'),
+  ),
+})
+
+const profileContributionPreviewValidator = v.object({
+  project: projectCardPreviewValidator,
+  commitCount: v.number(),
 })
 
 function serializeViewer(
@@ -857,6 +897,9 @@ async function getPublicProfilePayload(
   const city = viewer.profile.cityId
     ? await ctx.db.get(viewer.profile.cityId)
     : null
+  const contributionsArePublic = isContributionsVisibleOnPublicProfile(
+    viewer.privacy,
+  )
   const [
     projects,
     posts,
@@ -874,7 +917,9 @@ async function getPublicProfilePayload(
     }),
     listPublicProfileComments(ctx, viewer),
     listPublicLikedProjects(ctx, viewer),
-    listContributedProjects(ctx, viewer._id, 'public'),
+    contributionsArePublic
+      ? listContributedProjects(ctx, viewer._id, 'public')
+      : [],
     viewer.privacy.followGraphVisibility === 'public'
       ? listFollowPreviewSlice(ctx, {
           userId: viewer._id,
@@ -902,7 +947,9 @@ async function getPublicProfilePayload(
       city: resolvePublicCityLabel(viewer, city?.displayName ?? null),
     },
     stats: viewer.stats,
-    githubContributions: viewer.githubContributions ?? null,
+    githubContributions: contributionsArePublic
+      ? (viewer.githubContributions ?? null)
+      : null,
     projects,
     posts,
     comments,
@@ -1221,6 +1268,9 @@ export const publicProfileOverview = query({
           )
           .unique()
       : null
+    const contributionsArePublic = isContributionsVisibleOnPublicProfile(
+      viewer.privacy,
+    )
 
     return {
       userId: viewer._id,
@@ -1235,7 +1285,9 @@ export const publicProfileOverview = query({
         city: resolvePublicCityLabel(viewer, city?.displayName ?? null),
       },
       stats: viewer.stats,
-      githubContributions: viewer.githubContributions ?? null,
+      githubContributions: contributionsArePublic
+        ? (viewer.githubContributions ?? null)
+        : null,
       privacy: viewer.privacy,
     }
   },
@@ -1284,6 +1336,7 @@ export const publicProfileContributions = query({
   args: {
     username: v.string(),
   },
+  returns: v.union(v.array(profileContributionPreviewValidator), v.null()),
   handler: async (ctx, args) => {
     const { viewer } = await getAccessiblePublicProfileViewer(
       ctx,
@@ -1291,6 +1344,10 @@ export const publicProfileContributions = query({
     )
     if (!viewer) {
       return null
+    }
+
+    if (!isContributionsVisibleOnPublicProfile(viewer.privacy)) {
+      return []
     }
 
     return await listContributedProjects(ctx, viewer._id, 'public')
@@ -1417,6 +1474,9 @@ export const updatePrivacy = mutation({
       v.literal('private'),
     ),
     likedProjectsVisibility: v.union(v.literal('public'), v.literal('private')),
+    contributionsVisibility: v.optional(
+      v.union(v.literal('public'), v.literal('private')),
+    ),
     cityVisibility: v.union(
       v.literal('exact_city'),
       v.literal('region_only'),
@@ -1424,6 +1484,7 @@ export const updatePrivacy = mutation({
     ),
     appearInPulse: v.boolean(),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const viewer = await getOrCreateViewer(ctx)
     if (!viewer) {
@@ -1431,7 +1492,14 @@ export const updatePrivacy = mutation({
     }
 
     await ctx.db.patch(viewer._id, {
-      privacy: args,
+      privacy: {
+        ...viewer.privacy,
+        ...args,
+        contributionsVisibility:
+          args.contributionsVisibility ??
+          viewer.privacy.contributionsVisibility ??
+          'public',
+      },
       updatedAt: Date.now(),
     })
 

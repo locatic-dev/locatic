@@ -66,6 +66,7 @@ export function createDefaultViewerProfile(
       followGraphVisibility: 'public' as const,
       commentHistoryVisibility: 'public' as const,
       likedProjectsVisibility: 'public' as const,
+      contributionsVisibility: 'public' as const,
       cityVisibility: 'exact_city' as const,
       appearInPulse: true,
     },

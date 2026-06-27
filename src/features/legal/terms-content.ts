@@ -25,7 +25,7 @@ You retain ownership of any content you create or post on Locatic ("User Content
 
 By submitting User Content to the Service, you grant Locatic a worldwide, non-exclusive, royalty-free license to store, display, and distribute that content as necessary to operate the Service.
 
-**Public content** — including project update posts, comments, likes, follows, and project showcases — is visible to other users by default. You may adjust the visibility of your likes, comment history, and follow graph through your account privacy settings. See our Privacy Policy for details.
+**Public content** — including project update posts, comments, likes, follows, contribution activity, and project showcases — is visible to other users by default. You may adjust the visibility of your likes, contribution activity, comment history, and follow graph through your account privacy settings. See our Privacy Policy for details.
 
 **Private content** (direct messages) is visible only to the participants of that conversation. We do not read, sell, or share private messages except as required by law.
 
