@@ -19,6 +19,7 @@ convex/lib/
 ├── homeFeed.ts          # Feed generation / aggregation logic
 ├── notifications.ts     # Notification helpers (buildProjectNotificationTarget, etc.)
 ├── project_access.ts    # Public interactability gates for projects/comments
+├── privacy.ts           # Contribution privacy: `isContributionsVisibleOnPublicProfile`, `ContributionsPrivacy`
 ├── project_contributor_sync.ts  # Contributor sync: runProjectContributorSyncTargets, recomputeContributionCountsForUsers
 ├── project_pins.ts      # Project pinning helpers
 ├── project_route.ts     # Project route key normalization & owner login resolution
@@ -61,6 +62,7 @@ convex/lib/
 | Add feed helper            | `homeFeed.ts`                 | Feed aggregation logic; `upsertHomeFeedItemForEvent` exported for backfill usage                                                                                                            |
 | Add notification helper    | `notifications.ts`            | Notification targets / state                                                                                                                                                                |
 | Add project access gate    | `project_access.ts`           | `isProjectPubliclyInteractable`, `getPubliclyInteractableProject`, `isCommentPubliclyInteractable`                                                                                          |
+| Add privacy helper         | `privacy.ts`                  | `ContributionsPrivacy` type + `isContributionsVisibleOnPublicProfile` for public profile contribution gating                                                                                |
 | Add rate limiting          | `rate_limits.ts`              | `enforceRateLimit` via `@convex-dev/rate-limiter` component                                                                                                                                 |
 | Add pinning helper         | `project_pins.ts`             | Project pin/unpin helpers                                                                                                                                                                   |
 | Add preview helper         | `project_previews.ts`         | Project preview/metadata                                                                                                                                                                    |
