@@ -9,6 +9,13 @@ export function PublicFooter() {
   return (
     <footer className="border-t border-line px-(--lx-gutter) py-7 text-center font-mono text-[11.5px] text-text-faint">
       <nav className="flex flex-wrap items-center justify-center gap-x-5 gap-y-1">
+        <a
+          href="mailto:contact@locatic.dev"
+          className={footerLinkClassName}
+          aria-label="Email Locatic at contact@locatic.dev"
+        >
+          contact
+        </a>
         <Link to="/privacy" className={footerLinkClassName}>
           privacy
         </Link>

@@ -23,7 +23,7 @@ routes/
 ├── onboarding.tsx      # New user onboarding flow
 ├── sign-in.$.tsx       # Clerk sign-in (splat route)
 ├── sign-up.$.tsx       # Clerk sign-up (splat route)
-└── u.$username.tsx     # Public user profile
+└── u.$username.tsx     # Public user profile (projects, contributions, liked projects, profile tabs)
 ```
 
 ## WHERE TO LOOK
@@ -55,6 +55,7 @@ routes/
 - `__root.tsx` includes skip link for keyboard accessibility
 - Routes use Tailwind-first styling — semantic tokens (`bg-surface`, `text-text-muted`) over inline styles or `var(--lx-*)`
 - Route search params should come from feature helpers (`state.ts`, `navigation.ts`, `helpers.ts`) instead of ad hoc parsing inside route files.
+- `u.$username.tsx` supports contributions tab via `contributionsVisibility` privacy gating; uses `getVisibleProfileContentTabs` + `isProfileContributionsPublic` from `src/features/profile/state.ts` for tab filtering and gating.
 - Shared Convex query options live in `src/integrations/convex/query-options.ts`; use them for loader prefetches.
 
 ## ANTI-PATTERNS

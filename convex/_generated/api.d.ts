@@ -35,6 +35,7 @@ import type * as lib_homeFeed from "../lib/homeFeed.js";
 import type * as lib_notifications from "../lib/notifications.js";
 import type * as lib_post_counts from "../lib/post_counts.js";
 import type * as lib_posts from "../lib/posts.js";
+import type * as lib_privacy from "../lib/privacy.js";
 import type * as lib_project_access from "../lib/project_access.js";
 import type * as lib_project_contributor_sync from "../lib/project_contributor_sync.js";
 import type * as lib_project_pins from "../lib/project_pins.js";
@@ -93,6 +94,7 @@ declare const fullApi: ApiFromModules<{
   "lib/notifications": typeof lib_notifications;
   "lib/post_counts": typeof lib_post_counts;
   "lib/posts": typeof lib_posts;
+  "lib/privacy": typeof lib_privacy;
   "lib/project_access": typeof lib_project_access;
   "lib/project_contributor_sync": typeof lib_project_contributor_sync;
   "lib/project_pins": typeof lib_project_pins;

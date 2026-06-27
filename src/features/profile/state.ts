@@ -22,6 +22,16 @@ type ProfileTabLike = {
   label: string
 }
 
+type ContributionsPrivacyLike = {
+  contributionsVisibility?: 'public' | 'private'
+}
+
+export function isProfileContributionsPublic(
+  privacy: ContributionsPrivacyLike,
+) {
+  return privacy.contributionsVisibility !== 'private'
+}
+
 export function normalizeProfileSearch(
   search: Record<string, unknown>,
 ): ProfileSearch {
@@ -58,4 +68,24 @@ export function getProfileContentTabs<TTab extends ProfileTabLike>(
   tabs: TTab[],
 ) {
   return tabs.filter((tab) => isProfileContentTab(tab.id))
+}
+
+export function getVisibleProfileContentTabs<TTab extends ProfileTabLike>(
+  tabs: TTab[],
+  options: { showContributions: boolean },
+) {
+  return getProfileContentTabs(tabs).filter(
+    (tab) => options.showContributions || tab.id !== 'contributions',
+  )
+}
+
+export function getVisibleProfileContentTab(
+  tab: ProfileContentTab,
+  options: { showContributions: boolean },
+): ProfileContentTab {
+  if (tab === 'contributions' && !options.showContributions) {
+    return 'projects'
+  }
+
+  return tab
 }

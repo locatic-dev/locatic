@@ -37,6 +37,7 @@ _app/
 - `explore.tsx` search results navigate with function-form `search: (current) => ({...current, ...next})` — keep existing search params when updating.
 - `home.tsx` uses Convex `usePaginatedQuery` directly (not TanStack Query) for paginated feed list; uses `getHomeFeedRenderState` for loading/empty/items states with `HomeFeedSkeletonRows` during `LoadingFirstPage`; uses `getHomeFeedHandoffState` for SSR-to-live feed transition.
 - `home.tsx` does not render `HomePulseRail`; `src/features/home/home-rail.tsx` is dormant/dead code for a possible future pulse right rail.
+- `settings.tsx` delegates privacy visibility toggles to `PrivacyVisibilitySettings` component in `src/features/settings/`; handles `contributionsVisibility` alongside comment/liked/follow graph settings.
 - `explore.tsx` supports post dismissal (dismissed set + load-more limit stepping) and reset dismissed for both projects and posts; empty post query uses scoped browse (`postListQueryOptions`), non-empty post query uses search (`postSearchQueryOptions`), and both use `placeholderData` helpers for smooth filter transitions.
 - `inbox.tsx` uses two-phase compose flow: validates `compose` search param, shows recipient preview via `conversationRecipientPreviewQueryOptions`.
 - `inbox.tsx` own message bubbles use `bg-outgoing border border-brand/30` (not `bg-brand`); unread badges use `bg-unread`.
