@@ -25,6 +25,7 @@ ui/
 ├── input.tsx              # Responsive width input
 ├── label.tsx              # Radix label
 ├── lang-dot.tsx           # Language dot indicator
+├── language-bar.tsx       # GitHub-style language proportion bar
 ├── logo.tsx               # App logo component
 ├── lx-avatar.tsx          # Enhanced avatar with presence
 ├── popover.tsx            # Radix popover
@@ -46,36 +47,37 @@ ui/
 
 ## WHERE TO LOOK
 
-| Task                 | File                                                                                       | Notes                                  |
-| -------------------- | ------------------------------------------------------------------------------------------ | -------------------------------------- |
-| Add shadcn component | `ui/<name>.tsx`                                                                            | Use `shadcn add` CLI for new ones      |
-| Avatar               | `avatar.tsx`, `lx-avatar.tsx`                                                              | User/org avatars with/without presence |
-| Badge                | `badge.tsx`                                                                                | Inline status/tag indicator            |
-| Brand icon           | `brand-icon.tsx`                                                                           | SVG brand icon component               |
-| Button               | `button.tsx`                                                                               | Primary/secondary/ghost variants       |
-| Card                 | `card.tsx`                                                                                 | Content containers                     |
-| Checkbox             | `checkbox.tsx`                                                                             | Form checkbox                          |
-| City combobox        | `city-combobox.tsx`                                                                        | City search autocomplete               |
-| City pill            | `city-pill.tsx`                                                                            | Compact touch-friendly city label      |
-| Command palette      | `command.tsx`                                                                              | Cmd-k / search overlay                 |
-| Contribution graph   | `contribution-graph.tsx`                                                                   | Activity heatmap                       |
-| Dialog               | `dialog.tsx`                                                                               | Modal dialogs                          |
-| Dot map              | `dot-map.tsx`                                                                              | Geographic scatter plot                |
-| Dropdown menu        | `dropdown-menu.tsx`                                                                        | Context menus                          |
-| Empty state          | `empty-state.tsx`                                                                          | No-data/error placeholder              |
-| Form controls        | `input.tsx`, `textarea.tsx`, `select.tsx`, `radio-group.tsx`, `switch.tsx`, `checkbox.tsx` | Inputs, selects, toggles               |
-| Language dot         | `lang-dot.tsx`                                                                             | Programming language indicator         |
-| Loading skeleton     | `skeleton.tsx`                                                                             | Content placeholder                    |
-| Logo                 | `logo.tsx`                                                                                 | App logo                               |
-| Popover              | `popover.tsx`                                                                              | Floating panels                        |
-| Project card         | `project-card.tsx`                                                                         | Repo/project display card              |
-| Scroll area          | `scroll-area.tsx`                                                                          | Custom scroll container                |
-| Separator            | `separator.tsx`                                                                            | Visual divider                         |
-| Sheet                | `sheet.tsx`                                                                                | Slide-over panel                       |
-| Sonner toast         | `sonner.tsx`                                                                               | Toast notification wrapper             |
-| Status pill          | `status-pill.tsx`                                                                          | Build/activity status indicator        |
-| Tabs                 | `tabs.tsx`                                                                                 | Tabbed content sections                |
-| Tooltip              | `tooltip.tsx`                                                                              | Hover/focus tooltip                    |
+| Task                 | File                                                                                       | Notes                                                                   |
+| -------------------- | ------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------- |
+| Add shadcn component | `ui/<name>.tsx`                                                                            | Use `shadcn add` CLI for new ones                                       |
+| Avatar               | `avatar.tsx`, `lx-avatar.tsx`                                                              | User/org avatars with/without presence                                  |
+| Badge                | `badge.tsx`                                                                                | Inline status/tag indicator                                             |
+| Brand icon           | `brand-icon.tsx`                                                                           | SVG brand icon component                                                |
+| Button               | `button.tsx`                                                                               | Primary/secondary/ghost variants                                        |
+| Card                 | `card.tsx`                                                                                 | Content containers                                                      |
+| Checkbox             | `checkbox.tsx`                                                                             | Form checkbox                                                           |
+| City combobox        | `city-combobox.tsx`                                                                        | City search autocomplete                                                |
+| City pill            | `city-pill.tsx`                                                                            | Compact touch-friendly city label                                       |
+| Command palette      | `command.tsx`                                                                              | Cmd-k / search overlay                                                  |
+| Contribution graph   | `contribution-graph.tsx`                                                                   | Activity heatmap                                                        |
+| Dialog               | `dialog.tsx`                                                                               | Modal dialogs                                                           |
+| Dot map              | `dot-map.tsx`                                                                              | Geographic scatter plot                                                 |
+| Dropdown menu        | `dropdown-menu.tsx`                                                                        | Context menus                                                           |
+| Empty state          | `empty-state.tsx`                                                                          | No-data/error placeholder                                               |
+| Form controls        | `input.tsx`, `textarea.tsx`, `select.tsx`, `radio-group.tsx`, `switch.tsx`, `checkbox.tsx` | Inputs, selects, toggles                                                |
+| Language dot         | `lang-dot.tsx`                                                                             | Programming language indicator                                          |
+| Language bar         | `language-bar.tsx`                                                                         | GitHub-style horizontal language proportion bar with per-language tints |
+| Loading skeleton     | `skeleton.tsx`                                                                             | Content placeholder                                                     |
+| Logo                 | `logo.tsx`                                                                                 | App logo                                                                |
+| Popover              | `popover.tsx`                                                                              | Floating panels                                                         |
+| Project card         | `project-card.tsx`                                                                         | Repo/project display card                                               |
+| Scroll area          | `scroll-area.tsx`                                                                          | Custom scroll container                                                 |
+| Separator            | `separator.tsx`                                                                            | Visual divider                                                          |
+| Sheet                | `sheet.tsx`                                                                                | Slide-over panel                                                        |
+| Sonner toast         | `sonner.tsx`                                                                               | Toast notification wrapper                                              |
+| Status pill          | `status-pill.tsx`                                                                          | Build/activity status indicator                                         |
+| Tabs                 | `tabs.tsx`                                                                                 | Tabbed content sections                                                 |
+| Tooltip              | `tooltip.tsx`                                                                              | Hover/focus tooltip                                                     |
 
 ## CONVENTIONS
 

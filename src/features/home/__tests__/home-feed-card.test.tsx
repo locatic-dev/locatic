@@ -186,4 +186,38 @@ describe('HomeFeedCard helpers', () => {
 
     expect(html).not.toContain('Like avi/test-1')
   })
+
+  it('does not render the retired stacked-card wrapper for grouped cards', () => {
+    const singleton = feedItem({
+      eventCount: 1,
+      previewTargets: [{ ...projectTarget(1), isOpenable: false }],
+    })
+    const grouped = feedItem({
+      eventCount: 2,
+      previewTargets: [
+        { ...projectTarget(1), isOpenable: false },
+        { ...projectTarget(2), isOpenable: false },
+      ],
+    })
+
+    const singletonHtml = renderToStaticMarkup(
+      <HomeFeedCard
+        item={singleton}
+        likedProjectIds={new Set()}
+        pendingLikes={new Set()}
+        onLikeProject={() => undefined}
+      />,
+    )
+    const groupedHtml = renderToStaticMarkup(
+      <HomeFeedCard
+        item={grouped}
+        likedProjectIds={new Set()}
+        pendingLikes={new Set()}
+        onLikeProject={() => undefined}
+      />,
+    )
+
+    expect(singletonHtml).not.toContain('lx-card-stack')
+    expect(groupedHtml).not.toContain('lx-card-stack')
+  })
 })

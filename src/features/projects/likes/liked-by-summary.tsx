@@ -73,7 +73,7 @@ export function LikedBySummary({
 
   const content = (
     <>
-      <span className="flex items-center">
+      <span className="flex shrink-0 items-center">
         {stack.map((user, index) => (
           <LxAvatar
             key={String(user.userId)}
@@ -84,7 +84,7 @@ export function LikedBySummary({
           />
         ))}
       </span>
-      <span className="text-text-muted">
+      <span className="min-w-0 truncate text-text-muted">
         <span className="text-text-faint">liked by</span> {summary}
       </span>
     </>
@@ -93,7 +93,7 @@ export function LikedBySummary({
   if (!canExpand) {
     return (
       <div className="mb-5 flex flex-wrap items-center gap-2.5 font-mono text-[11.5px]">
-        <span className="flex items-center">
+        <span className="flex shrink-0 items-center">
           {stack.map((user, index) => (
             <LxAvatar
               key={String(user.userId)}
@@ -104,22 +104,22 @@ export function LikedBySummary({
             />
           ))}
         </span>
-        <span className="text-text-faint">liked by</span>
-        <span className="flex flex-wrap items-center gap-x-1 text-text-muted">
+        <span className="flex min-w-0 flex-wrap items-baseline text-text-muted">
+          <span className="mr-1 text-text-faint">liked by</span>
           {namedUsers.map((user, index) => (
             <span
               key={String(user.userId)}
-              className="inline-flex items-center"
+              className="inline-flex max-w-full items-baseline"
             >
               {index > 0 && (
-                <span aria-hidden="true" className="text-text-faint">
+                <span aria-hidden="true" className="mr-1 text-text-faint">
                   ,
                 </span>
               )}
               <button
                 type="button"
                 onClick={() => onOpenProfile(user.githubUsername)}
-                className="-my-2 inline-flex min-h-11 items-center rounded-md bg-transparent px-1.5 text-left text-text-muted transition-colors hover:text-text"
+                className="relative max-w-[14ch] truncate rounded-md bg-transparent text-left text-text-muted transition-colors after:absolute after:-inset-x-1 after:-inset-y-2 after:content-[''] hover:text-text"
                 aria-label={`Open ${user.displayName}'s profile`}
               >
                 {user.displayName}
@@ -136,7 +136,7 @@ export function LikedBySummary({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="mb-5 flex min-h-11 flex-wrap items-center gap-2.5 rounded-md bg-transparent font-mono text-[11.5px] transition-colors hover:[&_span]:text-text"
+        className="mb-5 flex min-h-11 w-full max-w-full items-center gap-2.5 rounded-md bg-transparent font-mono text-[11.5px] transition-colors hover:[&_span]:text-text"
         aria-label={`View all ${compactNumber(likesCount)} people who liked this project`}
       >
         {content}

@@ -245,7 +245,7 @@ export function ExploreFeed({
                       post.projectSnapshot.fullName,
                     repo: post.projectSnapshot.name,
                   }}
-                  search={{ comment: null, post: String(post._id) }}
+                  search={{ post: String(post._id) }}
                   hash={`post-${String(post._id)}`}
                   preload="intent"
                   className="min-w-0 flex-1 px-4 py-3.5 text-left"

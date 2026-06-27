@@ -100,6 +100,34 @@ describe('ProjectCard', () => {
 
     expect(screen.getByText('TypeScript')).toBeTruthy()
     expect(container.innerHTML).not.toContain('w-[3px]')
+    // No colored left/right side stripe (impeccable ban).
+    expect(container.innerHTML).not.toContain('border-l-2')
+    expect(container.innerHTML).not.toContain('border-r-2')
+  })
+
+  it('renders a language proportion bar with an accessible label', () => {
+    render(
+      <ProjectCard
+        project={{
+          ...project,
+          lang: undefined,
+          languages: [
+            { name: 'TypeScript', bytes: 800 },
+            { name: 'CSS', bytes: 200 },
+          ],
+        }}
+      />,
+    )
+
+    expect(screen.getByText(/TypeScript 80%/)).toBeTruthy()
+    expect(screen.getByText(/CSS 20%/)).toBeTruthy()
+  })
+
+  it('renders a single full language segment when only one language', () => {
+    render(<ProjectCard project={project} />)
+
+    // The default project has a single language (TypeScript) -> 100% segment.
+    expect(screen.getByText(/TypeScript 100%/)).toBeTruthy()
   })
 
   it('does not render a recommendation badge from legacy card data', () => {

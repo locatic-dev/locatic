@@ -4,6 +4,7 @@ import { readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 
 const VALID_TARGET_TYPES = new Set(['project', 'post', 'comment'])
+const HEX_COLOR_RE = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/
 
 function parseArgs(argv) {
   const args = {
@@ -33,8 +34,17 @@ function assertReaction(value) {
     throw new Error(`Reaction ${value.key} is missing label`)
   }
 
-  if (typeof value.icon !== 'string' || value.icon.trim().length === 0) {
-    throw new Error(`Reaction ${value.key} is missing icon`)
+  if (typeof value.emoji !== 'string' || value.emoji.trim().length === 0) {
+    throw new Error(`Reaction ${value.key} is missing emoji`)
+  }
+
+  if (typeof value.color !== 'string' || value.color.trim().length === 0) {
+    throw new Error(`Reaction ${value.key} is missing color`)
+  }
+  if (!HEX_COLOR_RE.test(value.color.trim())) {
+    throw new Error(
+      `Reaction ${value.key} color must be a hex color like #f2555f`,
+    )
   }
 
   if (!Array.isArray(value.targetTypes) || value.targetTypes.length === 0) {
@@ -50,7 +60,8 @@ function assertReaction(value) {
   return {
     key: value.key.trim(),
     label: value.label.trim(),
-    icon: value.icon.trim(),
+    emoji: value.emoji.trim(),
+    color: value.color.trim(),
     targetTypes: [...new Set(value.targetTypes)],
     isActive: value.isActive !== false,
     sortOrder: Number(value.sortOrder),
@@ -62,7 +73,8 @@ function formatSeedFile(reactions) {
     (reaction) => `  {
     key: '${reaction.key}',
     label: ${JSON.stringify(reaction.label)},
-    icon: '${reaction.icon}',
+    emoji: ${JSON.stringify(reaction.emoji)},
+    color: '${reaction.color}',
     targetTypes: ${JSON.stringify(reaction.targetTypes)},
     isActive: ${reaction.isActive},
     sortOrder: ${reaction.sortOrder},
@@ -72,7 +84,8 @@ function formatSeedFile(reactions) {
   return `export type SeedReaction = {
   key: string
   label: string
-  icon: string
+  emoji: string
+  color: string
   targetTypes: Array<'project' | 'post' | 'comment'>
   isActive: boolean
   sortOrder: number

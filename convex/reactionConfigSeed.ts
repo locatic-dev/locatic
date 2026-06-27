@@ -1,7 +1,8 @@
 export type SeedReaction = {
   key: string
   label: string
-  icon: string
+  emoji: string
+  color: string
   targetTypes: Array<'project' | 'post' | 'comment'>
   isActive: boolean
   sortOrder: number
@@ -11,7 +12,8 @@ export const DEFAULT_REACTIONS: SeedReaction[] = [
   {
     key: 'like',
     label: 'Like',
-    icon: 'heart-filled',
+    emoji: '❤️',
+    color: '#f2555f',
     targetTypes: ['project', 'post', 'comment'],
     isActive: true,
     sortOrder: 10,
@@ -19,7 +21,8 @@ export const DEFAULT_REACTIONS: SeedReaction[] = [
   {
     key: 'rocket',
     label: 'Launch',
-    icon: 'rocket',
+    emoji: '🚀',
+    color: '#a78bfa',
     targetTypes: ['project', 'post', 'comment'],
     isActive: true,
     sortOrder: 30,
@@ -27,7 +30,8 @@ export const DEFAULT_REACTIONS: SeedReaction[] = [
   {
     key: 'fire',
     label: 'Fire',
-    icon: 'flame',
+    emoji: '🔥',
+    color: '#fbbf24',
     targetTypes: ['project', 'post', 'comment'],
     isActive: true,
     sortOrder: 40,
@@ -35,7 +39,8 @@ export const DEFAULT_REACTIONS: SeedReaction[] = [
   {
     key: 'eyes',
     label: 'Watching',
-    icon: 'eye',
+    emoji: '👀',
+    color: '#60a5fa',
     targetTypes: ['project', 'post', 'comment'],
     isActive: true,
     sortOrder: 50,
@@ -43,7 +48,8 @@ export const DEFAULT_REACTIONS: SeedReaction[] = [
   {
     key: 'celebrate',
     label: 'Celebrate',
-    icon: 'party-popper',
+    emoji: '🎉',
+    color: '#f472b6',
     targetTypes: ['project', 'post', 'comment'],
     isActive: true,
     sortOrder: 60,

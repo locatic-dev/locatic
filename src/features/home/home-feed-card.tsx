@@ -125,14 +125,13 @@ export function getHomeFeedTargetRoute(
   if (target.kind === 'post') {
     return {
       params: { owner: project.owner, repo: project.repo },
-      search: { comment: null, post: String(target.postId) },
+      search: { post: String(target.postId) },
       to: '/project/$owner/$repo' as const,
     }
   }
 
   return {
     params: { owner: project.owner, repo: project.repo },
-    search: { comment: null },
     to: '/project/$owner/$repo' as const,
   }
 }
@@ -152,6 +151,22 @@ function iconForTarget(target: HomeFeedTarget) {
   }
 }
 
+/** Restrained per-kind tint for the grouped-row icon tile (content signal). */
+function targetKindAccent(kind: HomeFeedTarget['kind']): string {
+  switch (kind) {
+    case 'project':
+      return 'var(--lx-accent)'
+    case 'post':
+      return '#60a5fa'
+    case 'comment':
+      return '#a78bfa'
+    case 'profile':
+      return '#34d399'
+    case 'pull_request':
+      return '#fbbf24'
+  }
+}
+
 function ProjectMeta({
   target,
 }: {
@@ -166,7 +181,7 @@ function ProjectMeta({
         : []
 
   return (
-    <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[10.5px] text-text-faint">
+    <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[11px] text-text-muted">
       {languages.slice(0, 2).map((language) => (
         <span key={language.name} className="inline-flex items-center gap-1.5">
           <LangDot lang={language.name} />
@@ -441,9 +456,14 @@ function TargetRow({
     >
       {!lean && (
         <span
+          style={
+            target.isOpenable === false
+              ? undefined
+              : { color: targetKindAccent(target.kind) }
+          }
           className={cn(
-            'flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-line bg-canvas text-text-faint',
-            target.isOpenable === false && 'border-dashed',
+            'flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-line bg-canvas',
+            target.isOpenable === false && 'border-dashed text-text-faint',
           )}
         >
           <Icon size={15} strokeWidth={1.6} />
@@ -532,7 +552,6 @@ export function HomeFeedCard({
   const showCommentMore =
     remainingCount > 0 && isCommentGroup(item) && Boolean(commentMoreRoute)
   const showExpand = remainingCount > 0 && hasStoredTargetsToExpand
-
   return (
     <article className="lx-card @container overflow-hidden rounded-card border border-line bg-surface">
       <header className="flex min-w-0 items-start gap-3 px-4 py-4 sm:px-5">

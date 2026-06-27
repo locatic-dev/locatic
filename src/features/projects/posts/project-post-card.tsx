@@ -69,6 +69,7 @@ export function ProjectPostCard({
   const commentLoadAttemptsRef = useRef(0)
   const commentLoadTargetRef = useRef<string | null>(null)
   const commentRefs = useRef<Record<string, HTMLElement | null>>({})
+  const scrolledHighlightRef = useRef<string | null>(null)
   const {
     expand: expandCommentThread,
     expandedIds,
@@ -126,8 +127,13 @@ export function ProjectPostCard({
     }
   }, [activeHighlightedCommentId, expandCommentThread, highlightedCommentPath])
 
+  // Scroll the highlighted comment into view ONCE; the ref guard prevents
+  // re-centering on every reply expand/collapse (which fought the user).
   useEffect(() => {
     if (!activeHighlightedCommentId) {
+      return
+    }
+    if (scrolledHighlightRef.current === activeHighlightedCommentId) {
       return
     }
 
@@ -136,6 +142,7 @@ export function ProjectPostCard({
       return
     }
 
+    scrolledHighlightRef.current = activeHighlightedCommentId
     commentElement.scrollIntoView({
       behavior: 'smooth',
       block: 'center',

@@ -17,8 +17,7 @@ vi.mock('convex/react', () => ({
     {
       key: 'like',
       label: 'Like',
-      emoji: 'heart',
-      icon: 'heart-filled',
+      emoji: '❤️',
     },
   ],
 }))
