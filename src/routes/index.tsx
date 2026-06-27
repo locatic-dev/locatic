@@ -1,14 +1,12 @@
 import { createFileRoute, Link, redirect } from '@tanstack/react-router'
 import { cn } from '@/lib/utils'
-import { Logo } from '@/components/ui/logo'
 import { DotMap } from '@/components/ui/dot-map'
 import { BrandIcon } from '@/components/ui/brand-icon'
+import { PublicHeader } from '@/components/app-shell/public-header'
+import { PublicFooter } from '@/components/app-shell/public-footer'
 import { ArrowRight, Star, Heart, MessageSquare, MapPin } from '@/lib/icons'
 import { viewerQueryOptions } from '@/features/viewer/queries'
 import type { ViewerBootstrapPayload } from '@/features/contracts'
-
-const footerLinkClassName =
-  'inline-flex min-h-11 items-center text-text-faint no-underline transition-colors hover:text-text focus-visible:text-text'
 
 export const Route = createFileRoute('/')({
   beforeLoad: async ({ context }) => {
@@ -28,34 +26,7 @@ export const Route = createFileRoute('/')({
 function LandingPage() {
   return (
     <div className="relative min-h-dvh overflow-x-clip bg-canvas text-text">
-      {/* Nav */}
-      <header className="relative z-2 flex min-h-16 flex-wrap items-center justify-between gap-4 border-b border-line px-(--lx-gutter) py-4">
-        <div className="flex items-center gap-2.5">
-          <Logo size={32} />
-          <span className="font-mono text-base font-bold tracking-[-0.02em]">
-            locatic
-          </span>
-          <span className="ml-1 rounded-[3px] border border-line px-1.5 py-0.5 font-mono text-[10.5px] leading-none text-text-faint">
-            v0.1 · beta
-          </span>
-        </div>
-        <nav className="flex flex-wrap items-center gap-3 font-mono text-[12.5px] text-text-muted">
-          <a
-            href="https://github.com"
-            className="text-inherit no-underline transition-colors hover:text-text"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            github
-          </a>
-          <Link
-            to="/sign-in/$"
-            className="inline-flex min-h-11 items-center rounded-control border border-line-strong bg-surface-alt px-3.5 py-2 font-mono text-[12.5px] text-text no-underline transition-colors hover:border-line-strong hover:bg-surface"
-          >
-            sign in
-          </Link>
-        </nav>
-      </header>
+      <PublicHeader />
 
       {/* Dot map background */}
       <div
@@ -194,30 +165,7 @@ function LandingPage() {
         ))}
       </section>
 
-      {/* Footer */}
-      <footer className="border-t border-line px-(--lx-gutter) py-7 text-center font-mono text-[11.5px] text-text-faint">
-        <nav className="flex flex-wrap items-center justify-center gap-x-5 gap-y-1">
-          <a
-            href="mailto:contact@locatic.dev"
-            className={footerLinkClassName}
-            aria-label="Email Locatic at contact@locatic.dev"
-          >
-            contact
-          </a>
-          <a
-            href="https://github.com"
-            className={footerLinkClassName}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            github
-          </a>
-        </nav>
-        <div className="mt-3">built for developers</div>
-        <div className="mt-2 opacity-70">
-          locatic · {new Date().getFullYear()}
-        </div>
-      </footer>
+      <PublicFooter />
     </div>
   )
 }
