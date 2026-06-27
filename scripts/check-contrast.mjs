@@ -51,8 +51,8 @@ function contrastRatio(fgLinear, bgLinear) {
 // ── Token values (keep in sync with src/styles.css) ─────────────────────────
 const tokens = {
   canvas: { L: 0.135, C: 0.007, h: 230 },
-  surface: { L: 0.185, C: 0.008, h: 230 },
-  surfaceRaised: { L: 0.225, C: 0.01, h: 230 },
+  surface: { L: 0.2, C: 0.008, h: 230 },
+  surfaceRaised: { L: 0.24, C: 0.01, h: 230 },
   textPrimary: { L: 0.93, C: 0.005, h: 230 },
   textSecondary: { L: 0.68, C: 0.006, h: 230 },
   textTertiary: { L: 0.57, C: 0.006, h: 230 },
@@ -62,7 +62,7 @@ const tokens = {
   selectedFill: { L: 0.72, C: 0.15, h: 195, alpha: 0.1 },
   surfaceAccent: { L: 0.72, C: 0.15, h: 195, alpha: 0.06 },
   outgoingSurface: { L: 0.72, C: 0.15, h: 195, alpha: 0.16 },
-  liked: { L: 0.62, C: 0.22, h: 25 },
+  liked: { L: 0.64, C: 0.21, h: 25 },
 }
 
 const opaque = (t) => oklchToLinearSrgb(t.L, t.C, t.h)

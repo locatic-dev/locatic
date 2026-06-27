@@ -53,6 +53,7 @@ import { removeReplyDraft } from '@/features/projects/comments/drafts'
 import { useCommentThreadState } from '@/features/projects/comments/use-comment-thread-state'
 import type { ProjectCommentView } from '@/features/projects/comments/types'
 import { ProjectReadmeSection } from '@/features/projects/readme/project-readme-section'
+import { ProjectReleasesSection } from '@/features/projects/releases/project-releases-section'
 import { ProjectPostsSection } from '@/features/projects/posts/project-posts-section'
 import { LikedBySummary } from '@/features/projects/likes/liked-by-summary'
 import {
@@ -62,9 +63,14 @@ import {
 } from '@/components/app-shell/route-pending'
 import {
   getCommentExpansionPath,
+  getActiveHighlightedCommentId,
   getProjectDeepLinkTab,
+  normalizeProjectSearchParam,
   parseCommentPathSearch,
   shouldAutoLoadDeepLinkPage,
+  shouldResetReleasedHighlight,
+  shouldSyncProjectTab,
+  stripProjectCommentSearch,
   type ProjectTab,
 } from '@/features/projects/deep-link'
 
@@ -106,14 +112,19 @@ function updateProjectFollowPayload(
 }
 
 export const Route = createFileRoute('/_app/project/$owner/$repo')({
-  validateSearch: (search: Record<string, unknown>) => ({
-    comment: typeof search.comment === 'string' ? search.comment : null,
-    ...(typeof search.commentPath === 'string'
-      ? { commentPath: search.commentPath }
-      : {}),
-    ...(typeof search.post === 'string' ? { post: search.post } : {}),
-    ...(typeof search.thread === 'string' ? { thread: search.thread } : {}),
-  }),
+  validateSearch: (search: Record<string, unknown>) => {
+    const comment = normalizeProjectSearchParam(search.comment)
+    const commentPath = normalizeProjectSearchParam(search.commentPath)
+    const post = normalizeProjectSearchParam(search.post)
+    const thread = normalizeProjectSearchParam(search.thread)
+
+    return {
+      ...(comment ? { comment } : {}),
+      ...(commentPath ? { commentPath } : {}),
+      ...(post ? { post } : {}),
+      ...(thread ? { thread } : {}),
+    }
+  },
   loader: async ({ context, location, params }) => {
     const payload = await context.queryClient.ensureQueryData(
       projectDetailQueryOptions({
@@ -135,14 +146,18 @@ export const Route = createFileRoute('/_app/project/$owner/$repo')({
         post?: string
         thread?: string
       }
+      const comment = normalizeProjectSearchParam(search.comment)
+      const commentPath = normalizeProjectSearchParam(search.commentPath)
+      const post = normalizeProjectSearchParam(search.post)
+      const thread = normalizeProjectSearchParam(search.thread)
       throw redirect({
         hash: location.hash,
         params: canonicalRoute,
         search: {
-          comment: search.comment ?? null,
-          ...(search.commentPath ? { commentPath: search.commentPath } : {}),
-          ...(search.post ? { post: search.post } : {}),
-          ...(search.thread ? { thread: search.thread } : {}),
+          ...(comment ? { comment } : {}),
+          ...(commentPath ? { commentPath } : {}),
+          ...(post ? { post } : {}),
+          ...(thread ? { thread } : {}),
         },
         to: '/project/$owner/$repo',
       })
@@ -157,7 +172,7 @@ export const Route = createFileRoute('/_app/project/$owner/$repo')({
 function ProjectDetailPage() {
   const { owner, repo } = Route.useParams()
   const routeSearch = Route.useSearch()
-  const highlightedCommentId = routeSearch.comment
+  const highlightedCommentId = routeSearch.comment ?? null
   const highlightedCommentPath =
     'commentPath' in routeSearch
       ? parseCommentPathSearch(routeSearch.commentPath)
@@ -167,6 +182,7 @@ function ProjectDetailPage() {
   const highlightedThreadId =
     'thread' in routeSearch ? (routeSearch.thread ?? null) : null
   const router = useRouter()
+  const navigate = Route.useNavigate()
   const canGoBack = useCanGoBack()
   const { isSignedIn } = useAuth()
   const convexAuth = useConvexAuth()
@@ -217,10 +233,17 @@ function ProjectDetailPage() {
   const [replyingToId, setReplyingToId] = useState<string | null>(null)
   const [hashCommentId, setHashCommentId] = useState<string | null>(null)
   const [hashPostId, setHashPostId] = useState<string | null>(null)
+  // Once a deep-linked comment has flashed, it is "released" to a normal,
+  // fully-interactive comment so toggling replies no longer fights the user.
+  const [releasedHighlightId, setReleasedHighlightId] = useState<string | null>(
+    null,
+  )
   const [activeProjectTab, setActiveProjectTab] = useState<ProjectTab>('readme')
   const projectCommentLoadAttemptsRef = useRef(0)
   const projectCommentLoadTargetRef = useRef<string | null>(null)
+  const didSyncInitialProjectTabRef = useRef(false)
   const commentRefs = useRef<Record<string, HTMLElement | null>>({})
+  const scrolledHighlightRef = useRef<string | null>(null)
   const {
     expand: expandCommentThread,
     expandedIds,
@@ -552,7 +575,11 @@ function ProjectDetailPage() {
     return () => window.removeEventListener('hashchange', syncHashComment)
   }, [])
 
-  const activeHighlightedCommentId = highlightedCommentId ?? hashCommentId
+  const rawHighlightedCommentId = highlightedCommentId ?? hashCommentId
+  const activeHighlightedCommentId = getActiveHighlightedCommentId({
+    rawHighlightedCommentId,
+    releasedHighlightId,
+  })
   const activeHighlightedPostId = highlightedPostId ?? hashPostId
   const commentExpansionPath = getCommentExpansionPath({
     commentPath: highlightedCommentPath,
@@ -560,8 +587,36 @@ function ProjectDetailPage() {
   })
 
   useEffect(() => {
-    setActiveProjectTab(defaultProjectTab)
-  }, [defaultProjectTab])
+    if (
+      shouldResetReleasedHighlight({
+        rawHighlightedCommentId,
+        releasedHighlightId,
+      })
+    ) {
+      setReleasedHighlightId(null)
+    }
+  }, [rawHighlightedCommentId, releasedHighlightId])
+
+  useEffect(() => {
+    const hasActiveDeepLinkTarget = Boolean(
+      highlightedCommentId ?? highlightedPostId ?? hashCommentId ?? hashPostId,
+    )
+    if (
+      shouldSyncProjectTab({
+        hasActiveDeepLinkTarget,
+        hasSyncedInitialTab: didSyncInitialProjectTabRef.current,
+      })
+    ) {
+      setActiveProjectTab(defaultProjectTab)
+      didSyncInitialProjectTabRef.current = true
+    }
+  }, [
+    defaultProjectTab,
+    hashCommentId,
+    hashPostId,
+    highlightedCommentId,
+    highlightedPostId,
+  ])
 
   useEffect(() => {
     if (activeHighlightedPostId) {
@@ -606,8 +661,14 @@ function ProjectDetailPage() {
     comments,
   ])
 
+  // Scroll the highlighted comment into view ONCE. Keeping comments.length in
+  // deps lets us retry until the element mounts, but the ref guard ensures we
+  // do not re-center on every reply expand/collapse.
   useEffect(() => {
     if (!activeHighlightedCommentId) {
+      return
+    }
+    if (scrolledHighlightRef.current === activeHighlightedCommentId) {
       return
     }
 
@@ -616,11 +677,38 @@ function ProjectDetailPage() {
       return
     }
 
+    scrolledHighlightRef.current = activeHighlightedCommentId
     commentElement.scrollIntoView({
       behavior: 'smooth',
       block: 'center',
     })
   }, [activeHighlightedCommentId, comments.length])
+
+  // Flash the highlight briefly, then release it and strip the deep-link params
+  // so a refresh does not re-highlight and the comment becomes fully normal.
+  useEffect(() => {
+    if (!activeHighlightedCommentId) {
+      return
+    }
+
+    const target = activeHighlightedCommentId
+    const prefersReducedMotion =
+      typeof window !== 'undefined' &&
+      window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    const timer = window.setTimeout(
+      () => {
+        setReleasedHighlightId(target)
+        void navigate({
+          replace: true,
+          hash: '',
+          search: stripProjectCommentSearch,
+        })
+      },
+      prefersReducedMotion ? 0 : 1800,
+    )
+
+    return () => window.clearTimeout(timer)
+  }, [activeHighlightedCommentId, navigate])
 
   const languages =
     detail.project.github.languages &&
@@ -928,45 +1016,7 @@ function ProjectDetailPage() {
             </TabsContent>
 
             <TabsContent value="releases" className="mt-0">
-              <div className="rounded-[6px] border border-line bg-surface p-4.5">
-                {detail.releases.length === 0 ? (
-                  <div className="font-sans text-[13px] text-text-muted">
-                    no github releases imported yet.
-                  </div>
-                ) : (
-                  detail.releases.map((release) => (
-                    <article
-                      key={String(release._id)}
-                      className="border-b border-line py-4 last:border-b-0"
-                    >
-                      <div className="mb-1 flex flex-wrap items-center gap-2 font-mono text-xs font-semibold text-text">
-                        <a
-                          href={release.htmlUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-text no-underline hover:text-brand"
-                        >
-                          {release.name || release.tagName}
-                        </a>
-                        {release.isPrerelease ? (
-                          <span className="text-text-muted">pre-release</span>
-                        ) : null}
-                      </div>
-                      <div className="mb-2 font-mono text-[12px] text-text-faint">
-                        {release.tagName}
-                        {release.publishedAt
-                          ? ` · ${relativeTime(release.publishedAt)}`
-                          : ''}
-                      </div>
-                      {release.body ? (
-                        <div className="font-sans text-[13px] leading-6 text-text-muted">
-                          {release.body}
-                        </div>
-                      ) : null}
-                    </article>
-                  ))
-                )}
-              </div>
+              <ProjectReleasesSection releases={detail.releases} />
             </TabsContent>
 
             <TabsContent

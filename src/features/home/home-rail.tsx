@@ -61,7 +61,6 @@ export function HomePulseRail() {
                 <Link
                   to="/project/$owner/$repo"
                   params={{ owner: snapshot.ownerLogin, repo: snapshot.name }}
-                  search={{ comment: null }}
                   className="-mx-2 flex items-center gap-2.5 rounded-md px-2 py-2 transition-colors hover:bg-surface-raised"
                 >
                   <span className="w-4 shrink-0 text-right font-mono text-[11px] text-text-faint">

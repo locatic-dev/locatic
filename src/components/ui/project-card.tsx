@@ -3,6 +3,7 @@ import type { KeyboardEvent, MouseEvent } from 'react'
 import { Star, Heart, MessageSquare, X, GitFork } from '@/lib/icons'
 import { LxAvatar } from './lx-avatar'
 import { LangDot, langColor } from './lang-dot'
+import { LanguageBar } from './language-bar'
 import { CityPill } from './city-pill'
 import { Button } from './button'
 import { cn } from '@/lib/utils'
@@ -36,7 +37,7 @@ type ProjectCardProjectLink = {
   owner: string
   repo: string
   search?: {
-    comment: string | null
+    comment?: string
     post?: string
   }
   hash?: string
@@ -95,11 +96,12 @@ export function ProjectCard({
       : project.lang
         ? [{ name: project.lang, bytes: 0 }]
         : []
+  const primaryLanguage = languages[0]?.name
   const projectNavigateOptions = projectLink
     ? {
         to: '/project/$owner/$repo' as const,
         params: { owner: projectLink.owner, repo: projectLink.repo },
-        search: projectLink.search ?? { comment: null },
+        ...(projectLink.search ? { search: projectLink.search } : {}),
         hash: projectLink.hash,
       }
     : null
@@ -168,7 +170,7 @@ export function ProjectCard({
               <Link
                 to="/project/$owner/$repo"
                 params={{ owner: projectLink.owner, repo: projectLink.repo }}
-                search={projectLink.search ?? { comment: null }}
+                search={projectLink.search}
                 hash={projectLink.hash}
                 preload="intent"
                 aria-label={`Open ${projectLabel}`}
@@ -220,79 +222,75 @@ export function ProjectCard({
         )}
       </div>
 
-      {/* Identity + stat row */}
-      <div
-        className={cn(
-          'flex flex-wrap items-center justify-between gap-x-3.5 gap-y-2 font-mono text-[11.5px]',
-          compact ? 'gap-x-3' : 'gap-x-3.5',
-        )}
-      >
-        {/* Identity group: languages + recency + topics */}
-        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5 text-text-muted">
-          {languages.slice(0, 3).map((language, index) => (
-            <span
-              key={language.name}
-              className={cn(
-                'inline-flex items-center gap-1.5',
-                index === 0
-                  ? 'rounded-control border px-1.5 py-0.5 text-text-muted'
-                  : 'text-text-faint',
-              )}
-              style={
-                index === 0
-                  ? {
-                      background: `${langColor(language.name)}14`,
-                      borderColor: `${langColor(language.name)}66`,
-                    }
-                  : undefined
-              }
-            >
-              <LangDot lang={language.name} />
-              {language.name}
-            </span>
-          ))}
-          {project.lastCommitLabel && (
-            <span className="text-text-faint">{project.lastCommitLabel}</span>
+      {/* Identity + stat row, with the language proportion bar grouped beneath it */}
+      <div className="flex flex-col gap-2">
+        <div
+          className={cn(
+            'flex flex-wrap items-center justify-between gap-x-3.5 gap-y-2 font-mono text-[11.5px]',
+            compact ? 'gap-x-3' : 'gap-x-3.5',
           )}
-          {project.topics?.slice(0, 3).map((topic) => (
-            <span
-              key={topic}
-              className="rounded-control border border-line px-1.5 py-0.5 text-[10.5px] text-text-muted"
-            >
-              #{topic}
+        >
+          {/* Identity group: primary language + recency + topics */}
+          <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5 text-text-muted">
+            {primaryLanguage && (
+              <span
+                className="inline-flex items-center gap-1.5 rounded-control border px-1.5 py-0.5 text-text"
+                style={{
+                  background: `${langColor(primaryLanguage)}1f`,
+                  borderColor: `${langColor(primaryLanguage)}80`,
+                }}
+              >
+                <LangDot lang={primaryLanguage} />
+                {primaryLanguage}
+              </span>
+            )}
+            {project.lastCommitLabel && (
+              <span className="text-text-faint">{project.lastCommitLabel}</span>
+            )}
+            {project.topics?.slice(0, 3).map((topic) => (
+              <span
+                key={topic}
+                className="rounded-control border border-line px-1.5 py-0.5 text-[10.5px] text-text-muted"
+              >
+                #{topic}
+              </span>
+            ))}
+          </div>
+
+          {/* Stat group: stars · comments · forks · posts (likes live in the footer) */}
+          <div className="flex shrink-0 items-center gap-3 text-text-faint">
+            <span className="inline-flex items-center gap-1">
+              <Star size={11} strokeWidth={1.4} />
+              {project.githubStars.toLocaleString()}
             </span>
-          ))}
+            <button
+              onClick={onComment}
+              aria-label="Comments"
+              className="-my-3 inline-flex min-h-11 min-w-11 items-center justify-center gap-1 rounded-md border-none bg-transparent px-1 text-inherit transition-colors enabled:hover:text-text"
+              disabled={!onComment}
+              type="button"
+              data-project-card-action
+            >
+              <MessageSquare size={11} strokeWidth={1.4} />
+              {project.commentsCount}
+            </button>
+            {project.forksCount !== undefined && (
+              <span className="inline-flex items-center gap-1">
+                <GitFork size={11} strokeWidth={1.4} />
+                {project.forksCount.toLocaleString()}
+              </span>
+            )}
+            {project.postsCount !== undefined && project.postsCount > 0 && (
+              <span className="inline-flex items-center gap-1">
+                {project.postsCount} posts
+              </span>
+            )}
+          </div>
         </div>
 
-        {/* Stat group: stars · comments · forks · posts (likes live in the footer) */}
-        <div className="flex shrink-0 items-center gap-3 text-text-faint">
-          <span className="inline-flex items-center gap-1">
-            <Star size={11} strokeWidth={1.4} />
-            {project.githubStars.toLocaleString()}
-          </span>
-          <button
-            onClick={onComment}
-            aria-label="Comments"
-            className="-my-3 inline-flex min-h-11 min-w-11 items-center justify-center gap-1 rounded-md border-none bg-transparent px-1 text-inherit transition-colors enabled:hover:text-text"
-            disabled={!onComment}
-            type="button"
-            data-project-card-action
-          >
-            <MessageSquare size={11} strokeWidth={1.4} />
-            {project.commentsCount}
-          </button>
-          {project.forksCount !== undefined && (
-            <span className="inline-flex items-center gap-1">
-              <GitFork size={11} strokeWidth={1.4} />
-              {project.forksCount.toLocaleString()}
-            </span>
-          )}
-          {project.postsCount !== undefined && project.postsCount > 0 && (
-            <span className="inline-flex items-center gap-1">
-              {project.postsCount} posts
-            </span>
-          )}
-        </div>
+        {!compact && languages.length > 0 && (
+          <LanguageBar languages={languages} />
+        )}
       </div>
 
       {/* Author row */}

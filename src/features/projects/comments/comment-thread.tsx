@@ -124,7 +124,7 @@ export function CommentThread({
       }
     >
       <div
-        className={`min-w-0 rounded-[6px] transition-[opacity,transform] duration-200 motion-reduce:transition-none ${
+        className={`min-w-0 rounded-[6px] transition-[opacity,transform,background-color] duration-300 motion-reduce:transition-none ${
           highlighted ? 'bg-brand-quiet px-3 py-3' : ''
         } ${comment.pending ? 'opacity-70' : 'opacity-100'}`}
       >
