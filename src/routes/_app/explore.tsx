@@ -57,6 +57,7 @@ import {
   isExploreProjectFeedGlobal,
   normalizeExploreSearch,
   removeExploreCityId,
+  writeStoredExploreSearch,
 } from '@/features/explore/state'
 import { ExploreHeader } from '@/features/explore/components/explore-header'
 import { ExploreFeed } from '@/features/explore/components/explore-feed'
@@ -161,6 +162,7 @@ function ExplorePage() {
     defaultCityIds,
   )
   const selectedCityIds = effectiveSelectedCityIds as Array<Id<'cities'>>
+  const selectedCityIdsStorageKey = JSON.stringify(selectedCityIds)
   const viewerId = explorePrefs?.viewerId
   const currentScope = search.scope
   const currentMode = search.mode
@@ -213,6 +215,15 @@ function ExplorePage() {
     currentMode === 'posts' && debouncedSearchQuery.length > 0
   const isPostBrowseActive =
     currentMode === 'posts' && debouncedSearchQuery.length === 0
+
+  useEffect(() => {
+    writeStoredExploreSearch({
+      mode: currentMode,
+      q: search.q,
+      scope: currentScope,
+      selectedCityIds: JSON.parse(selectedCityIdsStorageKey) as string[],
+    })
+  }, [currentMode, currentScope, search.q, selectedCityIdsStorageKey])
 
   const selectedCitiesQuery = useQuery({
     ...citiesByIdsQueryOptions(selectedCityIds),
