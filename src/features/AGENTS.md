@@ -70,6 +70,7 @@ features/
 | Comment composer styles     | `projects/comments/composer-styles.ts`                          | `commentComposerTextareaClass` shared textarea style constant                                                                                                                                       |
 | Profile comment navigation  | `profile/comment-navigation.ts`                                 | `getProfileCommentDestination` builds deep-link with `comment`/`commentPath`/`thread`/`post` search params; `isCommentTargetOpenable` gates by `targetAvailability`                                 |
 | Project deep link           | `projects/deep-link.ts`                                         | `getProjectDeepLinkTab`, `parseCommentPathSearch`, `getCommentExpansionPath`, `shouldAutoLoadDeepLinkPage`; tab routing + comment expansion from URL search params                                  |
+| Settings form dirty check   | `settings/dirty.ts`, `settings/use-unsaved-changes-guard.ts`    | `getSettingsDirty` pure function + `getSettingsAccountStateFromViewer`/`getSettingsAccountStateFromForm`; `useUnsavedChangesGuard` via `useBlocker`                                                 |
 
 ## CONVENTIONS
 
@@ -101,6 +102,8 @@ features/
 - Deep link helpers: `normalizeProjectSearchParam` cleans raw search params; `stripProjectCommentSearch` strips `comment`/`commentPath`/`thread` from search for navigation cleanup; `shouldSyncProjectTab` controls tab sync gated on deep-link target
 - Reaction config migrated from `icon` slug to `emoji`+`color` fields; `convex/lib/reaction_config.ts` provides `normalizeReactionEmoji` and `sanitizeReactionConfigForWrite`
 - Project markdown rendering extracted to `projects/readme/markdown-prose.tsx`; shared between README section and releases section
+- Settings form dirty check: `getSettingsDirty` is a pure side-effect-free function comparing normalized `SettingsAccountFormState` against a persisted snapshot; `getSettingsAccountStateFromViewer`/`getSettingsAccountStateFromForm` handle normalization; trivially testable with no mocking
+- Settings unsaved changes guard: `useUnsavedChangesGuard(isDirty, allowNextNavigationRef?)` uses `@tanstack/react-router`'s `useBlocker` — covers in-app tab switches and native beforeunload
 
 ## ANTI-PATTERNS
 
