@@ -4,7 +4,7 @@ import {
   useQueryClient,
   useSuspenseQuery,
 } from '@tanstack/react-query'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Doc, Id } from '../../../convex/_generated/dataModel'
 import { privateProfileOverviewQueryOptions } from '@/features/profile/queries'
 import { viewerExplorePrefsQueryOptions } from '@/features/viewer/queries'
@@ -41,7 +41,14 @@ import {
   mapPrivateProfileOverview,
   type PrivateProfileOverviewPayload,
 } from '@/features/contracts'
-import { normalizeSocialLinkValue } from '@/lib/social-links'
+import { PrivacyVisibilitySettings } from '@/features/settings/privacy-visibility-settings'
+import {
+  getSettingsAccountStateFromForm,
+  getSettingsAccountStateFromViewer,
+  getSettingsDirty,
+  type SettingsAccountFormState,
+} from '@/features/settings/dirty'
+import { useUnsavedChangesGuard } from '@/features/settings/use-unsaved-changes-guard'
 
 export const Route = createFileRoute('/_app/settings')({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -75,11 +82,12 @@ const TABS = [
   { id: 'connected', label: 'connected accounts' },
   { id: 'danger', label: 'danger zone' },
 ] as const
+type SettingsTab = (typeof TABS)[number]['id']
 
-const fieldClassName = 'border-line bg-canvas font-sans text-text'
+const fieldClassName = 'border-line bg-surface font-sans text-text'
 const labelClassName = 'mb-1.5 block font-mono text-[11.5px] text-text-muted'
 const sectionTitleClassName =
-  'mb-4 font-mono text-[10.5px] font-semibold uppercase tracking-[0.06em] text-text-faint'
+  'mb-4 font-mono text-[10.5px] font-semibold uppercase tracking-[0.06em] text-text-muted'
 const settingsRowClassName =
   'flex items-center justify-between gap-4 border-b border-line py-3.5'
 
@@ -107,32 +115,28 @@ function SettingsPage() {
   const updateNotifPrefs = useUpdateNotificationPrefs()
   const deactivate = useDeactivateAccount()
   const deleteAccount = useDeleteAccount()
+  const viewerAccountState = getSettingsAccountStateFromViewer(profile.viewer)
 
   const [saved, setSaved] = useState(false)
-  const [displayName, setDisplayName] = useState('')
-  const [bio, setBio] = useState('')
-  const [buildStatus, setBuildStatus] = useState<BuildStatus>('building_solo')
-  const [selectedCityId, setSelectedCityId] = useState<Id<'cities'> | null>(
-    null,
+  const [displayName, setDisplayName] = useState(viewerAccountState.displayName)
+  const [bio, setBio] = useState(viewerAccountState.bio)
+  const [buildStatus, setBuildStatus] = useState<BuildStatus>(
+    viewerAccountState.buildStatus,
   )
-  const [selectedCityName, setSelectedCityName] = useState<string | null>(null)
-  const [twitter, setTwitter] = useState('')
-  const [linkedin, setLinkedin] = useState('')
-  const [bluesky, setBluesky] = useState('')
-  const [website, setWebsite] = useState('')
+  const [selectedCityId, setSelectedCityId] = useState<Id<'cities'> | null>(
+    (viewerAccountState.cityId as Id<'cities'> | null) ?? null,
+  )
+  const [selectedCityName, setSelectedCityName] = useState<string | null>(
+    profile.viewer.cityName,
+  )
+  const [twitter, setTwitter] = useState(viewerAccountState.twitter ?? '')
+  const [linkedin, setLinkedin] = useState(viewerAccountState.linkedin ?? '')
+  const [bluesky, setBluesky] = useState(viewerAccountState.bluesky ?? '')
+  const [website, setWebsite] = useState(viewerAccountState.website ?? '')
   const [saving, setSaving] = useState(false)
-
-  useEffect(() => {
-    setDisplayName(profile.viewer.displayName)
-    setBio(profile.viewer.bio)
-    setBuildStatus(profile.viewer.buildStatus)
-    setSelectedCityId(profile.viewer.cityId ?? null)
-    setSelectedCityName(profile.viewer.cityName)
-    setTwitter(profile.viewer.socialLinks.x ?? '')
-    setLinkedin(profile.viewer.socialLinks.linkedin ?? '')
-    setBluesky(profile.viewer.socialLinks.bluesky ?? '')
-    setWebsite(profile.viewer.socialLinks.website ?? '')
-  }, [data])
+  const [persistedAccountState, setPersistedAccountState] =
+    useState<SettingsAccountFormState>(viewerAccountState)
+  const allowNextNavigationRef = useRef(false)
 
   const cityResults =
     citySearch.trim().length > 0
@@ -140,23 +144,98 @@ function SettingsPage() {
         [])
       : ((popularCitiesQuery.data as Array<Doc<'cities'>> | undefined) ?? [])
 
+  const accountCurrent = getSettingsAccountStateFromForm({
+    displayName,
+    bio,
+    buildStatus,
+    cityId: selectedCityId ? String(selectedCityId) : null,
+    twitter,
+    linkedin,
+    bluesky,
+    website,
+  })
+  const isAccountDirty = getSettingsDirty(persistedAccountState, accountCurrent)
+
+  const resetAccountForm = (
+    nextState = persistedAccountState,
+    nextCityName = profile.viewer.cityName,
+  ) => {
+    setDisplayName(nextState.displayName)
+    setBio(nextState.bio)
+    setBuildStatus(nextState.buildStatus)
+    setSelectedCityId((nextState.cityId as Id<'cities'> | null) ?? null)
+    setSelectedCityName(nextCityName)
+    setTwitter(nextState.twitter ?? '')
+    setLinkedin(nextState.linkedin ?? '')
+    setBluesky(nextState.bluesky ?? '')
+    setWebsite(nextState.website ?? '')
+  }
+
+  useEffect(() => {
+    if (isAccountDirty) {
+      return
+    }
+
+    setPersistedAccountState(viewerAccountState)
+    resetAccountForm(viewerAccountState, profile.viewer.cityName)
+  }, [data])
+
+  useUnsavedChangesGuard(isAccountDirty, allowNextNavigationRef)
+
+  const handleSettingsTabChange = (nextTab: SettingsTab) => {
+    if (nextTab === tab) {
+      return
+    }
+
+    if (
+      tab === 'account' &&
+      isAccountDirty &&
+      !window.confirm('You have unsaved changes. Leave without saving?')
+    ) {
+      return
+    }
+
+    if (tab === 'account' && isAccountDirty) {
+      resetAccountForm()
+      allowNextNavigationRef.current = true
+    }
+
+    void navigate({
+      to: '/settings',
+      search: { tab: nextTab },
+    })
+  }
+
   const handleSaveAccount = async () => {
     setSaving(true)
 
     try {
-      await updateProfile({
-        displayName: displayName.trim(),
-        bio: bio.trim(),
-        cityId: selectedCityId,
+      const submittedAccountState = getSettingsAccountStateFromForm({
+        displayName,
+        bio,
         buildStatus,
+        cityId: selectedCityId ? String(selectedCityId) : null,
+        twitter,
+        linkedin,
+        bluesky,
+        website,
+      })
+
+      await updateProfile({
+        displayName: submittedAccountState.displayName,
+        bio: submittedAccountState.bio,
+        cityId: selectedCityId,
+        buildStatus: submittedAccountState.buildStatus,
         socialLinks: {
           github: profile.viewer.githubUsername,
-          x: normalizeSocialLinkValue('x', twitter),
-          linkedin: normalizeSocialLinkValue('linkedin', linkedin),
-          bluesky: normalizeSocialLinkValue('bluesky', bluesky),
-          website: normalizeSocialLinkValue('website', website),
+          x: submittedAccountState.twitter,
+          linkedin: submittedAccountState.linkedin,
+          bluesky: submittedAccountState.bluesky,
+          website: submittedAccountState.website,
         },
       })
+      setPersistedAccountState(submittedAccountState)
+      resetAccountForm(submittedAccountState, selectedCityName)
       await Promise.all([
         queryClient.invalidateQueries({
           queryKey: privateProfileOverviewQueryOptions().queryKey,
@@ -180,17 +259,12 @@ function SettingsPage() {
         <h1 className="mb-4 font-mono text-sm font-semibold text-text">
           settings
         </h1>
-        <nav className="flex gap-1 overflow-x-auto">
+        <nav className="lx-settings-tabs">
           {TABS.map((tabItem) => (
             <button
               key={tabItem.id}
-              onClick={() =>
-                void navigate({
-                  to: '/settings',
-                  search: { tab: tabItem.id },
-                })
-              }
-              className={`mb-px whitespace-nowrap border-b-2 px-1 pb-2.5 font-mono text-[12px] transition-colors ${
+              onClick={() => handleSettingsTabChange(tabItem.id)}
+              className={`-mb-px inline-flex min-h-11 items-end whitespace-nowrap border-b-2 px-2 pb-2.5 font-mono text-[12px] transition-colors ${
                 tab === tabItem.id
                   ? 'border-text font-semibold text-text'
                   : 'border-transparent text-text-muted hover:text-text'
@@ -205,7 +279,7 @@ function SettingsPage() {
 
       <div className="flex min-h-0 flex-1 flex-col">
         <div className="lx-page-scroll flex-1">
-          <div className="lx-page-width-form">
+          <div className="lx-page-width-form-left">
             {tab === 'account' && (
               <div className="flex flex-col gap-7">
                 <div>
@@ -258,7 +332,7 @@ function SettingsPage() {
                           const inputId = `settings-build-status-${statusId}`
 
                           return (
-                            <div key={statusId}>
+                            <div key={statusId} className="sm:last:col-span-2">
                               <input
                                 id={inputId}
                                 type="radio"
@@ -385,25 +459,6 @@ function SettingsPage() {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3">
-                  <div className="flex flex-wrap items-center gap-3">
-                    <Button
-                      onClick={() => void handleSaveAccount()}
-                      disabled={saving || !displayName.trim()}
-                      variant="brand"
-                      size="meta"
-                      className="font-mono"
-                    >
-                      {saving ? 'saving…' : 'save changes'}
-                    </Button>
-                    {saved && (
-                      <span className="flex items-center gap-1.5 font-mono text-xs text-success">
-                        <CheckCircle2 size={14} /> saved
-                      </span>
-                    )}
-                  </div>
-                </div>
-
                 <div>
                   <div className={sectionTitleClassName}>legal</div>
                   <nav className="flex flex-wrap gap-x-5 gap-y-1 font-mono text-[12px]">
@@ -428,51 +483,17 @@ function SettingsPage() {
               <div className="flex max-w-140 flex-col gap-7">
                 <div>
                   <div className={sectionTitleClassName}>visibility</div>
-                  {(
-                    [
-                      {
-                        key: 'commentHistoryVisibility',
-                        label: 'show comment history',
-                        desc: 'show your comment tab on your profile',
-                      },
-                      {
-                        key: 'likedProjectsVisibility',
-                        label: 'show liked projects',
-                        desc: 'show your liked tab on your profile',
-                      },
-                      {
-                        key: 'followGraphVisibility',
-                        label: 'show follow graph',
-                        desc: 'allow people to open your followers and following lists',
-                      },
-                      // Pulse has backend privacy state only. Keep this out of the UI until the frontend exists.
-                    ] as const
-                  ).map(({ key, label, desc }) => (
-                    <div key={key} className={settingsRowClassName}>
-                      <div>
-                        <div className="mb-0.5 font-mono text-[13px] text-text">
-                          {label}
-                        </div>
-                        <div className="font-sans text-xs text-text-faint">
-                          {desc}
-                        </div>
-                      </div>
-                      <Switch
-                        checked={profile.viewer.privacy[key] === 'public'}
-                        onCheckedChange={async (checked) => {
-                          const nextPrivacy = {
-                            ...profile.viewer.privacy,
-                            [key]: checked ? 'public' : 'private',
-                          }
-                          try {
-                            await updatePrivacy(nextPrivacy)
-                          } catch (error) {
-                            console.error(error)
-                          }
-                        }}
-                      />
-                    </div>
-                  ))}
+                  <PrivacyVisibilitySettings
+                    privacy={profile.viewer.privacy}
+                    settingsRowClassName={settingsRowClassName}
+                    onUpdate={async (nextPrivacy) => {
+                      try {
+                        await updatePrivacy(nextPrivacy)
+                      } catch (error) {
+                        console.error(error)
+                      }
+                    }}
+                  />
                 </div>
               </div>
             )}
@@ -625,6 +646,44 @@ function SettingsPage() {
                     delete account permanently
                   </Button>
                 </div>
+              </div>
+            )}
+
+            {tab === 'account' && (isAccountDirty || saving || saved) && (
+              <div className="lx-fade-up sticky bottom-[var(--lx-mobile-tab-height)] z-10 mt-8 flex flex-wrap items-center justify-between gap-3 rounded-card border border-line bg-surface px-4 py-3 shadow-floating md:bottom-4">
+                {saved && !isAccountDirty ? (
+                  <span className="flex items-center gap-1.5 font-mono text-[11.5px] text-success">
+                    <CheckCircle2 size={14} /> saved
+                  </span>
+                ) : (
+                  <>
+                    <span className="font-mono text-[11.5px] text-text-muted">
+                      unsaved changes
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        onClick={() => resetAccountForm()}
+                        disabled={saving || !isAccountDirty}
+                        variant="monoOutline"
+                        size="meta"
+                        className="font-mono"
+                      >
+                        discard
+                      </Button>
+                      <Button
+                        onClick={() => void handleSaveAccount()}
+                        disabled={
+                          saving || !isAccountDirty || !displayName.trim()
+                        }
+                        variant="brand"
+                        size="meta"
+                        className="font-mono"
+                      >
+                        {saving ? 'saving…' : 'save changes'}
+                      </Button>
+                    </div>
+                  </>
+                )}
               </div>
             )}
           </div>

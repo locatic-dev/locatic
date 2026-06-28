@@ -30,7 +30,7 @@ import {
   ROUTE_PENDING_MS,
 } from '@/components/app-shell/route-pending'
 import { shouldPrefetchPrivateConvexQueries } from '@/lib/auth-routing'
-import { getFreshExploreSearch } from '@/features/explore/state'
+import { getResumeExploreSearch } from '@/features/explore/state'
 import {
   getHomeFeedHandoffState,
   getHomeFeedRenderState,
@@ -180,7 +180,7 @@ function HomePage() {
                   onClick: () =>
                     void navigate({
                       to: '/explore',
-                      search: getFreshExploreSearch(),
+                      search: getResumeExploreSearch(),
                     }),
                 }}
               />

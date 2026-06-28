@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import type { Id } from '../../../convex/_generated/dataModel'
 
 export const EXPLORE_SCOPE_VALUES = ['default', 'global', 'custom'] as const
@@ -180,6 +181,9 @@ export function getFreshExploreSearch(): ExploreSearch {
   }
 }
 
+const EXPLORE_SEARCH_SESSION_STORAGE_KEY = 'locatic:explore-search:v1'
+const EXPLORE_SEARCH_SESSION_EVENT = 'locatic:explore-search-session'
+
 export function normalizeExploreSearch(
   search: Record<string, unknown>,
 ): ExploreSearch {
@@ -211,6 +215,101 @@ export function normalizeExploreSearch(
       scope === 'custom' && selectedCityIds.length === 0 ? 'global' : scope,
     selectedCityIds,
   }
+}
+
+function getExploreSessionStorage(): Storage | null {
+  if (typeof window === 'undefined') {
+    return null
+  }
+
+  try {
+    return window.sessionStorage
+  } catch {
+    return null
+  }
+}
+
+export function readStoredExploreSearch(): ExploreSearch | null {
+  const storage = getExploreSessionStorage()
+  if (!storage) {
+    return null
+  }
+
+  const storedSearch = storage.getItem(EXPLORE_SEARCH_SESSION_STORAGE_KEY)
+  if (!storedSearch) {
+    return null
+  }
+
+  try {
+    const parsedSearch: unknown = JSON.parse(storedSearch)
+    if (!parsedSearch || typeof parsedSearch !== 'object') {
+      return null
+    }
+
+    return normalizeExploreSearch(parsedSearch as Record<string, unknown>)
+  } catch {
+    return null
+  }
+}
+
+export function writeStoredExploreSearch(search: ExploreSearch): void {
+  const storage = getExploreSessionStorage()
+  if (!storage) {
+    return
+  }
+
+  try {
+    storage.setItem(
+      EXPLORE_SEARCH_SESSION_STORAGE_KEY,
+      JSON.stringify(normalizeExploreSearch(search)),
+    )
+    window.dispatchEvent(new Event(EXPLORE_SEARCH_SESSION_EVENT))
+  } catch {
+    // Session restore is a convenience; storage failures should not block navigation.
+  }
+}
+
+export function getResumeExploreSearch(): ExploreSearch {
+  return readStoredExploreSearch() ?? getFreshExploreSearch()
+}
+
+function areExploreSearchesEqual(
+  left: ExploreSearch,
+  right: ExploreSearch,
+): boolean {
+  return (
+    left.mode === right.mode &&
+    left.q === right.q &&
+    left.scope === right.scope &&
+    areExploreCityIdsEqual(left.selectedCityIds, right.selectedCityIds)
+  )
+}
+
+export function useResumeExploreSearch(refreshKey: string): ExploreSearch {
+  const [resumeSearch, setResumeSearch] = useState(getFreshExploreSearch)
+
+  useEffect(() => {
+    const refreshResumeSearch = () => {
+      const nextSearch = getResumeExploreSearch()
+      setResumeSearch((currentSearch) =>
+        areExploreSearchesEqual(currentSearch, nextSearch)
+          ? currentSearch
+          : nextSearch,
+      )
+    }
+
+    refreshResumeSearch()
+    window.addEventListener(EXPLORE_SEARCH_SESSION_EVENT, refreshResumeSearch)
+
+    return () => {
+      window.removeEventListener(
+        EXPLORE_SEARCH_SESSION_EVENT,
+        refreshResumeSearch,
+      )
+    }
+  }, [refreshKey])
+
+  return resumeSearch
 }
 
 export function getExploreLoaderDeps(

@@ -25,7 +25,7 @@ import {
 } from '@/components/ui/tooltip'
 import { useClerk } from '@clerk/tanstack-react-start'
 import type { ReactNode } from 'react'
-import { getFreshExploreSearch } from '@/features/explore/state'
+import { useResumeExploreSearch } from '@/features/explore/state'
 
 interface NavItem {
   id: string
@@ -80,6 +80,7 @@ export function SidebarNav({
 }: SidebarNavProps) {
   const routerState = useRouterState()
   const currentPath = routerState.location.pathname
+  const resumeExploreSearch = useResumeExploreSearch(routerState.location.href)
 
   const items = NAV_ITEMS.map((item) => ({
     ...item,
@@ -148,7 +149,7 @@ export function SidebarNav({
 
             const linkSearch =
               item.href === '/explore'
-                ? getFreshExploreSearch()
+                ? resumeExploreSearch
                 : item.href === '/profile'
                   ? ({ tab: 'projects' } as const)
                   : item.href === '/inbox'

@@ -17,6 +17,7 @@ convex/
 │   ├── explore.ts      # Explore scope / search helpers
 │   ├── notifications.ts  # Notification target helpers
 │   ├── project_access.ts           # Project/comment public interactability gates
+│   ├── privacy.ts                  # Contribution privacy gating (isContributionsVisibleOnPublicProfile)
 │   ├── project_contributor_sync.ts # Contributor sync: batched orchestration, count recomputation
 │   ├── rate_limits.ts             # Rate limiter via @convex-dev/rate-limiter component
 │   ├── snapshots.ts    # Snapshot utilities

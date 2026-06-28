@@ -41,6 +41,7 @@ app-shell/
 - Sidebar and mobile tab bar use `bg-surface-chrome` (not `bg-canvas`) — the frame layer between page canvas and content cards.
 - Sidebar collapse state is stored through `src/lib/sidebar-layout.ts`; keep the key/parsing centralized.
 - Skip-link keyboard modality lives in `src/lib/skip-link.ts`; shell components should just consume it.
+- Sidebar and mobile tab bar nav links use `useResumeExploreSearch(href)` for the Explore tab (preserves session state) and plain `true` for all other tabs.
 
 ## ANTI-PATTERNS
 
