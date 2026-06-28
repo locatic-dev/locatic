@@ -48,6 +48,20 @@ describe('ProfileContentTabs', () => {
     expect(handleSelectTab).toHaveBeenCalledWith('contributions')
   })
 
+  it('keeps the contribution tab available when contribution details are private', () => {
+    render(
+      <ProfileContentTabs
+        activeTab="projects"
+        isRoutePending={false}
+        tabs={tabs}
+        onSelectTab={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByText('contrib')).toBeTruthy()
+    expect(screen.getByText('contributions')).toBeTruthy()
+  })
+
   it('uses a mobile-first wrapping grid instead of forcing horizontal overflow', () => {
     const { container } = render(
       <ProfileContentTabs

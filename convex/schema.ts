@@ -118,6 +118,7 @@ export default defineSchema({
       followGraphVisibility: tabVisibilityValidator,
       commentHistoryVisibility: tabVisibilityValidator,
       likedProjectsVisibility: tabVisibilityValidator,
+      contributionsVisibility: v.optional(tabVisibilityValidator),
       cityVisibility: cityVisibilityValidator,
       appearInPulse: v.boolean(),
     }),
