@@ -439,6 +439,12 @@ html[data-skip-link-modality='keyboard'] .lx-skip-link:focus-visible {
   min-width: 0;
 }
 
+.lx-page-width-form-left {
+  width: min(100%, var(--lx-form-max));
+  margin-inline: 0;
+  min-width: 0;
+}
+
 .lx-page-width-wide {
   width: min(100%, var(--lx-app-wide-max));
 }
@@ -471,6 +477,19 @@ html[data-skip-link-modality='keyboard'] .lx-skip-link:focus-visible {
   flex-wrap: wrap;
 }
 
+.lx-settings-tabs {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.lx-settings-tabs::-webkit-scrollbar {
+  display: none;
+}
+
 .lx-chip-wrap {
   display: flex;
   flex-wrap: wrap;
@@ -490,5 +509,9 @@ html[data-skip-link-modality='keyboard'] .lx-skip-link:focus-visible {
 @media (min-width: 768px) {
   .lx-page-scroll {
     padding-bottom: 80px;
+  }
+
+  .lx-settings-tabs {
+    overflow-x: visible;
   }
 }
