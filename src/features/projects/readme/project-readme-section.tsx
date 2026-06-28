@@ -1,8 +1,8 @@
+import { MarkdownProse } from '@/components/ui/markdown-prose'
 import {
   resolveGithubReadmeMarkdownUrl,
   type GithubReadmeUrlBases,
 } from '@/lib/github-readme-url'
-import { ProjectMarkdownProse } from './markdown-prose'
 
 type ProjectReadmeSectionProps = {
   bases: GithubReadmeUrlBases
@@ -28,9 +28,9 @@ export function ProjectReadmeSection({
       </div>
       <div className="px-5 py-5 md:px-7 md:py-6">
         {readmePreview ? (
-          <ProjectMarkdownProse urlTransform={readmeUrlTransform}>
+          <MarkdownProse urlTransform={readmeUrlTransform}>
             {readmePreview}
-          </ProjectMarkdownProse>
+          </MarkdownProse>
         ) : (
           <p className="m-0 font-sans text-sm leading-[1.65] text-text-muted">
             README not available on GitHub.

@@ -1,7 +1,7 @@
 import { Link, useRouterState } from '@tanstack/react-router'
 import { Home, Compass, Inbox, User, Bell } from '@/lib/icons'
 import type { ReactNode } from 'react'
-import { getFreshExploreSearch } from '@/features/explore/state'
+import { useResumeExploreSearch } from '@/features/explore/state'
 
 interface TabItem {
   id: string
@@ -22,6 +22,7 @@ export function MobileTabBar({
 }: MobileTabBarProps) {
   const routerState = useRouterState()
   const currentPath = routerState.location.pathname
+  const resumeExploreSearch = useResumeExploreSearch(routerState.location.href)
 
   const tabs: TabItem[] = [
     { id: 'home', label: 'home', href: '/home', icon: <Home size={20} /> },
@@ -65,7 +66,7 @@ export function MobileTabBar({
           <Link
             key={item.id}
             to={item.href}
-            search={item.href === '/explore' ? getFreshExploreSearch() : true}
+            search={item.href === '/explore' ? resumeExploreSearch : true}
             preload={false}
             aria-current={isActive ? 'page' : undefined}
             aria-label={item.label}

@@ -1,4 +1,8 @@
-import { describe, expect, it } from 'vitest'
+// @vitest-environment jsdom
+import { render, screen, waitFor } from '@testing-library/react'
+import { createElement } from 'react'
+import { renderToString } from 'react-dom/server'
+import { beforeEach, describe, expect, it } from 'vitest'
 
 import {
   areExploreCityIdsEqual,
@@ -11,19 +15,152 @@ import {
   getExploreScopeStatusCopy,
   getFreshExploreSearch,
   getNearbyBuilderCityIds,
+  getResumeExploreSearch,
   isExploreProjectFeedGlobal,
   isExploreUserFollowed,
   normalizeExploreSearch,
+  readStoredExploreSearch,
   removeExploreCityId,
+  useResumeExploreSearch,
+  writeStoredExploreSearch,
 } from '../state'
 
+function ResumeExploreSearchProbe({ refreshKey }: { refreshKey: string }) {
+  const search = useResumeExploreSearch(refreshKey)
+
+  return createElement(
+    'output',
+    { 'data-testid': 'resume-search' },
+    JSON.stringify(search),
+  )
+}
+
+function readResumeExploreSearchProbe() {
+  return JSON.parse(screen.getByTestId('resume-search').textContent ?? '{}')
+}
+
 describe('explore state helpers', () => {
+  beforeEach(() => {
+    window.sessionStorage.clear()
+  })
+
   it('defaults a fresh explore visit to default scope', () => {
     expect(getFreshExploreSearch()).toEqual({
       mode: 'projects',
       q: '',
       scope: 'default',
       selectedCityIds: [],
+    })
+  })
+
+  it('resumes fresh explore search when session storage is empty', () => {
+    expect(getResumeExploreSearch()).toEqual(getFreshExploreSearch())
+  })
+
+  it('round-trips session explore search through normalization', () => {
+    writeStoredExploreSearch({
+      mode: 'builders',
+      q: 'react',
+      scope: 'custom',
+      selectedCityIds: ['city_1', 'city_1'],
+    })
+
+    expect(readStoredExploreSearch()).toEqual({
+      mode: 'builders',
+      q: 'react',
+      scope: 'custom',
+      selectedCityIds: ['city_1'],
+    })
+    expect(getResumeExploreSearch()).toEqual({
+      mode: 'builders',
+      q: 'react',
+      scope: 'custom',
+      selectedCityIds: ['city_1'],
+    })
+  })
+
+  it('falls back to fresh explore search when stored search is invalid', () => {
+    writeStoredExploreSearch({
+      mode: 'posts',
+      q: 'convex',
+      scope: 'global',
+      selectedCityIds: [],
+    })
+
+    const storageKey = window.sessionStorage.key(0)
+    expect(storageKey).toBeTruthy()
+    window.sessionStorage.setItem(storageKey as string, '{invalid json')
+
+    expect(readStoredExploreSearch()).toBeNull()
+    expect(getResumeExploreSearch()).toEqual(getFreshExploreSearch())
+  })
+
+  it('normalizes empty custom session selections to global scope', () => {
+    writeStoredExploreSearch({
+      mode: 'projects',
+      q: '',
+      scope: 'custom',
+      selectedCityIds: [],
+    })
+
+    expect(readStoredExploreSearch()).toEqual({
+      mode: 'projects',
+      q: '',
+      scope: 'global',
+      selectedCityIds: [],
+    })
+  })
+
+  it('server-renders fresh search and hydrates resumed search after mount', async () => {
+    writeStoredExploreSearch({
+      mode: 'builders',
+      q: 'react',
+      scope: 'custom',
+      selectedCityIds: ['city_1'],
+    })
+
+    expect(
+      renderToString(
+        createElement(ResumeExploreSearchProbe, { refreshKey: '/home' }),
+      ),
+    ).toContain('&quot;mode&quot;:&quot;projects&quot;')
+
+    const { rerender } = render(
+      createElement(ResumeExploreSearchProbe, { refreshKey: '/home' }),
+    )
+
+    await waitFor(() => {
+      expect(readResumeExploreSearchProbe()).toEqual({
+        mode: 'builders',
+        q: 'react',
+        scope: 'custom',
+        selectedCityIds: ['city_1'],
+      })
+    })
+
+    const storageKey = window.sessionStorage.key(0)
+    expect(storageKey).toBeTruthy()
+    window.sessionStorage.setItem(
+      storageKey as string,
+      JSON.stringify({
+        mode: 'posts',
+        q: 'convex',
+        scope: 'global',
+        selectedCityIds: [],
+      }),
+    )
+
+    rerender(
+      createElement(ResumeExploreSearchProbe, { refreshKey: '/explore' }),
+    )
+
+    await waitFor(() => {
+      expect(readResumeExploreSearchProbe()).toEqual({
+        mode: 'posts',
+        q: 'convex',
+        scope: 'global',
+        selectedCityIds: [],
+      })
     })
   })
 
