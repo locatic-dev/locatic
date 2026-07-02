@@ -100,6 +100,7 @@ function renderFeed(
   const props = {
     builderResults: [],
     builderSearchLoading: false,
+    canLoadMoreBuilders: false,
     debouncedSearchQuery: '',
     dismissedIds: new Set<string>(),
     dismissedPostIds: new Set<string>(),
@@ -110,6 +111,7 @@ function renderFeed(
     isBuilderSearchActive: false,
     isBuildersMode: false,
     isGlobalFeed: false,
+    isLoadingMoreBuilders: false,
     isPostSearchActive: false,
     isPostsMode: false,
     isProjectSearchActive: false,
@@ -120,6 +122,7 @@ function renderFeed(
     onDismissProject: vi.fn(),
     onFollowUser: vi.fn(),
     onLikeProject: vi.fn(),
+    onLoadMoreBuilders: vi.fn(),
     onLoadMorePosts: vi.fn(),
     onLoadMoreProjects: vi.fn(),
     onMessageUser: vi.fn(),

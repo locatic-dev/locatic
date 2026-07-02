@@ -16,6 +16,7 @@ import { NearbyBuilderRow } from './nearby-builder-row'
 export function ExploreFeed({
   builderResults,
   builderSearchLoading,
+  canLoadMoreBuilders,
   debouncedSearchQuery,
   dismissedIds,
   dismissedPostIds,
@@ -26,6 +27,7 @@ export function ExploreFeed({
   isBuilderSearchActive,
   isBuildersMode,
   isGlobalFeed,
+  isLoadingMoreBuilders,
   isPostSearchActive,
   isPostsMode,
   isProjectSearchActive,
@@ -36,6 +38,7 @@ export function ExploreFeed({
   onDismissProject,
   onFollowUser,
   onLikeProject,
+  onLoadMoreBuilders,
   onLoadMoreProjects,
   onLoadMorePosts,
   onMessageUser,
@@ -51,6 +54,7 @@ export function ExploreFeed({
 }: {
   builderResults: BuilderPreview[]
   builderSearchLoading: boolean
+  canLoadMoreBuilders: boolean
   debouncedSearchQuery: string
   dismissedIds: Set<string>
   dismissedPostIds: Set<string>
@@ -61,6 +65,7 @@ export function ExploreFeed({
   isBuilderSearchActive: boolean
   isBuildersMode: boolean
   isGlobalFeed: boolean
+  isLoadingMoreBuilders: boolean
   isPostSearchActive: boolean
   isPostsMode: boolean
   isProjectSearchActive: boolean
@@ -75,6 +80,7 @@ export function ExploreFeed({
     currentlyFollowed: boolean,
   ) => void
   onLikeProject: (projectId: Id<'projects'>, projectKey: string) => void
+  onLoadMoreBuilders: () => void
   onLoadMoreProjects: () => void
   onLoadMorePosts: () => void
   onMessageUser: (userId: Id<'users'>) => void
@@ -167,6 +173,18 @@ export function ExploreFeed({
               />
             ))}
           </div>
+          {canLoadMoreBuilders && (
+            <div className="mt-4 flex justify-center">
+              <button
+                type="button"
+                onClick={onLoadMoreBuilders}
+                disabled={isLoadingMoreBuilders}
+                className="min-h-11 rounded-md border border-line px-4 py-2 font-mono text-[12px] text-text-muted transition-colors hover:border-line-strong hover:text-text disabled:cursor-default disabled:opacity-60"
+              >
+                {isLoadingMoreBuilders ? 'loading…' : 'load more builders'}
+              </button>
+            </div>
+          )}
         </div>
       )}
 

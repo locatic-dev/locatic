@@ -3,7 +3,6 @@ import type { PaginationOptions } from 'convex/server'
 
 import { api } from '../../../convex/_generated/api'
 import type { Id } from '../../../convex/_generated/dataModel'
-import type { ExploreScope } from '@/features/explore/state'
 
 export const viewerQueryOptions = () =>
   convexQuery(api.users.viewerBootstrap, {})
@@ -96,27 +95,9 @@ export const homeFeedQueryOptions = (
   },
 ) => convexQuery(api.home.list, { paginationOpts })
 
-export const exploreFeedQueryOptions = ({
-  limit = 20,
-  scope = 'default',
-  selectedCityIds = [],
-}: {
-  limit?: number
-  scope?: ExploreScope
-  selectedCityIds?: Array<Id<'cities'>>
-} = {}) =>
-  convexQuery(api.explore.list, {
-    limit,
-    scope,
-    selectedCityIds,
-  })
-
-export const nearbyBuildersQueryOptions = (cityIds: Array<Id<'cities'>> = []) =>
-  convexQuery(api.explore.listNearbyBuilders, { cityIds })
-
 export const builderSearchQueryOptions = ({
   cityIds = [],
-  limit = 10,
+  limit = 20,
   q,
 }: {
   cityIds?: Array<Id<'cities'>>
@@ -157,21 +138,6 @@ export const postSearchQueryOptions = ({
     cityIds,
     limit,
     q,
-  })
-
-export const postListQueryOptions = ({
-  limit = 10,
-  scope = 'default',
-  selectedCityIds = [],
-}: {
-  limit?: number
-  scope?: 'default' | 'global' | 'custom'
-  selectedCityIds?: Array<Id<'cities'>>
-}) =>
-  convexQuery(api.explore.listPosts, {
-    limit,
-    scope,
-    selectedCityIds,
   })
 
 export const citiesSearchQueryOptions = (query: string, limit = 10) =>
