@@ -690,9 +690,7 @@ function ExplorePage() {
             pendingFollows={pendingFollows}
             pendingLikes={pendingLikes}
             pendingUserId={pendingUserId}
-            projectFeedLoading={
-              scopedFeedPaged.status === 'LoadingFirstPage'
-            }
+            projectFeedLoading={scopedFeedPaged.status === 'LoadingFirstPage'}
             projectSearchLoading={
               projectSearchQuery.isLoading || projectSearchQuery.isFetching
             }

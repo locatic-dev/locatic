@@ -66,4 +66,3 @@ describe('keepPreviousPostSearchData', () => {
     ).toBeUndefined()
   })
 })
-
