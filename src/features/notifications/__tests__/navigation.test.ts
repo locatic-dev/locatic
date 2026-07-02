@@ -52,7 +52,6 @@ describe('notification navigation helpers', () => {
       }),
     ).toEqual({
       params: { owner: 'octocat', repo: 'hello-world' },
-      search: { comment: null },
       to: '/project/$owner/$repo',
     })
   })

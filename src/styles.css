@@ -12,44 +12,59 @@
 :root {
   --background: oklch(13.5% 0.007 230);
   --foreground: oklch(93% 0.005 230);
-  --card: oklch(17.5% 0.007 230);
+  --card: oklch(20% 0.008 230);
   --card-foreground: oklch(93% 0.005 230);
-  --popover: oklch(17.5% 0.007 230);
+  --popover: oklch(20% 0.008 230);
   --popover-foreground: oklch(93% 0.005 230);
-  --primary: oklch(74% 0.16 152);
+  --primary: oklch(72% 0.15 195);
   --primary-foreground: oklch(14% 0.005 230);
   --secondary: oklch(21% 0.007 230);
   --secondary-foreground: oklch(93% 0.005 230);
   --muted: oklch(21% 0.007 230);
-  --muted-foreground: oklch(60% 0.005 230);
+  --muted-foreground: oklch(68% 0.006 230);
   --accent: oklch(21% 0.007 230);
   --accent-foreground: oklch(93% 0.005 230);
   --destructive: oklch(62% 0.22 25);
   --destructive-foreground: oklch(93% 0.005 230);
-  --border: oklch(28% 0.007 230);
-  --input: oklch(28% 0.007 230);
-  --ring: oklch(74% 0.16 152);
+  --border: oklch(36% 0.008 230);
+  --input: oklch(36% 0.008 230);
+  --ring: oklch(72% 0.15 195);
   --radius: 0.25rem;
-  --chart-1: oklch(74% 0.16 152);
+  --chart-1: oklch(72% 0.15 195);
   --chart-2: oklch(70% 0.16 145);
   --chart-3: oklch(72% 0.18 75);
   --chart-4: oklch(68% 0.17 260);
   --chart-5: oklch(62% 0.22 25);
 
   /* ── Locatic semantic tokens ────────────────────────────────────────────── */
+  /* Surface roles: canvas (page) < chrome (frame) < surface (content) < raised (active) */
   --lx-bg: var(--background);
+  --lx-surface-chrome: oklch(16% 0.007 230);
   --lx-surface: var(--card);
   --lx-surface-alt: var(--muted);
+  --lx-surface-raised: oklch(24% 0.01 230);
   --lx-border: var(--border);
-  --lx-border-strong: oklch(40% 0.007 230);
+  --lx-border-strong: oklch(46% 0.008 230);
+  /* Text roles: primary (body emphasis) > secondary (body) > tertiary (metadata) > disabled */
   --lx-text: var(--foreground);
   --lx-text-2: var(--muted-foreground);
-  --lx-text-3: oklch(43% 0.005 230);
+  --lx-text-3: oklch(57% 0.006 230);
+  --lx-text-disabled: oklch(43% 0.005 230);
   --lx-accent: var(--primary);
-  --lx-accent-quiet: oklch(74% 0.16 152 / 0.14);
+  --lx-accent-quiet: oklch(72% 0.15 195 / 0.14);
+  /* Brand wash for INTERACTION states only (hover/focus/selected) — never resting cards */
+  --lx-surface-accent: oklch(72% 0.15 195 / 0.06);
   --lx-danger: var(--destructive);
   --lx-success: oklch(70% 0.16 145);
   --lx-warning: oklch(72% 0.18 75);
+
+  /* ── Highlight semantics (one job per token; green is not universal) ─────── */
+  --lx-selected-fill: oklch(72% 0.15 195 / 0.1);
+  --lx-selected-bar: var(--primary);
+  --lx-outgoing-surface: oklch(72% 0.15 195 / 0.16);
+  --lx-unread-dot: oklch(70% 0.1 195);
+  --lx-focus-ring: var(--primary);
+  --lx-liked: oklch(64% 0.21 25);
 
   /* ── Type tokens ────────────────────────────────────────────────────────── */
   --lx-font-sans: var(--font-sans);
@@ -60,6 +75,7 @@
   --lx-section-gap: clamp(20px, 4vw, 40px);
   --lx-feed-max: 720px;
   --lx-form-max: 720px;
+  --lx-app-wide-max: 1180px;
   --lx-detail-max: 1040px;
   --lx-profile-max: 1280px;
   --lx-public-max: 1184px;
@@ -108,16 +124,28 @@
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
   --color-canvas: var(--lx-bg);
+  --color-surface-chrome: var(--lx-surface-chrome);
   --color-surface: var(--lx-surface);
   --color-surface-alt: var(--lx-surface-alt);
+  --color-surface-raised: var(--lx-surface-raised);
+  --color-surface-accent: var(--lx-surface-accent);
   --color-line: var(--lx-border);
   --color-line-strong: var(--lx-border-strong);
   --color-text: var(--lx-text);
   --color-text-muted: var(--lx-text-2);
   --color-text-faint: var(--lx-text-3);
+  /* Explicit role aliases (preferred for new code; existing utilities above unchanged) */
+  --color-text-primary: var(--lx-text);
+  --color-text-secondary: var(--lx-text-2);
+  --color-text-tertiary: var(--lx-text-3);
+  --color-text-disabled: var(--lx-text-disabled);
   --color-brand: var(--lx-accent);
   --color-brand-quiet: var(--lx-accent-quiet);
   --color-brand-foreground: var(--primary-foreground);
+  --color-selected: var(--lx-selected-fill);
+  --color-outgoing: var(--lx-outgoing-surface);
+  --color-unread: var(--lx-unread-dot);
+  --color-liked: var(--lx-liked);
   --color-success: var(--lx-success);
   --color-warning: var(--lx-warning);
   --color-danger: var(--lx-danger);
@@ -258,6 +286,11 @@ button {
   animation: lx-reaction-pop 240ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
+.lx-reaction-emoji {
+  display: inline-flex;
+  line-height: 1;
+}
+
 .lx-reaction-burst {
   pointer-events: none;
   position: absolute;
@@ -271,7 +304,7 @@ button {
   height: 4px;
   width: 4px;
   border-radius: 999px;
-  background: var(--lx-accent);
+  background: var(--lx-burst, var(--lx-accent));
   animation: lx-reaction-burst 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
@@ -302,16 +335,28 @@ button {
   }
 }
 
-/* ── Project card hover ──────────────────────────────────────────────────── */
+/* ── Card hover: lift + brand wash (interaction state only) ──────────────── */
+/* The teal wash layers over the opaque surface so the base stays opaque for the
+   contrast gate; resting cards rely on border + luminance, never the wash. */
 .lx-card {
+  /* Resting elevation: a hairline top light reads as a lift on dark surfaces
+     (luminance + border do the rest). No brand wash at rest. */
+  box-shadow: inset 0 1px 0 oklch(100% 0 0 / 0.04);
   transition:
     border-color 0.14s ease,
-    box-shadow 0.14s ease;
+    box-shadow 0.14s ease,
+    background-color 0.14s ease;
 }
 
 .lx-card:hover {
   border-color: var(--lx-border-strong);
-  box-shadow: var(--lx-shadow-card);
+  box-shadow:
+    inset 0 1px 0 oklch(100% 0 0 / 0.05),
+    var(--lx-shadow-card);
+  background-image: linear-gradient(
+    var(--lx-surface-accent),
+    var(--lx-surface-accent)
+  );
 }
 
 /* ── Sidebar nav active bar ──────────────────────────────────────────────── */
@@ -375,6 +420,7 @@ html[data-skip-link-modality='keyboard'] .lx-skip-link:focus-visible {
 
 .lx-page-width-feed,
 .lx-page-width-form,
+.lx-page-width-wide,
 .lx-page-width-detail,
 .lx-page-width-profile,
 .lx-page-width-public {
@@ -391,6 +437,16 @@ html[data-skip-link-modality='keyboard'] .lx-skip-link:focus-visible {
   width: min(100%, var(--lx-feed-max));
   margin-inline: 0;
   min-width: 0;
+}
+
+.lx-page-width-form-left {
+  width: min(100%, var(--lx-form-max));
+  margin-inline: 0;
+  min-width: 0;
+}
+
+.lx-page-width-wide {
+  width: min(100%, var(--lx-app-wide-max));
 }
 
 .lx-page-width-detail {
@@ -421,6 +477,19 @@ html[data-skip-link-modality='keyboard'] .lx-skip-link:focus-visible {
   flex-wrap: wrap;
 }
 
+.lx-settings-tabs {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.lx-settings-tabs::-webkit-scrollbar {
+  display: none;
+}
+
 .lx-chip-wrap {
   display: flex;
   flex-wrap: wrap;
@@ -440,5 +509,9 @@ html[data-skip-link-modality='keyboard'] .lx-skip-link:focus-visible {
 @media (min-width: 768px) {
   .lx-page-scroll {
     padding-bottom: 80px;
+  }
+
+  .lx-settings-tabs {
+    overflow-x: visible;
   }
 }

@@ -14,6 +14,10 @@ import {
   isCommentPubliclyInteractable,
 } from './lib/project_access'
 import { enforceRateLimit } from './lib/rate_limits'
+import {
+  normalizeReactionEmoji,
+  sanitizeReactionConfigForWrite,
+} from './lib/reaction_config'
 import { getCommentReactionCounts } from './lib/reactions'
 import type { Doc } from './lib/types'
 import { DEFAULT_REACTIONS } from './reactionConfigSeed'
@@ -111,7 +115,7 @@ export const listConfig = query({
       key: v.optional(v.string()),
       label: v.string(),
       emoji: v.string(),
-      icon: v.optional(v.string()),
+      color: v.optional(v.string()),
       targetTypes: v.array(
         v.union(v.literal('project'), v.literal('post'), v.literal('comment')),
       ),
@@ -127,11 +131,25 @@ export const listConfig = query({
       .withIndex('by_sort_order')
       .collect()
 
-    return configs.filter(
-      (config) =>
-        config.isActive &&
-        (!args.targetType || config.targetTypes.includes(args.targetType)),
-    )
+    return configs
+      .filter(
+        (config) =>
+          config.isActive &&
+          (!args.targetType || config.targetTypes.includes(args.targetType)),
+      )
+      .map((config) => ({
+        _id: config._id,
+        _creationTime: config._creationTime,
+        ...(typeof config.key === 'string' ? { key: config.key } : {}),
+        label: config.label,
+        emoji: normalizeReactionEmoji(config.emoji),
+        ...(typeof config.color === 'string' ? { color: config.color } : {}),
+        targetTypes: config.targetTypes,
+        isActive: config.isActive,
+        sortOrder: config.sortOrder,
+        createdAt: config.createdAt,
+        updatedAt: config.updatedAt,
+      }))
   },
 })
 
@@ -353,7 +371,21 @@ export const seedDefaultReactions = internalMutation({
   handler: async (ctx) => {
     let created = 0
     let updated = 0
+    let sanitized = 0
     const now = Date.now()
+    const existingConfigs = await ctx.db.query('reaction_config').collect()
+
+    for (const config of existingConfigs) {
+      const sanitizedConfig = sanitizeReactionConfigForWrite(config)
+      if (
+        'icon' in config ||
+        sanitizedConfig.emoji !== config.emoji ||
+        sanitizedConfig.color !== config.color
+      ) {
+        await ctx.db.replace(config._id, sanitizedConfig)
+        sanitized += 1
+      }
+    }
 
     for (const reaction of DEFAULT_REACTIONS) {
       const existing = await ctx.db
@@ -362,13 +394,15 @@ export const seedDefaultReactions = internalMutation({
         .unique()
 
       if (existing) {
-        await ctx.db.patch(existing._id, {
+        await ctx.db.replace(existing._id, {
+          key: reaction.key,
           label: reaction.label,
-          emoji: reaction.icon,
-          icon: reaction.icon,
+          emoji: reaction.emoji,
+          color: reaction.color,
           targetTypes: reaction.targetTypes,
           isActive: reaction.isActive,
           sortOrder: reaction.sortOrder,
+          createdAt: existing.createdAt,
           updatedAt: now,
         })
         updated += 1
@@ -378,8 +412,8 @@ export const seedDefaultReactions = internalMutation({
       await ctx.db.insert('reaction_config', {
         key: reaction.key,
         label: reaction.label,
-        emoji: reaction.icon,
-        icon: reaction.icon,
+        emoji: reaction.emoji,
+        color: reaction.color,
         targetTypes: reaction.targetTypes,
         isActive: reaction.isActive,
         sortOrder: reaction.sortOrder,
@@ -389,6 +423,6 @@ export const seedDefaultReactions = internalMutation({
       created += 1
     }
 
-    return { created, updated }
+    return { created, sanitized, updated }
   },
 })

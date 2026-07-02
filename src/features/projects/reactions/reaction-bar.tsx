@@ -1,9 +1,9 @@
 import { useQuery } from 'convex/react'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { ComponentType } from 'react'
+import type { CSSProperties } from 'react'
 
 import { api } from '../../../../convex/_generated/api'
-import { Eye, Flame, Heart, PartyPopper, Plus, Rocket } from '@/lib/icons'
+import { Plus } from '@/lib/icons'
 import { cn } from '@/lib/utils'
 import {
   Popover,
@@ -21,7 +21,7 @@ type ReactionConfig = {
   key?: string
   label: string
   emoji: string
-  icon?: string
+  color?: string
 }
 
 type PendingReaction = {
@@ -29,24 +29,37 @@ type PendingReaction = {
   nextActive: boolean
 } | null
 
-type ReactionIconProps = {
-  size?: number
-  strokeWidth?: number
-  fill?: string
-  className?: string
+const HEX_COLOR_RE = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/
+
+/** Per-reaction accent color, falling back to the brand teal when unset. */
+function reactionAccent(config: ReactionConfig) {
+  return config.color && HEX_COLOR_RE.test(config.color)
+    ? config.color
+    : 'var(--lx-accent)'
 }
 
-const reactionIcons: Record<string, ComponentType<ReactionIconProps>> = {
-  eye: Eye,
-  flame: Flame,
-  heart: Heart,
-  'heart-filled': Heart,
-  'party-popper': PartyPopper,
-  rocket: Rocket,
-}
-
-function getReactionIcon(config: ReactionConfig) {
-  return reactionIcons[config.icon ?? config.emoji] ?? Heart
+/**
+ * Inline style for a reaction chip: always exposes the accent as `--lx-burst`
+ * (so the pop particles match), and paints the chip in its own color when
+ * active. Seeded reaction colors are hex; invalid or missing values fall back
+ * to brand teal and lean on the `bg-brand-quiet` class for fill.
+ */
+function reactionChipStyle(
+  accent: string,
+  active: boolean,
+  tone: 'chip' | 'picker' = 'chip',
+): CSSProperties {
+  const style = { '--lx-burst': accent } as CSSProperties
+  if (active) {
+    style.color = accent
+    if (tone === 'chip') {
+      style.borderColor = accent
+    }
+    if (HEX_COLOR_RE.test(accent)) {
+      style.backgroundColor = `${accent}${tone === 'picker' ? '18' : '26'}`
+    }
+  }
+  return style
 }
 
 function getVisibleReactionTypes(
@@ -194,7 +207,7 @@ export function ReactionBar({
           return null
         }
 
-        const Icon = getReactionIcon(config)
+        const accent = reactionAccent(config)
         const { active, count } = getOptimisticReactionState({
           pendingReaction,
           reactionCounts,
@@ -214,24 +227,21 @@ export function ReactionBar({
             disabled={disabled || Boolean(pendingReaction)}
             aria-label={`${active ? 'Remove' : 'Add'} ${config.label} reaction`}
             aria-pressed={active}
+            style={reactionChipStyle(accent, active)}
             className={cn(
               'lx-reaction-chip relative inline-flex min-h-11 items-center gap-1.5 rounded-md border px-2 py-2 transition-colors',
               active
-                ? 'border-brand/50 bg-brand-quiet text-brand'
+                ? cn(
+                    'font-medium',
+                    !HEX_COLOR_RE.test(accent) && 'bg-brand-quiet',
+                  )
                 : 'border-transparent bg-transparent text-text-faint hover:border-line hover:text-text',
               popReaction === reactionType && 'lx-reaction-pop',
             )}
           >
-            <Icon
-              size={14}
-              strokeWidth={1.7}
-              fill={
-                active &&
-                (config.icon === 'heart-filled' || config.key === 'like')
-                  ? 'currentColor'
-                  : 'none'
-              }
-            />
+            <span aria-hidden="true" className="lx-reaction-emoji text-sm">
+              {config.emoji}
+            </span>
             <span className="tabular-nums">{count}</span>
             {burstReaction === reactionType && (
               <span aria-hidden="true" className="lx-reaction-burst">
@@ -256,16 +266,19 @@ export function ReactionBar({
           </button>
         </PopoverTrigger>
         <PopoverContent
-          align="start"
+          align="center"
           side="top"
           sideOffset={8}
           collisionPadding={12}
-          className="w-auto rounded-md border-line bg-surface p-1.5 shadow-floating"
+          className="w-max max-w-[calc(100vw-2rem)] rounded-md border-line bg-surface p-1.5 shadow-floating"
         >
-          <div className="grid grid-cols-6 gap-1">
+          <div
+            data-testid="reaction-picker"
+            className="inline-flex items-center gap-1"
+          >
             {reactionConfigs.map((config) => {
-              const Icon = getReactionIcon(config)
               const reactionType = config.key
+              const accent = reactionAccent(config)
               const { active } = getOptimisticReactionState({
                 pendingReaction,
                 reactionCounts,
@@ -282,22 +295,19 @@ export function ReactionBar({
                   aria-label={`${active ? 'Remove' : 'Add'} ${config.label} reaction`}
                   aria-pressed={active}
                   title={config.label}
+                  style={reactionChipStyle(accent, active, 'picker')}
                   className={cn(
-                    'lx-reaction-picker-item inline-flex min-h-11 min-w-11 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-alt hover:text-text disabled:opacity-60',
-                    active && 'bg-brand-quiet text-brand',
+                    'lx-reaction-picker-item inline-flex min-h-11 min-w-11 items-center justify-center rounded-md border border-transparent text-text-muted transition-colors hover:bg-surface-alt hover:text-text disabled:opacity-60',
+                    active && !HEX_COLOR_RE.test(accent) && 'bg-brand-quiet',
                     popReaction === reactionType && 'lx-reaction-pop',
                   )}
                 >
-                  <Icon
-                    size={17}
-                    strokeWidth={1.7}
-                    fill={
-                      active &&
-                      (config.icon === 'heart-filled' || config.key === 'like')
-                        ? 'currentColor'
-                        : 'none'
-                    }
-                  />
+                  <span
+                    aria-hidden="true"
+                    className="lx-reaction-emoji text-lg"
+                  >
+                    {config.emoji}
+                  </span>
                 </button>
               )
             })}

@@ -439,7 +439,10 @@ export default defineSchema({
     key: v.optional(v.string()),
     label: v.string(),
     emoji: v.string(),
+    // Legacy storage field accepted only so existing rows can be replaced by
+    // the emoji-only seed migration before a later strict schema cleanup.
     icon: v.optional(v.string()),
+    color: v.optional(v.string()),
     targetTypes: v.array(reactionTargetTypeValidator),
     isActive: v.boolean(),
     sortOrder: v.number(),

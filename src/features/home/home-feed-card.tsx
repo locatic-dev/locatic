@@ -125,14 +125,13 @@ export function getHomeFeedTargetRoute(
   if (target.kind === 'post') {
     return {
       params: { owner: project.owner, repo: project.repo },
-      search: { comment: null, post: String(target.postId) },
+      search: { post: String(target.postId) },
       to: '/project/$owner/$repo' as const,
     }
   }
 
   return {
     params: { owner: project.owner, repo: project.repo },
-    search: { comment: null },
     to: '/project/$owner/$repo' as const,
   }
 }
@@ -152,6 +151,22 @@ function iconForTarget(target: HomeFeedTarget) {
   }
 }
 
+/** Restrained per-kind tint for the grouped-row icon tile (content signal). */
+function targetKindAccent(kind: HomeFeedTarget['kind']): string {
+  switch (kind) {
+    case 'project':
+      return 'var(--lx-accent)'
+    case 'post':
+      return '#60a5fa'
+    case 'comment':
+      return '#a78bfa'
+    case 'profile':
+      return '#34d399'
+    case 'pull_request':
+      return '#fbbf24'
+  }
+}
+
 function ProjectMeta({
   target,
 }: {
@@ -166,7 +181,7 @@ function ProjectMeta({
         : []
 
   return (
-    <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[10.5px] text-text-faint">
+    <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[11px] text-text-muted">
       {languages.slice(0, 2).map((language) => (
         <span key={language.name} className="inline-flex items-center gap-1.5">
           <LangDot lang={language.name} />
@@ -187,11 +202,13 @@ function ProjectMeta({
 
 function ProjectTargetRow({
   target,
+  lean,
   likedProjectIds,
   pendingLikes,
   onLikeProject,
 }: {
   target: HomeFeedProjectTarget
+  lean?: boolean
   likedProjectIds: Set<string>
   pendingLikes: Set<string>
   onLikeProject: HomeFeedCardProps['onLikeProject']
@@ -207,7 +224,7 @@ function ProjectTargetRow({
         {project.repo}
       </p>
       {project.description && (
-        <p className="mt-1 line-clamp-2 text-[12.5px] leading-5 text-text-muted">
+        <p className="mt-1 line-clamp-2 font-sans text-[13px] leading-5 text-text-muted">
           {project.description}
         </p>
       )}
@@ -216,7 +233,7 @@ function ProjectTargetRow({
   )
 
   return (
-    <TargetRow target={target}>
+    <TargetRow target={target} lean={lean}>
       {routeTarget ? (
         <Link
           {...routeTarget}
@@ -239,7 +256,7 @@ function ProjectTargetRow({
           onClick={() => onLikeProject(target.projectId, projectKey)}
           className={cn(
             'min-h-11 min-w-11 shrink-0',
-            liked && 'text-brand hover:text-brand',
+            liked && 'text-liked hover:text-liked',
           )}
           disabled={pendingLikes.has(projectKey)}
         >
@@ -254,12 +271,18 @@ function ProjectTargetRow({
   )
 }
 
-function PostTargetRow({ target }: { target: HomeFeedPostTarget }) {
+function PostTargetRow({
+  target,
+  lean,
+}: {
+  target: HomeFeedPostTarget
+  lean?: boolean
+}) {
   const project = projectDisplay(target)
   const routeTarget = getHomeFeedTargetRoute(target)
 
   return (
-    <TargetRow target={target}>
+    <TargetRow target={target} lean={lean}>
       {routeTarget ? (
         <Link
           {...routeTarget}
@@ -287,12 +310,18 @@ function PostTargetRow({ target }: { target: HomeFeedPostTarget }) {
   )
 }
 
-function CommentTargetRow({ target }: { target: HomeFeedCommentTarget }) {
+function CommentTargetRow({
+  target,
+  lean,
+}: {
+  target: HomeFeedCommentTarget
+  lean?: boolean
+}) {
   const project = projectDisplay(target)
   const routeTarget = getHomeFeedTargetRoute(target)
 
   return (
-    <TargetRow target={target}>
+    <TargetRow target={target} lean={lean}>
       {routeTarget ? (
         <Link
           {...routeTarget}
@@ -323,8 +352,10 @@ function CommentTargetRow({ target }: { target: HomeFeedCommentTarget }) {
 
 function ProfileTargetRow({
   target,
+  lean,
 }: {
   target: Extract<HomeFeedTarget, { kind: 'profile' }>
+  lean?: boolean
 }) {
   const profile = target.profile
   const content = (
@@ -347,7 +378,7 @@ function ProfileTargetRow({
   )
 
   return (
-    <TargetRow target={target}>
+    <TargetRow target={target} lean={lean}>
       {target.isOpenable === false ? (
         <div className="flex min-w-0 flex-1 items-center gap-3">{content}</div>
       ) : (
@@ -367,13 +398,15 @@ function ProfileTargetRow({
 
 function PullRequestTargetRow({
   target,
+  lean,
 }: {
   target: HomeFeedPullRequestTarget
+  lean?: boolean
 }) {
   const project = projectDisplay(target)
 
   return (
-    <TargetRow target={target}>
+    <TargetRow target={target} lean={lean}>
       {target.url ? (
         <a
           href={target.url}
@@ -405,27 +438,37 @@ function PullRequestTargetRow({
 function TargetRow({
   children,
   target,
+  lean = false,
 }: {
   children: ReactNode
   target: HomeFeedTarget
+  lean?: boolean
 }) {
   const Icon = iconForTarget(target)
 
   return (
     <div
       className={cn(
-        'flex min-h-14 min-w-0 items-center gap-3 border-t border-line px-3 py-3 first:border-t-0 sm:px-4',
+        'flex min-h-14 min-w-0 items-center gap-3 px-4 py-3 sm:px-5',
+        lean ? 'pt-0' : 'border-t border-line first:border-t-0',
         target.isOpenable === false && 'opacity-70',
       )}
     >
-      <span
-        className={cn(
-          'flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-line bg-canvas text-text-faint',
-          target.isOpenable === false && 'border-dashed',
-        )}
-      >
-        <Icon size={15} strokeWidth={1.6} />
-      </span>
+      {!lean && (
+        <span
+          style={
+            target.isOpenable === false
+              ? undefined
+              : { color: targetKindAccent(target.kind) }
+          }
+          className={cn(
+            'flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-line bg-canvas',
+            target.isOpenable === false && 'border-dashed text-text-faint',
+          )}
+        >
+          <Icon size={15} strokeWidth={1.6} />
+        </span>
+      )}
       {children}
     </div>
   )
@@ -448,11 +491,13 @@ function targetRowKey(target: HomeFeedTarget) {
 
 function TargetPreviewRow({
   target,
+  lean,
   likedProjectIds,
   pendingLikes,
   onLikeProject,
 }: {
   target: HomeFeedTarget
+  lean?: boolean
   likedProjectIds: Set<string>
   pendingLikes: Set<string>
   onLikeProject: HomeFeedCardProps['onLikeProject']
@@ -462,19 +507,20 @@ function TargetPreviewRow({
       return (
         <ProjectTargetRow
           target={target}
+          lean={lean}
           likedProjectIds={likedProjectIds}
           pendingLikes={pendingLikes}
           onLikeProject={onLikeProject}
         />
       )
     case 'post':
-      return <PostTargetRow target={target} />
+      return <PostTargetRow target={target} lean={lean} />
     case 'comment':
-      return <CommentTargetRow target={target} />
+      return <CommentTargetRow target={target} lean={lean} />
     case 'profile':
-      return <ProfileTargetRow target={target} />
+      return <ProfileTargetRow target={target} lean={lean} />
     case 'pull_request':
-      return <PullRequestTargetRow target={target} />
+      return <PullRequestTargetRow target={target} lean={lean} />
   }
 }
 
@@ -498,18 +544,24 @@ export function HomeFeedCard({
   const commentMoreRoute = firstCommentTarget
     ? getHomeFeedTargetRoute(firstCommentTarget)
     : null
-
+  // Single-event cards render leaner than grouped cards: no icon-tile column,
+  // no header/body divider — just the actor summary and the one target.
+  const lean = totalCount <= 1
+  // Only show the footer when it offers a real action. The old non-interactive
+  // "Showing X of Y" dead-end is gone — the summary already conveys the count.
+  const showCommentMore =
+    remainingCount > 0 && isCommentGroup(item) && Boolean(commentMoreRoute)
+  const showExpand = remainingCount > 0 && hasStoredTargetsToExpand
   return (
     <article className="lx-card @container overflow-hidden rounded-card border border-line bg-surface">
       <header className="flex min-w-0 items-start gap-3 px-4 py-4 sm:px-5">
         <LxAvatar
           name={item.actorSnapshot.displayName}
           avatarUrl={item.actorSnapshot.avatarUrl}
-          size={36}
-          className="mt-0.5"
+          size={40}
         />
         <div className="min-w-0 flex-1">
-          <p className="text-[14px] font-semibold leading-5 text-text wrap-anywhere">
+          <p className="font-sans text-[14.5px] font-semibold leading-5 text-text wrap-anywhere">
             {getHomeFeedSummary(item)}
           </p>
           <p className="mt-1 font-mono text-[11px] text-text-faint">
@@ -518,11 +570,12 @@ export function HomeFeedCard({
         </div>
       </header>
 
-      <div className="border-t border-line">
+      <div className={lean ? undefined : 'border-t border-line'}>
         {visibleTargets.map((target) => (
           <TargetPreviewRow
             key={targetRowKey(target)}
             target={target}
+            lean={lean}
             likedProjectIds={likedProjectIds}
             pendingLikes={pendingLikes}
             onLikeProject={onLikeProject}
@@ -530,9 +583,9 @@ export function HomeFeedCard({
         ))}
       </div>
 
-      {remainingCount > 0 && (
+      {(showCommentMore || showExpand) && (
         <footer className="border-t border-line px-3 py-2 sm:px-4">
-          {isCommentGroup(item) && commentMoreRoute ? (
+          {showCommentMore && commentMoreRoute ? (
             <Link
               {...commentMoreRoute}
               preload="intent"
@@ -541,7 +594,7 @@ export function HomeFeedCard({
               +{remainingCount} more
               <ArrowRight size={13} />
             </Link>
-          ) : hasStoredTargetsToExpand ? (
+          ) : (
             <Button
               type="button"
               variant="monoGhost"
@@ -552,11 +605,6 @@ export function HomeFeedCard({
             >
               +{remainingCount} more
             </Button>
-          ) : (
-            <p className="min-h-11 px-2 py-3 font-mono text-[11.5px] text-text-faint">
-              Showing {visibleTargets.length.toLocaleString()} of{' '}
-              {totalCount.toLocaleString()}
-            </p>
           )}
         </footer>
       )}
