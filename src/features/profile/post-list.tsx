@@ -28,7 +28,7 @@ export function ProfilePostList({
             key={String(post._id)}
             to="/project/$owner/$repo"
             params={{ owner, repo }}
-            search={{ comment: null, post: String(post._id) }}
+            search={{ post: String(post._id) }}
             hash={`post-${String(post._id)}`}
             preload="intent"
             className="rounded-card border border-line bg-surface px-4 py-4 text-left no-underline transition-colors hover:border-line-strong hover:bg-surface-alt"

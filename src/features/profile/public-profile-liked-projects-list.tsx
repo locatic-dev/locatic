@@ -53,7 +53,6 @@ export function PublicProfileLikedProjectsList({
             key={String(project.reactionId)}
             to="/project/$owner/$repo"
             params={{ owner, repo }}
-            search={{ comment: null }}
             preload="intent"
             className="rounded-[6px] border border-line bg-surface px-4 py-3.5 text-left"
           >

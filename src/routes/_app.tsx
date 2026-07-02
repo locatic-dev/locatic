@@ -1,12 +1,8 @@
-import {
-  createFileRoute,
-  Outlet,
-  redirect,
-  useRouterState,
-} from '@tanstack/react-router'
+import { createFileRoute, Outlet, redirect } from '@tanstack/react-router'
 import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
+import { useConvexAuth } from 'convex/react'
 import { AppLayout } from '@/components/app-shell/app-layout'
-import { FormRoutePending } from '@/components/app-shell/route-pending'
+import { ContentRoutePending } from '@/components/app-shell/route-pending'
 import {
   mapViewerBootstrap,
   type ViewerBootstrapPayload,
@@ -38,81 +34,64 @@ export const Route = createFileRoute('/_app')({
 })
 
 function AuthenticatedApp() {
-  const currentPath = useRouterState({
-    select: (state) => state.location.pathname,
-  })
-
-  if (isProjectDetailPath(currentPath)) {
-    return <ProjectDetailAuthGate />
-  }
-
-  return (
-    <ConvexAuthReadyBoundary
-      fallback={<FormRoutePending />}
-      requireAuthenticated
-    >
-      <ShellApp />
-    </ConvexAuthReadyBoundary>
-  )
+  return <ShellApp />
 }
 
-function ProjectDetailAuthGate() {
-  const { data: viewerData } = useSuspenseQuery(viewerQueryOptions())
-  const bootstrap = mapViewerBootstrap(
-    viewerData as ViewerBootstrapPayload | undefined,
-  )
-
-  if (!bootstrap?.isAuthenticated) {
-    return <Outlet />
-  }
-
-  return (
-    <ConvexAuthReadyBoundary
-      fallback={<FormRoutePending />}
-      requireAuthenticated
-    >
-      <ShellApp />
-    </ConvexAuthReadyBoundary>
-  )
-}
-
+/**
+ * Renders the persistent app shell frame (sidebar, main region, mobile nav)
+ * immediately from the SSR'd viewer bootstrap, already `ensureQueryData`'d in `beforeLoad`,
+ * so `useSuspenseQuery` resolves on first paint with no flash. Only the content
+ * region (`<Outlet/>`) waits on the Convex auth handshake, behind a
+ * content-scoped pending state. The frame never blocks on Convex readiness.
+ *
+ * Unauthenticated viewers only reach here on public project-detail browsing
+ * (other `_app` routes redirect to sign-in in `beforeLoad`); they get a bare
+ * Outlet with no shell.
+ */
 function ShellApp() {
   const { data } = useSuspenseQuery(viewerQueryOptions())
   const bootstrap = mapViewerBootstrap(
     data as ViewerBootstrapPayload | undefined,
   )
-  const hasViewer = Boolean(bootstrap?.viewer)
+  const viewer = bootstrap?.viewer
+  const hasViewer = Boolean(viewer)
+  const convexAuth = useConvexAuth()
+  // Unread counts are client-only live queries (not SSR'd). Gate them on the
+  // Convex auth handshake so they never fire unauthenticated when the shell
+  // paints ahead of Convex readiness; badges simply appear once auth is ready.
   const { data: unreadNotificationsData } = useQuery({
     ...notificationsUnreadCountQueryOptions(),
-    enabled: hasViewer,
+    enabled: hasViewer && convexAuth.isAuthenticated,
     staleTime: 30_000,
   })
 
-  if (!bootstrap) {
+  if (!viewer) {
     return <Outlet />
   }
 
-  const viewer = bootstrap.viewer
-  const viewerForShell = viewer
-    ? {
-        displayName: viewer.displayName,
-        githubUsername: viewer.githubUsername,
-        avatarUrl: viewer.avatarUrl,
-        city: viewer.cityName ?? undefined,
-      }
-    : undefined
+  const viewerForShell = {
+    displayName: viewer.displayName,
+    githubUsername: viewer.githubUsername,
+    avatarUrl: viewer.avatarUrl,
+    city: viewer.cityName ?? undefined,
+  }
 
   return (
     <AppLayout
-      viewer={viewerForShell ?? null}
+      viewer={viewerForShell}
       unreadNotifications={
         typeof unreadNotificationsData === 'number'
           ? unreadNotificationsData
           : 0
       }
-      unreadMessages={viewer?.unreadMessagesCount ?? 0}
+      unreadMessages={viewer.unreadMessagesCount ?? 0}
     >
-      <Outlet />
+      <ConvexAuthReadyBoundary
+        fallback={<ContentRoutePending />}
+        requireAuthenticated
+      >
+        <Outlet />
+      </ConvexAuthReadyBoundary>
     </AppLayout>
   )
 }
