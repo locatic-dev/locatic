@@ -37,7 +37,7 @@ _app/
 - `explore.tsx` search results navigate with function-form `search: (current) => ({...current, ...next})` — keep existing search params when updating.
 - `settings.tsx` delegates privacy visibility toggles to `PrivacyVisibilitySettings` component in `src/features/settings/`; handles `contributionsVisibility` alongside comment/liked/follow graph settings.
 - `home.tsx` uses Convex `usePaginatedQuery` directly (not TanStack Query) for paginated feed list; uses `getHomeFeedRenderState` for loading/empty/items states with `HomeFeedSkeletonRows` during `LoadingFirstPage`.
-- `explore.tsx` supports post dismissal (dismissed set + load-more limit stepping) and reset dismissed for both projects and posts; empty post query uses scoped browse (`postListQueryOptions`), non-empty post query uses search (`postSearchQueryOptions`), and both use `placeholderData` helpers for smooth filter transitions.
+- `explore.tsx` supports post/project dismissal + reset for both projects and posts; browse queries (projects/posts/builders) use Convex `usePaginatedQuery` with `loadMore(20)` — no caps. Search-mode post query uses `postSearchQueryOptions` with `keepPreviousPostSearchData`.
 - `inbox.tsx` uses two-phase compose flow: validates `compose` search param, shows recipient preview via `conversationRecipientPreviewQueryOptions`.
 - `profile.tsx` uses tab-gated queries for posts/projects/contributions/liked tabs; the owner follow graph is always available on the private profile, regardless of public `followGraphVisibility`.
 - `profile.tsx` preloader fetches overview first, then fetches the active owner follow graph; loader returns overview for immediate render.
