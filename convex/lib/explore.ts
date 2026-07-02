@@ -52,4 +52,3 @@ export function rankNearbyBuilders<
     })
     .slice(0, limit)
 }
-
