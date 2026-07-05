@@ -55,7 +55,7 @@ const tokens = {
   surfaceRaised: { L: 0.24, C: 0.01, h: 230 },
   textPrimary: { L: 0.93, C: 0.005, h: 230 },
   textSecondary: { L: 0.68, C: 0.006, h: 230 },
-  textTertiary: { L: 0.57, C: 0.006, h: 230 },
+  textTertiary: { L: 0.58, C: 0.006, h: 230 },
   textDisabled: { L: 0.43, C: 0.005, h: 230 },
   brand: { L: 0.72, C: 0.15, h: 195 },
   brandForeground: { L: 0.14, C: 0.005, h: 230 },
