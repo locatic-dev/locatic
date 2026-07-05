@@ -72,7 +72,7 @@ export function ExploreHeader({
             explore
           </h1>
         </div>
-        <div className="flex items-center gap-2 font-mono text-[11.5px] text-text-faint">
+        <div className="flex items-center gap-2 font-mono text-[11.5px] text-text-muted">
           <span>
             {getExploreScopeStatusCopy(currentScope, mode, {
               isSearchActive: searchStatusActive,
@@ -92,36 +92,44 @@ export function ExploreHeader({
         </div>
       </div>
 
-      <div className="relative mb-3">
-        <Search
-          size={16}
-          className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-text-faint"
-        />
-        <Input
-          type="text"
-          placeholder={modeConfig.placeholder}
-          value={searchQuery}
-          onChange={(event) => onSearchQueryChange(event.target.value)}
-          className="h-11 border-line bg-canvas pl-9 font-mono text-sm text-text placeholder:text-text-faint"
-          aria-label={modeConfig.ariaLabel}
-        />
-      </div>
+      {/* Command band: mode + search read as one control center */}
+      <div className="mb-4 flex flex-col gap-2.5 lg:flex-row lg:items-center">
+        <div
+          role="group"
+          aria-label="Explore mode"
+          className="inline-flex shrink-0 self-start rounded-md border border-line bg-surface p-0.5 lg:self-auto"
+        >
+          {(['projects', 'builders', 'posts'] as const).map((nextMode) => (
+            <button
+              key={nextMode}
+              type="button"
+              aria-pressed={mode === nextMode}
+              onClick={() => onModeChange(nextMode)}
+              className={`min-h-9 rounded-[5px] px-3.5 py-1.5 font-mono text-[12px] transition-colors ${
+                mode === nextMode
+                  ? 'bg-selected text-brand'
+                  : 'text-text-muted hover:text-text'
+              }`}
+            >
+              {nextMode}
+            </button>
+          ))}
+        </div>
 
-      <div className="mb-4 flex flex-wrap gap-2">
-        {(['projects', 'builders', 'posts'] as const).map((nextMode) => (
-          <button
-            key={nextMode}
-            type="button"
-            onClick={() => onModeChange(nextMode)}
-            className={`min-h-11 rounded-md border px-3 py-2 font-mono text-[12px] transition-colors ${
-              mode === nextMode
-                ? 'border-brand bg-brand-quiet text-brand'
-                : 'border-line bg-surface text-text-muted hover:border-line-strong hover:text-text'
-            }`}
-          >
-            {nextMode}
-          </button>
-        ))}
+        <div className="relative min-w-0 flex-1">
+          <Search
+            size={16}
+            className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-text-faint"
+          />
+          <Input
+            type="text"
+            placeholder={modeConfig.placeholder}
+            value={searchQuery}
+            onChange={(event) => onSearchQueryChange(event.target.value)}
+            className="h-11 border-line bg-canvas pl-9 font-mono text-sm text-text placeholder:text-text-faint"
+            aria-label={modeConfig.ariaLabel}
+          />
+        </div>
       </div>
 
       <div className="grid gap-2 sm:grid-cols-[auto_minmax(0,1fr)] sm:items-start">
@@ -139,7 +147,7 @@ export function ExploreHeader({
               />
             ))
           ) : (
-            <span className="inline-flex min-h-9 items-center font-mono text-[11.5px] text-text-faint">
+            <span className="inline-flex min-h-9 items-center font-mono text-[11.5px] text-text-muted">
               all cities
             </span>
           )}

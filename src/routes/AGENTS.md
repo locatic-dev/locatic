@@ -46,7 +46,8 @@ routes/
 - Routes delegate to `src/features/` for domain logic — keep routes thin
 - `__root.tsx` handles Clerk SSR auth via `createServerFn` — `context.auth` available in all route `beforeLoad`
 - Auth is centralized in root — do NOT create per-route auth server functions
-- `_app.tsx` reuses `context.auth` from root for auth checks
+- `_app.tsx` reuses `context.auth` from root for auth checks; authenticates shell paints immediately from SSR viewer bootstrap (`ensureQueryData` in `beforeLoad`), only `<Outlet/>` content waits on Convex auth handshake via `ContentRoutePending`.
+- Unread counts gated on Convex auth handshake (`useConvexAuth`) — never fire before Convex readiness when shell paints ahead.
 - App routes now use loader-prefetched suspense queries with route-pending fallbacks instead of ad-hoc loading states.
 - `routeTree.gen.ts` is generated from this directory; fix source route files, not the generated tree.
 - All routes use `.page-shell` class for responsive spacing and safe-area handling

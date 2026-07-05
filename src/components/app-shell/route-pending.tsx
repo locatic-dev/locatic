@@ -3,6 +3,33 @@ import { Skeleton } from '@/components/ui/skeleton'
 export const ROUTE_PENDING_MS = 150
 export const ROUTE_PENDING_MIN_MS = 250
 
+/**
+ * Content-region pending used while the Convex auth handshake completes. Unlike
+ * the *RoutePending variants, it renders no chrome because the persistent shell
+ * frame — sidebar, main content region, and mobile nav — is already painted
+ * around it. Route headers still live inside the outlet, so keep this visually
+ * quiet and content-scoped.
+ */
+export function ContentRoutePending() {
+  return (
+    <div className="lx-page-scroll">
+      <span className="sr-only" role="status">
+        loading
+      </span>
+      <div className="lx-page-width-feed py-5">
+        <div className="flex flex-col gap-3.5">
+          {Array.from({ length: 3 }).map((_, index) => (
+            <Skeleton
+              key={index}
+              className="h-36 rounded-card border border-line bg-surface"
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function FeedRoutePending() {
   return (
     <div className="lx-page-shell">

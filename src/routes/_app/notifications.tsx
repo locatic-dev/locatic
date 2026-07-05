@@ -259,9 +259,15 @@ function NotificationsPage() {
       <div className="lx-page-scroll flex-1">
         <div className="lx-page-width-feed">
           {notifications.length === 0 && (
-            <div className="flex flex-col items-center justify-center gap-3 px-8 py-16 text-text-faint">
-              <Bell size={32} strokeWidth={1.2} />
-              <span className="font-mono text-xs">no notifications yet.</span>
+            <div className="flex flex-col items-center justify-center gap-3 px-8 py-16 text-center">
+              <Bell size={32} strokeWidth={1.2} className="text-text-faint" />
+              <span className="font-mono text-sm text-text">
+                no notifications yet
+              </span>
+              <span className="max-w-xs font-sans text-[13px] leading-5 text-text-muted">
+                Likes, comments, follows, and replies on your work will show up
+                here.
+              </span>
             </div>
           )}
 
@@ -273,8 +279,8 @@ function NotificationsPage() {
             return (
               <button
                 key={notificationId}
-                className={`flex w-full items-start gap-3 border-b border-line px-0 py-4 text-left transition-colors hover:bg-surface-alt focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
-                  !isRead ? 'bg-[oklch(72%_0.17_185/0.04)]' : 'bg-transparent'
+                className={`flex w-full items-start gap-3 border-b border-line px-2 py-4 text-left transition-colors hover:bg-surface-alt focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
+                  !isRead ? 'bg-selected' : 'bg-transparent'
                 }`}
                 onClick={() => void handleNotificationClick(notification)}
                 onFocus={() => prefetchNotificationDestination(notification)}
@@ -297,8 +303,12 @@ function NotificationsPage() {
                   </div>
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="m-0 font-sans text-[13.5px] leading-6 text-text wrap-anywhere">
-                    <strong className="font-mono font-semibold">
+                  <p
+                    className={`m-0 font-sans text-[13.5px] leading-6 wrap-anywhere ${
+                      isRead ? 'text-text-muted' : 'text-text'
+                    }`}
+                  >
+                    <strong className="font-mono font-semibold text-text">
                       {notification.actorSnapshot.displayName}
                     </strong>{' '}
                     {notifText(notification)}
@@ -307,6 +317,12 @@ function NotificationsPage() {
                     {relativeTime(notification.createdAt)}
                   </span>
                 </div>
+                {!isRead && (
+                  <span
+                    aria-hidden
+                    className="mt-1.5 size-2 shrink-0 rounded-full bg-unread"
+                  />
+                )}
               </button>
             )
           })}

@@ -69,6 +69,7 @@ export function ProjectPostCard({
   const commentLoadAttemptsRef = useRef(0)
   const commentLoadTargetRef = useRef<string | null>(null)
   const commentRefs = useRef<Record<string, HTMLElement | null>>({})
+  const scrolledHighlightRef = useRef<string | null>(null)
   const {
     expand: expandCommentThread,
     expandedIds,
@@ -126,8 +127,13 @@ export function ProjectPostCard({
     }
   }, [activeHighlightedCommentId, expandCommentThread, highlightedCommentPath])
 
+  // Scroll the highlighted comment into view ONCE; the ref guard prevents
+  // re-centering on every reply expand/collapse (which fought the user).
   useEffect(() => {
     if (!activeHighlightedCommentId) {
+      return
+    }
+    if (scrolledHighlightRef.current === activeHighlightedCommentId) {
       return
     }
 
@@ -136,6 +142,7 @@ export function ProjectPostCard({
       return
     }
 
+    scrolledHighlightRef.current = activeHighlightedCommentId
     commentElement.scrollIntoView({
       behavior: 'smooth',
       block: 'center',
@@ -294,7 +301,7 @@ export function ProjectPostCard({
   }
 
   return (
-    <article className="rounded-[6px] border border-line bg-surface px-4 py-4">
+    <article className="lx-card rounded-card border border-line bg-surface px-4 py-4">
       <div className="mb-3 flex min-w-0 items-start justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
           <LxAvatar
@@ -368,7 +375,7 @@ export function ProjectPostCard({
           </div>
         </div>
       ) : (
-        <p className="mb-4 whitespace-pre-wrap font-sans text-[14px] leading-7 text-text-muted wrap-anywhere">
+        <p className="mb-4 whitespace-pre-wrap font-sans text-[14px] leading-7 text-text wrap-anywhere">
           {post.body}
         </p>
       )}
@@ -385,7 +392,7 @@ export function ProjectPostCard({
           type="button"
           onClick={() => setCommentComposerOpen((current) => !current)}
           disabled={!isSignedIn}
-          className="inline-flex min-h-11 items-center gap-1.5 rounded-md bg-transparent px-2 py-2 font-mono text-[11.5px] text-text-faint transition-colors hover:text-text"
+          className="inline-flex min-h-11 items-center gap-1.5 rounded-md bg-transparent px-2 py-2 font-mono text-[11.5px] text-text-muted transition-colors hover:text-text"
         >
           <MessageSquare size={14} strokeWidth={1.6} />
           {post.commentsCount} comments
