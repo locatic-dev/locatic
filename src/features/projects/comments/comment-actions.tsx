@@ -32,7 +32,7 @@ export function CommentActions({
   onToggleReplies: () => void
 }) {
   return (
-    <div className="mt-2 flex flex-wrap items-center gap-1.5 font-mono text-[11px] text-text-faint">
+    <div className="mt-2 flex flex-wrap items-center gap-1.5 font-mono text-[11px] text-text-muted">
       <ReactionBar
         disabled={disabled}
         reactionCounts={reactionCounts}

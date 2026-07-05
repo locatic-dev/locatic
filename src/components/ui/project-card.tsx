@@ -2,7 +2,8 @@ import { Link, useRouter } from '@tanstack/react-router'
 import type { KeyboardEvent, MouseEvent } from 'react'
 import { Star, Heart, MessageSquare, X, GitFork } from '@/lib/icons'
 import { LxAvatar } from './lx-avatar'
-import { LangDot } from './lang-dot'
+import { LangDot, langColor } from './lang-dot'
+import { LanguageBar } from './language-bar'
 import { CityPill } from './city-pill'
 import { Button } from './button'
 import { cn } from '@/lib/utils'
@@ -36,7 +37,7 @@ type ProjectCardProjectLink = {
   owner: string
   repo: string
   search?: {
-    comment: string | null
+    comment?: string
     post?: string
   }
   hash?: string
@@ -95,11 +96,12 @@ export function ProjectCard({
       : project.lang
         ? [{ name: project.lang, bytes: 0 }]
         : []
+  const primaryLanguage = languages[0]?.name
   const projectNavigateOptions = projectLink
     ? {
         to: '/project/$owner/$repo' as const,
         params: { owner: projectLink.owner, repo: projectLink.repo },
-        search: projectLink.search ?? { comment: null },
+        ...(projectLink.search ? { search: projectLink.search } : {}),
         hash: projectLink.hash,
       }
     : null
@@ -168,7 +170,7 @@ export function ProjectCard({
               <Link
                 to="/project/$owner/$repo"
                 params={{ owner: projectLink.owner, repo: projectLink.repo }}
-                search={projectLink.search ?? { comment: null }}
+                search={projectLink.search}
                 hash={projectLink.hash}
                 preload="intent"
                 aria-label={`Open ${projectLabel}`}
@@ -220,69 +222,74 @@ export function ProjectCard({
         )}
       </div>
 
-      {/* Meta row */}
-      <div
-        className={cn(
-          'flex flex-wrap items-center font-mono text-[11.5px] text-text-faint',
-          compact ? 'gap-3' : 'gap-3.5',
-        )}
-      >
-        {languages.slice(0, 3).map((language) => (
-          <span
-            key={language.name}
-            className="inline-flex items-center gap-1.5"
-          >
-            <LangDot lang={language.name} />
-            {language.name}
-          </span>
-        ))}
-        {project.lastCommitLabel && <span>{project.lastCommitLabel}</span>}
-        {project.topics?.slice(0, 4).map((topic) => (
-          <span
-            key={topic}
-            className="rounded-[2px] border border-line bg-canvas px-1.5 py-0.5 text-[10.5px] text-text-muted"
-          >
-            #{topic}
-          </span>
-        ))}
-        <span className="inline-flex items-center gap-1">
-          <Star size={11} strokeWidth={1.4} />
-          {project.githubStars.toLocaleString()}
-        </span>
-        <span
+      {/* Identity + stat row, with the language proportion bar grouped beneath it */}
+      <div className="flex flex-col gap-2">
+        <div
           className={cn(
-            'inline-flex items-center gap-1',
-            project.liked ? 'text-brand' : 'text-text-faint',
+            'flex flex-wrap items-center justify-between gap-x-3.5 gap-y-2 font-mono text-[11.5px]',
+            compact ? 'gap-x-3' : 'gap-x-3.5',
           )}
         >
-          <Heart
-            size={11}
-            strokeWidth={1.4}
-            fill={project.liked ? 'currentColor' : 'none'}
-          />
-          {project.locaticLikes.toLocaleString()}
-        </span>
-        <button
-          onClick={onComment}
-          aria-label="Comments"
-          className="-my-3 inline-flex min-h-11 min-w-11 items-center justify-center gap-1 rounded-md border-none bg-transparent px-1.5 text-inherit"
-          disabled={!onComment}
-          type="button"
-          data-project-card-action
-        >
-          <MessageSquare size={11} strokeWidth={1.4} />
-          {project.commentsCount}
-        </button>
-        {project.postsCount !== undefined && project.postsCount > 0 && (
-          <span className="inline-flex items-center gap-1">
-            {project.postsCount} posts
-          </span>
-        )}
-        {project.forksCount !== undefined && (
-          <span className="inline-flex items-center gap-1">
-            <GitFork size={11} strokeWidth={1.4} />
-            {project.forksCount.toLocaleString()}
-          </span>
+          {/* Identity group: primary language + recency + topics */}
+          <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5 text-text-muted">
+            {primaryLanguage && (
+              <span
+                className="inline-flex items-center gap-1.5 rounded-control border px-1.5 py-0.5 text-text"
+                style={{
+                  background: `${langColor(primaryLanguage)}1f`,
+                  borderColor: `${langColor(primaryLanguage)}80`,
+                }}
+              >
+                <LangDot lang={primaryLanguage} />
+                {primaryLanguage}
+              </span>
+            )}
+            {project.lastCommitLabel && (
+              <span className="text-text-faint">{project.lastCommitLabel}</span>
+            )}
+            {project.topics?.slice(0, 3).map((topic) => (
+              <span
+                key={topic}
+                className="rounded-control border border-line px-1.5 py-0.5 text-[10.5px] text-text-muted"
+              >
+                #{topic}
+              </span>
+            ))}
+          </div>
+
+          {/* Stat group: stars · comments · forks · posts (likes live in the footer) */}
+          <div className="flex shrink-0 items-center gap-3 text-text-faint">
+            <span className="inline-flex items-center gap-1">
+              <Star size={11} strokeWidth={1.4} />
+              {project.githubStars.toLocaleString()}
+            </span>
+            <button
+              onClick={onComment}
+              aria-label="Comments"
+              className="-my-3 inline-flex min-h-11 min-w-11 items-center justify-center gap-1 rounded-md border-none bg-transparent px-1 text-inherit transition-colors enabled:hover:text-text"
+              disabled={!onComment}
+              type="button"
+              data-project-card-action
+            >
+              <MessageSquare size={11} strokeWidth={1.4} />
+              {project.commentsCount}
+            </button>
+            {project.forksCount !== undefined && (
+              <span className="inline-flex items-center gap-1">
+                <GitFork size={11} strokeWidth={1.4} />
+                {project.forksCount.toLocaleString()}
+              </span>
+            )}
+            {project.postsCount !== undefined && project.postsCount > 0 && (
+              <span className="inline-flex items-center gap-1">
+                {project.postsCount} posts
+              </span>
+            )}
+          </div>
+        </div>
+
+        {!compact && languages.length > 0 && (
+          <LanguageBar languages={languages} />
         )}
       </div>
 
@@ -308,7 +315,7 @@ export function ProjectCard({
                 avatarUrl={project.authorAvatarUrl}
                 size={22}
               />
-              <span className="truncate font-sans text-[12.5px] font-medium text-text-muted">
+              <span className="truncate font-sans text-[12.5px] font-medium text-text">
                 {authorLabel}
               </span>
             </Link>
@@ -324,7 +331,7 @@ export function ProjectCard({
                 avatarUrl={project.authorAvatarUrl}
                 size={22}
               />
-              <span className="truncate font-sans text-[12.5px] font-medium text-text-muted">
+              <span className="truncate font-sans text-[12.5px] font-medium text-text">
                 {authorLabel}
               </span>
             </button>
@@ -335,7 +342,7 @@ export function ProjectCard({
                 avatarUrl={project.authorAvatarUrl}
                 size={22}
               />
-              <span className="truncate font-sans text-[12.5px] font-medium text-text-muted">
+              <span className="truncate font-sans text-[12.5px] font-medium text-text">
                 {authorLabel}
               </span>
             </div>
@@ -370,7 +377,7 @@ export function ProjectCard({
                 variant="ghost"
                 onClick={onDM}
                 disabled={dmPending}
-                className="min-h-11 font-mono text-[10.5px] text-text-faint"
+                className="min-h-11 font-mono text-[10.5px] text-text-muted"
               >
                 {dmPending ? 'opening…' : 'message'}
               </Button>
@@ -381,11 +388,11 @@ export function ProjectCard({
               aria-label={project.liked ? 'Unlike' : 'Like'}
               aria-pressed={project.liked}
               className={cn(
-                'flex min-h-11 min-w-11 items-center justify-center border-none bg-transparent p-3 transition-colors',
-                project.liked ? 'text-brand' : 'text-text-faint',
+                'flex min-h-11 min-w-11 items-center justify-center gap-1.5 border-none bg-transparent px-2.5 font-mono text-[11.5px] transition-colors',
+                project.liked ? 'text-liked' : 'text-text-faint',
                 likePending
                   ? 'cursor-default opacity-60'
-                  : 'cursor-pointer hover:text-brand',
+                  : 'cursor-pointer hover:text-liked',
               )}
               type="button"
             >
@@ -394,6 +401,8 @@ export function ProjectCard({
                 strokeWidth={1.6}
                 fill={project.liked ? 'currentColor' : 'none'}
               />
+              {project.locaticLikes > 0 &&
+                project.locaticLikes.toLocaleString()}
             </button>
           </div>
         )}
