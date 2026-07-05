@@ -56,6 +56,7 @@ import { ProjectReadmeSection } from '@/features/projects/readme/project-readme-
 import { ProjectReleasesSection } from '@/features/projects/releases/project-releases-section'
 import { ProjectPostsSection } from '@/features/projects/posts/project-posts-section'
 import { LikedBySummary } from '@/features/projects/likes/liked-by-summary'
+import { getProjectLikeButtonStyle } from '@/features/projects/like-button-style'
 import {
   ProjectRoutePending,
   ROUTE_PENDING_MIN_MS,
@@ -323,6 +324,7 @@ function ProjectDetailPage() {
   }
 
   const liked = detail.viewerHasLiked
+  const likeButtonStyle = getProjectLikeButtonStyle(liked)
   const followed = detail.viewerFollowsOwner
   const githubStars = detail.project.github.stargazersCount
   const locaticLikes = detail.project.locatic.likesCount
@@ -764,11 +766,11 @@ function ProjectDetailPage() {
                   {compactNumber(githubStars)}
                 </a>
                 <Button
-                  variant={liked ? 'brand' : 'monoOutline'}
+                  variant={likeButtonStyle.variant}
                   size="meta"
                   onClick={() => void handleLike()}
                   disabled={likeMutation.isPending || !isSignedIn}
-                  className="font-mono"
+                  className={likeButtonStyle.className}
                   aria-label={liked ? 'Unlike project' : 'Like project'}
                 >
                   <Heart
@@ -805,7 +807,7 @@ function ProjectDetailPage() {
                         type="button"
                         onClick={() => void handleRemoveTopic(topic)}
                         disabled={pendingTopics}
-                        className="-my-2 -mr-2 inline-flex min-h-11 min-w-11 items-center justify-center rounded-md bg-transparent text-text-faint transition-colors hover:text-text"
+                        className="-my-2 -mr-2 inline-flex min-h-11 min-w-11 items-center justify-center rounded-md bg-transparent text-text-muted transition-colors hover:text-text"
                         aria-label={`Remove ${topic}`}
                       >
                         <X size={12} />
@@ -886,7 +888,7 @@ function ProjectDetailPage() {
                     href={ownerGithubHref}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-md text-text-faint no-underline transition-colors hover:text-text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                    className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-md text-text-muted no-underline transition-colors hover:text-text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
                     aria-label="GitHub profile"
                   >
                     <BrandIcon name="github" size={13} />
@@ -985,7 +987,7 @@ function ProjectDetailPage() {
                   <TabsTrigger
                     key={value}
                     value={value}
-                    className="min-h-11 rounded-none border-b-2 border-transparent bg-transparent px-3.5 py-3 font-mono text-[12px] text-text-faint shadow-none data-[state=active]:border-brand data-[state=active]:bg-transparent data-[state=active]:text-text data-[state=active]:shadow-none"
+                    className="min-h-11 rounded-none border-b-2 border-transparent bg-transparent px-3.5 py-3 font-mono text-[12px] text-text-muted shadow-none data-[state=active]:border-brand data-[state=active]:bg-transparent data-[state=active]:text-text data-[state=active]:shadow-none"
                   >
                     {label}
                   </TabsTrigger>

@@ -214,6 +214,14 @@ Locatic — "GitHub with a map." Developer activity platform: discover projects,
 - Unsaved changes guard: `useUnsavedChangesGuard(isDirty, allowNextNavigationRef?)` via `@tanstack/react-router`'s `useBlocker` — covers in-app navigation and native `beforeunload`
 - Sticky save bar: rendered at bottom of form content using `sticky bottom-[var(--lx-mobile-tab-height)] md:bottom-4` with `shadow-floating` token; shows "unsaved changes" / "discard" / "save changes" when dirty
 - `lx-page-width-form-left` CSS utility: left-aligned form width container (`width: min(100%, var(--lx-form-max)); margin-inline: 0`)
+- `lx-card` class applied to content containers that need consistent card anatomy — comment threads (`comment-thread.tsx` top-level), project post cards (`project-post-card.tsx`); nested/threaded replies use `border-l` with thread rails instead
+- Primary language display uses a tinted chip via `langColor()` (`bg` with 12% opacity, `border` at 50%) instead of the bare `LangDot` + label; only the primary language is shown on Home feed cards
+- Like button: use `variant="monoOutline"` with `text-liked hover:text-liked` for the liked state, never `variant="brand"`; the brand variant is reserved for primary CTAs
+- Notification badges: use `bg-surface-alt text-text-muted`, not `bg-brand text-brand-foreground`
+- Comment metadata, secondary labels, and loading/empty state text use `text-text-muted`, not `text-text-faint`; reserve `text-text-faint` for tertiary content (timestamps, disabled items)
+- `StatusPill` muted statuses derive colors from `var(--lx-text-2)` via `color-mix()`, not raw hex values; sm size uses `min-h-[22px]`
+- Avatar fallback text uses `text-text` semantic token, not hardcoded hex like `#e6edf3`
+- Runtime accent colors via `langColor()` and similar data-derived paint functions are allowed inline — prefer `langColor()` tinted backgrounds over hardcoded hue values
 
 ## ANTI-PATTERNS (THIS PROJECT)
 
@@ -230,6 +238,10 @@ Locatic — "GitHub with a map." Developer activity platform: discover projects,
 - DO NOT use inline `style={{}}` for layout — prefer Tailwind utility classes
 - DO NOT write product docs outside `docs/`.
 - DO NOT use `bg-brand` for own/outgoing message bubbles — use `bg-outgoing border border-brand/30` instead.
+- DO NOT use `variant="brand"` for like buttons — use `variant="monoOutline"` with `text-liked hover:text-liked`.
+- DO NOT use `bg-brand text-brand-foreground` for notification badges — use `bg-surface-alt text-text-muted`.
+- DO NOT use `text-text-faint` for body copy, secondary labels, or loading/empty state text — use `text-text-muted`.
+- DO NOT use hardcoded hex colors (e.g., `#e6edf3`) for avatar fallback or text when semantic tokens like `text-text` exist.
 
 ## UNIQUE STYLES
 

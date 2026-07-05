@@ -62,7 +62,7 @@ export function LangDot({
         }}
         aria-hidden
       />
-      {showLabel && <span className="text-text-faint">{lang}</span>}
+      {showLabel && <span className="text-text-muted">{lang}</span>}
     </span>
   )
 }

@@ -13,7 +13,7 @@ import {
 } from '@/lib/icons'
 import { Button } from '@/components/ui/button'
 import { LxAvatar } from '@/components/ui/lx-avatar'
-import { LangDot } from '@/components/ui/lang-dot'
+import { langColor } from '@/components/ui/lang-dot'
 import { cn } from '@/lib/utils'
 import {
   type HomeFeedCommentTarget,
@@ -179,15 +179,26 @@ function ProjectMeta({
       : project.primaryLanguage
         ? [{ name: project.primaryLanguage, bytes: 0 }]
         : []
+  const primaryLanguage = languages[0]?.name
 
   return (
     <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[11px] text-text-muted">
-      {languages.slice(0, 2).map((language) => (
-        <span key={language.name} className="inline-flex items-center gap-1.5">
-          <LangDot lang={language.name} />
-          {language.name}
+      {primaryLanguage && (
+        <span
+          className="inline-flex items-center gap-1.5 rounded-control border px-1.5 py-0.5 text-text"
+          style={{
+            background: `${langColor(primaryLanguage)}1f`,
+            borderColor: `${langColor(primaryLanguage)}80`,
+          }}
+        >
+          <span
+            className="size-2 shrink-0 rounded-full"
+            style={{ background: langColor(primaryLanguage) }}
+            aria-hidden
+          />
+          {primaryLanguage}
         </span>
-      ))}
+      )}
       <span className="inline-flex items-center gap-1">
         <Heart size={11} strokeWidth={1.4} />
         {project.likesCount.toLocaleString()}

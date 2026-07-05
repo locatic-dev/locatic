@@ -120,7 +120,7 @@ export function CommentThread({
       className={
         nested
           ? 'relative min-w-0 border-l border-line pl-3 sm:pl-4'
-          : 'rounded-[6px] border border-line bg-surface px-3.5 py-3.5'
+          : 'lx-card rounded-card border border-line bg-surface px-3.5 py-3.5'
       }
     >
       <div

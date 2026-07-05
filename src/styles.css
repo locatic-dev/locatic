@@ -48,7 +48,7 @@
   /* Text roles: primary (body emphasis) > secondary (body) > tertiary (metadata) > disabled */
   --lx-text: var(--foreground);
   --lx-text-2: var(--muted-foreground);
-  --lx-text-3: oklch(57% 0.006 230);
+  --lx-text-3: oklch(58% 0.006 230);
   --lx-text-disabled: oklch(43% 0.005 230);
   --lx-accent: var(--primary);
   --lx-accent-quiet: oklch(72% 0.15 195 / 0.14);
