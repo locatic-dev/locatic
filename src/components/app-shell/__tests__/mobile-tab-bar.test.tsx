@@ -54,8 +54,13 @@ describe('MobileTabBar', () => {
     })
 
     expect(notificationsLink.getAttribute('href')).toBe('/notifications')
+    const badge = screen.getByLabelText('12 unread notifications')
     expect(screen.getByText('12')).toBeTruthy()
-    expect(screen.getByLabelText('12 unread notifications')).toBeTruthy()
+    expect(badge).toBeTruthy()
+    expect(badge.className).toContain('bg-surface-alt')
+    expect(badge.className).toContain('text-text-muted')
+    expect(badge.className).not.toContain('bg-brand')
+    expect(badge.className).not.toContain('text-brand-foreground')
   })
 
   it('uses resumed Explore search for the Explore tab only', () => {

@@ -72,7 +72,7 @@ export function ExploreHeader({
             explore
           </h1>
         </div>
-        <div className="flex items-center gap-2 font-mono text-[11.5px] text-text-faint">
+        <div className="flex items-center gap-2 font-mono text-[11.5px] text-text-muted">
           <span>
             {getExploreScopeStatusCopy(currentScope, mode, {
               isSearchActive: searchStatusActive,
@@ -147,7 +147,7 @@ export function ExploreHeader({
               />
             ))
           ) : (
-            <span className="inline-flex min-h-9 items-center font-mono text-[11.5px] text-text-faint">
+            <span className="inline-flex min-h-9 items-center font-mono text-[11.5px] text-text-muted">
               all cities
             </span>
           )}
