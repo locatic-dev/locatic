@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { BUILD_STATUS } from '../status-pill'
+import { createElement } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
+import { BUILD_STATUS, StatusPill } from '../status-pill'
 
 describe('BUILD_STATUS', () => {
   it('has all five required statuses', () => {
@@ -24,5 +26,15 @@ describe('BUILD_STATUS', () => {
 
   it('open_to_collab is marked as accent', () => {
     expect(BUILD_STATUS.open_to_collab.accent).toBe(true)
+  })
+
+  it('sources muted status paint from semantic tokens instead of raw fallback hex', () => {
+    const html = renderToStaticMarkup(
+      createElement(StatusPill, { status: 'just_exploring' }),
+    )
+
+    expect(html).toContain('var(--lx-text-2)')
+    expect(html).not.toContain('#8b949e')
+    expect(html).toContain('min-h-[22px]')
   })
 })

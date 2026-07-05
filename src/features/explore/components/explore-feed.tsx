@@ -132,7 +132,7 @@ export function ExploreFeed({
         )}
 
       {isBuildersMode && builderSearchLoading && (
-        <div className="py-5 text-center font-mono text-[12.5px] text-text-faint">
+        <div className="py-5 text-center font-mono text-[12.5px] text-text-muted">
           searching builders…
         </div>
       )}
@@ -173,7 +173,7 @@ export function ExploreFeed({
       {isBuildersMode &&
         builderResults.length === 0 &&
         !builderSearchLoading && (
-          <div className="py-5 text-center font-mono text-[12.5px] text-text-faint">
+          <div className="py-5 text-center font-mono text-[12.5px] text-text-muted">
             {isBuilderSearchActive
               ? `no builders found for "${debouncedSearchQuery}"`
               : 'no builders found for this city context.'}
@@ -185,7 +185,7 @@ export function ExploreFeed({
         isProjectSearchActive &&
         !projectSearchLoading &&
         visibleItems.length === 0 && (
-          <div className="py-5 text-center font-mono text-[12.5px] text-text-faint">
+          <div className="py-5 text-center font-mono text-[12.5px] text-text-muted">
             no projects found.
           </div>
         )}
@@ -211,7 +211,7 @@ export function ExploreFeed({
         )}
 
       {isPostsMode && postSearchLoading && (
-        <div className="py-5 text-center font-mono text-[12.5px] text-text-faint">
+        <div className="py-5 text-center font-mono text-[12.5px] text-text-muted">
           {isPostSearchActive ? 'searching posts…' : 'loading posts…'}
         </div>
       )}
@@ -220,7 +220,7 @@ export function ExploreFeed({
         isPostSearchActive &&
         visiblePostResults.length === 0 &&
         !postSearchLoading && (
-          <div className="py-5 text-center font-mono text-[12.5px] text-text-faint">
+          <div className="py-5 text-center font-mono text-[12.5px] text-text-muted">
             no posts found for &ldquo;{debouncedSearchQuery}&rdquo;
           </div>
         )}
@@ -281,7 +281,7 @@ export function ExploreFeed({
                   type="button"
                   onClick={() => onDismissPost(post._id, String(post._id))}
                   aria-label="Dismiss post"
-                  className="mt-1 mr-1 flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-md border-none bg-transparent text-text-faint transition-colors hover:text-text"
+                  className="mt-1 mr-1 flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-md border-none bg-transparent text-text-muted transition-colors hover:text-text"
                 >
                   <X size={12} aria-hidden="true" />
                 </button>
