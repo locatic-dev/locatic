@@ -187,6 +187,40 @@ describe('HomeFeedCard helpers', () => {
     expect(html).not.toContain('Like avi/test-1')
   })
 
+  it('renders one primary language chip for project targets', () => {
+    const item = feedItem({
+      eventType: 'project_posted',
+      previewTargets: [
+        {
+          ...projectTarget(1),
+          isOpenable: false,
+          projectSnapshot: {
+            ...projectSnapshot,
+            fullName: 'avi/test-1',
+            languages: [
+              { name: 'TypeScript', bytes: 800 },
+              { name: 'CSS', bytes: 200 },
+            ],
+            name: 'test-1',
+            primaryLanguage: 'TypeScript',
+          },
+        },
+      ],
+    })
+
+    const html = renderToStaticMarkup(
+      <HomeFeedCard
+        item={item}
+        likedProjectIds={new Set()}
+        pendingLikes={new Set()}
+        onLikeProject={() => undefined}
+      />,
+    )
+
+    expect(html).toContain('TypeScript')
+    expect(html).not.toContain('CSS')
+  })
+
   it('does not render the retired stacked-card wrapper for grouped cards', () => {
     const singleton = feedItem({
       eventCount: 1,

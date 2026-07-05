@@ -301,7 +301,7 @@ export function ProjectPostCard({
   }
 
   return (
-    <article className="rounded-card border border-line bg-surface px-4 py-4">
+    <article className="lx-card rounded-card border border-line bg-surface px-4 py-4">
       <div className="mb-3 flex min-w-0 items-start justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
           <LxAvatar
