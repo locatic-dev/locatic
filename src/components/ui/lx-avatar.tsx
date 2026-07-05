@@ -58,7 +58,7 @@ export function LxAvatar({
 
   return (
     <div
-      className={`inline-flex shrink-0 select-none items-center justify-center rounded-full font-mono font-semibold tracking-[-0.02em] text-[#e6edf3] ${className ?? ''}`}
+      className={`inline-flex shrink-0 select-none items-center justify-center rounded-full font-mono font-semibold tracking-[-0.02em] text-text ${className ?? ''}`}
       aria-label={name}
       style={{
         width: size,

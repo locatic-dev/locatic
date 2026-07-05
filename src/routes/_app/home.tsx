@@ -189,7 +189,7 @@ function HomePage() {
             {homeFeedRenderState === 'items' && (
               <>
                 <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-                  <span className="font-mono text-[11.5px] lowercase text-text-faint">
+                  <span className="font-mono text-[11.5px] lowercase text-text-muted">
                     {'// activity from people you follow'}
                   </span>
                 </div>
@@ -220,7 +220,7 @@ function HomePage() {
                     </div>
                   )}
                   {homeFeed.status === 'LoadingMore' && (
-                    <div className="py-2 text-center font-mono text-[11.5px] text-text-faint">
+                    <div className="py-2 text-center font-mono text-[11.5px] text-text-muted">
                       loading older activity…
                     </div>
                   )}

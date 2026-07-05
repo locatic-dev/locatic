@@ -88,7 +88,7 @@ export function MobileTabBar({
               {item.icon}
               {item.badge != null && item.badge > 0 && (
                 <span
-                  className="absolute -top-2 -right-3 min-w-4.5 rounded-pill bg-brand px-1 py-0.5 text-center font-mono text-[9px] leading-none text-brand-foreground"
+                  className="absolute -top-2 -right-3 min-w-4.5 rounded-pill bg-surface-alt px-1 py-0.5 text-center font-mono text-[9px] leading-none text-text-muted"
                   aria-label={`${item.badge} unread ${item.label}`}
                 >
                   {item.badge > 99 ? '99+' : item.badge}

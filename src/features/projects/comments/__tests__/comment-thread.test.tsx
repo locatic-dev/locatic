@@ -143,6 +143,30 @@ describe('CommentThread', () => {
     expect(textarea.className).not.toContain('py-0')
   })
 
+  it('uses shared card anatomy for top-level comments while nested replies keep thread rails', () => {
+    paginatedState = {
+      results: [
+        makeComment({
+          _id: 'comment_reply_1' as Id<'comments'>,
+          content: 'Loaded reply',
+          parentId: 'comment_1' as Id<'comments'>,
+        }),
+      ],
+      status: 'CanLoadMore',
+      loadMore: vi.fn(),
+    }
+
+    const { container } = renderThread({})
+
+    const topLevelComment = container.querySelector('#comment-comment_1')
+    const nestedReply = container.querySelector('#comment-comment_reply_1')
+
+    expect(topLevelComment?.className).toContain('lx-card')
+    expect(topLevelComment?.className).toContain('rounded-card')
+    expect(nestedReply?.className).toContain('border-l')
+    expect(nestedReply?.className).not.toContain('lx-card')
+  })
+
   it('submits a reply without requiring the composer to stay open', () => {
     const handleReply = vi.fn()
     renderThread({

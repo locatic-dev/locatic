@@ -22,40 +22,36 @@ export function StatusPill({
   const s = BUILD_STATUS[status as BuildStatus] ?? { label: status, hue: 200 }
   const isMuted = 'muted' in s && s.muted
 
-  const baseStyle =
-    size === 'sm'
-      ? { fontSize: 10.5, padding: '4px 7px', minHeight: 22 }
-      : { fontSize: 11.5, padding: '5px 9px', minHeight: 28 }
-
-  const dotColor = isMuted ? '#8b949e' : `hsl(${s.hue} 70% 60%)`
-  const textColor = isMuted ? '#8b949e' : `hsl(${s.hue} 60% 70%)`
-  const bg = isMuted ? 'rgba(139,148,158,0.08)' : `hsl(${s.hue} 60% 50% / 0.1)`
+  const dotColor = isMuted ? 'var(--lx-text-2)' : `hsl(${s.hue} 70% 60%)`
+  const textColor = isMuted ? 'var(--lx-text-2)' : `hsl(${s.hue} 60% 70%)`
+  const bg = isMuted
+    ? 'color-mix(in oklch, var(--lx-text-2) 8%, transparent)'
+    : `hsl(${s.hue} 60% 50% / 0.1)`
   const border = isMuted
-    ? 'rgba(139,148,158,0.2)'
+    ? 'color-mix(in oklch, var(--lx-text-2) 20%, transparent)'
     : `hsl(${s.hue} 60% 50% / 0.25)`
 
   return (
     <span
       className={[
-        'inline-flex max-w-full items-center gap-[5px] rounded-[3px] font-mono leading-none',
+        'inline-flex max-w-full items-center gap-[5px] rounded-[3px] border font-mono leading-none',
+        size === 'sm'
+          ? 'min-h-[22px] px-[7px] py-1 text-[10.5px]'
+          : 'min-h-7 px-[9px] py-[5px] text-[11.5px]',
         className,
       ]
         .filter(Boolean)
         .join(' ')}
       style={{
-        ...baseStyle,
         color: textColor,
         background: bg,
-        border: `1px solid ${border}`,
+        borderColor: border,
       }}
     >
       <span
+        className="size-[5px] shrink-0 rounded-full"
         style={{
-          width: 5,
-          height: 5,
-          borderRadius: '50%',
           background: dotColor,
-          flexShrink: 0,
         }}
         aria-hidden
       />

@@ -90,6 +90,7 @@ ui/
 - `ProjectCardData` no longer supports `isRecommended`/`matchPct` fields — removed from data model and UI
 - Use semantic tokens: `bg-surface`, `text-text-muted`, `rounded-card`, `shadow-card` instead of `var(--lx-*)`
 - Inline `style={{}}` only for dynamic runtime values such as data-derived color, size, mask, or SVG paint — never for static layout
+- Runtime accent colors for content signals, such as programming languages, avatar fallback palettes, and Home target-kind icon tints, are allowed as data-derived paint. Keep them restrained and document new maps near the component that owns the signal.
 - Form controls preserve fallback IDs and label associations for autofill/a11y; keep those props intact when editing inputs, switches, and textareas.
 - Dropdown menus must stay keyboard- and touch-safe; no hover-only affordances.
 
