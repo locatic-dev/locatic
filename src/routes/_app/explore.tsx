@@ -60,6 +60,13 @@ import {
 import { ExploreHeader } from '@/features/explore/components/explore-header'
 import { ExploreFeed } from '@/features/explore/components/explore-feed'
 import { keepPreviousPostSearchData } from '@/features/explore/query-transitions'
+import {
+  getPostSearchLoadMoreAction,
+  getPostSearchResetKey,
+  getNextPostSearchLimit,
+  POST_SEARCH_LOAD_MORE_ACTIONS,
+  POST_SEARCH_DEFAULT_LIMIT,
+} from '@/features/explore/post-search'
 import { useDebouncedRouteSearch } from '@/features/explore/use-debounced-route-search'
 import { shouldPrefetchPrivateConvexQueries } from '@/lib/auth-routing'
 import type {
@@ -151,6 +158,9 @@ function ExplorePage() {
     Record<string, string>
   >({})
   const [cityQuery, setCityQuery] = useState('')
+  const [postSearchLimit, setPostSearchLimit] = useState(
+    POST_SEARCH_DEFAULT_LIMIT,
+  )
   const commitSearchQuery = useCallback(
     (q: string) => {
       void navigate({
@@ -204,6 +214,11 @@ function ExplorePage() {
   )
   const queryCityIds = canonicalSelectedCityIds as Array<Id<'cities'>>
   const queryCityKey = queryCityIds.map(String).join('|')
+  const postSearchResetKey = getPostSearchResetKey({
+    cityIds: queryCityIds.map(String),
+    mode: currentMode,
+    query: debouncedSearchQuery,
+  })
   const nearbyBuilderCityIds = getNearbyBuilderCityIds({
     scope: currentScope,
     selectedCityIds: canonicalSelectedCityIds,
@@ -272,6 +287,7 @@ function ExplorePage() {
       ? {
           ...postSearchQueryOptions({
             cityIds: queryCityIds,
+            limit: postSearchLimit,
             q: debouncedSearchQuery,
           }),
           placeholderData: keepPreviousPostSearchData({
@@ -295,12 +311,17 @@ function ExplorePage() {
   )
   const postSearchQueryKey = postSearchQueryOptions({
     cityIds: queryCityIds,
+    limit: postSearchLimit,
     q: debouncedSearchQuery,
   }).queryKey
   const followingQueryKey = followingQueryOptions(
     viewerId as Id<'users'>,
   ).queryKey
   const likedProjectIdsQueryKey = viewerLikedProjectIdsQueryOptions().queryKey
+
+  useEffect(() => {
+    setPostSearchLimit(POST_SEARCH_DEFAULT_LIMIT)
+  }, [postSearchResetKey])
 
   useEffect(() => {
     setDismissedIds(new Set())
@@ -675,7 +696,17 @@ function ExplorePage() {
             onFollowUser={handleFollow}
             onLikeProject={handleLike}
             onLoadMoreBuilders={() => nearbyBuildersPaged.loadMore(20)}
-            onLoadMorePosts={() => postListPaged.loadMore(20)}
+            onLoadMorePosts={() => {
+              if (
+                getPostSearchLoadMoreAction({ isPostSearchActive }) ===
+                POST_SEARCH_LOAD_MORE_ACTIONS.growSearchLimit
+              ) {
+                setPostSearchLimit(getNextPostSearchLimit)
+                return
+              }
+
+              postListPaged.loadMore(20)
+            }}
             onLoadMoreProjects={() => scopedFeedPaged.loadMore(20)}
             onMessageUser={(userId) => void openConversation(userId)}
             onOpenBuilderProfile={(builder) =>
