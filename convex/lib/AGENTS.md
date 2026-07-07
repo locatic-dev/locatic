@@ -14,7 +14,7 @@ convex/lib/
 ├── constants.ts         # App-wide constants
 ├── conversation.ts      # Conversation helpers
 ├── discoverability.ts   # Discoverability / search indexing (mergeBuilderSearchCandidates)
-├── explore.ts           # Discovery query helpers
+├── explore.ts           # Discovery query helpers: `collectVisibleExplorePage`, `isExploreProjectVisible`/`isExplorePostInScope`/`isNearbyBuilderVisible` city-scope gates, `rankExploreProjectsByStack` stack sorting
 ├── github.ts            # GitHub API helpers
 ├── homeFeed.ts          # Feed generation / aggregation logic
 ├── notifications.ts     # Notification helpers (buildProjectNotificationTarget, etc.)
