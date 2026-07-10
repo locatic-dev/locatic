@@ -1,8 +1,10 @@
+import { motion } from 'motion/react'
 import type { Doc } from '../../../../convex/_generated/dataModel'
 import { CityCombobox } from '@/components/ui/city-combobox'
 import { CityPill } from '@/components/ui/city-pill'
 import { Input } from '@/components/ui/input'
 import { Search } from '@/lib/icons'
+import { indicatorSpring, pressScale } from '@/lib/motion'
 import {
   getExploreScopeStatusCopy,
   type ExploreMode,
@@ -24,6 +26,8 @@ const EXPLORE_MODE_CONFIG = {
     placeholder: 'search projects by repo or topic',
   },
 } satisfies Record<ExploreMode, { ariaLabel: string; placeholder: string }>
+
+const EXPLORE_MODE_ORDER = ['projects', 'builders', 'posts'] as const
 
 export function ExploreHeader({
   availableCities,
@@ -72,22 +76,29 @@ export function ExploreHeader({
             explore
           </h1>
         </div>
-        <div className="flex items-center gap-2 font-mono text-[11.5px] text-text-muted">
-          <span>
-            {getExploreScopeStatusCopy(currentScope, mode, {
-              isSearchActive: searchStatusActive,
-            })}
+        <div className="flex items-center gap-3 font-mono text-[11.5px]">
+          <span className="inline-flex items-center gap-1.5 text-brand-2">
+            <span
+              aria-hidden="true"
+              className="h-3 w-1.5 shrink-0 bg-brand-2"
+            />
+            <span>
+              {getExploreScopeStatusCopy(currentScope, mode, {
+                isSearchActive: searchStatusActive,
+              })}
+            </span>
           </span>
-          {pendingCityIds && <span>saving…</span>}
+          {pendingCityIds && <span className="text-text-muted">saving…</span>}
           {canResetExplore && onResetExplore && (
-            <button
+            <motion.button
               type="button"
               onClick={onResetExplore}
               disabled={resetPending}
-              className="min-h-9 rounded-md border border-line px-3 py-1.5 font-mono text-[11.5px] text-text-muted transition-colors hover:border-line-strong hover:text-text disabled:cursor-default disabled:opacity-60"
+              whileTap={resetPending ? undefined : pressScale}
+              className="min-h-11 rounded-md border border-line px-3 font-mono text-[11.5px] text-text-muted transition-colors hover:border-line-strong hover:text-text disabled:cursor-default disabled:opacity-60"
             >
               {resetPending ? 'resetting…' : 'reset'}
-            </button>
+            </motion.button>
           )}
         </div>
       </div>
@@ -99,21 +110,31 @@ export function ExploreHeader({
           aria-label="Explore mode"
           className="inline-flex shrink-0 self-start rounded-md border border-line bg-surface p-0.5 lg:self-auto"
         >
-          {(['projects', 'builders', 'posts'] as const).map((nextMode) => (
-            <button
-              key={nextMode}
-              type="button"
-              aria-pressed={mode === nextMode}
-              onClick={() => onModeChange(nextMode)}
-              className={`min-h-9 rounded-[5px] px-3.5 py-1.5 font-mono text-[12px] transition-colors ${
-                mode === nextMode
-                  ? 'bg-selected text-brand'
-                  : 'text-text-muted hover:text-text'
-              }`}
-            >
-              {nextMode}
-            </button>
-          ))}
+          {EXPLORE_MODE_ORDER.map((nextMode) => {
+            const isActive = mode === nextMode
+
+            return (
+              <motion.button
+                key={nextMode}
+                type="button"
+                aria-pressed={isActive}
+                onClick={() => onModeChange(nextMode)}
+                whileTap={pressScale}
+                className={`relative min-h-11 rounded-[5px] px-3.5 font-mono text-[12px] transition-colors ${
+                  isActive ? 'text-brand' : 'text-text-muted hover:text-text'
+                }`}
+              >
+                {isActive && (
+                  <motion.span
+                    layoutId="explore-mode-indicator"
+                    transition={indicatorSpring}
+                    className="absolute inset-0 rounded-[5px] bg-selected"
+                  />
+                )}
+                <span className="relative">{nextMode}</span>
+              </motion.button>
+            )
+          })}
         </div>
 
         <div className="relative min-w-0 flex-1">
@@ -126,13 +147,13 @@ export function ExploreHeader({
             placeholder={modeConfig.placeholder}
             value={searchQuery}
             onChange={(event) => onSearchQueryChange(event.target.value)}
-            className="h-11 border-line bg-canvas pl-9 font-mono text-sm text-text placeholder:text-text-faint"
+            className="h-11 border-line bg-canvas pl-9 font-mono text-[16px] text-text placeholder:text-text-faint transition-colors focus-visible:border-brand-2/60 focus-visible:ring-0 md:text-sm"
             aria-label={modeConfig.ariaLabel}
           />
         </div>
       </div>
 
-      <div className="grid gap-2 sm:grid-cols-[auto_minmax(0,1fr)] sm:items-start">
+      <div className="grid gap-2 rounded-md border border-brand-2/15 bg-brand-2-quiet px-3 py-2.5 sm:grid-cols-[auto_minmax(0,1fr)] sm:items-start">
         <span className="pt-2 font-mono text-[11px] lowercase text-text-faint">
           near
         </span>
@@ -160,7 +181,7 @@ export function ExploreHeader({
             onSelectCity={onSelectCity}
             placeholder="+ add city"
             className="min-w-0 basis-full sm:basis-56 sm:grow-0"
-            inputClassName="h-9 text-[12px]"
+            inputClassName="h-9 text-[16px] md:text-[12px]"
           />
         </div>
       </div>

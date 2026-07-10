@@ -56,6 +56,8 @@ import {
 } from '@/features/profile/comment-navigation'
 import { ProfileNetworkSection } from '@/features/profile/network-section'
 import { ProfilePostList } from '@/features/profile/post-list'
+import { ProfileContentSkeleton } from '@/features/profile/content-skeleton'
+import { EmptyState } from '@/components/ui/empty-state'
 import {
   PublicProfileContributionGraph,
   PublicProfileContributionsList,
@@ -699,6 +701,7 @@ function PublicProfileContent({
             name={overview.profile.displayName}
             avatarUrl={overview.profile.avatarUrl}
             size={88}
+            className="ring-1 ring-transparent ring-offset-2 ring-offset-canvas transition-[box-shadow] hover:ring-brand/40"
           />
 
           <div className="flex-1">
@@ -726,22 +729,22 @@ function PublicProfileContent({
                   <button
                     type="button"
                     onClick={() => navigateSearch({ network: 'followers' })}
-                    className="bg-transparent p-0 text-left font-mono text-xs text-inherit"
+                    className="group -m-1.5 min-h-11 bg-transparent p-1.5 text-left font-mono text-xs text-inherit"
                   >
-                    <strong className="text-text">
+                    <strong className="text-text transition-colors group-hover:text-brand">
                       {compactNumber(overview.stats.followersCount)}
                     </strong>{' '}
-                    <span className="text-text-faint">followers</span>
+                    <span className="text-text-muted">followers</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => navigateSearch({ network: 'following' })}
-                    className="bg-transparent p-0 text-left font-mono text-xs text-inherit"
+                    className="group -m-1.5 min-h-11 bg-transparent p-1.5 text-left font-mono text-xs text-inherit"
                   >
-                    <strong className="text-text">
+                    <strong className="text-text transition-colors group-hover:text-brand">
                       {compactNumber(overview.stats.followingCount)}
                     </strong>{' '}
-                    <span className="text-text-faint">following</span>
+                    <span className="text-text-muted">following</span>
                   </button>
                 </>
               ) : (
@@ -750,13 +753,13 @@ function PublicProfileContent({
                     <strong className="text-text">
                       {compactNumber(overview.stats.followersCount)}
                     </strong>{' '}
-                    <span className="text-text-faint">followers</span>
+                    <span className="text-text-muted">followers</span>
                   </span>
                   <span>
                     <strong className="text-text">
                       {compactNumber(overview.stats.followingCount)}
                     </strong>{' '}
-                    <span className="text-text-faint">following</span>
+                    <span className="text-text-muted">following</span>
                   </span>
                 </>
               )}
@@ -867,11 +870,7 @@ function PublicProfileContent({
             />
 
             <div className="pt-7">
-              {contentIsLoading && (
-                <div className="font-mono text-[12px] text-text-faint">
-                  loading {tab}…
-                </div>
-              )}
+              {contentIsLoading && <ProfileContentSkeleton />}
 
               {!contentIsLoading && tab === 'projects' && (
                 <PublicProfileProjectsList projects={projects} />
@@ -894,13 +893,15 @@ function PublicProfileContent({
               {!contentIsLoading && tab === 'comments' && (
                 <div className="flex flex-col gap-3.5">
                   {overview.privacy.commentHistoryVisibility !== 'public' ? (
-                    <div className="py-4.5 font-sans text-sm text-text-muted">
-                      comment history is private on this profile.
-                    </div>
+                    <EmptyState
+                      size="compact"
+                      title="comment history is private on this profile."
+                    />
                   ) : sortedComments.length === 0 ? (
-                    <div className="py-4.5 font-sans text-sm text-text-muted">
-                      no public comments yet.
-                    </div>
+                    <EmptyState
+                      size="compact"
+                      title="no public comments yet."
+                    />
                   ) : (
                     sortedComments.map((comment) => (
                       <button

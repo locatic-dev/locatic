@@ -154,10 +154,10 @@ export function ProjectCard({
       onPointerEnter={preloadProjectRoute}
       onTouchStart={preloadProjectRoute}
       className={cn(
-        'lx-card @container relative flex flex-col rounded-card border border-line bg-surface',
+        'lx-card @container relative flex flex-col rounded-card border border-line bg-surface transition-transform duration-[140ms] ease-out',
         projectNavigateOptions &&
-          'cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-canvas',
-        compact ? 'gap-2.5 px-4 py-3.5' : 'gap-3.5 px-5 py-4.5',
+          'cursor-pointer active:scale-[0.997] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-canvas',
+        compact ? 'gap-2 px-4 py-3' : 'gap-3 px-5 py-4',
         className,
       )}
     >
@@ -250,7 +250,7 @@ export function ProjectCard({
             {project.topics?.slice(0, 3).map((topic) => (
               <span
                 key={topic}
-                className="rounded-control border border-line px-1.5 py-0.5 text-[10.5px] text-text-muted"
+                className="rounded-control border border-line px-1.5 py-0.5 text-[11px] text-text-muted"
               >
                 #{topic}
               </span>
@@ -296,8 +296,8 @@ export function ProjectCard({
       {/* Author row */}
       <div
         className={cn(
-          'flex flex-wrap items-start justify-between gap-2.5 border-t border-line',
-          compact ? 'pt-1' : 'pt-1.5',
+          'flex flex-wrap items-start justify-between gap-2 border-t border-line',
+          compact ? 'pt-2' : 'pt-3',
         )}
       >
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
@@ -364,7 +364,7 @@ export function ProjectCard({
                 onClick={onFollow}
                 disabled={followPending}
                 className={cn(
-                  'min-h-11 font-mono text-[10.5px]',
+                  'min-h-11 font-mono text-[11px]',
                   project.followed && 'border-line-strong text-text-muted',
                 )}
               >
@@ -377,7 +377,7 @@ export function ProjectCard({
                 variant="ghost"
                 onClick={onDM}
                 disabled={dmPending}
-                className="min-h-11 font-mono text-[10.5px] text-text-muted"
+                className="min-h-11 font-mono text-[11px] text-text-muted"
               >
                 {dmPending ? 'opening…' : 'message'}
               </Button>
@@ -421,7 +421,7 @@ export function ProjectCardSkeleton({
     <div
       className={cn(
         'flex flex-col gap-3 rounded-card border border-line bg-surface',
-        compact ? 'px-4 py-3.5' : 'px-5 py-4.5',
+        compact ? 'px-4 py-3' : 'px-5 py-4',
       )}
     >
       <div className="lx-skeleton h-3.5 w-3/5" />

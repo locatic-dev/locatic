@@ -1,4 +1,5 @@
 import { ProjectCard } from '@/components/ui/project-card'
+import { EmptyState } from '@/components/ui/empty-state'
 import type { ProjectCardPreview } from '@/features/contracts'
 import {
   getProjectCardId,
@@ -13,11 +14,7 @@ export function PublicProfileProjectsList({
   projects: ProjectCardPreview[]
 }) {
   if (projects.length === 0) {
-    return (
-      <div className="py-4.5 font-sans text-sm text-text-muted">
-        no public projects yet.
-      </div>
-    )
+    return <EmptyState size="compact" title="no public projects yet." />
   }
 
   return (

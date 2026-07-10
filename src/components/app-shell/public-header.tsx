@@ -2,13 +2,15 @@ import { Link } from '@tanstack/react-router'
 import { Logo } from '@/components/ui/logo'
 import { Route as RootRoute } from '@/routes/__root'
 
-// Top bar shared by the public landing page and the legal pages.
+// Top bar shared by the public landing page and the legal pages. Entrance
+// runs on CSS (`lx-hero-up`) — above-the-fold chrome must never wait on
+// hydration to become visible.
 export function PublicHeader() {
   const { auth } = RootRoute.useRouteContext()
   const isAuthenticated = auth.isAuthenticated
 
   return (
-    <header className="relative z-2 flex min-h-16 flex-wrap items-center justify-between gap-4 border-b border-line px-(--lx-gutter) py-4">
+    <header className="lx-hero-up relative z-2 flex min-h-16 flex-wrap items-center justify-between gap-4 border-b border-line px-(--lx-gutter) py-4 [--hero-step:0]">
       <Link to="/" className="flex items-center gap-2.5 text-text no-underline">
         <Logo size={32} />
         <span className="font-mono text-base font-bold tracking-[-0.02em]">

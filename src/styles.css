@@ -8,15 +8,25 @@
   --font-mono: 'IBM Plex Mono', ui-monospace, 'Cascadia Code', monospace;
 }
 
-/* ── Raw theme values (dark-first — single polished dark theme) ──────────── */
+/* ── Raw theme values (dark-first — themeable accent family) ─────────────── */
+/* Accent family is driven by three components so a theme swap is a single
+   html[data-theme] override. Neutral surfaces are shared across themes.
+   Keep the variant values in sync with scripts/check-contrast.mjs. */
 :root {
+  --lx-accent-l: 72%;
+  --lx-accent-c: 0.15;
+  --lx-accent-h: 195;
+  /* Secondary accent: section-signature tints only (never primary CTAs). */
+  --lx-accent-2: oklch(74% 0.11 300);
+  --lx-accent-2-quiet: oklch(74% 0.11 300 / 0.12);
+
   --background: oklch(13.5% 0.007 230);
   --foreground: oklch(93% 0.005 230);
   --card: oklch(20% 0.008 230);
   --card-foreground: oklch(93% 0.005 230);
   --popover: oklch(20% 0.008 230);
   --popover-foreground: oklch(93% 0.005 230);
-  --primary: oklch(72% 0.15 195);
+  --primary: oklch(var(--lx-accent-l) var(--lx-accent-c) var(--lx-accent-h));
   --primary-foreground: oklch(14% 0.005 230);
   --secondary: oklch(21% 0.007 230);
   --secondary-foreground: oklch(93% 0.005 230);
@@ -28,9 +38,9 @@
   --destructive-foreground: oklch(93% 0.005 230);
   --border: oklch(36% 0.008 230);
   --input: oklch(36% 0.008 230);
-  --ring: oklch(72% 0.15 195);
+  --ring: var(--primary);
   --radius: 0.25rem;
-  --chart-1: oklch(72% 0.15 195);
+  --chart-1: var(--primary);
   --chart-2: oklch(70% 0.16 145);
   --chart-3: oklch(72% 0.18 75);
   --chart-4: oklch(68% 0.17 260);
@@ -51,18 +61,26 @@
   --lx-text-3: oklch(58% 0.006 230);
   --lx-text-disabled: oklch(43% 0.005 230);
   --lx-accent: var(--primary);
-  --lx-accent-quiet: oklch(72% 0.15 195 / 0.14);
+  --lx-accent-quiet: oklch(
+    var(--lx-accent-l) var(--lx-accent-c) var(--lx-accent-h) / 0.14
+  );
   /* Brand wash for INTERACTION states only (hover/focus/selected) — never resting cards */
-  --lx-surface-accent: oklch(72% 0.15 195 / 0.06);
+  --lx-surface-accent: oklch(
+    var(--lx-accent-l) var(--lx-accent-c) var(--lx-accent-h) / 0.06
+  );
   --lx-danger: var(--destructive);
   --lx-success: oklch(70% 0.16 145);
   --lx-warning: oklch(72% 0.18 75);
 
   /* ── Highlight semantics (one job per token; green is not universal) ─────── */
-  --lx-selected-fill: oklch(72% 0.15 195 / 0.1);
+  --lx-selected-fill: oklch(
+    var(--lx-accent-l) var(--lx-accent-c) var(--lx-accent-h) / 0.1
+  );
   --lx-selected-bar: var(--primary);
-  --lx-outgoing-surface: oklch(72% 0.15 195 / 0.16);
-  --lx-unread-dot: oklch(70% 0.1 195);
+  --lx-outgoing-surface: oklch(
+    var(--lx-accent-l) var(--lx-accent-c) var(--lx-accent-h) / 0.16
+  );
+  --lx-unread-dot: oklch(70% 0.1 var(--lx-accent-h));
   --lx-focus-ring: var(--primary);
   --lx-liked: oklch(64% 0.21 25);
 
@@ -91,6 +109,28 @@
     0 1px 0 oklch(100% 0 0 / 0.04), 0 12px 32px oklch(0% 0 0 / 0.18);
   --lx-shadow-floating:
     0 1px 0 oklch(100% 0 0 / 0.05), 0 18px 44px oklch(0% 0 0 / 0.28);
+}
+
+/* ── Theme variants ──────────────────────────────────────────────────────── */
+/* Dark stays the base. A variant swaps ONLY the accent family (primary +
+   secondary accent); every derived token (quiet washes, selected fill,
+   outgoing surface, unread dot, focus ring) follows automatically.
+   Set via next-themes: <html data-theme="violet">. Keep values in sync with
+   scripts/check-contrast.mjs THEMES. */
+html[data-theme='violet'] {
+  --lx-accent-l: 74%;
+  --lx-accent-c: 0.15;
+  --lx-accent-h: 292;
+  --lx-accent-2: oklch(75% 0.11 195);
+  --lx-accent-2-quiet: oklch(75% 0.11 195 / 0.12);
+}
+
+html[data-theme='amber'] {
+  --lx-accent-l: 76%;
+  --lx-accent-c: 0.14;
+  --lx-accent-h: 75;
+  --lx-accent-2: oklch(72% 0.11 210);
+  --lx-accent-2-quiet: oklch(72% 0.11 210 / 0.12);
 }
 
 /* ── Register as Tailwind color utilities ───────────────────────────────── */
@@ -142,6 +182,9 @@
   --color-brand: var(--lx-accent);
   --color-brand-quiet: var(--lx-accent-quiet);
   --color-brand-foreground: var(--primary-foreground);
+  /* Secondary accent — section signatures (tinted borders, chips), not CTAs */
+  --color-brand-2: var(--lx-accent-2);
+  --color-brand-2-quiet: var(--lx-accent-2-quiet);
   --color-selected: var(--lx-selected-fill);
   --color-outgoing: var(--lx-outgoing-surface);
   --color-unread: var(--lx-unread-dot);
@@ -257,6 +300,58 @@ button {
   animation: lx-fade-up 600ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
+/* Hero entrance: pure CSS so above-the-fold content plays as soon as the
+   stylesheet loads — never gated on JS hydration (SSR pages would otherwise
+   sit at opacity 0 until the client bundle hydrates). Stagger via
+   --hero-step (set per element as a Tailwind arbitrary property class). */
+@keyframes lx-hero-up {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.lx-hero-up {
+  animation: lx-hero-up 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: calc(var(--hero-step, 0) * 80ms + 40ms);
+}
+
+/* Ambient scroll cue: slow vertical nudge on the "see how it works ↓" arrow. */
+@keyframes lx-nudge-down {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(3px);
+  }
+}
+
+.lx-nudge-down {
+  display: inline-block;
+  animation: lx-nudge-down 1.8s ease-in-out infinite;
+}
+
+/* Ambient slow float for decorative layers (landing preview card backdrop).
+   Animates transform only — safe alongside Tailwind v4's `rotate:` property. */
+@keyframes lx-float-slow {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-7px);
+  }
+}
+
+.lx-float-slow {
+  animation: lx-float-slow 5s ease-in-out infinite;
+}
+
 @keyframes lx-reaction-pop {
   0% {
     transform: scale(1);
@@ -325,6 +420,9 @@ button {
 @media (prefers-reduced-motion: reduce) {
   .lx-skeleton,
   .lx-fade-up,
+  .lx-hero-up,
+  .lx-nudge-down,
+  .lx-float-slow,
   .lx-reaction-pop,
   .lx-reaction-burst span {
     animation: none;

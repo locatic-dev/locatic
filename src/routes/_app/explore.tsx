@@ -639,6 +639,10 @@ function ExplorePage() {
       selectedCities,
     )
 
+  const handleClearCityFilters = () => {
+    updateSearch({ scope: 'global', selectedCityIds: [] })
+  }
+
   return (
     <div className="lx-page-shell">
       <ExploreHeader
@@ -667,6 +671,9 @@ function ExplorePage() {
       <div className="lx-page-scroll" data-scroll-restoration-id="explore-feed">
         <div className="lx-page-width-wide min-w-0">
           <ExploreFeed
+            builderFeedLoading={
+              nearbyBuildersPaged.status === 'LoadingFirstPage'
+            }
             builderResults={builderResults}
             builderSearchLoading={builderSearchQuery.isLoading}
             canLoadMoreBuilders={canLoadMoreBuilders}
@@ -708,6 +715,7 @@ function ExplorePage() {
               postListPaged.loadMore(20)
             }}
             onLoadMoreProjects={() => scopedFeedPaged.loadMore(20)}
+            onClearCityFilters={handleClearCityFilters}
             onMessageUser={(userId) => void openConversation(userId)}
             onOpenBuilderProfile={(builder) =>
               void navigate({
@@ -718,10 +726,12 @@ function ExplorePage() {
                 search: { tab: 'projects' },
               })
             }
+            onResetExplore={handleResetExplore}
             pendingFollows={pendingFollows}
             pendingLikes={pendingLikes}
             pendingUserId={pendingUserId}
             projectFeedLoading={scopedFeedPaged.status === 'LoadingFirstPage'}
+            resetPending={resetPending}
             projectSearchLoading={
               projectSearchQuery.isLoading || projectSearchQuery.isFetching
             }

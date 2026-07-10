@@ -8,7 +8,10 @@ import {
 } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
 import { auth } from '@clerk/tanstack-react-start/server'
+import { MotionConfig } from 'motion/react'
+import { ThemeProvider } from 'next-themes'
 import { useEffect } from 'react'
+import { THEME_IDS, DEFAULT_THEME_ID } from '@/lib/theme'
 import ClerkProvider from '../integrations/clerk/provider'
 import ConvexProvider from '../integrations/convex/provider'
 import { Logo } from '@/components/ui/logo'
@@ -248,11 +251,21 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <a className="lx-skip-link" href="#main-content" data-skip-link="true">
           Skip to main content
         </a>
-        <ClerkProvider>
-          <ConvexProvider queryClient={router.options.context.queryClient}>
-            {children}
-          </ConvexProvider>
-        </ClerkProvider>
+        <ThemeProvider
+          attribute="data-theme"
+          themes={[...THEME_IDS]}
+          defaultTheme={DEFAULT_THEME_ID}
+          enableSystem={false}
+          disableTransitionOnChange
+        >
+          <MotionConfig reducedMotion="user">
+            <ClerkProvider>
+              <ConvexProvider queryClient={router.options.context.queryClient}>
+                {children}
+              </ConvexProvider>
+            </ClerkProvider>
+          </MotionConfig>
+        </ThemeProvider>
         <Scripts />
       </body>
     </html>
