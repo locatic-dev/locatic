@@ -1,4 +1,6 @@
 import { Link, useRouterState } from '@tanstack/react-router'
+import { motion } from 'motion/react'
+import { indicatorSpring } from '@/lib/motion'
 import {
   Home,
   Compass,
@@ -166,16 +168,19 @@ export function SidebarNav({
                 aria-current={isActive ? 'page' : undefined}
                 aria-label={item.label}
                 className={[
-                  'relative flex items-center font-mono text-[13px] no-underline transition-colors',
-                  collapsed ? 'justify-center px-4 py-2.5' : 'gap-3 px-5 py-2',
-                  isActive ? 'text-text' : 'text-text-muted hover:text-text',
+                  'relative flex items-center rounded-md font-mono text-[13px] no-underline transition-colors',
+                  collapsed ? 'justify-center px-4 py-3' : 'gap-3 px-4 py-2.5',
+                  collapsed ? 'mx-2' : 'mx-3',
+                  isActive
+                    ? 'text-text'
+                    : 'text-text-muted hover:bg-surface-alt/60 hover:text-text',
                 ]
                   .filter(Boolean)
                   .join(' ')}
               >
                 <span
                   className={
-                    isActive ? 'flex text-brand' : 'flex text-text-faint'
+                    isActive ? 'flex text-brand' : 'flex text-text-muted'
                   }
                 >
                   {item.icon}
@@ -183,7 +188,7 @@ export function SidebarNav({
                 {!collapsed && <span>{item.label}</span>}
                 {item.badge != null && item.badge > 0 && (
                   <span
-                    className={`min-w-4.5 rounded-pill bg-surface-alt px-1.5 py-0.5 text-center font-mono text-[10px] leading-none text-text-muted ${
+                    className={`min-w-5 rounded-pill bg-surface-alt px-1.5 py-0.5 text-center font-mono text-[11px] leading-none text-text-muted ${
                       collapsed ? 'absolute top-1 right-1' : 'ml-auto'
                     }`}
                   >
@@ -197,7 +202,13 @@ export function SidebarNav({
               return (
                 <Tooltip key={item.id}>
                   <div className="relative">
-                    {isActive && <div className="lx-nav-active-bar" />}
+                    {isActive && (
+                      <motion.div
+                        layoutId="sidebar-nav-active-bar"
+                        className="lx-nav-active-bar"
+                        transition={indicatorSpring}
+                      />
+                    )}
                     <TooltipTrigger asChild>{navLink}</TooltipTrigger>
                   </div>
                   <TooltipContent side="right" sideOffset={8}>
@@ -212,7 +223,13 @@ export function SidebarNav({
 
             return (
               <div key={item.id} className="relative">
-                {isActive && <div className="lx-nav-active-bar" />}
+                {isActive && (
+                  <motion.div
+                    layoutId="sidebar-nav-active-bar"
+                    className="lx-nav-active-bar"
+                    transition={indicatorSpring}
+                  />
+                )}
                 {navLink}
               </div>
             )
@@ -269,7 +286,7 @@ export function SidebarNav({
                       {viewer.displayName || viewer.githubUsername}
                     </div>
                     {viewer.city && (
-                      <div className="truncate font-mono text-[10.5px] text-text-faint">
+                      <div className="truncate font-mono text-[11px] text-text-faint">
                         {viewer.city}
                       </div>
                     )}

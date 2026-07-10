@@ -42,6 +42,7 @@ import {
   type PrivateProfileOverviewPayload,
 } from '@/features/contracts'
 import { PrivacyVisibilitySettings } from '@/features/settings/privacy-visibility-settings'
+import { ThemePicker } from '@/features/settings/theme-picker'
 import {
   getSettingsAccountStateFromForm,
   getSettingsAccountStateFromViewer,
@@ -456,6 +457,14 @@ function SettingsPage() {
                         placeholder="https://yoursite.dev"
                       />
                     </div>
+                  </div>
+                </div>
+
+                <div>
+                  <div className={sectionTitleClassName}>appearance</div>
+                  <ThemePicker />
+                  <div className="mt-2 font-sans text-xs leading-5 text-text-muted">
+                    accent theme for this device. saved locally.
                   </div>
                 </div>
 

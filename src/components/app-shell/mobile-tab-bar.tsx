@@ -1,7 +1,9 @@
 import { Link, useRouterState } from '@tanstack/react-router'
+import { motion } from 'motion/react'
 import { Home, Compass, Inbox, User, Bell } from '@/lib/icons'
 import type { ReactNode } from 'react'
 import { useResumeExploreSearch } from '@/features/explore/state'
+import { indicatorSpring } from '@/lib/motion'
 
 interface TabItem {
   id: string
@@ -70,11 +72,13 @@ export function MobileTabBar({
             preload={false}
             aria-current={isActive ? 'page' : undefined}
             aria-label={item.label}
-            className="relative flex min-h-11 min-w-0 flex-1 flex-col items-center justify-center gap-1 px-1.5 py-1.5 no-underline"
+            className="relative flex min-h-11 min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-md px-1.5 py-1.5 no-underline transition-transform duration-[140ms] ease-out active:scale-[0.97]"
           >
             {isActive && (
-              <div
+              <motion.div
+                layoutId="mobile-tab-active-indicator"
                 className="absolute -top-2 left-1/2 h-0.5 w-6 -translate-x-1/2 rounded-pill bg-brand"
+                transition={indicatorSpring}
                 aria-hidden
               />
             )}
@@ -82,13 +86,13 @@ export function MobileTabBar({
               className={
                 isActive
                   ? 'relative flex text-brand'
-                  : 'relative flex text-text-faint'
+                  : 'relative flex text-text-muted'
               }
             >
               {item.icon}
               {item.badge != null && item.badge > 0 && (
                 <span
-                  className="absolute -top-2 -right-3 min-w-4.5 rounded-pill bg-surface-alt px-1 py-0.5 text-center font-mono text-[9px] leading-none text-text-muted"
+                  className="absolute -top-2 -right-3 min-w-5 rounded-pill bg-surface-alt px-1 py-0.5 text-center font-mono text-[11px] leading-none text-text-muted"
                   aria-label={`${item.badge} unread ${item.label}`}
                 >
                   {item.badge > 99 ? '99+' : item.badge}
@@ -98,8 +102,8 @@ export function MobileTabBar({
             <span
               className={
                 isActive
-                  ? 'sr-only min-[380px]:not-sr-only min-[380px]:max-w-full min-[380px]:truncate min-[380px]:whitespace-nowrap min-[380px]:font-mono min-[380px]:text-[9px] min-[380px]:leading-none min-[380px]:text-text'
-                  : 'sr-only min-[380px]:not-sr-only min-[380px]:max-w-full min-[380px]:truncate min-[380px]:whitespace-nowrap min-[380px]:font-mono min-[380px]:text-[9px] min-[380px]:leading-none min-[380px]:text-text-faint'
+                  ? 'sr-only min-[380px]:not-sr-only min-[380px]:max-w-full min-[380px]:truncate min-[380px]:whitespace-nowrap min-[380px]:font-mono min-[380px]:text-[11px] min-[380px]:leading-none min-[380px]:text-text'
+                  : 'sr-only min-[380px]:not-sr-only min-[380px]:max-w-full min-[380px]:truncate min-[380px]:whitespace-nowrap min-[380px]:font-mono min-[380px]:text-[11px] min-[380px]:leading-none min-[380px]:text-text-muted'
               }
             >
               {item.label}

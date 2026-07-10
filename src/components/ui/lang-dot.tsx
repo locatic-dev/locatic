@@ -37,6 +37,12 @@ interface LangDotProps {
   lang: string
   size?: number
   showLabel?: boolean
+  /**
+   * `dot` (default): bare dot + optional inline label, for dense metadata rows.
+   * `chip`: tinted pill anatomy (bg at low opacity + border at 50%), matching
+   * the tag chip convention used elsewhere for language/topic signals.
+   */
+  variant?: 'dot' | 'chip'
   className?: string
 }
 
@@ -44,9 +50,36 @@ export function LangDot({
   lang,
   size = 8,
   showLabel = false,
+  variant = 'dot',
   className,
 }: LangDotProps) {
   const color = langColor(lang)
+
+  if (variant === 'chip') {
+    return (
+      <span
+        className={`inline-flex min-h-7 items-center gap-1.5 rounded-pill border px-2.5 py-1 font-mono text-[11px] leading-none text-text ${className ?? ''}`}
+        style={{
+          background: `color-mix(in oklch, ${color} 12%, transparent)`,
+          borderColor: `color-mix(in oklch, ${color} 50%, transparent)`,
+        }}
+      >
+        <span
+          style={{
+            display: 'inline-block',
+            width: size,
+            height: size,
+            borderRadius: '50%',
+            background: color,
+            flexShrink: 0,
+          }}
+          aria-hidden
+        />
+        {lang}
+      </span>
+    )
+  }
+
   return (
     <span
       className={`inline-flex items-center gap-1.5 font-mono text-[11.5px] ${className ?? ''}`}

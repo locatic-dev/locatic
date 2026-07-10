@@ -5,7 +5,8 @@ import {
   useSuspenseQuery,
 } from '@tanstack/react-query'
 import { usePaginatedQuery } from 'convex/react'
-import { useState } from 'react'
+import { motion } from 'motion/react'
+import { useRef, useState } from 'react'
 import { api } from '../../../convex/_generated/api'
 import type { Id } from '../../../convex/_generated/dataModel'
 import { viewerLikedProjectIdsQueryOptions } from '@/features/viewer/queries'
@@ -35,6 +36,7 @@ import {
   getHomeFeedHandoffState,
   getHomeFeedRenderState,
 } from '@/features/home/render-state'
+import { fadeUp, listStagger } from '@/lib/motion'
 
 export const Route = createFileRoute('/_app/home')({
   loader: async ({ context }) => {
@@ -90,6 +92,15 @@ function HomePage() {
     itemCount: items.length,
     status: renderStatus,
   })
+  // First page entrance animation only: capture the item ids present the
+  // first time the feed has content, then never animate items outside that
+  // set — covers pagination appends and live Convex refetches.
+  const initialItemIdsRef = useRef<Set<string> | null>(null)
+  if (initialItemIdsRef.current === null && items.length > 0) {
+    initialItemIdsRef.current = new Set(items.map((item) => String(item._id)))
+  }
+  const initialItemIds = initialItemIdsRef.current ?? new Set<string>()
+
   const likedProjectIdsQueryKey = viewerLikedProjectIdsQueryOptions().queryKey
   const likeMutation = useMutation({
     mutationFn: async ({
@@ -194,18 +205,35 @@ function HomePage() {
                   </span>
                 </div>
 
-                <div className="flex flex-col gap-3.5">
-                  {items.map((item) => (
-                    <HomeFeedCard
-                      key={String(item._id)}
-                      item={item}
-                      likedProjectIds={likedProjectIds}
-                      pendingLikes={pendingLikes}
-                      onLikeProject={(projectId, projectKey) =>
-                        void handleLike(projectId, projectKey)
-                      }
-                    />
-                  ))}
+                <motion.div
+                  className="flex flex-col gap-3.5"
+                  variants={listStagger}
+                  initial="hidden"
+                  animate="visible"
+                >
+                  {items.map((item) => {
+                    const itemId = String(item._id)
+                    const card = (
+                      <HomeFeedCard
+                        item={item}
+                        likedProjectIds={likedProjectIds}
+                        pendingLikes={pendingLikes}
+                        onLikeProject={(projectId, projectKey) =>
+                          void handleLike(projectId, projectKey)
+                        }
+                      />
+                    )
+
+                    // Only the first page's items get the entrance animation —
+                    // pagination appends and live refetches render plain.
+                    return initialItemIds.has(itemId) ? (
+                      <motion.div key={itemId} variants={fadeUp}>
+                        {card}
+                      </motion.div>
+                    ) : (
+                      <div key={itemId}>{card}</div>
+                    )
+                  })}
                   {homeFeed.status === 'CanLoadMore' && (
                     <div className="flex justify-center pt-1">
                       <Button
@@ -224,7 +252,7 @@ function HomePage() {
                       loading older activity…
                     </div>
                   )}
-                </div>
+                </motion.div>
               </>
             )}
           </div>
@@ -246,21 +274,23 @@ function HomeFeedSkeletonRows() {
       {Array.from({ length: 3 }, (_, index) => (
         <div
           key={index}
-          className="rounded-[6px] border border-line bg-surface px-4 py-4"
+          className="overflow-hidden rounded-card border border-line border-l-2 border-l-brand-2/50 bg-surface"
         >
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <Skeleton className="h-3 w-36" />
-            <Skeleton className="h-3 w-16" />
+          {/* Header: avatar + actor summary, matches HomeFeedCard header */}
+          <div className="flex items-start gap-3 px-4 py-4 sm:px-5">
+            <Skeleton className="size-10 shrink-0 rounded-full" />
+            <div className="min-w-0 flex-1 space-y-2">
+              <Skeleton className="h-3.5 w-[min(20rem,78%)]" />
+              <Skeleton className="h-2.5 w-20" />
+            </div>
           </div>
-          <div className="space-y-3">
-            <Skeleton className="h-4 w-[min(24rem,78%)]" />
-            <Skeleton className="h-3.5 w-full" />
-            <Skeleton className="h-3.5 w-[min(34rem,70%)]" />
-          </div>
-          <div className="mt-5 flex flex-wrap gap-2">
-            <Skeleton className="h-7 w-20 rounded-md" />
-            <Skeleton className="h-7 w-24 rounded-md" />
-            <Skeleton className="h-7 w-16 rounded-md" />
+          {/* Target row: icon tile + repo/description lines */}
+          <div className="flex min-h-14 items-center gap-3 border-t border-line px-4 py-3 sm:px-5">
+            <Skeleton className="size-8 shrink-0 rounded-md" />
+            <div className="min-w-0 flex-1 space-y-2">
+              <Skeleton className="h-3 w-[min(16rem,60%)]" />
+              <Skeleton className="h-3 w-full" />
+            </div>
           </div>
         </div>
       ))}

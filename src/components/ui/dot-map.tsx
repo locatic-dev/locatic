@@ -1,3 +1,7 @@
+import { motion } from 'motion/react'
+import type { Variants } from 'motion/react'
+import { easeOutExpo, useReducedMotion } from '@/lib/motion'
+
 interface DotMapProps {
   width?: number
   height?: number
@@ -34,7 +38,34 @@ const ACTIVE_CITIES = [
 
 const DUR = '2.6s'
 
+// Entrance for each city pin: drop + fade, staggered by index. MotionConfig
+// (reducedMotion="user") auto-disables this since it only touches
+// transform/opacity.
+const pinVariants: Variants = {
+  hidden: { opacity: 0, y: -8 },
+  visible: (i: number) => ({
+    opacity: 1,
+    y: 0,
+    transition: { delay: 0.15 + i * 0.09, duration: 0.42, ease: easeOutExpo },
+  }),
+}
+
+// Sparse subset of background dots that get a slow "activity" breathing
+// pulse — kept small (~8 nodes) so it stays cheap.
+function pickPulseDotIndices(total: number, count: number) {
+  if (total === 0) {
+    return []
+  }
+  const step = Math.max(1, Math.floor(total / count))
+  const indices: number[] = []
+  for (let i = 0; i < total && indices.length < count; i += step) {
+    indices.push(i)
+  }
+  return indices
+}
+
 export function DotMap({ width = 800, height = 360, className }: DotMapProps) {
+  const reducedMotion = useReducedMotion()
   const dots: Array<{ x: number; y: number }> = []
   const cx = width / LAND_MASK[0].length
   const cy = height / LAND_MASK.length
@@ -47,6 +78,8 @@ export function DotMap({ width = 800, height = 360, className }: DotMapProps) {
     }
   }
 
+  const pulseIndices = new Set(pickPulseDotIndices(dots.length, 8))
+
   return (
     <svg
       width={width}
@@ -56,48 +89,84 @@ export function DotMap({ width = 800, height = 360, className }: DotMapProps) {
       style={{ display: 'block', overflow: 'visible' }}
       aria-hidden
     >
-      {dots.map((d, i) => (
-        <circle
-          key={i}
-          cx={d.x}
-          cy={d.y}
-          r={1.4}
-          fill="var(--lx-text-3)"
-          opacity={0.35}
-        />
-      ))}
+      {dots.map((d, i) => {
+        if (!pulseIndices.has(i)) {
+          return (
+            <circle
+              key={i}
+              cx={d.x}
+              cy={d.y}
+              r={1.4}
+              fill="var(--lx-text-3)"
+              opacity={0.35}
+            />
+          )
+        }
+
+        return (
+          <motion.circle
+            key={i}
+            cx={d.x}
+            cy={d.y}
+            r={1.4}
+            fill="var(--lx-text-3)"
+            initial={{ opacity: 0.35, scale: 1 }}
+            animate={
+              reducedMotion
+                ? { opacity: 0.35, scale: 1 }
+                : { opacity: [0.35, 0.75, 0.35], scale: [1, 1.6, 1] }
+            }
+            transition={{
+              duration: 3.2,
+              delay: (i % 8) * 0.35,
+              repeat: reducedMotion ? 0 : Infinity,
+              ease: 'easeInOut',
+            }}
+            style={{ transformOrigin: `${d.x}px ${d.y}px` }}
+          />
+        )
+      })}
       {ACTIVE_CITIES.map((c, i) => {
         const px = c.x * width
         const py = c.y * height
         const delay = `${i * 0.44}s`
         return (
-          <g key={i}>
-            {/* ping ring — SVG-native animate so it always works */}
-            <circle
-              cx={px}
-              cy={py}
-              r={3}
-              fill="none"
-              stroke="var(--lx-accent)"
-              strokeWidth={1.2}
-              opacity={0}
-            >
-              <animate
-                attributeName="r"
-                from="3"
-                to="18"
-                dur={DUR}
-                begin={delay}
-                repeatCount="indefinite"
-              />
-              <animate
-                attributeName="opacity"
-                values="0.6;0"
-                dur={DUR}
-                begin={delay}
-                repeatCount="indefinite"
-              />
-            </circle>
+          <motion.g
+            key={i}
+            custom={i}
+            variants={pinVariants}
+            initial="hidden"
+            animate="visible"
+          >
+            {/* ping ring — SVG-native SMIL animate; MotionConfig/CSS can't
+                reach SMIL, so drop the ring entirely under reduced motion */}
+            {!reducedMotion && (
+              <circle
+                cx={px}
+                cy={py}
+                r={3}
+                fill="none"
+                stroke="var(--lx-accent)"
+                strokeWidth={1.2}
+                opacity={0}
+              >
+                <animate
+                  attributeName="r"
+                  from="3"
+                  to="18"
+                  dur={DUR}
+                  begin={delay}
+                  repeatCount="indefinite"
+                />
+                <animate
+                  attributeName="opacity"
+                  values="0.6;0"
+                  dur={DUR}
+                  begin={delay}
+                  repeatCount="indefinite"
+                />
+              </circle>
+            )}
             {/* glow halo */}
             <circle
               cx={px}
@@ -108,7 +177,7 @@ export function DotMap({ width = 800, height = 360, className }: DotMapProps) {
             />
             {/* solid dot */}
             <circle cx={px} cy={py} r={2.4} fill="var(--lx-accent)" />
-          </g>
+          </motion.g>
         )
       })}
     </svg>

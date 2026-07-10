@@ -57,12 +57,26 @@ const tokens = {
   textSecondary: { L: 0.68, C: 0.006, h: 230 },
   textTertiary: { L: 0.58, C: 0.006, h: 230 },
   textDisabled: { L: 0.43, C: 0.005, h: 230 },
-  brand: { L: 0.72, C: 0.15, h: 195 },
   brandForeground: { L: 0.14, C: 0.005, h: 230 },
-  selectedFill: { L: 0.72, C: 0.15, h: 195, alpha: 0.1 },
-  surfaceAccent: { L: 0.72, C: 0.15, h: 195, alpha: 0.06 },
-  outgoingSurface: { L: 0.72, C: 0.15, h: 195, alpha: 0.16 },
   liked: { L: 0.64, C: 0.21, h: 25 },
+}
+
+// Accent families per theme variant (html[data-theme] blocks in styles.css).
+// Every accent-derived token (quiet washes, selected fill, outgoing surface)
+// follows the family, so each theme re-runs the accent-dependent checks.
+const THEMES = {
+  teal: {
+    accent: { L: 0.72, C: 0.15, h: 195 },
+    accent2: { L: 0.74, C: 0.11, h: 300 },
+  },
+  violet: {
+    accent: { L: 0.74, C: 0.15, h: 292 },
+    accent2: { L: 0.75, C: 0.11, h: 195 },
+  },
+  amber: {
+    accent: { L: 0.76, C: 0.14, h: 75 },
+    accent2: { L: 0.72, C: 0.11, h: 210 },
+  },
 }
 
 const opaque = (t) => oklchToLinearSrgb(t.L, t.C, t.h)
@@ -84,34 +98,49 @@ const checks = [
     4.5,
     true,
   ],
-  [
-    'brand-foreground on brand (CTA)',
-    tokens.brandForeground,
-    tokens.brand,
-    4.5,
-  ],
   ['liked on surface', tokens.liked, tokens.surface, 4.5],
-  [
-    'brand on selected-fill',
-    tokens.brand,
-    { ...tokens.selectedFill, over: tokens.surface },
-    4.5,
-  ],
-  [
-    'primary on surface-accent hover',
-    tokens.textPrimary,
-    { ...tokens.surfaceAccent, over: tokens.surface },
-    4.5,
-  ],
-  // Outgoing bubble: primary text over the translucent teal surface, which is
-  // itself composited over canvas.
-  [
-    'outgoing text on outgoing-surface',
-    tokens.textPrimary,
-    { ...tokens.outgoingSurface, over: tokens.canvas },
-    4.5,
-  ],
 ]
+
+// Accent-dependent checks, re-run per theme variant.
+for (const [themeName, { accent, accent2 }] of Object.entries(THEMES)) {
+  const selectedFill = { ...accent, alpha: 0.1 }
+  const surfaceAccent = { ...accent, alpha: 0.06 }
+  const outgoingSurface = { ...accent, alpha: 0.16 }
+
+  checks.push(
+    [
+      `[${themeName}] brand-fg on brand (CTA)`,
+      tokens.brandForeground,
+      accent,
+      4.5,
+    ],
+    [`[${themeName}] brand on canvas (text)`, accent, tokens.canvas, 4.5],
+    [`[${themeName}] brand on surface (text)`, accent, tokens.surface, 4.5],
+    [
+      `[${themeName}] brand on selected-fill`,
+      accent,
+      { ...selectedFill, over: tokens.surface },
+      4.5,
+    ],
+    [
+      `[${themeName}] primary on surface-accent`,
+      tokens.textPrimary,
+      { ...surfaceAccent, over: tokens.surface },
+      4.5,
+    ],
+    // Outgoing bubble: primary text over the translucent accent surface,
+    // which is itself composited over canvas.
+    [
+      `[${themeName}] outgoing text on outgoing`,
+      tokens.textPrimary,
+      { ...outgoingSurface, over: tokens.canvas },
+      4.5,
+    ],
+    // Secondary accent is used for tinted chips/borders and short labels —
+    // hold it to the large-text/non-text bar.
+    [`[${themeName}] accent-2 on surface`, accent2, tokens.surface, 3.0],
+  )
+}
 
 let failed = false
 const rows = []

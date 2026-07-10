@@ -11,6 +11,7 @@ vi.mock('@/components/ui/project-card', () => ({
   ProjectCard: ({ project }: { project: { fullName: string } }) => (
     <article>{project.fullName}</article>
   ),
+  ProjectCardSkeleton: () => <div data-testid="project-card-skeleton" />,
 }))
 
 vi.mock('@tanstack/react-router', () => ({
@@ -210,7 +211,7 @@ describe('ExploreFeed', () => {
       postSearchLoading: true,
     })
 
-    expect(screen.getByText('loading posts…')).toBeTruthy()
+    expect(screen.getByRole('status', { name: 'loading posts…' })).toBeTruthy()
     expect(
       screen.queryByText('no posts found for this city context.'),
     ).toBeNull()
@@ -236,7 +237,9 @@ describe('ExploreFeed', () => {
       postResults: [],
     })
 
-    expect(screen.getByText('searching posts…')).toBeTruthy()
+    expect(
+      screen.getByRole('status', { name: 'searching posts…' }),
+    ).toBeTruthy()
     expect(screen.queryByText(/no posts found/)).toBeNull()
   })
 
