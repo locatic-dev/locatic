@@ -51,6 +51,7 @@ import {
   getExploreCityIdentity,
   getExploreLoaderDeps,
   getExploreProjectCityIds,
+  getExploreResultSetKey,
   getNearbyBuilderCityIds,
   isExploreProjectFeedGlobal,
   normalizeExploreSearch,
@@ -67,6 +68,7 @@ import {
   POST_SEARCH_LOAD_MORE_ACTIONS,
   POST_SEARCH_DEFAULT_LIMIT,
 } from '@/features/explore/post-search'
+import { EXPLORE_PAGINATED_PAGE_SIZE } from '@/features/explore/pagination'
 import { useDebouncedRouteSearch } from '@/features/explore/use-debounced-route-search'
 import { shouldPrefetchPrivateConvexQueries } from '@/lib/auth-routing'
 import type {
@@ -214,6 +216,12 @@ function ExplorePage() {
   )
   const queryCityIds = canonicalSelectedCityIds as Array<Id<'cities'>>
   const queryCityKey = queryCityIds.map(String).join('|')
+  const entranceKey = getExploreResultSetKey({
+    cityIds: queryCityIds.map(String),
+    mode: currentMode,
+    query: debouncedSearchQuery,
+    scope: currentScope,
+  })
   const postSearchResetKey = getPostSearchResetKey({
     cityIds: queryCityIds.map(String),
     mode: currentMode,
@@ -229,14 +237,14 @@ function ExplorePage() {
     currentMode === 'projects' && !isProjectSearchActive
       ? { scope: currentScope, selectedCityIds: queryCityIds }
       : 'skip',
-    { initialNumItems: 20 },
+    { initialNumItems: EXPLORE_PAGINATED_PAGE_SIZE },
   )
   const nearbyBuildersPaged = usePaginatedQuery(
     api.explore.listNearbyBuilders,
     currentMode === 'builders' && !isBuilderSearchActive
       ? { cityIds: nearbyBuilderCityIds }
       : 'skip',
-    { initialNumItems: 20 },
+    { initialNumItems: EXPLORE_PAGINATED_PAGE_SIZE },
   )
   const { data: followingData } = useSuspenseQuery(
     followingQueryOptions(viewerId as Id<'users'>),
@@ -307,7 +315,7 @@ function ExplorePage() {
     isPostBrowseActive
       ? { scope: currentScope, selectedCityIds: queryCityIds }
       : 'skip',
-    { initialNumItems: 20 },
+    { initialNumItems: EXPLORE_PAGINATED_PAGE_SIZE },
   )
   const postSearchQueryKey = postSearchQueryOptions({
     cityIds: queryCityIds,
@@ -680,6 +688,7 @@ function ExplorePage() {
             debouncedSearchQuery={debouncedSearchQuery}
             dismissedIds={dismissedIds}
             dismissedPostIds={dismissedPostIds}
+            entranceKey={entranceKey}
             followOverrides={followOverrides}
             followedUserIds={followedUserIds}
             hasMoreProjects={hasMoreProjects}

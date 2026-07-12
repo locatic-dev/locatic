@@ -7,6 +7,8 @@
 // Asserts the contrast pairs that matter after the contrast/token pass. Body
 // text must clear 4.5:1; large text / non-text metadata must clear 3:1.
 
+import { readFileSync } from 'node:fs'
+
 // ── OKLCH -> linear sRGB -> gamma sRGB ──────────────────────────────────────
 function oklchToLinearSrgb(L, C, hDeg) {
   const h = (hDeg * Math.PI) / 180
@@ -48,36 +50,124 @@ function contrastRatio(fgLinear, bgLinear) {
   return (hi + 0.05) / (lo + 0.05)
 }
 
-// ── Token values (keep in sync with src/styles.css) ─────────────────────────
-const tokens = {
-  canvas: { L: 0.135, C: 0.007, h: 230 },
-  surface: { L: 0.2, C: 0.008, h: 230 },
-  surfaceRaised: { L: 0.24, C: 0.01, h: 230 },
-  textPrimary: { L: 0.93, C: 0.005, h: 230 },
-  textSecondary: { L: 0.68, C: 0.006, h: 230 },
-  textTertiary: { L: 0.58, C: 0.006, h: 230 },
-  textDisabled: { L: 0.43, C: 0.005, h: 230 },
-  brandForeground: { L: 0.14, C: 0.005, h: 230 },
-  liked: { L: 0.64, C: 0.21, h: 25 },
+// ── CSS token source ───────────────────────────────────────────────────────
+// The shipped stylesheet is canonical. This narrow parser intentionally fails
+// closed if its declarations no longer follow the documented token shape.
+const styles = readFileSync(
+  new URL('../src/styles.css', import.meta.url),
+  'utf8',
+)
+
+function getDeclarations(selector) {
+  const escapedSelector = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const match = styles.match(
+    new RegExp(`${escapedSelector}\\s*\\{([\\s\\S]*?)\\n\\}`, 'm'),
+  )
+  if (!match) {
+    throw new Error(`Missing theme token block: ${selector}`)
+  }
+
+  return Object.fromEntries(
+    [...match[1].matchAll(/(--[\w-]+):\s*([^;]+);/g)].map(([, name, value]) => [
+      name,
+      value.trim(),
+    ]),
+  )
 }
 
-// Accent families per theme variant (html[data-theme] blocks in styles.css).
-// Every accent-derived token (quiet washes, selected fill, outgoing surface)
-// follows the family, so each theme re-runs the accent-dependent checks.
-const THEMES = {
-  teal: {
-    accent: { L: 0.72, C: 0.15, h: 195 },
-    accent2: { L: 0.74, C: 0.11, h: 300 },
-  },
-  violet: {
-    accent: { L: 0.74, C: 0.15, h: 292 },
-    accent2: { L: 0.75, C: 0.11, h: 195 },
-  },
-  amber: {
-    accent: { L: 0.76, C: 0.14, h: 75 },
-    accent2: { L: 0.72, C: 0.11, h: 210 },
-  },
+function parseOklch(value, label) {
+  const match = value?.match(/^oklch\(([\d.]+)%\s+([\d.]+)\s+([\d.]+)\)$/)
+  if (!match) {
+    throw new Error(
+      `Expected opaque OKLCH token for ${label}, received ${value}`,
+    )
+  }
+
+  return { L: Number(match[1]) / 100, C: Number(match[2]), h: Number(match[3]) }
 }
+
+function parseAccent(declarations, label) {
+  const lightness = declarations['--lx-accent-l']
+  const chroma = declarations['--lx-accent-c']
+  const hue = declarations['--lx-accent-h']
+  const lightnessMatch = lightness?.match(/^([\d.]+)%$/)
+
+  if (!lightnessMatch || !chroma || !hue) {
+    throw new Error(`Incomplete accent token family for ${label}`)
+  }
+
+  const parsed = {
+    L: Number(lightnessMatch[1]) / 100,
+    C: Number(chroma),
+    h: Number(hue),
+  }
+
+  if (!Object.values(parsed).every(Number.isFinite)) {
+    throw new Error(`Malformed accent token family for ${label}`)
+  }
+
+  return parsed
+}
+
+const themeNames = Array.from(
+  new Set(
+    [...styles.matchAll(/\[data-theme='([^']+)'\]/g)].map(([, themeName]) =>
+      themeName.trim(),
+    ),
+  ),
+)
+
+if (themeNames.length === 0) {
+  throw new Error('Missing data-theme token declarations')
+}
+
+const defaultThemeName = themeNames[0]
+const defaultTheme = getDeclarations(
+  `:root,\n[data-theme='${defaultThemeName}']`,
+)
+const tokens = {
+  canvas: parseOklch(defaultTheme['--background'], '--background'),
+  surface: parseOklch(defaultTheme['--card'], '--card'),
+  surfaceRaised: parseOklch(
+    defaultTheme['--lx-surface-raised'],
+    '--lx-surface-raised',
+  ),
+  textPrimary: parseOklch(defaultTheme['--foreground'], '--foreground'),
+  textSecondary: parseOklch(
+    defaultTheme['--muted-foreground'],
+    '--muted-foreground',
+  ),
+  textTertiary: parseOklch(defaultTheme['--lx-text-3'], '--lx-text-3'),
+  textDisabled: parseOklch(
+    defaultTheme['--lx-text-disabled'],
+    '--lx-text-disabled',
+  ),
+  brandForeground: parseOklch(
+    defaultTheme['--primary-foreground'],
+    '--primary-foreground',
+  ),
+  liked: parseOklch(defaultTheme['--lx-liked'], '--lx-liked'),
+}
+
+const THEMES = Object.fromEntries(
+  themeNames.map((themeName) => {
+    const declarations =
+      themeName === defaultThemeName
+        ? defaultTheme
+        : getDeclarations(`[data-theme='${themeName}']`)
+
+    return [
+      themeName,
+      {
+        accent: parseAccent(declarations, themeName),
+        accent2: parseOklch(
+          declarations['--lx-accent-2'],
+          `${themeName} accent-2`,
+        ),
+      },
+    ]
+  }),
+)
 
 const opaque = (t) => oklchToLinearSrgb(t.L, t.C, t.h)
 

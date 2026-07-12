@@ -1,4 +1,4 @@
-import { motion } from 'motion/react'
+import * as m from 'motion/react-m'
 import { indicatorSpring } from '@/lib/motion'
 import type { ProfileContentTab } from '@/features/profile/state'
 
@@ -51,7 +51,7 @@ export function ProfileContentTabs({
                 {tabItem.count}
               </span>
               {isActive && (
-                <motion.div
+                <m.div
                   layoutId="profile-content-tab-indicator"
                   transition={indicatorSpring}
                   className="absolute right-1.5 bottom-0 left-1.5 h-0.5 bg-brand sm:right-3 sm:left-3"

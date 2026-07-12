@@ -11,6 +11,7 @@ import {
   deriveDefaultExploreCityIds,
   getCanonicalExploreCityIds,
   getExploreLoaderDeps,
+  getExploreResultSetKey,
   getExploreProjectCityIds,
   getExploreScopeStatusCopy,
   getFreshExploreSearch,
@@ -211,6 +212,17 @@ describe('explore state helpers', () => {
         selectedCityIds: ['city_1'],
       }),
     )
+  })
+
+  it('serializes result-set identity without delimiter collisions', () => {
+    expect(
+      getExploreResultSetKey({
+        mode: 'projects',
+        scope: 'custom',
+        cityIds: ['city_1', 'city_2'],
+        query: 'react\u001fmap',
+      }),
+    ).toBe('["projects","custom",["city_1","city_2"],"react\\u001fmap"]')
   })
 
   it('converts empty custom selections into an explicit global scope', () => {

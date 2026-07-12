@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router'
-import { motion } from 'motion/react'
+import * as m from 'motion/react-m'
 import { fadeUp, viewportOnce } from '@/lib/motion'
 
 const footerLinkClassName =
@@ -9,7 +9,7 @@ const footerLinkClassName =
 // legal links so they are reachable from every public surface.
 export function PublicFooter() {
   return (
-    <motion.footer
+    <m.footer
       className="border-t border-line px-(--lx-gutter) py-7 text-center font-mono text-[11.5px] text-text-faint"
       variants={fadeUp}
       initial="hidden"
@@ -41,6 +41,6 @@ export function PublicFooter() {
       </nav>
       <div className="mt-3">built with ❤️ for developers</div>
       <div className="mt-2">locatic · {new Date().getFullYear()}</div>
-    </motion.footer>
+    </m.footer>
   )
 }

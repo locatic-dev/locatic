@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
-import { motion } from 'motion/react'
+import * as m from 'motion/react-m'
 import { useEffect, useRef, useState } from 'react'
 import type { Id } from '../../../convex/_generated/dataModel'
 import { notificationsQueryOptions } from '@/features/notifications/queries'
@@ -279,7 +279,7 @@ function NotificationsPage() {
             />
           )}
 
-          <motion.div variants={listStagger} initial="hidden" animate="visible">
+          <m.div variants={listStagger} initial="hidden" animate="visible">
             {notifications.map((notification) => {
               const notificationId = String(notification._id)
               const isRead =
@@ -339,12 +339,12 @@ function NotificationsPage() {
               }
 
               return (
-                <motion.div key={notificationId} variants={fadeUp}>
+                <m.div key={notificationId} variants={fadeUp}>
                   {row}
-                </motion.div>
+                </m.div>
               )
             })}
-          </motion.div>
+          </m.div>
 
           {loadingMore && (
             <div className="flex flex-col gap-0">

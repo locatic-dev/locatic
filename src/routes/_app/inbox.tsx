@@ -1,7 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
 import { usePaginatedQuery } from 'convex/react'
-import { motion } from 'motion/react'
+import * as m from 'motion/react-m'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { api } from '../../../convex/_generated/api'
 import type { Id } from '../../../convex/_generated/dataModel'
@@ -227,7 +227,7 @@ function InboxPage() {
               />
             )}
 
-            <motion.div
+            <m.div
               key={tab}
               variants={listStagger}
               initial="hidden"
@@ -242,7 +242,7 @@ function InboxPage() {
                 const isSelected = selectedId === String(conversation._id)
 
                 return (
-                  <motion.div
+                  <m.div
                     key={String(conversation._id)}
                     variants={fadeUp}
                     className={`relative flex items-stretch gap-3 border-b border-line px-5 py-3.5 transition-colors active:scale-[0.99] ${
@@ -337,10 +337,10 @@ function InboxPage() {
                         )}
                       </div>
                     </button>
-                  </motion.div>
+                  </m.div>
                 )
               })}
-            </motion.div>
+            </m.div>
           </div>
         </div>
 
@@ -761,7 +761,7 @@ function SelectedConversationPanel({
         {messages.map((message) => {
           const isMe = viewerId === String(message.senderId)
           return (
-            <motion.div
+            <m.div
               key={String(message._id)}
               variants={fadeUp}
               initial="hidden"
@@ -782,7 +782,7 @@ function SelectedConversationPanel({
                   {relativeTime(message.createdAt)}
                 </div>
               </div>
-            </motion.div>
+            </m.div>
           )
         })}
         <div ref={messagesEndRef} aria-hidden="true" />

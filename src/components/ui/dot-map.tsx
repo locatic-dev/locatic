@@ -1,4 +1,4 @@
-import { motion } from 'motion/react'
+import * as m from 'motion/react-m'
 import type { Variants } from 'motion/react'
 import { easeOutExpo, useReducedMotion } from '@/lib/motion'
 
@@ -42,9 +42,8 @@ const DUR = '2.6s'
 // (reducedMotion="user") auto-disables this since it only touches
 // transform/opacity.
 const pinVariants: Variants = {
-  hidden: { opacity: 0, y: -8 },
+  hidden: { y: -8 },
   visible: (i: number) => ({
-    opacity: 1,
     y: 0,
     transition: { delay: 0.15 + i * 0.09, duration: 0.42, ease: easeOutExpo },
   }),
@@ -104,7 +103,7 @@ export function DotMap({ width = 800, height = 360, className }: DotMapProps) {
         }
 
         return (
-          <motion.circle
+          <m.circle
             key={i}
             cx={d.x}
             cy={d.y}
@@ -131,16 +130,16 @@ export function DotMap({ width = 800, height = 360, className }: DotMapProps) {
         const py = c.y * height
         const delay = `${i * 0.44}s`
         return (
-          <motion.g
+          <m.g
             key={i}
             custom={i}
             variants={pinVariants}
             initial="hidden"
             animate="visible"
           >
-            {/* ping ring — SVG-native SMIL animate; MotionConfig/CSS can't
-                reach SMIL, so drop the ring entirely under reduced motion */}
-            {!reducedMotion && (
+            {/* Keep this subtree SSR-stable. CSS hides the SMIL ping for
+                reduced-motion users without changing the hydrated SVG tree. */}
+            <g className="lx-dot-map-ping">
               <circle
                 cx={px}
                 cy={py}
@@ -166,7 +165,7 @@ export function DotMap({ width = 800, height = 360, className }: DotMapProps) {
                   repeatCount="indefinite"
                 />
               </circle>
-            )}
+            </g>
             {/* glow halo */}
             <circle
               cx={px}
@@ -177,7 +176,7 @@ export function DotMap({ width = 800, height = 360, className }: DotMapProps) {
             />
             {/* solid dot */}
             <circle cx={px} cy={py} r={2.4} fill="var(--lx-accent)" />
-          </motion.g>
+          </m.g>
         )
       })}
     </svg>

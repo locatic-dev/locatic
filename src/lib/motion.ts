@@ -4,7 +4,7 @@ import type { Transition, Variants } from 'motion/react'
 // Shared motion vocabulary. Import variants from here instead of redefining
 // per feature so entrance/press behavior stays uniform across surfaces.
 // MotionConfig (reducedMotion="user") is set globally in __root.tsx; variants
-// that only animate transform/opacity are auto-disabled for reduced motion.
+// Transform-only entrance variants are auto-disabled for reduced motion.
 
 export const easeOutExpo = [0.16, 1, 0.3, 1] as const
 
@@ -15,18 +15,9 @@ export const durations = {
 } as const
 
 export const fadeUp: Variants = {
-  hidden: { opacity: 0, y: 6 },
+  hidden: { y: 6 },
   visible: {
-    opacity: 1,
     y: 0,
-    transition: { duration: durations.base, ease: easeOutExpo },
-  },
-}
-
-export const fadeIn: Variants = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
     transition: { duration: durations.base, ease: easeOutExpo },
   },
 }

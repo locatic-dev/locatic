@@ -1,4 +1,4 @@
-import { motion } from 'motion/react'
+import * as m from 'motion/react-m'
 import { LxAvatar } from '@/components/ui/lx-avatar'
 import { Skeleton } from '@/components/ui/skeleton'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -66,7 +66,7 @@ export function ProfileNetworkSection({
                 }`}
               >
                 {isActive && (
-                  <motion.span
+                  <m.span
                     layoutId="profile-network-tab-indicator"
                     transition={indicatorSpring}
                     className="absolute inset-0 rounded-pill bg-surface-alt"

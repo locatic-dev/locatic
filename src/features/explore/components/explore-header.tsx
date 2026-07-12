@@ -1,4 +1,4 @@
-import { motion } from 'motion/react'
+import * as m from 'motion/react-m'
 import type { Doc } from '../../../../convex/_generated/dataModel'
 import { CityCombobox } from '@/components/ui/city-combobox'
 import { CityPill } from '@/components/ui/city-pill'
@@ -90,7 +90,7 @@ export function ExploreHeader({
           </span>
           {pendingCityIds && <span className="text-text-muted">saving…</span>}
           {canResetExplore && onResetExplore && (
-            <motion.button
+            <m.button
               type="button"
               onClick={onResetExplore}
               disabled={resetPending}
@@ -98,7 +98,7 @@ export function ExploreHeader({
               className="min-h-11 rounded-md border border-line px-3 font-mono text-[11.5px] text-text-muted transition-colors hover:border-line-strong hover:text-text disabled:cursor-default disabled:opacity-60"
             >
               {resetPending ? 'resetting…' : 'reset'}
-            </motion.button>
+            </m.button>
           )}
         </div>
       </div>
@@ -114,7 +114,7 @@ export function ExploreHeader({
             const isActive = mode === nextMode
 
             return (
-              <motion.button
+              <m.button
                 key={nextMode}
                 type="button"
                 aria-pressed={isActive}
@@ -125,14 +125,14 @@ export function ExploreHeader({
                 }`}
               >
                 {isActive && (
-                  <motion.span
+                  <m.span
                     layoutId="explore-mode-indicator"
                     transition={indicatorSpring}
                     className="absolute inset-0 rounded-[5px] bg-selected"
                   />
                 )}
                 <span className="relative">{nextMode}</span>
-              </motion.button>
+              </m.button>
             )
           })}
         </div>

@@ -1,4 +1,4 @@
-import { motion } from 'motion/react'
+import * as m from 'motion/react-m'
 import type { Variants } from 'motion/react'
 import { cn } from '@/lib/utils'
 import { ArrowRight, Heart, MapPin } from '@/lib/icons'
@@ -33,18 +33,16 @@ const container: Variants = {
 }
 
 const card: Variants = {
-  hidden: { opacity: 0, y: 10 },
+  hidden: { y: 10 },
   visible: {
-    opacity: 1,
     y: 0,
     transition: { duration: durations.slow, ease: easeOutExpo },
   },
 }
 
 const numLabel: Variants = {
-  hidden: { opacity: 0, x: -6 },
+  hidden: { x: -6 },
   visible: {
-    opacity: 1,
     x: 0,
     transition: { duration: durations.base, ease: easeOutExpo, delay: 0.06 },
   },
@@ -52,7 +50,7 @@ const numLabel: Variants = {
 
 export function FeatureRow() {
   return (
-    <motion.section
+    <m.section
       id="features"
       className="relative z-1 mx-auto mt-16 grid max-w-296 grid-cols-1 gap-5 border-y border-line px-(--lx-gutter) py-10 md:grid-cols-3 md:gap-0 md:px-0"
       variants={container}
@@ -61,7 +59,7 @@ export function FeatureRow() {
       viewport={viewportOnce}
     >
       {FEATURES.map((f, i) => (
-        <motion.div
+        <m.div
           key={f.title}
           variants={card}
           className={cn(
@@ -69,12 +67,12 @@ export function FeatureRow() {
             i > 0 && 'border-t border-line md:border-l md:border-t-0',
           )}
         >
-          <motion.div
+          <m.div
             variants={numLabel}
             className="mb-3.5 font-mono text-[11px] text-text-faint"
           >
             {f.num}
-          </motion.div>
+          </m.div>
           <div className="mb-3.5 flex h-9 w-9 items-center justify-center rounded-control border border-line text-brand">
             <f.Icon size={18} strokeWidth={1.4} />
           </div>
@@ -84,8 +82,8 @@ export function FeatureRow() {
           <p className="m-0 max-w-70 font-sans text-sm leading-[1.55] text-text-muted">
             {f.desc}
           </p>
-        </motion.div>
+        </m.div>
       ))}
-    </motion.section>
+    </m.section>
   )
 }
