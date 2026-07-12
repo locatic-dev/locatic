@@ -1,5 +1,5 @@
 import { Link, useRouterState } from '@tanstack/react-router'
-import { motion } from 'motion/react'
+import * as m from 'motion/react-m'
 import { indicatorSpring } from '@/lib/motion'
 import {
   Home,
@@ -203,7 +203,7 @@ export function SidebarNav({
                 <Tooltip key={item.id}>
                   <div className="relative">
                     {isActive && (
-                      <motion.div
+                      <m.div
                         layoutId="sidebar-nav-active-bar"
                         className="lx-nav-active-bar"
                         transition={indicatorSpring}
@@ -224,7 +224,7 @@ export function SidebarNav({
             return (
               <div key={item.id} className="relative">
                 {isActive && (
-                  <motion.div
+                  <m.div
                     layoutId="sidebar-nav-active-bar"
                     className="lx-nav-active-bar"
                     transition={indicatorSpring}

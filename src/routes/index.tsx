@@ -43,15 +43,17 @@ function LandingPage() {
         </div>
       </DotMapParallax>
 
-      {/* Hero */}
-      <section className="relative z-1 mx-auto grid max-w-(--lx-public-max) grid-cols-1 items-center gap-8 px-(--lx-gutter) pt-12 md:grid-cols-[1fr_420px] md:gap-12 md:pt-20">
-        <HeroCopy />
+      <main id="main-content" tabIndex={-1}>
+        {/* Hero */}
+        <section className="relative z-1 mx-auto grid max-w-(--lx-public-max) grid-cols-1 items-center gap-8 px-(--lx-gutter) pt-12 md:grid-cols-[1fr_420px] md:gap-12 md:pt-20">
+          <HeroCopy />
 
-        {/* Preview card float — hidden on mobile */}
-        <RepoPreviewCard />
-      </section>
+          {/* Preview card float — hidden on mobile */}
+          <RepoPreviewCard />
+        </section>
 
-      <FeatureRow />
+        <FeatureRow />
+      </main>
 
       <PublicFooter />
     </div>

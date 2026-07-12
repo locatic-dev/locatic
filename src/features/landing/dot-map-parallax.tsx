@@ -1,4 +1,5 @@
-import { motion, useScroll, useTransform } from 'motion/react'
+import { useScroll, useTransform } from 'motion/react'
+import * as m from 'motion/react-m'
 import type { ReactNode } from 'react'
 import { useReducedMotion } from '@/lib/motion'
 
@@ -18,11 +19,8 @@ export function DotMapParallax({
   const parallaxY = useTransform(scrollY, [0, 600], [0, 90])
 
   return (
-    <motion.div
-      className={className}
-      style={{ y: reducedMotion ? 0 : parallaxY }}
-    >
+    <m.div className={className} style={{ y: reducedMotion ? 0 : parallaxY }}>
       {children}
-    </motion.div>
+    </m.div>
   )
 }

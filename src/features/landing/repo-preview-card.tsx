@@ -1,4 +1,5 @@
-import { motion, useMotionValue, useSpring, useTransform } from 'motion/react'
+import { useMotionValue, useSpring, useTransform } from 'motion/react'
+import * as m from 'motion/react-m'
 import type { PointerEvent } from 'react'
 import { Heart, MessageSquare, Star } from '@/lib/icons'
 import { useReducedMotion } from '@/lib/motion'
@@ -42,7 +43,7 @@ export function RepoPreviewCard() {
     >
       <div className="lx-float-slow absolute top-5 left-5 right-3 h-45 rotate-[2.5deg] rounded-[6px] border border-line bg-surface opacity-40" />
 
-      <motion.div
+      <m.div
         className="absolute top-9 inset-x-0 rounded-[6px] border border-line bg-surface px-5 py-4.5 shadow-[0_24px_60px_rgba(0,0,0,0.5)]"
         style={{
           rotateX: reducedMotion ? 0 : rotateX,
@@ -75,9 +76,9 @@ export function RepoPreviewCard() {
             <MessageSquare size={11} strokeWidth={1.4} /> 48
           </span>
         </div>
-      </motion.div>
+      </m.div>
 
-      <motion.div
+      <m.div
         className="absolute top-2 right-6 flex items-center gap-2 rounded-control border border-line bg-surface px-2.5 py-1.5 font-mono text-[11px] text-brand shadow-[0_8px_24px_rgba(0,0,0,0.4)]"
         initial={{ rotate: 4, y: 0 }}
         animate={
@@ -90,7 +91,7 @@ export function RepoPreviewCard() {
         }}
       >
         <Heart size={11} fill="currentColor" /> +12
-      </motion.div>
+      </m.div>
     </div>
   )
 }

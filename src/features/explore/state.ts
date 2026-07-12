@@ -172,6 +172,20 @@ export function getNearbyBuilderCityIds({
   return scope === 'global' ? [] : dedupeExploreCityIds(selectedCityIds)
 }
 
+export function getExploreResultSetKey({
+  cityIds,
+  mode,
+  query,
+  scope,
+}: {
+  cityIds: string[]
+  mode: ExploreMode
+  query: string
+  scope: ExploreScope
+}) {
+  return JSON.stringify([mode, scope, cityIds, query])
+}
+
 export function getFreshExploreSearch(): ExploreSearch {
   return {
     mode: 'projects',

@@ -1,5 +1,5 @@
 import { Link, useRouterState } from '@tanstack/react-router'
-import { motion } from 'motion/react'
+import * as m from 'motion/react-m'
 import { Home, Compass, Inbox, User, Bell } from '@/lib/icons'
 import type { ReactNode } from 'react'
 import { useResumeExploreSearch } from '@/features/explore/state'
@@ -75,7 +75,7 @@ export function MobileTabBar({
             className="relative flex min-h-11 min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-md px-1.5 py-1.5 no-underline transition-transform duration-[140ms] ease-out active:scale-[0.97]"
           >
             {isActive && (
-              <motion.div
+              <m.div
                 layoutId="mobile-tab-active-indicator"
                 className="absolute -top-2 left-1/2 h-0.5 w-6 -translate-x-1/2 rounded-pill bg-brand"
                 transition={indicatorSpring}

@@ -8,7 +8,7 @@ import {
 } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
 import { auth } from '@clerk/tanstack-react-start/server'
-import { MotionConfig } from 'motion/react'
+import { LazyMotion, MotionConfig } from 'motion/react'
 import { ThemeProvider } from 'next-themes'
 import { useEffect } from 'react'
 import { THEME_IDS, DEFAULT_THEME_ID } from '@/lib/theme'
@@ -32,6 +32,9 @@ interface MyRouterContext {
   convexQueryClient: ConvexQueryClient
   queryClient: QueryClient
 }
+
+const loadMotionFeatures = () =>
+  import('@/lib/motion-features').then((module) => module.default)
 
 const siteUrl = 'https://locatic.dev'
 const socialImageUrl = `${siteUrl}/og-locatic.png`
@@ -183,7 +186,11 @@ export function RootErrorPage({ error, reset }: ErrorComponentProps) {
 
 function NotFoundPage() {
   return (
-    <div className="relative flex min-h-dvh flex-col items-center justify-center overflow-hidden bg-canvas text-text">
+    <main
+      id="main-content"
+      tabIndex={-1}
+      className="relative flex min-h-dvh flex-col items-center justify-center overflow-hidden bg-canvas text-text"
+    >
       {/* Faded dot-map backdrop */}
       <div
         className="pointer-events-none absolute inset-0 flex items-center justify-center opacity-[0.22]"
@@ -234,7 +241,7 @@ function NotFoundPage() {
           </div>
         </div>
       </div>
-    </div>
+    </main>
   )
 }
 
@@ -258,13 +265,17 @@ function RootDocument({ children }: { children: React.ReactNode }) {
           enableSystem={false}
           disableTransitionOnChange
         >
-          <MotionConfig reducedMotion="user">
-            <ClerkProvider>
-              <ConvexProvider queryClient={router.options.context.queryClient}>
-                {children}
-              </ConvexProvider>
-            </ClerkProvider>
-          </MotionConfig>
+          <LazyMotion features={loadMotionFeatures} strict>
+            <MotionConfig reducedMotion="user">
+              <ClerkProvider>
+                <ConvexProvider
+                  queryClient={router.options.context.queryClient}
+                >
+                  {children}
+                </ConvexProvider>
+              </ClerkProvider>
+            </MotionConfig>
+          </LazyMotion>
         </ThemeProvider>
         <Scripts />
       </body>

@@ -10,9 +10,9 @@
 
 /* ── Raw theme values (dark-first — themeable accent family) ─────────────── */
 /* Accent family is driven by three components so a theme swap is a single
-   html[data-theme] override. Neutral surfaces are shared across themes.
-   Keep the variant values in sync with scripts/check-contrast.mjs. */
-:root {
+   data-theme override. Neutral surfaces are shared across themes. */
+:root,
+[data-theme='teal'] {
   --lx-accent-l: 72%;
   --lx-accent-c: 0.15;
   --lx-accent-h: 195;
@@ -115,9 +115,8 @@
 /* Dark stays the base. A variant swaps ONLY the accent family (primary +
    secondary accent); every derived token (quiet washes, selected fill,
    outgoing surface, unread dot, focus ring) follows automatically.
-   Set via next-themes: <html data-theme="violet">. Keep values in sync with
-   scripts/check-contrast.mjs THEMES. */
-html[data-theme='violet'] {
+   Set via next-themes: <html data-theme="violet">. */
+[data-theme='violet'] {
   --lx-accent-l: 74%;
   --lx-accent-c: 0.15;
   --lx-accent-h: 292;
@@ -125,7 +124,7 @@ html[data-theme='violet'] {
   --lx-accent-2-quiet: oklch(75% 0.11 195 / 0.12);
 }
 
-html[data-theme='amber'] {
+[data-theme='amber'] {
   --lx-accent-l: 76%;
   --lx-accent-c: 0.14;
   --lx-accent-h: 75;
@@ -418,6 +417,10 @@ button {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .lx-dot-map-ping {
+    display: none;
+  }
+
   .lx-skeleton,
   .lx-fade-up,
   .lx-hero-up,

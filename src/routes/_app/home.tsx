@@ -5,7 +5,7 @@ import {
   useSuspenseQuery,
 } from '@tanstack/react-query'
 import { usePaginatedQuery } from 'convex/react'
-import { motion } from 'motion/react'
+import * as m from 'motion/react-m'
 import { useRef, useState } from 'react'
 import { api } from '../../../convex/_generated/api'
 import type { Id } from '../../../convex/_generated/dataModel'
@@ -205,7 +205,7 @@ function HomePage() {
                   </span>
                 </div>
 
-                <motion.div
+                <m.div
                   className="flex flex-col gap-3.5"
                   variants={listStagger}
                   initial="hidden"
@@ -227,9 +227,9 @@ function HomePage() {
                     // Only the first page's items get the entrance animation —
                     // pagination appends and live refetches render plain.
                     return initialItemIds.has(itemId) ? (
-                      <motion.div key={itemId} variants={fadeUp}>
+                      <m.div key={itemId} variants={fadeUp}>
                         {card}
-                      </motion.div>
+                      </m.div>
                     ) : (
                       <div key={itemId}>{card}</div>
                     )
@@ -252,7 +252,7 @@ function HomePage() {
                       loading older activity…
                     </div>
                   )}
-                </motion.div>
+                </m.div>
               </>
             )}
           </div>
@@ -274,7 +274,7 @@ function HomeFeedSkeletonRows() {
       {Array.from({ length: 3 }, (_, index) => (
         <div
           key={index}
-          className="overflow-hidden rounded-card border border-line border-l-2 border-l-brand-2/50 bg-surface"
+          className="overflow-hidden rounded-card border border-line bg-surface"
         >
           {/* Header: avatar + actor summary, matches HomeFeedCard header */}
           <div className="flex items-start gap-3 px-4 py-4 sm:px-5">

@@ -1,5 +1,3 @@
-import { motion } from 'motion/react'
-import { fadeIn } from '@/lib/motion'
 import { Skeleton } from '@/components/ui/skeleton'
 
 interface ContributionWeek {
@@ -148,10 +146,7 @@ export function ContributionGraph({
   }
 
   return (
-    <motion.svg
-      initial="hidden"
-      animate="visible"
-      variants={fadeIn}
+    <svg
       width={W}
       height={H}
       viewBox={`0 0 ${W} ${H}`}
@@ -197,6 +192,6 @@ export function ContributionGraph({
           <title>{formatTooltipLabel(count, date)}</title>
         </rect>
       ))}
-    </motion.svg>
+    </svg>
   )
 }

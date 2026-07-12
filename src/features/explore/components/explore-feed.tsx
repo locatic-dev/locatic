@@ -1,11 +1,12 @@
-import { useRef } from 'react'
-import { motion } from 'motion/react'
+import { useState, type ReactNode } from 'react'
+import * as m from 'motion/react-m'
 import type { Id } from '../../../../convex/_generated/dataModel'
 import { Link } from '@tanstack/react-router'
 import { EmptyState } from '@/components/ui/empty-state'
 import { ProjectCard, ProjectCardSkeleton } from '@/components/ui/project-card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { isExploreUserFollowed } from '@/features/explore/state'
+import { EXPLORE_PAGINATED_PAGE_SIZE } from '@/features/explore/pagination'
 import { relativeTime } from '@/lib/time'
 import { Compass, X } from '@/lib/icons'
 import { fadeUp, listStagger, pressScale } from '@/lib/motion'
@@ -17,23 +18,48 @@ import type { ProjectCardPreview } from '@/features/contracts'
 import { toProjectCardData } from '@/features/project-card-preview'
 import { NearbyBuilderRow } from './nearby-builder-row'
 
-// Tracks how many leading items belong to the "first page" of the current
-// result set (keyed off the head item's identity) so entrance stagger only
-// plays once per genuinely new result set — never on pagination `loadMore`
-// appends, filter-preserving refetches, or dismiss-driven shrinkage.
-function useEntranceBatchSize<T>(items: T[], getKey: (item: T) => string) {
-  const headKeyRef = useRef<string | undefined>(undefined)
-  const batchSizeRef = useRef(0)
-  const headKey = items[0] ? getKey(items[0]) : undefined
+function getInitialPageKeys<T>(items: T[], getKey: (item: T) => string) {
+  return new Set(items.slice(0, EXPLORE_PAGINATED_PAGE_SIZE).map(getKey))
+}
 
-  if (headKey !== headKeyRef.current) {
-    headKeyRef.current = headKey
-    batchSizeRef.current = items.length
-  } else if (items.length < batchSizeRef.current) {
-    batchSizeRef.current = items.length
-  }
+function InitialPageMotionList<T>({
+  children,
+  getKey,
+  items,
+  motionClassName,
+  className,
+}: {
+  children: (item: T) => ReactNode
+  getKey: (item: T) => string
+  items: T[]
+  motionClassName?: string
+  className: string
+}) {
+  const [initialKeys] = useState(() => getInitialPageKeys(items, getKey))
 
-  return batchSizeRef.current
+  return (
+    <m.div
+      className={className}
+      variants={listStagger}
+      initial="hidden"
+      animate="visible"
+    >
+      {items.map((item) => {
+        const key = getKey(item)
+        const row = children(item)
+
+        return initialKeys.has(key) ? (
+          <m.div key={key} variants={fadeUp} className={motionClassName}>
+            {row}
+          </m.div>
+        ) : (
+          <div key={key} className={motionClassName}>
+            {row}
+          </div>
+        )
+      })}
+    </m.div>
+  )
 }
 
 const cardPressClass =
@@ -79,6 +105,7 @@ export function ExploreFeed({
   debouncedSearchQuery,
   dismissedIds,
   dismissedPostIds,
+  entranceKey,
   followOverrides,
   followedUserIds,
   hasMoreProjects,
@@ -121,6 +148,7 @@ export function ExploreFeed({
   debouncedSearchQuery: string
   dismissedIds: Set<string>
   dismissedPostIds: Set<string>
+  entranceKey: string
   followOverrides: Record<string, boolean>
   followedUserIds: Set<string>
   hasMoreProjects: boolean
@@ -172,16 +200,6 @@ export function ExploreFeed({
       followedUserIds,
       userId,
     })
-
-  const projectEntranceCount = useEntranceBatchSize(visibleItems, (item) =>
-    String(item.projectId),
-  )
-  const postEntranceCount = useEntranceBatchSize(visiblePostResults, (post) =>
-    String(post._id),
-  )
-  const builderEntranceCount = useEntranceBatchSize(builderResults, (builder) =>
-    String(builder.userId),
-  )
 
   const isProjectFeedLoading =
     (projectFeedLoading || (isProjectSearchActive && projectSearchLoading)) &&
@@ -262,54 +280,39 @@ export function ExploreFeed({
           <div className="mb-3 font-mono text-[10.5px] uppercase tracking-[0.06em] text-text-muted">
             {isBuilderSearchActive ? 'matching builders' : 'builders'}
           </div>
-          <motion.div
+          <InitialPageMotionList
+            key={`builders:${entranceKey}`}
             className="flex flex-col gap-3"
-            variants={listStagger}
-            initial="hidden"
-            animate="visible"
+            items={builderResults}
+            getKey={(builder) => String(builder.userId)}
+            motionClassName={cardPressClass}
           >
-            {builderResults.map((builder, index) => {
-              const row = (
-                <NearbyBuilderRow
-                  builder={builder}
-                  onOpenProfile={() => onOpenBuilderProfile(builder)}
-                  onFollow={() =>
-                    onFollowUser(
-                      builder.userId,
-                      String(builder.userId),
-                      getFollowedState(builder.userId),
-                    )
-                  }
-                  followed={getFollowedState(builder.userId)}
-                  followPending={pendingFollows.has(String(builder.userId))}
-                  onMessage={
-                    viewerId && builder.userId !== viewerId
-                      ? () => onMessageUser(builder.userId)
-                      : undefined
-                  }
-                  messagePending={pendingUserId === String(builder.userId)}
-                  isSelf={builder.userId === viewerId}
-                />
-              )
-
-              return index < builderEntranceCount ? (
-                <motion.div
-                  key={builder.userId}
-                  variants={fadeUp}
-                  className={cardPressClass}
-                >
-                  {row}
-                </motion.div>
-              ) : (
-                <div key={builder.userId} className={cardPressClass}>
-                  {row}
-                </div>
-              )
-            })}
-          </motion.div>
+            {(builder) => (
+              <NearbyBuilderRow
+                builder={builder}
+                onOpenProfile={() => onOpenBuilderProfile(builder)}
+                onFollow={() =>
+                  onFollowUser(
+                    builder.userId,
+                    String(builder.userId),
+                    getFollowedState(builder.userId),
+                  )
+                }
+                followed={getFollowedState(builder.userId)}
+                followPending={pendingFollows.has(String(builder.userId))}
+                onMessage={
+                  viewerId && builder.userId !== viewerId
+                    ? () => onMessageUser(builder.userId)
+                    : undefined
+                }
+                messagePending={pendingUserId === String(builder.userId)}
+                isSelf={builder.userId === viewerId}
+              />
+            )}
+          </InitialPageMotionList>
           {canLoadMoreBuilders && (
             <div className="mt-4 flex justify-center">
-              <motion.button
+              <m.button
                 type="button"
                 onClick={onLoadMoreBuilders}
                 disabled={isLoadingMoreBuilders}
@@ -317,7 +320,7 @@ export function ExploreFeed({
                 className="min-h-11 rounded-md border border-line px-4 font-mono text-[12px] text-text-muted transition-colors hover:border-line-strong hover:text-text disabled:cursor-default disabled:opacity-60"
               >
                 {isLoadingMoreBuilders ? 'loading…' : 'load more builders'}
-              </motion.button>
+              </m.button>
             </div>
           )}
         </div>
@@ -423,81 +426,71 @@ export function ExploreFeed({
           <div className="mb-3 font-mono text-[10.5px] uppercase tracking-[0.06em] text-text-muted">
             {isPostSearchActive ? 'matching posts' : 'posts'}
           </div>
-          <motion.div
+          <InitialPageMotionList
+            key={`posts:${entranceKey}`}
             className="flex flex-col gap-3"
-            variants={listStagger}
-            initial="hidden"
-            animate="visible"
+            items={visiblePostResults}
+            getKey={(post) => String(post._id)}
           >
-            {visiblePostResults.map((post, index) => {
-              const row = (
-                <div
-                  className={`lx-card flex items-start gap-2 rounded-card border border-line bg-surface ${cardPressClass}`}
+            {(post) => (
+              <div
+                className={`lx-card flex items-start gap-2 rounded-card border border-line bg-surface ${cardPressClass}`}
+              >
+                <Link
+                  to="/project/$owner/$repo"
+                  params={{
+                    owner:
+                      post.projectSnapshot.ownerLogin ??
+                      post.projectSnapshot.fullName.split('/')[0] ??
+                      post.projectSnapshot.fullName,
+                    repo: post.projectSnapshot.name,
+                  }}
+                  search={{ post: String(post._id) }}
+                  hash={`post-${String(post._id)}`}
+                  preload="intent"
+                  className="min-w-0 flex-1 px-4 py-3.5 text-left"
                 >
-                  <Link
-                    to="/project/$owner/$repo"
-                    params={{
-                      owner:
-                        post.projectSnapshot.ownerLogin ??
-                        post.projectSnapshot.fullName.split('/')[0] ??
-                        post.projectSnapshot.fullName,
-                      repo: post.projectSnapshot.name,
-                    }}
-                    search={{ post: String(post._id) }}
-                    hash={`post-${String(post._id)}`}
-                    preload="intent"
-                    className="min-w-0 flex-1 px-4 py-3.5 text-left"
-                  >
-                    {/* Repo attribution — quiet mono prefix */}
-                    <div className="mb-1.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[11px] text-text-faint">
-                      <span className="text-text-muted">
-                        {post.projectSnapshot.fullName}
-                      </span>
-                      <span>{relativeTime(post.createdAt)}</span>
-                      {post.actorSnapshot.displayName && (
-                        <span>by {post.actorSnapshot.displayName}</span>
-                      )}
-                    </div>
-                    {/* Post body leads — this is the content */}
-                    <p className="m-0 line-clamp-2 font-sans text-[14px] leading-6 text-text">
-                      {post.body}
-                    </p>
-                    {post.projectTopics.length > 0 && (
-                      <div className="mt-3 flex flex-wrap gap-1.5">
-                        {post.projectTopics.slice(0, 4).map((topic) => (
-                          <span
-                            key={topic}
-                            className="rounded-control border border-line px-2 py-0.5 font-mono text-[10.5px] text-text-muted"
-                          >
-                            #{topic}
-                          </span>
-                        ))}
-                      </div>
+                  {/* Repo attribution — quiet mono prefix */}
+                  <div className="mb-1.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[11px] text-text-faint">
+                    <span className="text-text-muted">
+                      {post.projectSnapshot.fullName}
+                    </span>
+                    <span>{relativeTime(post.createdAt)}</span>
+                    {post.actorSnapshot.displayName && (
+                      <span>by {post.actorSnapshot.displayName}</span>
                     )}
-                  </Link>
-                  <button
-                    type="button"
-                    onClick={() => onDismissPost(post._id, String(post._id))}
-                    aria-label="Dismiss post"
-                    className="mt-1 mr-1 flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-md border-none bg-transparent text-text-muted transition-colors hover:text-text"
-                  >
-                    <X size={12} aria-hidden="true" />
-                  </button>
-                </div>
-              )
-
-              return index < postEntranceCount ? (
-                <motion.div key={String(post._id)} variants={fadeUp}>
-                  {row}
-                </motion.div>
-              ) : (
-                <div key={String(post._id)}>{row}</div>
-              )
-            })}
-          </motion.div>
+                  </div>
+                  {/* Post body leads — this is the content */}
+                  <p className="m-0 line-clamp-2 font-sans text-[14px] leading-6 text-text">
+                    {post.body}
+                  </p>
+                  {post.projectTopics.length > 0 && (
+                    <div className="mt-3 flex flex-wrap gap-1.5">
+                      {post.projectTopics.slice(0, 4).map((topic) => (
+                        <span
+                          key={topic}
+                          className="rounded-control border border-line px-2 py-0.5 font-mono text-[10.5px] text-text-muted"
+                        >
+                          #{topic}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => onDismissPost(post._id, String(post._id))}
+                  aria-label="Dismiss post"
+                  className="mt-1 mr-1 flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-md border-none bg-transparent text-text-muted transition-colors hover:text-text"
+                >
+                  <X size={12} aria-hidden="true" />
+                </button>
+              </div>
+            )}
+          </InitialPageMotionList>
           {hasMorePosts && (
             <div className="mt-4 flex justify-center">
-              <motion.button
+              <m.button
                 type="button"
                 onClick={onLoadMorePosts}
                 disabled={loadMorePending}
@@ -505,7 +498,7 @@ export function ExploreFeed({
                 className="min-h-11 rounded-md border border-line px-4 font-mono text-[12px] text-text-muted transition-colors hover:border-line-strong hover:text-text disabled:cursor-default disabled:opacity-60"
               >
                 {loadMorePending ? 'loading…' : 'load more posts'}
-              </motion.button>
+              </m.button>
             </div>
           )}
         </div>
@@ -527,13 +520,14 @@ export function ExploreFeed({
 
       {!isBuildersMode && !isPostsMode && visibleItems.length > 0 && (
         <div className="flex flex-col gap-3.5">
-          <motion.div
+          <InitialPageMotionList
+            key={`projects:${entranceKey}`}
             className="flex flex-col gap-3.5"
-            variants={listStagger}
-            initial="hidden"
-            animate="visible"
+            items={visibleItems}
+            getKey={(item) => String(item.projectId)}
+            motionClassName={cardPressClass}
           >
-            {visibleItems.map((item, index) => {
+            {(item) => {
               const projectId = item.projectId
               const projectKey = String(item.projectId)
               const ownerId = item.ownerUserId
@@ -541,7 +535,7 @@ export function ExploreFeed({
               const liked = likedProjectIds.has(projectKey)
               const followed = getFollowedState(ownerId)
 
-              const card = (
+              return (
                 <ProjectCard
                   project={{
                     ...toProjectCardData(item),
@@ -563,25 +557,11 @@ export function ExploreFeed({
                   dmPending={pendingUserId === ownerKey}
                 />
               )
-
-              return index < projectEntranceCount ? (
-                <motion.div
-                  key={projectId}
-                  variants={fadeUp}
-                  className={cardPressClass}
-                >
-                  {card}
-                </motion.div>
-              ) : (
-                <div key={projectId} className={cardPressClass}>
-                  {card}
-                </div>
-              )
-            })}
-          </motion.div>
+            }}
+          </InitialPageMotionList>
           {hasMoreProjects && (
             <div className="flex justify-center pt-1">
-              <motion.button
+              <m.button
                 type="button"
                 onClick={onLoadMoreProjects}
                 disabled={loadMorePending}
@@ -589,7 +569,7 @@ export function ExploreFeed({
                 className="min-h-11 rounded-md border border-line px-4 font-mono text-[12px] text-text-muted transition-colors hover:border-line-strong hover:text-text disabled:cursor-default disabled:opacity-60"
               >
                 {loadMorePending ? 'loading…' : 'load more projects'}
-              </motion.button>
+              </m.button>
             </div>
           )}
         </div>

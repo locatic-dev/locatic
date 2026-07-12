@@ -564,7 +564,7 @@ export function HomeFeedCard({
     remainingCount > 0 && isCommentGroup(item) && Boolean(commentMoreRoute)
   const showExpand = remainingCount > 0 && hasStoredTargetsToExpand
   return (
-    <article className="lx-card @container overflow-hidden rounded-card border border-line border-l-2 border-l-brand-2/50 bg-surface transition-colors hover:border-l-brand-2 active:scale-[0.997]">
+    <article className="lx-card @container overflow-hidden rounded-card border border-line bg-surface transition-colors active:scale-[0.997]">
       <header className="flex min-w-0 items-start gap-3 px-4 py-4 sm:px-5">
         <LxAvatar
           name={item.actorSnapshot.displayName}
