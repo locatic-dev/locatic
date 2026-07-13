@@ -1,56 +1,8 @@
-# LIB — Shared Utilities (Frontend)
+# Frontend utilities (`src/lib/`)
 
-## OVERVIEW
+Small, shared utilities with focused domains.
 
-Shared utility functions used across the frontend codebase.
-
-## STRUCTURE
-
-```
-lib/
-├── utils.ts          # cn() className merger, common helpers
-├── format.ts         # Date, number, string formatting
-├── icons.ts          # Icon mappings, custom icon components
-├── social-links.ts   # Social link validation, formatting
-├── time.ts           # Time utilities, relative time formatting
-├── auth-routing.ts   # Auth redirect and route-target helpers
-├── error-display.ts  # Error boundary display component
-├── query.ts          # Query key / option helpers
-├── sidebar-layout.ts # Sidebar collapse storage helpers
-├── skip-link.ts      # Keyboard modality / focus helpers
-├── linkify.tsx       # URL detection & safe external link rendering
-└── __tests__/        # Utility tests
-```
-
-## WHERE TO LOOK
-
-| Task                  | File                | Notes                         |
-| --------------------- | ------------------- | ----------------------------- |
-| Add utility           | `utils.ts`          | General-purpose helpers       |
-| Add formatter         | `format.ts`         | Display formatting            |
-| Add icon              | `icons.ts`          | Icon components, mappings     |
-| Add time helper       | `time.ts`           | Date/time utilities           |
-| Add auth route helper | `auth-routing.ts`   | Login redirect targets        |
-| Add error display     | `error-display.ts`  | Error boundary / fallback UI  |
-| Add query helper      | `query.ts`          | Query key/option helpers      |
-| Add sidebar helper    | `sidebar-layout.ts` | Sidebar collapse storage      |
-| Add skip-link helper  | `skip-link.ts`      | Keyboard modality / blur      |
-| Add linkify utility   | `linkify.tsx`       | URL→anchor conversion in text |
-
-## CONVENTIONS
-
-- Utilities are pure functions — no side effects
-- `cn()` uses `clsx` + `tailwind-merge` for className composition
-- Each utility file has a focused domain
-- Auth moved to `__root.tsx` — no route-level auth helpers in lib
-- Auth-routing helpers are shared across route guards and tests; keep route target names in sync with `_app` flows.
-- `error-display.ts` provides error boundary UI; keep it as a shared presentational helper
-- `query.ts` holds shared query key constants and query option factory helpers
-- Sidebar state persistence and skip-link modality helpers stay here; keep shell components dumb.
-
-## ANTI-PATTERNS
-
-- DO NOT add React components to lib — use `components/`
-- DO NOT add business logic — use `features/`
-- DO NOT add route auth helpers — centralized in `__root.tsx`
-- DO NOT duplicate sidebar storage or skip-link focus logic in components
+- Prefer pure, side-effect-free functions and a colocated unit test for non-trivial behavior.
+- Keep UI in `components/`, domain logic in `features/`, and provider concerns in `integrations/`.
+- Reuse `cn()` from `utils.ts`, existing formatters, and route helpers instead of duplicating them.
+- Motion variants belong in `motion.ts`; theme identifiers belong in `theme.ts`. Do not import `domMax` directly in route chunks—use `motion-features.ts`.

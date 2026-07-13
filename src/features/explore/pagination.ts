@@ -1,0 +1,1 @@
+export const EXPLORE_PAGINATED_PAGE_SIZE = 20

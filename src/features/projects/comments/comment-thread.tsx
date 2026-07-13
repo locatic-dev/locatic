@@ -5,6 +5,7 @@ import { api } from '../../../../convex/_generated/api'
 import { Button } from '@/components/ui/button'
 import { CityPill } from '@/components/ui/city-pill'
 import { LxAvatar } from '@/components/ui/lx-avatar'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
 import { relativeTime } from '@/lib/time'
 import { CommentActions } from './comment-actions'
@@ -18,19 +19,19 @@ function ReplySkeleton() {
       className="relative min-w-0 border-l border-line pl-3 sm:pl-4"
     >
       <div className="flex min-w-0 gap-3 py-1">
-        <div className="mt-0.5 h-[26px] w-[26px] shrink-0 rounded-full border border-line bg-surface-alt" />
+        <Skeleton className="mt-0.5 size-[26px] shrink-0 rounded-full" />
         <div className="min-w-0 flex-1 space-y-2.5">
           <div className="flex items-center gap-2">
-            <div className="h-3 w-32 rounded bg-surface-alt" />
-            <div className="h-3 w-12 rounded bg-surface-alt/70" />
+            <Skeleton className="h-3 w-32" />
+            <Skeleton className="h-3 w-12" />
           </div>
           <div className="space-y-1.5">
-            <div className="h-3.5 w-[min(28rem,88%)] rounded bg-surface-alt" />
-            <div className="h-3.5 w-[min(18rem,62%)] rounded bg-surface-alt/80" />
+            <Skeleton className="h-3.5 w-[min(28rem,88%)]" />
+            <Skeleton className="h-3.5 w-[min(18rem,62%)]" />
           </div>
           <div className="flex items-center gap-3 pt-0.5">
-            <div className="h-3 w-10 rounded bg-surface-alt/70" />
-            <div className="h-3 w-14 rounded bg-surface-alt/70" />
+            <Skeleton className="h-3 w-10" />
+            <Skeleton className="h-3 w-14" />
           </div>
         </div>
       </div>
@@ -253,7 +254,7 @@ export function CommentThread({
                   <div
                     role="status"
                     aria-label="Loading replies"
-                    className="space-y-3 animate-pulse motion-reduce:animate-none"
+                    className="space-y-3"
                   >
                     <ReplySkeleton />
                     {comment.replyCount > 1 && <ReplySkeleton />}

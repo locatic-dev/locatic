@@ -40,11 +40,12 @@ export function LanguageBar({
     <div className={cn('w-full', className)}>
       <span
         aria-hidden="true"
-        className="flex h-[3px] w-full overflow-hidden rounded-full"
+        className="flex h-[4px] w-full gap-px overflow-hidden rounded-full"
       >
         {segments.map((segment) => (
           <span
             key={segment.name}
+            className="rounded-full"
             style={{
               flexGrow: segment.pct,
               flexBasis: 0,

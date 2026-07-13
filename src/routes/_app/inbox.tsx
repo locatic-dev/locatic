@@ -1,6 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
 import { usePaginatedQuery } from 'convex/react'
+import * as m from 'motion/react-m'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { api } from '../../../convex/_generated/api'
 import type { Id } from '../../../convex/_generated/dataModel'
@@ -16,6 +17,9 @@ import {
 import { LxAvatar } from '@/components/ui/lx-avatar'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
+import { EmptyState } from '@/components/ui/empty-state'
+import { Skeleton } from '@/components/ui/skeleton'
+import { fadeUp, listStagger } from '@/lib/motion'
 import { relativeTime } from '@/lib/time'
 import { Inbox, Send } from '@/lib/icons'
 import {
@@ -172,16 +176,16 @@ function InboxPage() {
                   },
                 })
               }
-              className={`relative inline-flex items-center gap-[7px] px-4 py-2.5 font-mono text-[12px] transition-colors ${
+              className={`relative inline-flex items-center gap-[7px] rounded-md px-4 py-2.5 font-mono text-[12px] transition-colors active:scale-[0.98] ${
                 tab === tabItem.id
                   ? 'font-semibold text-text'
-                  : 'text-text-faint'
+                  : 'text-text-muted hover:text-text'
               }`}
               type="button"
             >
               {tabItem.label}
               {tabItem.count > 0 && (
-                <span className="rounded-pill bg-surface-alt px-[5px] py-px font-mono text-[10px] leading-[1.3] text-text-faint">
+                <span className="rounded-pill bg-surface-alt px-[5px] py-px font-mono text-[10px] leading-[1.3] text-text-muted">
                   {tabItem.count}
                 </span>
               )}
@@ -207,132 +211,172 @@ function InboxPage() {
             }
           >
             {conversations.length === 0 && (
-              <div className="px-5 py-8 text-center font-mono text-xs text-text-faint">
-                {tab === 'requests'
-                  ? 'no message requests.'
-                  : 'no conversations yet.'}
-              </div>
+              <EmptyState
+                size="compact"
+                icon={<Inbox size={28} strokeWidth={1.2} />}
+                title={
+                  tab === 'requests'
+                    ? 'no message requests'
+                    : 'no conversations yet'
+                }
+                description={
+                  tab === 'requests'
+                    ? 'requests from builders you don’t follow back will land here.'
+                    : 'start a conversation from a builder’s profile to see it here.'
+                }
+              />
             )}
 
-            {conversations.map((conversation) => {
-              const unreadCount =
-                viewerId && conversation.unreadCounts[viewerId]
-                  ? conversation.unreadCounts[viewerId]
-                  : 0
-              const isSelected = selectedId === String(conversation._id)
+            <m.div
+              key={tab}
+              variants={listStagger}
+              initial="hidden"
+              animate="visible"
+            >
+              {conversations.map((conversation) => {
+                const unreadCount =
+                  viewerId && conversation.unreadCounts[viewerId]
+                    ? conversation.unreadCounts[viewerId]
+                    : 0
+                const isUnread = unreadCount > 0
+                const isSelected = selectedId === String(conversation._id)
 
-              return (
-                <div
-                  key={String(conversation._id)}
-                  className={`flex items-stretch gap-3 border-b border-line px-5 py-3.5 transition-colors ${
-                    isSelected
-                      ? 'bg-surface-alt'
-                      : 'bg-transparent hover:bg-surface-alt'
-                  }`}
-                >
-                  <button
-                    type="button"
-                    onClick={() =>
-                      openProfile(conversation.otherUser?.githubUsername)
-                    }
-                    className="flex min-h-11 shrink-0 items-center rounded-[6px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
-                    aria-label={`Open ${conversation.otherUser?.displayName ?? conversation.otherUser?.githubUsername ?? 'user'} profile`}
+                return (
+                  <m.div
+                    key={String(conversation._id)}
+                    variants={fadeUp}
+                    className={`relative flex items-stretch gap-3 border-b border-line px-5 py-3.5 transition-colors active:scale-[0.99] ${
+                      isSelected
+                        ? 'bg-selected'
+                        : 'bg-transparent hover:bg-surface-raised'
+                    }`}
                   >
-                    <LxAvatar
-                      name={
+                    {isSelected && (
+                      <span
+                        aria-hidden
+                        className="absolute inset-y-0 left-0 w-0.5 bg-brand"
+                      />
+                    )}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        openProfile(conversation.otherUser?.githubUsername)
+                      }
+                      className="flex min-h-11 shrink-0 items-center rounded-[6px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                      aria-label={`Open ${conversation.otherUser?.displayName ?? conversation.otherUser?.githubUsername ?? 'user'} profile`}
+                    >
+                      <LxAvatar
+                        name={
+                          conversation.otherUser?.displayName ??
+                          conversation.otherUser?.githubUsername ??
+                          'user'
+                        }
+                        avatarUrl={
+                          conversation.otherUser?.avatarUrl ?? undefined
+                        }
+                        size={36}
+                      />
+                    </button>
+                    <button
+                      onClick={() =>
+                        void navigate({
+                          to: '/inbox',
+                          search: {
+                            compose: null,
+                            tab,
+                            conversation: String(conversation._id),
+                          },
+                        })
+                      }
+                      aria-label={`Open conversation with ${
                         conversation.otherUser?.displayName ??
                         conversation.otherUser?.githubUsername ??
                         'user'
-                      }
-                      avatarUrl={conversation.otherUser?.avatarUrl ?? undefined}
-                      size={36}
-                    />
-                  </button>
-                  <button
-                    onClick={() =>
-                      void navigate({
-                        to: '/inbox',
-                        search: {
-                          compose: null,
-                          tab,
-                          conversation: String(conversation._id),
-                        },
-                      })
-                    }
-                    aria-label={`Open conversation with ${
-                      conversation.otherUser?.displayName ??
-                      conversation.otherUser?.githubUsername ??
-                      'user'
-                    }`}
-                    className="min-w-0 flex-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
-                    type="button"
-                  >
-                    <div className="mb-1 flex flex-wrap justify-between gap-2">
-                      <span className="font-mono text-[12.5px] font-semibold text-text [overflow-wrap:anywhere]">
-                        {conversation.otherUser?.displayName ??
-                          conversation.otherUser?.githubUsername ??
-                          'Unknown user'}
-                      </span>
-                      <span className="ml-2 shrink-0 font-mono text-[10.5px] text-text-faint">
-                        {relativeTime(conversation.lastMessage.sentAt)}
-                      </span>
-                    </div>
-                    <div className="font-sans text-xs text-text-muted [overflow-wrap:anywhere]">
-                      {conversation.lastMessage.content}
-                    </div>
-                    <div className="mt-1.5 flex items-center justify-between gap-2">
-                      <span className="font-mono text-[10.5px] text-text-faint">
-                        {conversation.otherUser?.cityName ?? 'location hidden'}
-                      </span>
-                      {unreadCount > 0 && (
-                        <span className="rounded-pill bg-unread px-1.5 py-px font-mono text-[10px] leading-[1.4] text-brand-foreground">
-                          {unreadCount}
+                      }`}
+                      className="min-w-0 flex-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                      type="button"
+                    >
+                      <div className="mb-1 flex flex-wrap justify-between gap-2">
+                        <span
+                          className={`font-mono text-[12.5px] [overflow-wrap:anywhere] ${
+                            isUnread
+                              ? 'font-semibold text-text'
+                              : 'font-medium text-text-muted'
+                          }`}
+                        >
+                          {conversation.otherUser?.displayName ??
+                            conversation.otherUser?.githubUsername ??
+                            'Unknown user'}
                         </span>
-                      )}
-                    </div>
-                  </button>
-                </div>
-              )
-            })}
+                        <span className="ml-2 shrink-0 font-mono text-[10.5px] text-text-faint">
+                          {relativeTime(conversation.lastMessage.sentAt)}
+                        </span>
+                      </div>
+                      <div
+                        className={`font-sans text-xs [overflow-wrap:anywhere] ${
+                          isUnread ? 'font-medium text-text' : 'text-text-muted'
+                        }`}
+                      >
+                        {conversation.lastMessage.content}
+                      </div>
+                      <div className="mt-1.5 flex items-center justify-between gap-2">
+                        <span className="font-mono text-[10.5px] text-text-faint">
+                          {conversation.otherUser?.cityName ??
+                            'location hidden'}
+                        </span>
+                        {isUnread && (
+                          <span className="flex items-center gap-1.5">
+                            <span
+                              aria-hidden
+                              className="size-1.5 rounded-full bg-unread"
+                            />
+                            <span className="rounded-pill bg-unread px-1.5 py-px font-mono text-[10px] leading-[1.4] text-brand-foreground">
+                              {unreadCount}
+                            </span>
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                  </m.div>
+                )
+              })}
+            </m.div>
           </div>
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col">
           {!hasDetailPanel && (
-            <div className="flex flex-1 flex-col items-center justify-center gap-3.5 text-text-faint">
-              <Inbox size={36} strokeWidth={1.2} />
-              <span className="font-mono text-xs">
-                select a conversation to read messages.
-              </span>
-            </div>
+            <EmptyState
+              icon={<Inbox size={32} strokeWidth={1.2} />}
+              title="select a conversation"
+              description="pick a thread from the list to read and reply."
+            />
           )}
 
           {composePreviewLoading && (
-            <div className="flex flex-1 flex-col items-center justify-center gap-3.5 text-text-faint">
-              <Inbox size={36} strokeWidth={1.2} />
-              <span className="font-mono text-xs">loading conversation…</span>
+            <div className="flex flex-1 flex-col items-center justify-center gap-3.5 px-[var(--lx-gutter)]">
+              <Skeleton className="size-9 rounded-avatar" />
+              <div className="flex flex-col items-center gap-2">
+                <Skeleton className="h-3.5 w-32" />
+                <Skeleton className="h-3 w-20" />
+              </div>
             </div>
           )}
 
           {composePreviewInvalid && (
-            <div className="flex flex-1 flex-col items-center justify-center gap-3.5 px-[var(--lx-gutter)] text-center text-text-faint">
-              <Inbox size={36} strokeWidth={1.2} />
-              <span className="font-mono text-xs">
-                could not open this message draft.
-              </span>
-              <Button
-                variant="monoOutline"
-                size="meta"
-                onClick={() =>
+            <EmptyState
+              icon={<Inbox size={32} strokeWidth={1.2} />}
+              title="couldn't open this draft"
+              description="the message draft is no longer available."
+              action={{
+                label: 'back to inbox',
+                onClick: () =>
                   void navigate({
                     to: '/inbox',
                     search: { compose: null, tab, conversation: null },
-                  })
-                }
-              >
-                back to inbox
-              </Button>
-            </div>
+                  }),
+              }}
+            />
           )}
 
           {selectedConversation && viewerId && (
@@ -449,12 +493,14 @@ function DraftConversationPanel({
         </button>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-[var(--lx-gutter)] text-center font-mono text-xs text-text-faint">
-        write the first message.
-      </div>
+      <EmptyState
+        icon={<Send size={28} strokeWidth={1.2} />}
+        title="write the first message"
+        description={`say hi to ${recipient.displayName} to start the conversation.`}
+      />
 
       <div className="shrink-0 border-t border-line px-[var(--lx-gutter)] pt-2 pb-[calc(var(--lx-mobile-tab-height)+0.75rem)] md:pt-4 md:pb-5">
-        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-1.5 rounded-card border border-line bg-surface p-1.5 md:gap-3 md:border-0 md:bg-transparent md:p-0">
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-1.5 rounded-card border border-line bg-surface p-1.5 transition-colors focus-within:border-line-strong md:gap-3 md:border-0 md:bg-transparent md:p-0">
           <Textarea
             ref={textareaRef}
             value={newMessage}
@@ -473,7 +519,7 @@ function DraftConversationPanel({
             type="button"
             onClick={() => void handleSend()}
             disabled={!newMessage.trim() || sending}
-            className="h-11 min-h-11 w-11 min-w-11 shrink-0 self-end border-none bg-brand px-0 font-mono text-[12.5px] font-semibold text-brand-foreground hover:bg-brand/90 md:w-auto md:px-4"
+            className="h-11 min-h-11 w-11 min-w-11 shrink-0 self-end border-none bg-brand px-0 font-mono text-[12.5px] font-semibold text-brand-foreground transition-transform hover:bg-brand/90 active:scale-95 md:w-auto md:px-4"
             aria-label={sending ? 'Sending message' : 'Send message'}
           >
             <Send size={16} aria-hidden="true" className="md:hidden" />
@@ -682,6 +728,13 @@ function SelectedConversationPanel({
         }}
         className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-[var(--lx-gutter)] pt-4 pb-8"
       >
+        {messagesPage.status === 'LoadingFirstPage' && (
+          <div className="flex flex-col gap-3">
+            <Skeleton className="h-11 w-2/3 max-w-64 self-start rounded-card" />
+            <Skeleton className="h-9 w-1/2 max-w-48 self-end rounded-card" />
+            <Skeleton className="h-14 w-3/5 max-w-72 self-start rounded-card" />
+          </div>
+        )}
         {messagesPage.status === 'CanLoadMore' && (
           <Button
             variant="monoOutline"
@@ -693,19 +746,30 @@ function SelectedConversationPanel({
           </Button>
         )}
         {messagesPage.status === 'LoadingMore' && (
-          <div className="mx-auto mb-2 font-mono text-[11px] text-text-faint">
+          <div className="mx-auto mb-2 font-mono text-[11px] text-text-muted">
             loading older messages…
           </div>
         )}
+        {messagesPage.status !== 'LoadingFirstPage' &&
+          messages.length === 0 && (
+            <EmptyState
+              icon={<Inbox size={28} strokeWidth={1.2} />}
+              title="no messages yet"
+              description="send the first message below to start the conversation."
+            />
+          )}
         {messages.map((message) => {
           const isMe = viewerId === String(message.senderId)
           return (
-            <div
+            <m.div
               key={String(message._id)}
+              variants={fadeUp}
+              initial="hidden"
+              animate="visible"
               className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}
             >
               <div
-                className={`max-w-[min(100%,36rem)] rounded-lg px-3 py-2.5 ${
+                className={`max-w-[min(100%,36rem)] rounded-card px-3.5 py-2.5 ${
                   isMe
                     ? 'border border-brand/30 bg-outgoing text-text'
                     : 'border border-line bg-surface text-text'
@@ -718,14 +782,14 @@ function SelectedConversationPanel({
                   {relativeTime(message.createdAt)}
                 </div>
               </div>
-            </div>
+            </m.div>
           )
         })}
         <div ref={messagesEndRef} aria-hidden="true" />
       </div>
 
       <div className="shrink-0 border-t border-line px-[var(--lx-gutter)] pt-2 pb-[calc(var(--lx-mobile-tab-height)+0.75rem)] md:pt-4 md:pb-5">
-        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-1.5 rounded-card border border-line bg-surface p-1.5 md:gap-3 md:border-0 md:bg-transparent md:p-0">
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-1.5 rounded-card border border-line bg-surface p-1.5 transition-colors focus-within:border-line-strong md:gap-3 md:border-0 md:bg-transparent md:p-0">
           <Textarea
             ref={textareaRef}
             value={newMessage}
@@ -744,7 +808,7 @@ function SelectedConversationPanel({
             type="button"
             onClick={() => void handleSend()}
             disabled={!newMessage.trim() || sending}
-            className="h-11 min-h-11 w-11 min-w-11 shrink-0 self-end border-none bg-brand px-0 font-mono text-[12.5px] font-semibold text-brand-foreground hover:bg-brand/90 md:w-auto md:px-4"
+            className="h-11 min-h-11 w-11 min-w-11 shrink-0 self-end border-none bg-brand px-0 font-mono text-[12.5px] font-semibold text-brand-foreground transition-transform hover:bg-brand/90 active:scale-95 md:w-auto md:px-4"
             aria-label={sending ? 'Sending message' : 'Send message'}
           >
             <Send size={16} aria-hidden="true" className="md:hidden" />

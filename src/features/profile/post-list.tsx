@@ -3,6 +3,7 @@ import { Link } from '@tanstack/react-router'
 import type { ProfilePostPreview } from '@/features/contracts'
 import { compactNumber } from '@/lib/format'
 import { relativeTime } from '@/lib/time'
+import { EmptyState } from '@/components/ui/empty-state'
 
 export function ProfilePostList({
   emptyLabel,
@@ -12,9 +13,7 @@ export function ProfilePostList({
   posts: ProfilePostPreview[]
 }) {
   if (posts.length === 0) {
-    return (
-      <div className="font-mono text-[12px] text-text-faint">{emptyLabel}</div>
-    )
+    return <EmptyState size="compact" title={emptyLabel} />
   }
 
   return (
