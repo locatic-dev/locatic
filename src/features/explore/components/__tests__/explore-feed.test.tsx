@@ -8,9 +8,16 @@ import type { BuilderPreview, ExplorePostPreview } from '../../types'
 import type { ProjectCardPreview } from '@/features/contracts'
 
 vi.mock('@/components/ui/project-card', () => ({
-  ProjectCard: ({ project }: { project: { fullName: string } }) => (
-    <article>{project.fullName}</article>
+  ProjectCard: ({
+    project,
+  }: {
+    project: { fullName: string; projectId: string }
+  }) => (
+    <article data-testid={`project-${project.projectId}`}>
+      {project.fullName}
+    </article>
   ),
+  ProjectCardSkeleton: () => <div data-testid="project-card-skeleton" />,
 }))
 
 vi.mock('@tanstack/react-router', () => ({
@@ -26,6 +33,24 @@ vi.mock('@tanstack/react-router', () => ({
 
 vi.mock('@/features/project-card-preview', () => ({
   toProjectCardData: (project: ProjectCardPreview) => project,
+}))
+
+vi.mock('motion/react-m', () => ({
+  div: ({
+    children,
+    variants,
+    ...props
+  }: PropsWithChildren<Record<string, unknown>>) => (
+    <div data-motion-row={variants ? 'true' : undefined} {...props}>
+      {children}
+    </div>
+  ),
+  button: ({
+    children,
+    ...props
+  }: PropsWithChildren<Record<string, unknown>>) => (
+    <button {...props}>{children}</button>
+  ),
 }))
 
 const project = {
@@ -104,6 +129,7 @@ function renderFeed(
     debouncedSearchQuery: '',
     dismissedIds: new Set<string>(),
     dismissedPostIds: new Set<string>(),
+    entranceKey: 'projects\u001fglobal\u001f\u001f',
     followOverrides: {},
     followedUserIds: new Set<string>(),
     hasMorePosts: false,
@@ -141,6 +167,75 @@ function renderFeed(
 }
 
 describe('ExploreFeed', () => {
+  it('keeps appended project rows static after dismissing a first-page row', () => {
+    const paginatedItems = Array.from({ length: 21 }, (_, index) => ({
+      ...project,
+      projectId: `project_${index + 1}` as Id<'projects'>,
+      fullName: `locatic/app-${index + 1}`,
+    }))
+    const { props, rerender } = renderFeed({ items: paginatedItems })
+
+    const appendedRow = screen.getByTestId('project-project_21').parentElement
+    expect(appendedRow).not.toBeNull()
+    expect(appendedRow?.getAttribute('data-motion-row')).toBeNull()
+
+    rerender(<ExploreFeed {...props} dismissedIds={new Set(['project_1'])} />)
+
+    expect(
+      screen
+        .getByTestId('project-project_21')
+        .parentElement?.getAttribute('data-motion-row'),
+    ).toBeNull()
+  })
+
+  it('keeps post-search pagination static but animates a fresh result set', () => {
+    const initialPosts = Array.from({ length: 10 }, (_, index) => ({
+      ...post,
+      _id: `post_${index + 1}` as Id<'posts'>,
+      body: `Post ${index + 1}`,
+    }))
+    const { props, rerender } = renderFeed({
+      isPostsMode: true,
+      postResults: initialPosts,
+    })
+
+    const getPostRow = (body: string) =>
+      screen.getByText(body).closest('.lx-card')?.parentElement
+
+    expect(getPostRow('Post 1')?.getAttribute('data-motion-row')).toBe('true')
+
+    rerender(
+      <ExploreFeed
+        {...props}
+        isPostsMode
+        postResults={Array.from({ length: 30 }, (_, index) => ({
+          ...post,
+          _id: `post_${index + 1}` as Id<'posts'>,
+          body: `Post ${index + 1}`,
+        }))}
+      />,
+    )
+
+    expect(getPostRow('Post 11')?.getAttribute('data-motion-row')).toBeNull()
+
+    rerender(
+      <ExploreFeed
+        {...props}
+        entranceKey='["posts","global",[],"new query"]'
+        isPostsMode
+        postResults={Array.from({ length: 10 }, (_, index) => ({
+          ...post,
+          _id: `new_post_${index + 1}` as Id<'posts'>,
+          body: `Fresh post ${index + 1}`,
+        }))}
+      />,
+    )
+
+    expect(getPostRow('Fresh post 1')?.getAttribute('data-motion-row')).toBe(
+      'true',
+    )
+  })
+
   it('renders projects only in projects mode', () => {
     renderFeed({
       builderResults: [builder],
@@ -210,7 +305,7 @@ describe('ExploreFeed', () => {
       postSearchLoading: true,
     })
 
-    expect(screen.getByText('loading posts…')).toBeTruthy()
+    expect(screen.getByRole('status', { name: 'loading posts…' })).toBeTruthy()
     expect(
       screen.queryByText('no posts found for this city context.'),
     ).toBeNull()
@@ -236,7 +331,9 @@ describe('ExploreFeed', () => {
       postResults: [],
     })
 
-    expect(screen.getByText('searching posts…')).toBeTruthy()
+    expect(
+      screen.getByRole('status', { name: 'searching posts…' }),
+    ).toBeTruthy()
     expect(screen.queryByText(/no posts found/)).toBeNull()
   })
 

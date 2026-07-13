@@ -155,11 +155,11 @@ export function LikedBySummary({
 
         <div className="max-h-[60vh] overflow-y-auto p-2">
           {likers.status === 'LoadingFirstPage' ? (
-            <div className="px-2 py-4 font-mono text-[12px] text-text-faint">
+            <div className="px-2 py-4 font-mono text-[12px] text-text-muted">
               loading likes…
             </div>
           ) : likers.results.length === 0 ? (
-            <div className="px-2 py-4 font-mono text-[12px] text-text-faint">
+            <div className="px-2 py-4 font-mono text-[12px] text-text-muted">
               no likes yet.
             </div>
           ) : (
@@ -204,7 +204,7 @@ export function LikedBySummary({
             </Button>
           )}
           {likers.status === 'LoadingMore' && (
-            <div className="px-2 py-2 font-mono text-[11.5px] text-text-faint">
+            <div className="px-2 py-2 font-mono text-[11.5px] text-text-muted">
               loading more…
             </div>
           )}

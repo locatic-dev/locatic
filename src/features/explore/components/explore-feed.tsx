@@ -1,10 +1,15 @@
+import { useState, type ReactNode } from 'react'
+import * as m from 'motion/react-m'
 import type { Id } from '../../../../convex/_generated/dataModel'
 import { Link } from '@tanstack/react-router'
 import { EmptyState } from '@/components/ui/empty-state'
-import { ProjectCard } from '@/components/ui/project-card'
+import { ProjectCard, ProjectCardSkeleton } from '@/components/ui/project-card'
+import { Skeleton } from '@/components/ui/skeleton'
 import { isExploreUserFollowed } from '@/features/explore/state'
+import { EXPLORE_PAGINATED_PAGE_SIZE } from '@/features/explore/pagination'
 import { relativeTime } from '@/lib/time'
-import { X } from '@/lib/icons'
+import { Compass, X } from '@/lib/icons'
+import { fadeUp, listStagger, pressScale } from '@/lib/motion'
 import type {
   BuilderPreview,
   ExplorePostPreview,
@@ -13,13 +18,94 @@ import type { ProjectCardPreview } from '@/features/contracts'
 import { toProjectCardData } from '@/features/project-card-preview'
 import { NearbyBuilderRow } from './nearby-builder-row'
 
+function getInitialPageKeys<T>(items: T[], getKey: (item: T) => string) {
+  return new Set(items.slice(0, EXPLORE_PAGINATED_PAGE_SIZE).map(getKey))
+}
+
+function InitialPageMotionList<T>({
+  children,
+  getKey,
+  items,
+  motionClassName,
+  className,
+}: {
+  children: (item: T) => ReactNode
+  getKey: (item: T) => string
+  items: T[]
+  motionClassName?: string
+  className: string
+}) {
+  const [initialKeys] = useState(() => getInitialPageKeys(items, getKey))
+
+  return (
+    <m.div
+      className={className}
+      variants={listStagger}
+      initial="hidden"
+      animate="visible"
+    >
+      {items.map((item) => {
+        const key = getKey(item)
+        const row = children(item)
+
+        return initialKeys.has(key) ? (
+          <m.div key={key} variants={fadeUp} className={motionClassName}>
+            {row}
+          </m.div>
+        ) : (
+          <div key={key} className={motionClassName}>
+            {row}
+          </div>
+        )
+      })}
+    </m.div>
+  )
+}
+
+const cardPressClass =
+  'transition-transform duration-150 ease-out active:scale-[0.98]'
+
+function PostRowSkeleton() {
+  return (
+    <div className="flex items-start gap-2 rounded-card border border-line bg-surface px-4 py-3.5">
+      <div className="min-w-0 flex-1">
+        <div className="mb-2 flex items-center gap-2">
+          <Skeleton className="h-3 w-28" />
+          <Skeleton className="h-3 w-12" />
+        </div>
+        <Skeleton className="h-3.5 w-full" />
+        <Skeleton className="mt-2 h-3.5 w-4/5" />
+        <div className="mt-3 flex gap-1.5">
+          <Skeleton className="h-5 w-14 rounded-control" />
+          <Skeleton className="h-5 w-16 rounded-control" />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function BuilderRowSkeleton() {
+  return (
+    <div className="flex items-center gap-3 rounded-card border border-line bg-surface px-4 py-3.5">
+      <Skeleton className="h-10 w-10 shrink-0 rounded-full" />
+      <div className="min-w-0 flex-1">
+        <Skeleton className="h-3.5 w-32" />
+        <Skeleton className="mt-2 h-3 w-40" />
+      </div>
+      <Skeleton className="h-11 w-22 shrink-0 rounded-md" />
+    </div>
+  )
+}
+
 export function ExploreFeed({
+  builderFeedLoading,
   builderResults,
   builderSearchLoading,
   canLoadMoreBuilders,
   debouncedSearchQuery,
   dismissedIds,
   dismissedPostIds,
+  entranceKey,
   followOverrides,
   followedUserIds,
   hasMoreProjects,
@@ -34,6 +120,7 @@ export function ExploreFeed({
   items,
   likedProjectIds,
   loadMorePending,
+  onClearCityFilters,
   onDismissPost,
   onDismissProject,
   onFollowUser,
@@ -43,6 +130,7 @@ export function ExploreFeed({
   onLoadMorePosts,
   onMessageUser,
   onOpenBuilderProfile,
+  onResetExplore,
   pendingFollows,
   pendingLikes,
   pendingUserId,
@@ -50,14 +138,17 @@ export function ExploreFeed({
   projectSearchLoading,
   postSearchLoading,
   postResults,
+  resetPending,
   viewerId,
 }: {
+  builderFeedLoading?: boolean
   builderResults: BuilderPreview[]
   builderSearchLoading: boolean
   canLoadMoreBuilders: boolean
   debouncedSearchQuery: string
   dismissedIds: Set<string>
   dismissedPostIds: Set<string>
+  entranceKey: string
   followOverrides: Record<string, boolean>
   followedUserIds: Set<string>
   hasMoreProjects: boolean
@@ -72,6 +163,7 @@ export function ExploreFeed({
   items: ProjectCardPreview[]
   likedProjectIds: Set<string>
   loadMorePending: boolean
+  onClearCityFilters?: () => void
   onDismissPost: (postId: Id<'posts'>, postKey: string) => void
   onDismissProject: (projectId: Id<'projects'>, projectKey: string) => void
   onFollowUser: (
@@ -85,6 +177,7 @@ export function ExploreFeed({
   onLoadMorePosts: () => void
   onMessageUser: (userId: Id<'users'>) => void
   onOpenBuilderProfile: (builder: BuilderPreview) => void
+  onResetExplore?: () => void
   pendingFollows: Set<string>
   pendingLikes: Set<string>
   pendingUserId: string | null
@@ -92,6 +185,7 @@ export function ExploreFeed({
   projectSearchLoading: boolean
   postSearchLoading: boolean
   postResults: ExplorePostPreview[]
+  resetPending?: boolean
   viewerId?: Id<'users'>
 }) {
   const visibleItems = items.filter(
@@ -107,6 +201,13 @@ export function ExploreFeed({
       userId,
     })
 
+  const isProjectFeedLoading =
+    (projectFeedLoading || (isProjectSearchActive && projectSearchLoading)) &&
+    visibleItems.length === 0
+  const isBuilderFeedLoading =
+    (builderSearchLoading || (!isBuilderSearchActive && builderFeedLoading)) &&
+    builderResults.length === 0
+
   return (
     <>
       {!isBuildersMode &&
@@ -115,10 +216,24 @@ export function ExploreFeed({
         !isGlobalFeed &&
         !projectFeedLoading &&
         visibleItems.length === 0 && (
-          <div className="py-10">
+          <div className="py-6">
             <EmptyState
+              icon={<Compass size={28} strokeWidth={1.2} />}
               title="no projects match these cities yet."
               description="Try another city, remove one of your selected filters, or check back after more projects are imported."
+              action={
+                onResetExplore
+                  ? {
+                      label: resetPending ? 'resetting…' : 'reset dismissed',
+                      onClick: onResetExplore,
+                    }
+                  : undefined
+              }
+              secondaryAction={
+                onClearCityFilters
+                  ? { label: 'clear city filters', onClick: onClearCityFilters }
+                  : undefined
+              }
             />
           </div>
         )}
@@ -129,29 +244,51 @@ export function ExploreFeed({
         isGlobalFeed &&
         !projectFeedLoading &&
         visibleItems.length === 0 && (
-          <div className="py-10">
+          <div className="py-6">
             <EmptyState
+              icon={<Compass size={28} strokeWidth={1.2} />}
               title="nothing to explore right now."
               description="Try searching for builders, add city filters, or check back after more projects are imported."
+              action={
+                onResetExplore
+                  ? {
+                      label: resetPending ? 'resetting…' : 'reset dismissed',
+                      onClick: onResetExplore,
+                    }
+                  : undefined
+              }
             />
           </div>
         )}
 
-      {isBuildersMode && builderSearchLoading && (
-        <div className="py-5 text-center font-mono text-[12.5px] text-text-muted">
-          searching builders…
+      {isBuildersMode && isBuilderFeedLoading && (
+        <div
+          role="status"
+          aria-label={
+            isBuilderSearchActive ? 'searching builders…' : 'loading builders…'
+          }
+          className="mb-8 flex flex-col gap-3"
+        >
+          {[0, 1, 2].map((index) => (
+            <BuilderRowSkeleton key={index} />
+          ))}
         </div>
       )}
 
-      {isBuildersMode && builderResults.length > 0 && (
+      {isBuildersMode && !isBuilderFeedLoading && builderResults.length > 0 && (
         <div className="mb-8">
           <div className="mb-3 font-mono text-[10.5px] uppercase tracking-[0.06em] text-text-muted">
             {isBuilderSearchActive ? 'matching builders' : 'builders'}
           </div>
-          <div className="flex flex-col gap-3">
-            {builderResults.map((builder) => (
+          <InitialPageMotionList
+            key={`builders:${entranceKey}`}
+            className="flex flex-col gap-3"
+            items={builderResults}
+            getKey={(builder) => String(builder.userId)}
+            motionClassName={cardPressClass}
+          >
+            {(builder) => (
               <NearbyBuilderRow
-                key={builder.userId}
                 builder={builder}
                 onOpenProfile={() => onOpenBuilderProfile(builder)}
                 onFollow={() =>
@@ -171,30 +308,41 @@ export function ExploreFeed({
                 messagePending={pendingUserId === String(builder.userId)}
                 isSelf={builder.userId === viewerId}
               />
-            ))}
-          </div>
+            )}
+          </InitialPageMotionList>
           {canLoadMoreBuilders && (
             <div className="mt-4 flex justify-center">
-              <button
+              <m.button
                 type="button"
                 onClick={onLoadMoreBuilders}
                 disabled={isLoadingMoreBuilders}
-                className="min-h-11 rounded-md border border-line px-4 py-2 font-mono text-[12px] text-text-muted transition-colors hover:border-line-strong hover:text-text disabled:cursor-default disabled:opacity-60"
+                whileTap={isLoadingMoreBuilders ? undefined : pressScale}
+                className="min-h-11 rounded-md border border-line px-4 font-mono text-[12px] text-text-muted transition-colors hover:border-line-strong hover:text-text disabled:cursor-default disabled:opacity-60"
               >
                 {isLoadingMoreBuilders ? 'loading…' : 'load more builders'}
-              </button>
+              </m.button>
             </div>
           )}
         </div>
       )}
 
       {isBuildersMode &&
-        builderResults.length === 0 &&
-        !builderSearchLoading && (
-          <div className="py-5 text-center font-mono text-[12.5px] text-text-muted">
-            {isBuilderSearchActive
-              ? `no builders found for "${debouncedSearchQuery}"`
-              : 'no builders found for this city context.'}
+        !isBuilderFeedLoading &&
+        builderResults.length === 0 && (
+          <div className="py-6">
+            <EmptyState
+              icon={<Compass size={28} strokeWidth={1.2} />}
+              title={
+                isBuilderSearchActive
+                  ? `no builders found for “${debouncedSearchQuery}”.`
+                  : 'no builders found for this city context.'
+              }
+              description={
+                isBuilderSearchActive
+                  ? 'Try a different name or username.'
+                  : 'Try another city or check back once more builders join nearby.'
+              }
+            />
           </div>
         )}
 
@@ -203,8 +351,12 @@ export function ExploreFeed({
         isProjectSearchActive &&
         !projectSearchLoading &&
         visibleItems.length === 0 && (
-          <div className="py-5 text-center font-mono text-[12.5px] text-text-muted">
-            no projects found.
+          <div className="py-6">
+            <EmptyState
+              icon={<Compass size={28} strokeWidth={1.2} />}
+              title="no projects found."
+              description="Try a different search term or check the spelling."
+            />
           </div>
         )}
 
@@ -212,8 +364,9 @@ export function ExploreFeed({
         !isPostSearchActive &&
         visiblePostResults.length === 0 &&
         !postSearchLoading && (
-          <div className="py-10">
+          <div className="py-6">
             <EmptyState
+              icon={<Compass size={28} strokeWidth={1.2} />}
               title={
                 isGlobalFeed
                   ? 'no posts to explore right now.'
@@ -224,13 +377,34 @@ export function ExploreFeed({
                   ? 'Try searching for a phrase or check back after more project posts are published.'
                   : 'Try another city, remove one of your selected filters, or search post text directly.'
               }
+              action={
+                onResetExplore
+                  ? {
+                      label: resetPending ? 'resetting…' : 'reset dismissed',
+                      onClick: onResetExplore,
+                    }
+                  : undefined
+              }
+              secondaryAction={
+                !isGlobalFeed && onClearCityFilters
+                  ? { label: 'clear city filters', onClick: onClearCityFilters }
+                  : undefined
+              }
             />
           </div>
         )}
 
       {isPostsMode && postSearchLoading && (
-        <div className="py-5 text-center font-mono text-[12.5px] text-text-muted">
-          {isPostSearchActive ? 'searching posts…' : 'loading posts…'}
+        <div
+          role="status"
+          aria-label={
+            isPostSearchActive ? 'searching posts…' : 'loading posts…'
+          }
+          className="flex flex-col gap-3"
+        >
+          {[0, 1, 2].map((index) => (
+            <PostRowSkeleton key={index} />
+          ))}
         </div>
       )}
 
@@ -238,8 +412,12 @@ export function ExploreFeed({
         isPostSearchActive &&
         visiblePostResults.length === 0 &&
         !postSearchLoading && (
-          <div className="py-5 text-center font-mono text-[12.5px] text-text-muted">
-            no posts found for &ldquo;{debouncedSearchQuery}&rdquo;
+          <div className="py-6">
+            <EmptyState
+              icon={<Compass size={28} strokeWidth={1.2} />}
+              title={`no posts found for “${debouncedSearchQuery}”.`}
+              description="Try a different phrase or topic."
+            />
           </div>
         )}
 
@@ -248,11 +426,15 @@ export function ExploreFeed({
           <div className="mb-3 font-mono text-[10.5px] uppercase tracking-[0.06em] text-text-muted">
             {isPostSearchActive ? 'matching posts' : 'posts'}
           </div>
-          <div className="flex flex-col gap-3">
-            {visiblePostResults.map((post) => (
+          <InitialPageMotionList
+            key={`posts:${entranceKey}`}
+            className="flex flex-col gap-3"
+            items={visiblePostResults}
+            getKey={(post) => String(post._id)}
+          >
+            {(post) => (
               <div
-                key={String(post._id)}
-                className="lx-card flex items-start gap-2 rounded-card border border-line bg-surface"
+                className={`lx-card flex items-start gap-2 rounded-card border border-line bg-surface ${cardPressClass}`}
               >
                 <Link
                   to="/project/$owner/$repo"
@@ -304,27 +486,48 @@ export function ExploreFeed({
                   <X size={12} aria-hidden="true" />
                 </button>
               </div>
-            ))}
-          </div>
+            )}
+          </InitialPageMotionList>
           {hasMorePosts && (
             <div className="mt-4 flex justify-center">
-              <button
+              <m.button
                 type="button"
                 onClick={onLoadMorePosts}
                 disabled={loadMorePending}
-                className="min-h-11 rounded-md border border-line px-4 py-2 font-mono text-[12px] text-text-muted transition-colors hover:border-line-strong hover:text-text disabled:cursor-default disabled:opacity-60"
+                whileTap={loadMorePending ? undefined : pressScale}
+                className="min-h-11 rounded-md border border-line px-4 font-mono text-[12px] text-text-muted transition-colors hover:border-line-strong hover:text-text disabled:cursor-default disabled:opacity-60"
               >
                 {loadMorePending ? 'loading…' : 'load more posts'}
-              </button>
+              </m.button>
             </div>
           )}
         </div>
       )}
 
+      {!isBuildersMode && !isPostsMode && isProjectFeedLoading && (
+        <div
+          role="status"
+          aria-label={
+            isProjectSearchActive ? 'searching projects…' : 'loading projects…'
+          }
+          className="flex flex-col gap-3.5"
+        >
+          {[0, 1, 2].map((index) => (
+            <ProjectCardSkeleton key={index} />
+          ))}
+        </div>
+      )}
+
       {!isBuildersMode && !isPostsMode && visibleItems.length > 0 && (
         <div className="flex flex-col gap-3.5">
-          <div className="flex flex-col gap-3.5">
-            {visibleItems.map((item) => {
+          <InitialPageMotionList
+            key={`projects:${entranceKey}`}
+            className="flex flex-col gap-3.5"
+            items={visibleItems}
+            getKey={(item) => String(item.projectId)}
+            motionClassName={cardPressClass}
+          >
+            {(item) => {
               const projectId = item.projectId
               const projectKey = String(item.projectId)
               const ownerId = item.ownerUserId
@@ -334,7 +537,6 @@ export function ExploreFeed({
 
               return (
                 <ProjectCard
-                  key={projectId}
                   project={{
                     ...toProjectCardData(item),
                     liked,
@@ -355,18 +557,19 @@ export function ExploreFeed({
                   dmPending={pendingUserId === ownerKey}
                 />
               )
-            })}
-          </div>
+            }}
+          </InitialPageMotionList>
           {hasMoreProjects && (
             <div className="flex justify-center pt-1">
-              <button
+              <m.button
                 type="button"
                 onClick={onLoadMoreProjects}
                 disabled={loadMorePending}
-                className="min-h-11 rounded-md border border-line px-4 py-2 font-mono text-[12px] text-text-muted transition-colors hover:border-line-strong hover:text-text disabled:cursor-default disabled:opacity-60"
+                whileTap={loadMorePending ? undefined : pressScale}
+                className="min-h-11 rounded-md border border-line px-4 font-mono text-[12px] text-text-muted transition-colors hover:border-line-strong hover:text-text disabled:cursor-default disabled:opacity-60"
               >
                 {loadMorePending ? 'loading…' : 'load more projects'}
-              </button>
+              </m.button>
             </div>
           )}
         </div>

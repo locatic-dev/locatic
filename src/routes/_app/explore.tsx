@@ -51,6 +51,7 @@ import {
   getExploreCityIdentity,
   getExploreLoaderDeps,
   getExploreProjectCityIds,
+  getExploreResultSetKey,
   getNearbyBuilderCityIds,
   isExploreProjectFeedGlobal,
   normalizeExploreSearch,
@@ -67,6 +68,7 @@ import {
   POST_SEARCH_LOAD_MORE_ACTIONS,
   POST_SEARCH_DEFAULT_LIMIT,
 } from '@/features/explore/post-search'
+import { EXPLORE_PAGINATED_PAGE_SIZE } from '@/features/explore/pagination'
 import { useDebouncedRouteSearch } from '@/features/explore/use-debounced-route-search'
 import { shouldPrefetchPrivateConvexQueries } from '@/lib/auth-routing'
 import type {
@@ -214,6 +216,12 @@ function ExplorePage() {
   )
   const queryCityIds = canonicalSelectedCityIds as Array<Id<'cities'>>
   const queryCityKey = queryCityIds.map(String).join('|')
+  const entranceKey = getExploreResultSetKey({
+    cityIds: queryCityIds.map(String),
+    mode: currentMode,
+    query: debouncedSearchQuery,
+    scope: currentScope,
+  })
   const postSearchResetKey = getPostSearchResetKey({
     cityIds: queryCityIds.map(String),
     mode: currentMode,
@@ -229,14 +237,14 @@ function ExplorePage() {
     currentMode === 'projects' && !isProjectSearchActive
       ? { scope: currentScope, selectedCityIds: queryCityIds }
       : 'skip',
-    { initialNumItems: 20 },
+    { initialNumItems: EXPLORE_PAGINATED_PAGE_SIZE },
   )
   const nearbyBuildersPaged = usePaginatedQuery(
     api.explore.listNearbyBuilders,
     currentMode === 'builders' && !isBuilderSearchActive
       ? { cityIds: nearbyBuilderCityIds }
       : 'skip',
-    { initialNumItems: 20 },
+    { initialNumItems: EXPLORE_PAGINATED_PAGE_SIZE },
   )
   const { data: followingData } = useSuspenseQuery(
     followingQueryOptions(viewerId as Id<'users'>),
@@ -307,7 +315,7 @@ function ExplorePage() {
     isPostBrowseActive
       ? { scope: currentScope, selectedCityIds: queryCityIds }
       : 'skip',
-    { initialNumItems: 20 },
+    { initialNumItems: EXPLORE_PAGINATED_PAGE_SIZE },
   )
   const postSearchQueryKey = postSearchQueryOptions({
     cityIds: queryCityIds,
@@ -639,6 +647,10 @@ function ExplorePage() {
       selectedCities,
     )
 
+  const handleClearCityFilters = () => {
+    updateSearch({ scope: 'global', selectedCityIds: [] })
+  }
+
   return (
     <div className="lx-page-shell">
       <ExploreHeader
@@ -667,12 +679,16 @@ function ExplorePage() {
       <div className="lx-page-scroll" data-scroll-restoration-id="explore-feed">
         <div className="lx-page-width-wide min-w-0">
           <ExploreFeed
+            builderFeedLoading={
+              nearbyBuildersPaged.status === 'LoadingFirstPage'
+            }
             builderResults={builderResults}
             builderSearchLoading={builderSearchQuery.isLoading}
             canLoadMoreBuilders={canLoadMoreBuilders}
             debouncedSearchQuery={debouncedSearchQuery}
             dismissedIds={dismissedIds}
             dismissedPostIds={dismissedPostIds}
+            entranceKey={entranceKey}
             followOverrides={followOverrides}
             followedUserIds={followedUserIds}
             hasMoreProjects={hasMoreProjects}
@@ -708,6 +724,7 @@ function ExplorePage() {
               postListPaged.loadMore(20)
             }}
             onLoadMoreProjects={() => scopedFeedPaged.loadMore(20)}
+            onClearCityFilters={handleClearCityFilters}
             onMessageUser={(userId) => void openConversation(userId)}
             onOpenBuilderProfile={(builder) =>
               void navigate({
@@ -718,10 +735,12 @@ function ExplorePage() {
                 search: { tab: 'projects' },
               })
             }
+            onResetExplore={handleResetExplore}
             pendingFollows={pendingFollows}
             pendingLikes={pendingLikes}
             pendingUserId={pendingUserId}
             projectFeedLoading={scopedFeedPaged.status === 'LoadingFirstPage'}
+            resetPending={resetPending}
             projectSearchLoading={
               projectSearchQuery.isLoading || projectSearchQuery.isFetching
             }
