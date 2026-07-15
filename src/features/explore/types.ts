@@ -12,12 +12,7 @@ export type BuilderPreview = {
   followersCount: number
 }
 
-export type ExploreFeedPayload = {
-  scope: 'default' | 'global' | 'custom'
-  appliedCityIds: Array<Id<'cities'>>
-  isCityFiltered: boolean
-  projects: Array<ProjectCardPreview>
-}
+export type ExploreProjectPreview = ProjectCardPreview
 
 export type ExplorePostPreview = Doc<'posts'>
 

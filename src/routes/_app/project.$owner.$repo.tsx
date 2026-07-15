@@ -56,6 +56,7 @@ import { ProjectReadmeSection } from '@/features/projects/readme/project-readme-
 import { ProjectReleasesSection } from '@/features/projects/releases/project-releases-section'
 import { ProjectPostsSection } from '@/features/projects/posts/project-posts-section'
 import { LikedBySummary } from '@/features/projects/likes/liked-by-summary'
+import { EmptyState } from '@/components/ui/empty-state'
 import { getProjectLikeButtonStyle } from '@/features/projects/like-button-style'
 import {
   ProjectRoutePending,
@@ -799,7 +800,7 @@ function ProjectDetailPage() {
                 {projectTopics.map((topic) => (
                   <span
                     key={topic}
-                    className="inline-flex min-h-8 items-center gap-1 rounded-[3px] border border-line bg-surface px-2.5 py-1 font-mono text-[11.5px] text-text-muted"
+                    className="inline-flex min-h-7 items-center gap-1 rounded-pill border border-brand/30 bg-brand-quiet px-2.5 py-1 font-mono text-[11px] text-brand"
                   >
                     #{topic}
                     {isOwnProject && (
@@ -807,7 +808,7 @@ function ProjectDetailPage() {
                         type="button"
                         onClick={() => void handleRemoveTopic(topic)}
                         disabled={pendingTopics}
-                        className="-my-2 -mr-2 inline-flex min-h-11 min-w-11 items-center justify-center rounded-md bg-transparent text-text-muted transition-colors hover:text-text"
+                        className="-my-2 -mr-2 inline-flex min-h-11 min-w-11 items-center justify-center rounded-md bg-transparent text-brand transition-colors hover:text-text"
                         aria-label={`Remove ${topic}`}
                       >
                         <X size={12} />
@@ -844,11 +845,15 @@ function ProjectDetailPage() {
                 )}
               </div>
 
-              <div className="flex flex-wrap items-center gap-2.5 font-mono text-[11.5px] text-text-faint">
+              <div className="flex flex-wrap items-center gap-2">
                 {languages.map((language) => (
-                  <LangDot key={language.name} lang={language.name} showLabel />
+                  <LangDot
+                    key={language.name}
+                    lang={language.name}
+                    variant="chip"
+                  />
                 ))}
-                <span>
+                <span className="font-mono text-[11px] text-text-faint">
                   updated {relativeTime(detail.project.github.lastCommitAt)}
                 </span>
               </div>
@@ -867,12 +872,13 @@ function ProjectDetailPage() {
                       search: { tab: 'projects' },
                     })
                   }
-                  className="flex min-w-0 flex-1 items-center gap-3 border-0 bg-transparent p-0 text-left"
+                  className="group flex min-w-0 flex-1 items-center gap-3 border-0 bg-transparent p-0 text-left"
                 >
                   <LxAvatar
                     name={detail.owner.displayName}
                     avatarUrl={detail.owner.avatarUrl}
                     size={48}
+                    className="ring-1 ring-transparent ring-offset-2 ring-offset-surface transition-[box-shadow] group-hover:ring-brand/40"
                   />
                   <div className="min-w-0 flex-1">
                     <div className="font-mono text-sm font-semibold text-text">
@@ -1074,7 +1080,7 @@ function ProjectDetailPage() {
                 ) : null}
 
                 {!isSignedIn ? (
-                  <div className="mb-4 rounded-[6px] border border-line bg-surface px-3.5 py-3 font-mono text-[12.5px] text-text-faint">
+                  <div className="mb-4 rounded-[6px] border border-line bg-surface px-3.5 py-3 font-mono text-[12.5px] text-text-muted">
                     <a href="/sign-in/$" className="text-brand no-underline">
                       sign in
                     </a>{' '}
@@ -1084,9 +1090,7 @@ function ProjectDetailPage() {
 
                 {visibleRootComments.length === 0 &&
                 commentRoots.status !== 'LoadingFirstPage' ? (
-                  <div className="py-4 font-sans text-sm text-text-muted">
-                    no project comments yet.
-                  </div>
+                  <EmptyState size="compact" title="no project comments yet." />
                 ) : (
                   <div className="flex flex-col gap-3">
                     {visibleRootComments.map((commentItem) => (
@@ -1120,7 +1124,7 @@ function ProjectDetailPage() {
                       </Button>
                     )}
                     {commentRoots.status === 'LoadingMore' && (
-                      <div className="font-mono text-[12px] text-text-faint">
+                      <div className="font-mono text-[12px] text-text-muted">
                         loading more comments...
                       </div>
                     )}

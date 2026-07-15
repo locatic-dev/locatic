@@ -1,4 +1,6 @@
 import { Link } from '@tanstack/react-router'
+import * as m from 'motion/react-m'
+import { fadeUp, viewportOnce } from '@/lib/motion'
 
 const footerLinkClassName =
   'inline-flex min-h-11 items-center text-text-faint no-underline transition-colors hover:text-text'
@@ -7,7 +9,13 @@ const footerLinkClassName =
 // legal links so they are reachable from every public surface.
 export function PublicFooter() {
   return (
-    <footer className="border-t border-line px-(--lx-gutter) py-7 text-center font-mono text-[11.5px] text-text-faint">
+    <m.footer
+      className="border-t border-line px-(--lx-gutter) py-7 text-center font-mono text-[11.5px] text-text-faint"
+      variants={fadeUp}
+      initial="hidden"
+      whileInView="visible"
+      viewport={viewportOnce}
+    >
       <nav className="flex flex-wrap items-center justify-center gap-x-5 gap-y-1">
         <a
           href="mailto:contact@locatic.dev"
@@ -32,9 +40,7 @@ export function PublicFooter() {
         </a>
       </nav>
       <div className="mt-3">built with ❤️ for developers</div>
-      <div className="mt-2 opacity-70">
-        locatic · {new Date().getFullYear()}
-      </div>
-    </footer>
+      <div className="mt-2">locatic · {new Date().getFullYear()}</div>
+    </m.footer>
   )
 }

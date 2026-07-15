@@ -1,4 +1,8 @@
+import * as m from 'motion/react-m'
 import { LxAvatar } from '@/components/ui/lx-avatar'
+import { Skeleton } from '@/components/ui/skeleton'
+import { EmptyState } from '@/components/ui/empty-state'
+import { indicatorSpring } from '@/lib/motion'
 import type { ProfileNetworkTab } from '@/features/profile/state'
 
 type SocialPreview = {
@@ -49,45 +53,52 @@ export function ProfileNetworkSection({
       </div>
 
       {!isPrivate && (
-        <div className="flex gap-1 border-b border-line px-3 py-3">
-          {(['followers', 'following'] as const).map((tab) => (
-            <button
-              key={tab}
-              type="button"
-              onClick={() => onChangeTab(tab)}
-              className={`min-h-11 rounded-pill px-3.5 font-mono text-[11.5px] transition-colors ${
-                activeTab === tab
-                  ? 'bg-surface-alt text-text'
-                  : 'text-text-faint hover:text-text'
-              }`}
-            >
-              {tab}
-            </button>
-          ))}
+        <div className="relative flex gap-1 border-b border-line px-3 py-3">
+          {(['followers', 'following'] as const).map((tab) => {
+            const isActive = activeTab === tab
+            return (
+              <button
+                key={tab}
+                type="button"
+                onClick={() => onChangeTab(tab)}
+                className={`relative min-h-11 rounded-pill px-3.5 font-mono text-[11.5px] transition-colors ${
+                  isActive ? 'text-text' : 'text-text-muted hover:text-text'
+                }`}
+              >
+                {isActive && (
+                  <m.span
+                    layoutId="profile-network-tab-indicator"
+                    transition={indicatorSpring}
+                    className="absolute inset-0 rounded-pill bg-surface-alt"
+                  />
+                )}
+                <span className="relative">{tab}</span>
+              </button>
+            )
+          })}
         </div>
       )}
 
       <div className="px-3 py-2">
         {isPrivate ? (
-          <div className="px-2 py-6 font-mono text-[12px] text-text-faint">
-            follow graph is private on this profile.
-          </div>
+          <EmptyState
+            size="compact"
+            title="follow graph is private on this profile."
+          />
         ) : loading ? (
           <div className="space-y-3 px-2 py-4" aria-label="loading network">
             {[0, 1, 2].map((item) => (
               <div key={item} className="flex min-h-14 items-center gap-3">
-                <div className="size-9 rounded-full bg-surface-alt" />
+                <Skeleton className="size-9 shrink-0 rounded-full" />
                 <div className="min-w-0 flex-1 space-y-2">
-                  <div className="h-3 w-28 rounded-pill bg-surface-alt" />
-                  <div className="h-2.5 w-20 rounded-pill bg-surface-alt" />
+                  <Skeleton className="h-3 w-28 rounded-pill" />
+                  <Skeleton className="h-2.5 w-20 rounded-pill" />
                 </div>
               </div>
             ))}
           </div>
         ) : items.length === 0 ? (
-          <div className="px-2 py-6 font-mono text-[12px] text-text-faint">
-            {emptyLabel}
-          </div>
+          <EmptyState size="compact" title={emptyLabel} />
         ) : (
           <>
             {items.map((item) => (
@@ -95,12 +106,13 @@ export function ProfileNetworkSection({
                 key={item.userId}
                 type="button"
                 onClick={() => onSelectUser(item.githubUsername)}
-                className="flex min-h-14 w-full items-center gap-3 rounded-[6px] px-2 py-3 text-left transition-colors hover:bg-surface-alt"
+                className="group flex min-h-14 w-full items-center gap-3 rounded-[6px] px-2 py-3 text-left transition-colors hover:bg-surface-alt"
               >
                 <LxAvatar
                   name={item.displayName}
                   avatarUrl={item.avatarUrl ?? undefined}
                   size={36}
+                  className="ring-1 ring-transparent ring-offset-2 ring-offset-surface transition-[box-shadow] group-hover:ring-brand/40"
                 />
                 <div className="min-w-0 flex-1">
                   <div className="truncate font-mono text-[12.5px] font-semibold text-text">

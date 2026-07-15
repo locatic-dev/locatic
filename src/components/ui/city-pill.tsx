@@ -11,7 +11,7 @@ export function CityPill({ city, onRemove, className }: CityPillProps) {
   return (
     <span
       className={cn(
-        'inline-flex min-h-7 max-w-full items-center gap-1.5 overflow-hidden rounded-[3px] border border-line bg-surface-alt px-2 py-1 font-mono text-[11px] leading-none text-text-muted',
+        'inline-flex min-h-7 max-w-full items-center gap-1.5 overflow-hidden rounded-pill border border-line bg-surface-alt px-2.5 py-1 font-mono text-[11px] leading-none text-text-muted',
         className,
       )}
       title={city}

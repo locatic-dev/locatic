@@ -1,17 +1,15 @@
 import { createFileRoute } from '@tanstack/react-router'
 import {
-  useMutation,
   useQuery,
   useQueryClient,
   useSuspenseQuery,
 } from '@tanstack/react-query'
+import { usePaginatedQuery } from 'convex/react'
 import { useCallback, useEffect, useState } from 'react'
+import { api } from '../../../convex/_generated/api'
 import type { Doc, Id } from '../../../convex/_generated/dataModel'
 import {
   builderSearchQueryOptions,
-  exploreFeedQueryOptions,
-  nearbyBuildersQueryOptions,
-  postListQueryOptions,
   projectSearchQueryOptions,
   postSearchQueryOptions,
 } from '@/features/explore/queries'
@@ -53,6 +51,7 @@ import {
   getExploreCityIdentity,
   getExploreLoaderDeps,
   getExploreProjectCityIds,
+  getExploreResultSetKey,
   getNearbyBuilderCityIds,
   isExploreProjectFeedGlobal,
   normalizeExploreSearch,
@@ -61,25 +60,21 @@ import {
 } from '@/features/explore/state'
 import { ExploreHeader } from '@/features/explore/components/explore-header'
 import { ExploreFeed } from '@/features/explore/components/explore-feed'
+import { keepPreviousPostSearchData } from '@/features/explore/query-transitions'
 import {
-  keepPreviousExploreFeedData,
-  keepPreviousPostListData,
-  keepPreviousPostSearchData,
-} from '@/features/explore/query-transitions'
+  getPostSearchLoadMoreAction,
+  getPostSearchResetKey,
+  getNextPostSearchLimit,
+  POST_SEARCH_LOAD_MORE_ACTIONS,
+  POST_SEARCH_DEFAULT_LIMIT,
+} from '@/features/explore/post-search'
+import { EXPLORE_PAGINATED_PAGE_SIZE } from '@/features/explore/pagination'
 import { useDebouncedRouteSearch } from '@/features/explore/use-debounced-route-search'
-import {
-  updateExploreFeedPayload,
-  updateLikedProjectIdsPayload,
-} from '@/features/explore/cache'
 import { shouldPrefetchPrivateConvexQueries } from '@/lib/auth-routing'
 import type {
   BuilderPreview,
-  ExploreFeedPayload,
+  ExploreProjectPreview,
 } from '@/features/explore/types'
-
-const EXPLORE_INITIAL_LIMIT = 20
-const EXPLORE_MAX_LIMIT = 50
-const EXPLORE_LIMIT_STEP = 20
 
 export const Route = createFileRoute('/_app/explore')({
   validateSearch: normalizeExploreSearch,
@@ -105,25 +100,8 @@ export const Route = createFileRoute('/_app/explore')({
       deps,
       defaultCityIds,
     ) as Array<Id<'cities'>>
-    const nearbyBuilderCityIds = getNearbyBuilderCityIds({
-      scope: deps.scope,
-      selectedCityIds,
-    }) as Array<Id<'cities'>>
 
     await Promise.all([
-      deps.mode === 'projects'
-        ? context.queryClient.ensureQueryData(
-            exploreFeedQueryOptions({
-              scope: deps.scope,
-              selectedCityIds,
-            }),
-          )
-        : Promise.resolve(),
-      deps.mode === 'builders'
-        ? context.queryClient.ensureQueryData(
-            nearbyBuildersQueryOptions(nearbyBuilderCityIds),
-          )
-        : Promise.resolve(),
       context.queryClient.ensureQueryData(
         followingQueryOptions(explorePrefs.viewerId),
       ),
@@ -171,8 +149,6 @@ function ExplorePage() {
   const [dismissedPostIds, setDismissedPostIds] = useState<Set<string>>(
     new Set(),
   )
-  const [projectLimit, setProjectLimit] = useState(EXPLORE_INITIAL_LIMIT)
-  const [postLimit, setPostLimit] = useState(EXPLORE_INITIAL_LIMIT)
   const [pendingLikes, setPendingLikes] = useState<Set<string>>(new Set())
   const [pendingFollows, setPendingFollows] = useState<Set<string>>(new Set())
   const [resetPending, setResetPending] = useState(false)
@@ -184,6 +160,9 @@ function ExplorePage() {
     Record<string, string>
   >({})
   const [cityQuery, setCityQuery] = useState('')
+  const [postSearchLimit, setPostSearchLimit] = useState(
+    POST_SEARCH_DEFAULT_LIMIT,
+  )
   const commitSearchQuery = useCallback(
     (q: string) => {
       void navigate({
@@ -237,27 +216,36 @@ function ExplorePage() {
   )
   const queryCityIds = canonicalSelectedCityIds as Array<Id<'cities'>>
   const queryCityKey = queryCityIds.map(String).join('|')
+  const entranceKey = getExploreResultSetKey({
+    cityIds: queryCityIds.map(String),
+    mode: currentMode,
+    query: debouncedSearchQuery,
+    scope: currentScope,
+  })
+  const postSearchResetKey = getPostSearchResetKey({
+    cityIds: queryCityIds.map(String),
+    mode: currentMode,
+    query: debouncedSearchQuery,
+  })
   const nearbyBuilderCityIds = getNearbyBuilderCityIds({
     scope: currentScope,
     selectedCityIds: canonicalSelectedCityIds,
   }) as Array<Id<'cities'>>
 
-  const scopedFeedQuery = useQuery({
-    ...exploreFeedQueryOptions({
-      limit: projectLimit,
-      scope: currentScope,
-      selectedCityIds: queryCityIds,
-    }),
-    enabled: currentMode === 'projects',
-    placeholderData: keepPreviousExploreFeedData({
-      currentScope,
-      currentSelectedCityIds: queryCityIds,
-    }),
-  })
-  const nearbyBuildersQuery = useQuery({
-    ...nearbyBuildersQueryOptions(nearbyBuilderCityIds),
-    enabled: currentMode === 'builders' && !isBuilderSearchActive,
-  })
+  const scopedFeedPaged = usePaginatedQuery(
+    api.explore.list,
+    currentMode === 'projects' && !isProjectSearchActive
+      ? { scope: currentScope, selectedCityIds: queryCityIds }
+      : 'skip',
+    { initialNumItems: EXPLORE_PAGINATED_PAGE_SIZE },
+  )
+  const nearbyBuildersPaged = usePaginatedQuery(
+    api.explore.listNearbyBuilders,
+    currentMode === 'builders' && !isBuilderSearchActive
+      ? { cityIds: nearbyBuilderCityIds }
+      : 'skip',
+    { initialNumItems: EXPLORE_PAGINATED_PAGE_SIZE },
+  )
   const { data: followingData } = useSuspenseQuery(
     followingQueryOptions(viewerId as Id<'users'>),
   )
@@ -307,7 +295,7 @@ function ExplorePage() {
       ? {
           ...postSearchQueryOptions({
             cityIds: queryCityIds,
-            limit: postLimit,
+            limit: postSearchLimit,
             q: debouncedSearchQuery,
           }),
           placeholderData: keepPreviousPostSearchData({
@@ -322,111 +310,32 @@ function ExplorePage() {
           }),
         ),
   )
-  const postListQuery = useQuery(
+  const postListPaged = usePaginatedQuery(
+    api.explore.listPosts,
     isPostBrowseActive
-      ? {
-          ...postListQueryOptions({
-            limit: postLimit,
-            scope: currentScope,
-            selectedCityIds: queryCityIds,
-          }),
-          placeholderData: keepPreviousPostListData({
-            currentScope,
-            currentSelectedCityIds: queryCityIds,
-          }),
-        }
-      : disabledQuery(
-          postListQueryOptions({
-            scope: 'global',
-            selectedCityIds: [],
-          }),
-        ),
+      ? { scope: currentScope, selectedCityIds: queryCityIds }
+      : 'skip',
+    { initialNumItems: EXPLORE_PAGINATED_PAGE_SIZE },
   )
-  const feedQueryKey = exploreFeedQueryOptions({
-    limit: projectLimit,
-    scope: currentScope,
-    selectedCityIds: queryCityIds,
-  }).queryKey
-  const postListQueryKey = postListQueryOptions({
-    limit: postLimit,
-    scope: currentScope,
-    selectedCityIds: queryCityIds,
-  }).queryKey
   const postSearchQueryKey = postSearchQueryOptions({
     cityIds: queryCityIds,
-    limit: postLimit,
+    limit: postSearchLimit,
     q: debouncedSearchQuery,
   }).queryKey
-  const nearbyBuildersQueryKey =
-    nearbyBuildersQueryOptions(nearbyBuilderCityIds).queryKey
   const followingQueryKey = followingQueryOptions(
     viewerId as Id<'users'>,
   ).queryKey
   const likedProjectIdsQueryKey = viewerLikedProjectIdsQueryOptions().queryKey
-  const likeMutation = useMutation({
-    mutationFn: async ({
-      currentlyLiked,
-      projectId,
-    }: {
-      currentlyLiked: boolean
-      projectId: Id<'projects'>
-    }) =>
-      currentlyLiked
-        ? unlikeProject({ projectId })
-        : likeProject({ projectId }),
-    onMutate: async ({ currentlyLiked, projectId }) => {
-      await Promise.all([
-        queryClient.cancelQueries({ queryKey: feedQueryKey }),
-        queryClient.cancelQueries({ queryKey: likedProjectIdsQueryKey }),
-      ])
-
-      const previousFeed =
-        queryClient.getQueryData<ExploreFeedPayload>(feedQueryKey)
-      const previousLikedProjectIds =
-        queryClient.getQueryData<ViewerLikedProjectIdsPayload>(
-          likedProjectIdsQueryKey,
-        )
-
-      queryClient.setQueryData(
-        feedQueryKey,
-        (current: ExploreFeedPayload | undefined) =>
-          updateExploreFeedPayload(
-            current,
-            projectId,
-            currentlyLiked,
-            !currentlyLiked,
-          ),
-      )
-      queryClient.setQueryData(
-        likedProjectIdsQueryKey,
-        (current: ViewerLikedProjectIdsPayload | undefined) =>
-          updateLikedProjectIdsPayload(current, projectId, !currentlyLiked),
-      )
-
-      return { previousFeed, previousLikedProjectIds }
-    },
-    onError: (_error, _variables, context) => {
-      queryClient.setQueryData(feedQueryKey, context?.previousFeed)
-      queryClient.setQueryData(
-        likedProjectIdsQueryKey,
-        context?.previousLikedProjectIds,
-      )
-    },
-    onSettled: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: feedQueryKey }),
-        queryClient.invalidateQueries({ queryKey: likedProjectIdsQueryKey }),
-      ])
-    },
-  })
 
   useEffect(() => {
-    setProjectLimit(EXPLORE_INITIAL_LIMIT)
+    setPostSearchLimit(POST_SEARCH_DEFAULT_LIMIT)
+  }, [postSearchResetKey])
+
+  useEffect(() => {
     setDismissedIds(new Set())
   }, [currentScope, queryCityKey, isProjectSearchActive])
 
   useEffect(() => {
-    setPostLimit(EXPLORE_INITIAL_LIMIT)
     setDismissedPostIds(new Set())
   }, [debouncedSearchQuery, queryCityKey])
 
@@ -465,18 +374,21 @@ function ExplorePage() {
       String(follow.followingId),
     ),
   )
-  const scopedFeedData = scopedFeedQuery.data as ExploreFeedPayload | undefined
-  const projects = scopedFeedData?.projects ?? []
-  const items = projects
-  const nearbyBuilders =
-    (nearbyBuildersQuery.data as Array<BuilderPreview> | undefined) ?? []
+  const items =
+    (scopedFeedPaged.results as Array<ExploreProjectPreview> | undefined) ?? []
+  const nearbyBuilders = (nearbyBuildersPaged.results ??
+    []) as Array<BuilderPreview>
   const builderResults = isBuilderSearchActive
     ? ((builderSearchQuery.data as Array<BuilderPreview> | undefined) ?? [])
     : nearbyBuilders
+  const canLoadMoreBuilders =
+    !isBuilderSearchActive && nearbyBuildersPaged.status === 'CanLoadMore'
+  const isLoadingMoreBuilders =
+    !isBuilderSearchActive && nearbyBuildersPaged.status === 'LoadingMore'
   const projectSearchData = projectSearchQuery.data as
     | {
         projectResultScope: 'recent'
-        projects: ExploreFeedPayload['projects']
+        projects: Array<ExploreProjectPreview>
       }
     | undefined
   const postSearchData = postSearchQuery.data as
@@ -485,25 +397,21 @@ function ExplorePage() {
         hasMore: boolean
       }
     | undefined
-  const postListData = postListQuery.data as
-    | {
-        posts: Array<Doc<'posts'>>
-        hasMore: boolean
-      }
-    | undefined
-  const activePostData = isPostSearchActive ? postSearchData : postListData
-  const postResults = activePostData?.posts ?? []
+  const postBrowseResults =
+    (postListPaged.results as Array<Doc<'posts'>> | undefined) ?? []
+  const postResults = isPostSearchActive
+    ? (postSearchData?.posts ?? [])
+    : postBrowseResults
   const displayedItems = isProjectSearchActive
     ? (projectSearchData?.projects ?? [])
     : items
   const hasMoreProjects =
-    !isProjectSearchActive &&
-    displayedItems.length >= projectLimit &&
-    projectLimit < EXPLORE_MAX_LIMIT
+    !isProjectSearchActive && scopedFeedPaged.status === 'CanLoadMore'
   const hasMorePosts =
     currentMode === 'posts' &&
-    Boolean(activePostData?.hasMore) &&
-    postLimit < EXPLORE_MAX_LIMIT
+    (isPostSearchActive
+      ? Boolean(postSearchData?.hasMore)
+      : postListPaged.status === 'CanLoadMore')
   const canonicalSelectedCities = dedupeExploreCities(selectedCities)
   const selectedCityIdentities = new Set(
     canonicalSelectedCities.map(getExploreCityIdentity),
@@ -649,17 +557,13 @@ function ExplorePage() {
       if (currentMode === 'posts') {
         await resetPosts({})
         setDismissedPostIds(new Set())
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: postListQueryKey }),
-          queryClient.invalidateQueries({ queryKey: postSearchQueryKey }),
-        ])
+        await queryClient.invalidateQueries({ queryKey: postSearchQueryKey })
         return
       }
 
       if (currentMode === 'projects') {
         await resetProjects({})
         setDismissedIds(new Set())
-        await queryClient.invalidateQueries({ queryKey: feedQueryKey })
       }
     } catch (error) {
       console.error('Explore reset failed', error)
@@ -677,14 +581,17 @@ function ExplorePage() {
         queryClient.getQueryData<ViewerLikedProjectIdsPayload>(
           likedProjectIdsQueryKey,
         )
-      await likeMutation.mutateAsync({
-        currentlyLiked: Boolean(
-          currentLikedProjectIds?.likedProjectIds
-            .map(String)
-            .includes(projectKey) ?? likedProjectIds.has(projectKey),
-        ),
-        projectId,
-      })
+      const currentlyLiked = Boolean(
+        currentLikedProjectIds?.likedProjectIds
+          .map(String)
+          .includes(projectKey) ?? likedProjectIds.has(projectKey),
+      )
+      if (currentlyLiked) {
+        await unlikeProject({ projectId })
+      } else {
+        await likeProject({ projectId })
+      }
+      await queryClient.invalidateQueries({ queryKey: likedProjectIdsQueryKey })
     } catch (error) {
       console.error('Like failed', error)
     } finally {
@@ -714,11 +621,7 @@ function ExplorePage() {
       } else {
         await followUser({ targetUserId: userId })
       }
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: followingQueryKey }),
-        queryClient.invalidateQueries({ queryKey: feedQueryKey }),
-        queryClient.invalidateQueries({ queryKey: nearbyBuildersQueryKey }),
-      ])
+      await queryClient.invalidateQueries({ queryKey: followingQueryKey })
     } catch (error) {
       console.error('Follow failed', error)
       setFollowOverrides((current) => ({
@@ -743,6 +646,10 @@ function ExplorePage() {
       }),
       selectedCities,
     )
+
+  const handleClearCityFilters = () => {
+    updateSearch({ scope: 'global', selectedCityIds: [] })
+  }
 
   return (
     <div className="lx-page-shell">
@@ -772,11 +679,16 @@ function ExplorePage() {
       <div className="lx-page-scroll" data-scroll-restoration-id="explore-feed">
         <div className="lx-page-width-wide min-w-0">
           <ExploreFeed
+            builderFeedLoading={
+              nearbyBuildersPaged.status === 'LoadingFirstPage'
+            }
             builderResults={builderResults}
             builderSearchLoading={builderSearchQuery.isLoading}
+            canLoadMoreBuilders={canLoadMoreBuilders}
             debouncedSearchQuery={debouncedSearchQuery}
             dismissedIds={dismissedIds}
             dismissedPostIds={dismissedPostIds}
+            entranceKey={entranceKey}
             followOverrides={followOverrides}
             followedUserIds={followedUserIds}
             hasMoreProjects={hasMoreProjects}
@@ -784,30 +696,35 @@ function ExplorePage() {
             isBuilderSearchActive={isBuilderSearchActive}
             isBuildersMode={currentMode === 'builders'}
             isGlobalFeed={isGlobalFeed}
+            isLoadingMoreBuilders={isLoadingMoreBuilders}
             isPostSearchActive={isPostSearchActive}
             isPostsMode={currentMode === 'posts'}
             isProjectSearchActive={isProjectSearchActive}
             items={displayedItems}
             likedProjectIds={likedProjectIds}
             loadMorePending={
-              scopedFeedQuery.isFetching ||
-              postListQuery.isFetching ||
+              scopedFeedPaged.status === 'LoadingMore' ||
+              postListPaged.status === 'LoadingMore' ||
               postSearchQuery.isFetching
             }
             onDismissPost={handleDismissPost}
             onDismissProject={handleDismiss}
             onFollowUser={handleFollow}
             onLikeProject={handleLike}
-            onLoadMorePosts={() =>
-              setPostLimit((current) =>
-                Math.min(current + EXPLORE_LIMIT_STEP, EXPLORE_MAX_LIMIT),
-              )
-            }
-            onLoadMoreProjects={() =>
-              setProjectLimit((current) =>
-                Math.min(current + EXPLORE_LIMIT_STEP, EXPLORE_MAX_LIMIT),
-              )
-            }
+            onLoadMoreBuilders={() => nearbyBuildersPaged.loadMore(20)}
+            onLoadMorePosts={() => {
+              if (
+                getPostSearchLoadMoreAction({ isPostSearchActive }) ===
+                POST_SEARCH_LOAD_MORE_ACTIONS.growSearchLimit
+              ) {
+                setPostSearchLimit(getNextPostSearchLimit)
+                return
+              }
+
+              postListPaged.loadMore(20)
+            }}
+            onLoadMoreProjects={() => scopedFeedPaged.loadMore(20)}
+            onClearCityFilters={handleClearCityFilters}
             onMessageUser={(userId) => void openConversation(userId)}
             onOpenBuilderProfile={(builder) =>
               void navigate({
@@ -818,13 +735,12 @@ function ExplorePage() {
                 search: { tab: 'projects' },
               })
             }
+            onResetExplore={handleResetExplore}
             pendingFollows={pendingFollows}
             pendingLikes={pendingLikes}
             pendingUserId={pendingUserId}
-            projectFeedLoading={
-              scopedFeedQuery.isLoading ||
-              (scopedFeedQuery.isFetching && !scopedFeedQuery.isPlaceholderData)
-            }
+            projectFeedLoading={scopedFeedPaged.status === 'LoadingFirstPage'}
+            resetPending={resetPending}
             projectSearchLoading={
               projectSearchQuery.isLoading || projectSearchQuery.isFetching
             }
@@ -833,8 +749,7 @@ function ExplorePage() {
                 ? postSearchQuery.isLoading ||
                   (postSearchQuery.isFetching &&
                     !postSearchQuery.isPlaceholderData)
-                : postListQuery.isLoading ||
-                  (postListQuery.isFetching && !postListQuery.isPlaceholderData)
+                : postListPaged.status === 'LoadingFirstPage'
             }
             postResults={postResults}
             viewerId={viewerId}

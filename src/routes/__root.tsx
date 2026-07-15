@@ -8,7 +8,10 @@ import {
 } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
 import { auth } from '@clerk/tanstack-react-start/server'
+import { LazyMotion, MotionConfig } from 'motion/react'
+import { ThemeProvider } from 'next-themes'
 import { useEffect } from 'react'
+import { THEME_IDS, DEFAULT_THEME_ID } from '@/lib/theme'
 import ClerkProvider from '../integrations/clerk/provider'
 import ConvexProvider from '../integrations/convex/provider'
 import { Logo } from '@/components/ui/logo'
@@ -29,6 +32,9 @@ interface MyRouterContext {
   convexQueryClient: ConvexQueryClient
   queryClient: QueryClient
 }
+
+const loadMotionFeatures = () =>
+  import('@/lib/motion-features').then((module) => module.default)
 
 const siteUrl = 'https://locatic.dev'
 const socialImageUrl = `${siteUrl}/og-locatic.png`
@@ -180,7 +186,11 @@ export function RootErrorPage({ error, reset }: ErrorComponentProps) {
 
 function NotFoundPage() {
   return (
-    <div className="relative flex min-h-dvh flex-col items-center justify-center overflow-hidden bg-canvas text-text">
+    <main
+      id="main-content"
+      tabIndex={-1}
+      className="relative flex min-h-dvh flex-col items-center justify-center overflow-hidden bg-canvas text-text"
+    >
       {/* Faded dot-map backdrop */}
       <div
         className="pointer-events-none absolute inset-0 flex items-center justify-center opacity-[0.22]"
@@ -231,7 +241,7 @@ function NotFoundPage() {
           </div>
         </div>
       </div>
-    </div>
+    </main>
   )
 }
 
@@ -248,11 +258,25 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <a className="lx-skip-link" href="#main-content" data-skip-link="true">
           Skip to main content
         </a>
-        <ClerkProvider>
-          <ConvexProvider queryClient={router.options.context.queryClient}>
-            {children}
-          </ConvexProvider>
-        </ClerkProvider>
+        <ThemeProvider
+          attribute="data-theme"
+          themes={[...THEME_IDS]}
+          defaultTheme={DEFAULT_THEME_ID}
+          enableSystem={false}
+          disableTransitionOnChange
+        >
+          <LazyMotion features={loadMotionFeatures} strict>
+            <MotionConfig reducedMotion="user">
+              <ClerkProvider>
+                <ConvexProvider
+                  queryClient={router.options.context.queryClient}
+                >
+                  {children}
+                </ConvexProvider>
+              </ClerkProvider>
+            </MotionConfig>
+          </LazyMotion>
+        </ThemeProvider>
         <Scripts />
       </body>
     </html>

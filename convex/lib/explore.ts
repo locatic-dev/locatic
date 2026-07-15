@@ -1,32 +1,3 @@
-const RECENT_ACTIVITY_WINDOW_MS = 30 * 24 * 60 * 60 * 1000
-
-export interface ExploreCandidate {
-  id: string
-  cityId: string
-  primaryLanguage: string | null
-  topics: string[]
-  likesCount: number
-  commentsCount: number
-  stargazersCount: number
-  lastCommitAt: number
-  addedToLocaticAt: number
-}
-
-export type ExplorePostCandidate = {
-  _id: unknown
-  createdAt: number
-}
-
-interface BuildExploreCandidatesOptions {
-  candidates: ExploreCandidate[]
-  ownedProjectIds: Set<string>
-  dismissedProjectIds: Set<string>
-  selectedCityIds: Set<string>
-  stackPrefs: string[]
-  now: number
-  limit: number
-}
-
 export type NearbyBuilderRankCandidate = {
   github: {
     username: string
@@ -34,6 +5,76 @@ export type NearbyBuilderRankCandidate = {
   stats: {
     followersCount: number
     projectsCount: number
+  }
+}
+
+export const EXPLORE_VISIBLE_PAGE_MAX_BATCHES = 5
+
+type ExplorePageBatch<TItem> = {
+  continueCursor: string
+  isDone: boolean
+  page: TItem[]
+}
+
+export type ExploreProjectStackCandidate = {
+  github: {
+    languages?: Array<{
+      name: string
+    }>
+    lastCommitAt: number
+    primaryLanguage: string | null
+  }
+}
+
+type ExploreProjectVisibilityCandidate<TProjectId, TCityId> = {
+  _id: TProjectId
+  exploreOwner: {
+    cityId: TCityId | null
+  }
+}
+
+type ExplorePostScopeCandidate<TPostId, TCityId> = {
+  _id: TPostId
+  projectCityId: TCityId | null
+}
+
+type NearbyBuilderVisibilityCandidate<TUserId, TCityId> = {
+  _id: TUserId
+  profile: {
+    cityId: TCityId | null
+  }
+}
+
+export async function collectVisibleExplorePage<TItem>({
+  cursor,
+  getVisibleItems,
+  loadBatch,
+  maxBatches = EXPLORE_VISIBLE_PAGE_MAX_BATCHES,
+  numItems,
+}: {
+  cursor: string | null
+  getVisibleItems: (items: TItem[]) => TItem[] | Promise<TItem[]>
+  loadBatch: (cursor: string | null) => Promise<ExplorePageBatch<TItem>>
+  maxBatches?: number
+  numItems: number
+}) {
+  const visiblePage: TItem[] = []
+  let nextCursor = cursor
+  let isDone = false
+  let batchesRead = 0
+
+  while (visiblePage.length < numItems && !isDone && batchesRead < maxBatches) {
+    const batch = await loadBatch(nextCursor)
+    visiblePage.push(...(await getVisibleItems(batch.page)))
+    nextCursor = batch.continueCursor
+    isDone = batch.isDone
+    batchesRead += 1
+  }
+
+  return {
+    continueCursor: nextCursor ?? '',
+    isDone,
+    page: visiblePage,
   }
 }
 
@@ -82,98 +123,119 @@ export function rankNearbyBuilders<
     .slice(0, limit)
 }
 
-function computePopularityScore(candidate: ExploreCandidate): number {
+export function isExploreProjectVisible<TProjectId, TCityId>({
+  dismissedProjectIds,
+  ownedProjectIds,
+  project,
+  selectedCityIdSet,
+  selectedCityCount,
+}: {
+  dismissedProjectIds: Set<string>
+  ownedProjectIds: Set<string>
+  project: ExploreProjectVisibilityCandidate<TProjectId, TCityId>
+  selectedCityCount: number
+  selectedCityIdSet: Set<string>
+}) {
+  const projectId = String(project._id)
+  if (ownedProjectIds.has(projectId)) return false
+  if (dismissedProjectIds.has(projectId)) return false
+
   return (
-    candidate.likesCount * 4 +
-    candidate.commentsCount * 3 +
-    candidate.stargazersCount
+    selectedCityCount <= 1 ||
+    (project.exploreOwner.cityId !== null &&
+      selectedCityIdSet.has(String(project.exploreOwner.cityId)))
   )
 }
 
-function computeFreshnessScore(
-  candidate: ExploreCandidate,
-  now: number,
-): number {
-  const recencyBoost =
-    now - candidate.lastCommitAt <= RECENT_ACTIVITY_WINDOW_MS ? 20 : 0
-
-  return recencyBoost + candidate.commentsCount + candidate.likesCount
-}
-
-export function buildExploreCandidates({
-  candidates,
-  ownedProjectIds,
-  dismissedProjectIds,
-  selectedCityIds,
-  stackPrefs,
-  now,
-  limit,
-}: BuildExploreCandidatesOptions): ExploreCandidate[] {
-  const filtered = candidates.filter((candidate) => {
-    if (
-      ownedProjectIds.has(candidate.id) ||
-      dismissedProjectIds.has(candidate.id)
-    ) {
-      return false
-    }
-
-    return true
-  })
-
-  const pool =
-    selectedCityIds.size > 0
-      ? filtered.filter((candidate) => selectedCityIds.has(candidate.cityId))
-      : filtered
-  const stackPrefsSet = new Set(stackPrefs.map((pref) => pref.toLowerCase()))
-
-  const enriched = pool.map((candidate) => {
-    const stackBoost = candidate.primaryLanguage
-      ? stackPrefsSet.has(candidate.primaryLanguage.toLowerCase())
-        ? 10
-        : 0
-      : 0
-
-    return {
-      candidate,
-      popularityScore: computePopularityScore(candidate) + stackBoost,
-      freshnessScore: computeFreshnessScore(candidate, now) + stackBoost,
-    }
-  })
-
-  const popularQuota = Math.max(1, Math.ceil(limit * 0.6))
-  const freshQuota = Math.max(0, limit - popularQuota)
-
-  const popular = [...enriched]
-    .sort((left, right) => right.popularityScore - left.popularityScore)
-    .slice(0, popularQuota)
-    .map((entry) => entry.candidate)
-
-  const usedIds = new Set(popular.map((candidate) => candidate.id))
-  const fresh = enriched
-    .filter((entry) => !usedIds.has(entry.candidate.id))
-    .sort((left, right) => right.freshnessScore - left.freshnessScore)
-    .slice(0, freshQuota)
-    .map((entry) => entry.candidate)
-
-  return [...popular, ...fresh].slice(0, limit)
-}
-
-export function selectExplorePostPage<TPost extends ExplorePostCandidate>({
+export function isExplorePostInScope<TPostId, TCityId>({
   dismissedPostIds,
-  limit,
-  posts,
+  post,
+  selectedCityIdSet,
+  selectedCityCount,
 }: {
   dismissedPostIds: Set<string>
-  limit: number
-  posts: TPost[]
+  post: ExplorePostScopeCandidate<TPostId, TCityId>
+  selectedCityCount: number
+  selectedCityIdSet: Set<string>
 }) {
-  const page = posts
-    .filter((post) => !dismissedPostIds.has(String(post._id)))
-    .sort((left, right) => right.createdAt - left.createdAt)
-    .slice(0, limit + 1)
+  if (dismissedPostIds.has(String(post._id))) return false
 
-  return {
-    hasMore: page.length > limit,
-    posts: page.slice(0, limit),
-  }
+  return (
+    selectedCityCount <= 1 ||
+    (post.projectCityId !== null &&
+      selectedCityIdSet.has(String(post.projectCityId)))
+  )
+}
+
+export function isNearbyBuilderVisible<TUserId, TCityId>({
+  selectedCityCount,
+  selectedCityIdSet,
+  user,
+  viewerId,
+}: {
+  selectedCityCount: number
+  selectedCityIdSet: Set<string>
+  user: NearbyBuilderVisibilityCandidate<TUserId, TCityId>
+  viewerId: TUserId
+}) {
+  if (String(user._id) === String(viewerId)) return false
+
+  return (
+    selectedCityCount <= 1 ||
+    (user.profile.cityId !== null &&
+      selectedCityIdSet.has(String(user.profile.cityId)))
+  )
+}
+
+export function shouldReportPostSearchHasMore({
+  candidateCount,
+  candidateTake,
+  limit,
+  visibleCount,
+}: {
+  candidateCount: number
+  candidateTake: number
+  limit: number
+  visibleCount: number
+}) {
+  return visibleCount > limit || candidateCount >= candidateTake
+}
+
+export function matchesExploreProjectStack(
+  project: ExploreProjectStackCandidate,
+  stackPrefs: Set<string>,
+  topics: string[] = [],
+) {
+  if (stackPrefs.size === 0) return false
+
+  const normalizedStackPrefs = new Set(
+    [...stackPrefs].map((preference) => preference.toLowerCase()),
+  )
+  const languages = [
+    project.github.primaryLanguage,
+    ...(project.github.languages ?? []).map((language) => language.name),
+  ].filter((language): language is string => Boolean(language))
+
+  return [...languages, ...topics].some((value) =>
+    normalizedStackPrefs.has(value.toLowerCase()),
+  )
+}
+
+export function rankExploreProjectsByStack<
+  TProject extends ExploreProjectStackCandidate,
+>({
+  getTopics,
+  projects,
+  stackPrefs,
+}: {
+  getTopics: (project: TProject) => string[]
+  projects: TProject[]
+  stackPrefs: Set<string>
+}) {
+  return [...projects].sort(
+    (left, right) =>
+      Number(matchesExploreProjectStack(right, stackPrefs, getTopics(right))) -
+        Number(matchesExploreProjectStack(left, stackPrefs, getTopics(left))) ||
+      right.github.lastCommitAt - left.github.lastCommitAt,
+  )
 }

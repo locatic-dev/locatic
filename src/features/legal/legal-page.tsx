@@ -23,7 +23,11 @@ export function LegalPage({
     <div className="relative flex min-h-dvh flex-col bg-canvas text-text">
       <PublicHeader />
 
-      <main className="mx-auto w-full max-w-(--lx-form-max) flex-1 px-(--lx-gutter) py-10 md:py-14">
+      <main
+        id="main-content"
+        tabIndex={-1}
+        className="mx-auto w-full max-w-(--lx-form-max) flex-1 px-(--lx-gutter) py-10 md:py-14"
+      >
         <header className="mb-8 border-b border-line pb-6">
           <h1 className="m-0 font-mono text-[28px] font-bold tracking-[-0.025em] text-text md:text-[34px]">
             {title}
