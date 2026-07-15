@@ -7,6 +7,8 @@
 // Asserts the contrast pairs that matter after the contrast/token pass. Body
 // text must clear 4.5:1; large text / non-text metadata must clear 3:1.
 
+import { readFileSync } from 'node:fs'
+
 // ── OKLCH -> linear sRGB -> gamma sRGB ──────────────────────────────────────
 function oklchToLinearSrgb(L, C, hDeg) {
   const h = (hDeg * Math.PI) / 180
@@ -48,22 +50,124 @@ function contrastRatio(fgLinear, bgLinear) {
   return (hi + 0.05) / (lo + 0.05)
 }
 
-// ── Token values (keep in sync with src/styles.css) ─────────────────────────
-const tokens = {
-  canvas: { L: 0.135, C: 0.007, h: 230 },
-  surface: { L: 0.2, C: 0.008, h: 230 },
-  surfaceRaised: { L: 0.24, C: 0.01, h: 230 },
-  textPrimary: { L: 0.93, C: 0.005, h: 230 },
-  textSecondary: { L: 0.68, C: 0.006, h: 230 },
-  textTertiary: { L: 0.58, C: 0.006, h: 230 },
-  textDisabled: { L: 0.43, C: 0.005, h: 230 },
-  brand: { L: 0.72, C: 0.15, h: 195 },
-  brandForeground: { L: 0.14, C: 0.005, h: 230 },
-  selectedFill: { L: 0.72, C: 0.15, h: 195, alpha: 0.1 },
-  surfaceAccent: { L: 0.72, C: 0.15, h: 195, alpha: 0.06 },
-  outgoingSurface: { L: 0.72, C: 0.15, h: 195, alpha: 0.16 },
-  liked: { L: 0.64, C: 0.21, h: 25 },
+// ── CSS token source ───────────────────────────────────────────────────────
+// The shipped stylesheet is canonical. This narrow parser intentionally fails
+// closed if its declarations no longer follow the documented token shape.
+const styles = readFileSync(
+  new URL('../src/styles.css', import.meta.url),
+  'utf8',
+)
+
+function getDeclarations(selector) {
+  const escapedSelector = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const match = styles.match(
+    new RegExp(`${escapedSelector}\\s*\\{([\\s\\S]*?)\\n\\}`, 'm'),
+  )
+  if (!match) {
+    throw new Error(`Missing theme token block: ${selector}`)
+  }
+
+  return Object.fromEntries(
+    [...match[1].matchAll(/(--[\w-]+):\s*([^;]+);/g)].map(([, name, value]) => [
+      name,
+      value.trim(),
+    ]),
+  )
 }
+
+function parseOklch(value, label) {
+  const match = value?.match(/^oklch\(([\d.]+)%\s+([\d.]+)\s+([\d.]+)\)$/)
+  if (!match) {
+    throw new Error(
+      `Expected opaque OKLCH token for ${label}, received ${value}`,
+    )
+  }
+
+  return { L: Number(match[1]) / 100, C: Number(match[2]), h: Number(match[3]) }
+}
+
+function parseAccent(declarations, label) {
+  const lightness = declarations['--lx-accent-l']
+  const chroma = declarations['--lx-accent-c']
+  const hue = declarations['--lx-accent-h']
+  const lightnessMatch = lightness?.match(/^([\d.]+)%$/)
+
+  if (!lightnessMatch || !chroma || !hue) {
+    throw new Error(`Incomplete accent token family for ${label}`)
+  }
+
+  const parsed = {
+    L: Number(lightnessMatch[1]) / 100,
+    C: Number(chroma),
+    h: Number(hue),
+  }
+
+  if (!Object.values(parsed).every(Number.isFinite)) {
+    throw new Error(`Malformed accent token family for ${label}`)
+  }
+
+  return parsed
+}
+
+const themeNames = Array.from(
+  new Set(
+    [...styles.matchAll(/\[data-theme='([^']+)'\]/g)].map(([, themeName]) =>
+      themeName.trim(),
+    ),
+  ),
+)
+
+if (themeNames.length === 0) {
+  throw new Error('Missing data-theme token declarations')
+}
+
+const defaultThemeName = themeNames[0]
+const defaultTheme = getDeclarations(
+  `:root,\n[data-theme='${defaultThemeName}']`,
+)
+const tokens = {
+  canvas: parseOklch(defaultTheme['--background'], '--background'),
+  surface: parseOklch(defaultTheme['--card'], '--card'),
+  surfaceRaised: parseOklch(
+    defaultTheme['--lx-surface-raised'],
+    '--lx-surface-raised',
+  ),
+  textPrimary: parseOklch(defaultTheme['--foreground'], '--foreground'),
+  textSecondary: parseOklch(
+    defaultTheme['--muted-foreground'],
+    '--muted-foreground',
+  ),
+  textTertiary: parseOklch(defaultTheme['--lx-text-3'], '--lx-text-3'),
+  textDisabled: parseOklch(
+    defaultTheme['--lx-text-disabled'],
+    '--lx-text-disabled',
+  ),
+  brandForeground: parseOklch(
+    defaultTheme['--primary-foreground'],
+    '--primary-foreground',
+  ),
+  liked: parseOklch(defaultTheme['--lx-liked'], '--lx-liked'),
+}
+
+const THEMES = Object.fromEntries(
+  themeNames.map((themeName) => {
+    const declarations =
+      themeName === defaultThemeName
+        ? defaultTheme
+        : getDeclarations(`[data-theme='${themeName}']`)
+
+    return [
+      themeName,
+      {
+        accent: parseAccent(declarations, themeName),
+        accent2: parseOklch(
+          declarations['--lx-accent-2'],
+          `${themeName} accent-2`,
+        ),
+      },
+    ]
+  }),
+)
 
 const opaque = (t) => oklchToLinearSrgb(t.L, t.C, t.h)
 
@@ -84,34 +188,49 @@ const checks = [
     4.5,
     true,
   ],
-  [
-    'brand-foreground on brand (CTA)',
-    tokens.brandForeground,
-    tokens.brand,
-    4.5,
-  ],
   ['liked on surface', tokens.liked, tokens.surface, 4.5],
-  [
-    'brand on selected-fill',
-    tokens.brand,
-    { ...tokens.selectedFill, over: tokens.surface },
-    4.5,
-  ],
-  [
-    'primary on surface-accent hover',
-    tokens.textPrimary,
-    { ...tokens.surfaceAccent, over: tokens.surface },
-    4.5,
-  ],
-  // Outgoing bubble: primary text over the translucent teal surface, which is
-  // itself composited over canvas.
-  [
-    'outgoing text on outgoing-surface',
-    tokens.textPrimary,
-    { ...tokens.outgoingSurface, over: tokens.canvas },
-    4.5,
-  ],
 ]
+
+// Accent-dependent checks, re-run per theme variant.
+for (const [themeName, { accent, accent2 }] of Object.entries(THEMES)) {
+  const selectedFill = { ...accent, alpha: 0.1 }
+  const surfaceAccent = { ...accent, alpha: 0.06 }
+  const outgoingSurface = { ...accent, alpha: 0.16 }
+
+  checks.push(
+    [
+      `[${themeName}] brand-fg on brand (CTA)`,
+      tokens.brandForeground,
+      accent,
+      4.5,
+    ],
+    [`[${themeName}] brand on canvas (text)`, accent, tokens.canvas, 4.5],
+    [`[${themeName}] brand on surface (text)`, accent, tokens.surface, 4.5],
+    [
+      `[${themeName}] brand on selected-fill`,
+      accent,
+      { ...selectedFill, over: tokens.surface },
+      4.5,
+    ],
+    [
+      `[${themeName}] primary on surface-accent`,
+      tokens.textPrimary,
+      { ...surfaceAccent, over: tokens.surface },
+      4.5,
+    ],
+    // Outgoing bubble: primary text over the translucent accent surface,
+    // which is itself composited over canvas.
+    [
+      `[${themeName}] outgoing text on outgoing`,
+      tokens.textPrimary,
+      { ...outgoingSurface, over: tokens.canvas },
+      4.5,
+    ],
+    // Secondary accent is used for tinted chips/borders and short labels —
+    // hold it to the large-text/non-text bar.
+    [`[${themeName}] accent-2 on surface`, accent2, tokens.surface, 3.0],
+  )
+}
 
 let failed = false
 const rows = []

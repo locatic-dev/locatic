@@ -1,78 +1,14 @@
 import { describe, expect, test } from 'vitest'
 
 import {
-  buildExploreCandidates,
+  collectVisibleExplorePage,
   getExploreCityIdsAfterProfileCityChange,
+  isExplorePostInScope,
+  isExploreProjectVisible,
+  matchesExploreProjectStack,
   rankNearbyBuilders,
-  selectExplorePostPage,
-  type ExploreCandidate,
+  rankExploreProjectsByStack,
 } from '../explore'
-
-function createCandidate(
-  partial: Partial<ExploreCandidate> & Pick<ExploreCandidate, 'id'>,
-): ExploreCandidate {
-  return {
-    id: partial.id,
-    cityId: partial.cityId ?? 'city-1',
-    primaryLanguage: partial.primaryLanguage ?? 'TypeScript',
-    topics: partial.topics ?? [],
-    likesCount: partial.likesCount ?? 0,
-    commentsCount: partial.commentsCount ?? 0,
-    stargazersCount: partial.stargazersCount ?? 0,
-    lastCommitAt: partial.lastCommitAt ?? Date.now(),
-    addedToLocaticAt: partial.addedToLocaticAt ?? Date.now(),
-  }
-}
-
-describe('buildExploreCandidates', () => {
-  test('filters out dismissed and owned projects and keeps the requested limit', () => {
-    const now = Date.now()
-    const candidates = [
-      createCandidate({ id: 'owned', likesCount: 100, lastCommitAt: now }),
-      createCandidate({ id: 'dismissed', likesCount: 90, lastCommitAt: now }),
-      createCandidate({ id: 'popular', likesCount: 80, lastCommitAt: now }),
-      createCandidate({
-        id: 'fresh',
-        likesCount: 2,
-        commentsCount: 1,
-        lastCommitAt: now,
-      }),
-    ]
-
-    const result = buildExploreCandidates({
-      candidates,
-      ownedProjectIds: new Set(['owned']),
-      dismissedProjectIds: new Set(['dismissed']),
-      selectedCityIds: new Set(['city-1']),
-      stackPrefs: ['TypeScript'],
-      now,
-      limit: 2,
-    })
-
-    expect(result.map((candidate) => candidate.id)).toEqual([
-      'popular',
-      'fresh',
-    ])
-  })
-
-  test('keeps city filtering strict when selected cities are present', () => {
-    const now = Date.now()
-    const result = buildExploreCandidates({
-      candidates: [
-        createCandidate({ id: 'city-a', cityId: 'city-a', likesCount: 15 }),
-        createCandidate({ id: 'global', cityId: 'city-b', likesCount: 12 }),
-      ],
-      ownedProjectIds: new Set(),
-      dismissedProjectIds: new Set(),
-      selectedCityIds: new Set(['city-a']),
-      stackPrefs: [],
-      now,
-      limit: 2,
-    })
-
-    expect(result.map((candidate) => candidate.id)).toEqual(['city-a'])
-  })
-})
 
 describe('getExploreCityIdsAfterProfileCityChange', () => {
   test('sets the new profile city when explore defaults were empty', () => {
@@ -148,50 +84,216 @@ describe('rankNearbyBuilders', () => {
   })
 })
 
-describe('selectExplorePostPage', () => {
-  test('returns newest non-dismissed posts up to the requested limit', () => {
-    const result = selectExplorePostPage({
-      dismissedPostIds: new Set(['dismissed']),
-      limit: 2,
-      posts: [
-        { _id: 'old', createdAt: 100 },
-        { _id: 'dismissed', createdAt: 400 },
-        { _id: 'newest', createdAt: 500 },
-        { _id: 'newer', createdAt: 300 },
-      ],
+describe('collectVisibleExplorePage', () => {
+  test('fills a visible page across raw pages filtered by visibility', async () => {
+    type TestItem = { id: string; visible: boolean }
+    const batches = [
+      {
+        continueCursor: 'after-filtered',
+        isDone: false,
+        page: [
+          { id: 'owned', visible: false },
+          { id: 'dismissed', visible: false },
+        ],
+      },
+      {
+        continueCursor: 'after-visible',
+        isDone: false,
+        page: [
+          { id: 'visible-1', visible: true },
+          { id: 'visible-2', visible: true },
+        ],
+      },
+    ]
+    const seenCursors: Array<string | null> = []
+
+    const result = await collectVisibleExplorePage<TestItem>({
+      cursor: null,
+      getVisibleItems: (items) => items.filter((item) => item.visible),
+      loadBatch: async (cursor) => {
+        seenCursors.push(cursor)
+        return batches[seenCursors.length - 1] as (typeof batches)[number]
+      },
+      numItems: 2,
     })
 
-    expect(result.posts.map((post) => post._id)).toEqual(['newest', 'newer'])
+    expect(result.page.map((item) => item.id)).toEqual([
+      'visible-1',
+      'visible-2',
+    ])
+    expect(result.continueCursor).toBe('after-visible')
+    expect(result.isDone).toBe(false)
+    expect(seenCursors).toEqual([null, 'after-filtered'])
   })
 
-  test('sets hasMore when one extra visible post exists', () => {
-    const result = selectExplorePostPage({
-      dismissedPostIds: new Set(['dismissed']),
-      limit: 2,
-      posts: [
-        { _id: 'first', createdAt: 500 },
-        { _id: 'dismissed', createdAt: 400 },
-        { _id: 'second', createdAt: 300 },
-        { _id: 'third', createdAt: 100 },
-      ],
+  test('keeps load-more honest when the loop cap hits only filtered rows', async () => {
+    const result = await collectVisibleExplorePage({
+      cursor: null,
+      getVisibleItems: () => [],
+      loadBatch: async (cursor) => ({
+        continueCursor: cursor === null ? 'cursor-1' : `${cursor}-next`,
+        isDone: false,
+        page: [{ id: 'filtered' }],
+      }),
+      maxBatches: 2,
+      numItems: 1,
     })
 
-    expect(result.hasMore).toBe(true)
-    expect(result.posts.map((post) => post._id)).toEqual(['first', 'second'])
+    expect(result.page).toEqual([])
+    expect(result.continueCursor).toBe('cursor-1-next')
+    expect(result.isDone).toBe(false)
+  })
+})
+
+describe('explore visibility helpers', () => {
+  test('filters owned, dismissed, and non-selected-city projects without applying stack prefs', () => {
+    const selectedCityIdSet = new Set(['city-a', 'city-b'])
+
+    expect(
+      isExploreProjectVisible({
+        dismissedProjectIds: new Set(),
+        ownedProjectIds: new Set(['owned-project']),
+        project: {
+          _id: 'owned-project',
+          exploreOwner: { cityId: 'city-a' },
+        },
+        selectedCityCount: 2,
+        selectedCityIdSet,
+      }),
+    ).toBe(false)
+    expect(
+      isExploreProjectVisible({
+        dismissedProjectIds: new Set(['dismissed-project']),
+        ownedProjectIds: new Set(),
+        project: {
+          _id: 'dismissed-project',
+          exploreOwner: { cityId: 'city-a' },
+        },
+        selectedCityCount: 2,
+        selectedCityIdSet,
+      }),
+    ).toBe(false)
+    expect(
+      isExploreProjectVisible({
+        dismissedProjectIds: new Set(),
+        ownedProjectIds: new Set(),
+        project: {
+          _id: 'wrong-city-project',
+          exploreOwner: { cityId: 'city-c' },
+        },
+        selectedCityCount: 2,
+        selectedCityIdSet,
+      }),
+    ).toBe(false)
+    expect(
+      isExploreProjectVisible({
+        dismissedProjectIds: new Set(),
+        ownedProjectIds: new Set(),
+        project: {
+          _id: 'non-stack-project',
+          exploreOwner: { cityId: 'city-a' },
+        },
+        selectedCityCount: 2,
+        selectedCityIdSet,
+      }),
+    ).toBe(true)
   })
 
-  test('clears hasMore when dismissed posts are the only extra rows', () => {
-    const result = selectExplorePostPage({
-      dismissedPostIds: new Set(['dismissed']),
-      limit: 2,
-      posts: [
-        { _id: 'first', createdAt: 500 },
-        { _id: 'dismissed', createdAt: 400 },
-        { _id: 'second', createdAt: 300 },
-      ],
-    })
+  test('filters dismissed and non-selected-city posts before async visibility checks', () => {
+    const selectedCityIdSet = new Set(['city-a', 'city-b'])
 
-    expect(result.hasMore).toBe(false)
-    expect(result.posts.map((post) => post._id)).toEqual(['first', 'second'])
+    expect(
+      isExplorePostInScope({
+        dismissedPostIds: new Set(['dismissed-post']),
+        post: { _id: 'dismissed-post', projectCityId: 'city-a' },
+        selectedCityCount: 2,
+        selectedCityIdSet,
+      }),
+    ).toBe(false)
+    expect(
+      isExplorePostInScope({
+        dismissedPostIds: new Set(),
+        post: { _id: 'wrong-city-post', projectCityId: 'city-c' },
+        selectedCityCount: 2,
+        selectedCityIdSet,
+      }),
+    ).toBe(false)
+    expect(
+      isExplorePostInScope({
+        dismissedPostIds: new Set(),
+        post: { _id: 'visible-post', projectCityId: 'city-a' },
+        selectedCityCount: 2,
+        selectedCityIdSet,
+      }),
+    ).toBe(true)
+  })
+})
+
+describe('explore stack ranking', () => {
+  test('matches languages and topics case-insensitively', () => {
+    const stackPrefs = new Set(['typescript', 'convex'])
+
+    expect(
+      matchesExploreProjectStack(
+        {
+          github: {
+            languages: [{ name: 'Rust' }],
+            lastCommitAt: 1,
+            primaryLanguage: 'TypeScript',
+          },
+        },
+        stackPrefs,
+      ),
+    ).toBe(true)
+    expect(
+      matchesExploreProjectStack(
+        {
+          github: {
+            languages: [{ name: 'Go' }],
+            lastCommitAt: 1,
+            primaryLanguage: 'Ruby',
+          },
+        },
+        stackPrefs,
+        ['Convex'],
+      ),
+    ).toBe(true)
+  })
+
+  test('boosts stack matches before sorting by last commit', () => {
+    const projects = [
+      {
+        id: 'recent-non-match',
+        github: {
+          languages: [{ name: 'Go' }],
+          lastCommitAt: 300,
+          primaryLanguage: 'Go',
+        },
+      },
+      {
+        id: 'older-match',
+        github: {
+          languages: [{ name: 'TypeScript' }],
+          lastCommitAt: 100,
+          primaryLanguage: 'JavaScript',
+        },
+      },
+      {
+        id: 'oldest-non-match',
+        github: {
+          languages: [{ name: 'Ruby' }],
+          lastCommitAt: 50,
+          primaryLanguage: 'Ruby',
+        },
+      },
+    ]
+
+    expect(
+      rankExploreProjectsByStack({
+        getTopics: () => [],
+        projects,
+        stackPrefs: new Set(['typescript']),
+      }).map((project) => project.id),
+    ).toEqual(['older-match', 'recent-non-match', 'oldest-non-match'])
   })
 })

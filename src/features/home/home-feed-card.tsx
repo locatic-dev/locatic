@@ -157,13 +157,13 @@ function targetKindAccent(kind: HomeFeedTarget['kind']): string {
     case 'project':
       return 'var(--lx-accent)'
     case 'post':
-      return '#60a5fa'
+      return 'var(--chart-4)'
     case 'comment':
-      return '#a78bfa'
+      return 'var(--lx-accent-2)'
     case 'profile':
-      return '#34d399'
+      return 'var(--lx-success)'
     case 'pull_request':
-      return '#fbbf24'
+      return 'var(--lx-warning)'
   }
 }
 
@@ -564,7 +564,7 @@ export function HomeFeedCard({
     remainingCount > 0 && isCommentGroup(item) && Boolean(commentMoreRoute)
   const showExpand = remainingCount > 0 && hasStoredTargetsToExpand
   return (
-    <article className="lx-card @container overflow-hidden rounded-card border border-line bg-surface">
+    <article className="lx-card @container overflow-hidden rounded-card border border-line bg-surface transition-colors active:scale-[0.997]">
       <header className="flex min-w-0 items-start gap-3 px-4 py-4 sm:px-5">
         <LxAvatar
           name={item.actorSnapshot.displayName}

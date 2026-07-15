@@ -1,3 +1,5 @@
+import { Skeleton } from '@/components/ui/skeleton'
+
 interface ContributionWeek {
   days: Array<{ date: string; count: number }>
 }
@@ -20,6 +22,21 @@ interface ContributionGraphProps {
   unavailable?: boolean
 }
 
+// Intensity ramp is opacity steps of the brand accent so it tracks the theme
+// automatically instead of hardcoding a hue.
+const CELL_COLORS = [
+  'var(--lx-surface-alt)',
+  'color-mix(in oklch, var(--lx-accent) 25%, transparent)',
+  'color-mix(in oklch, var(--lx-accent) 50%, transparent)',
+  'color-mix(in oklch, var(--lx-accent) 75%, transparent)',
+  'var(--lx-accent)',
+]
+
+const MONTH_LABEL_HEIGHT = 16
+const WEEKDAY_LABEL_WIDTH = 24
+const WEEKDAY_LABELS: Record<number, string> = { 1: 'Mon', 3: 'Wed', 5: 'Fri' }
+const MIN_MONTH_LABEL_GAP = 3
+
 export function ContributionGraph({
   cell = 10,
   gap = 2,
@@ -31,8 +48,8 @@ export function ContributionGraph({
 }: ContributionGraphProps) {
   if (loading) {
     return (
-      <div
-        className="lx-skeleton h-20 rounded-md"
+      <Skeleton
+        className="h-20 rounded-md"
         aria-label="Loading GitHub contributions"
       />
     )
@@ -40,7 +57,7 @@ export function ContributionGraph({
 
   if (unavailable) {
     return (
-      <p className="py-3 font-mono text-[12px] text-text-faint">
+      <p className="py-3 font-mono text-[11px] text-text-faint">
         contribution data is not available yet. If GitHub is already connected,
         check back after the next sync.
       </p>
@@ -82,16 +99,34 @@ export function ContributionGraph({
     }
   }
 
-  const W = 53 * (cell + gap)
-  const H = 7 * (cell + gap)
+  const monthLabels: Array<{ wi: number; label: string }> = []
+  let lastLabeledWeek = -Infinity
+  let lastMonth = -1
+  for (const cellData of cells) {
+    if (cellData.d !== 0 || !cellData.date) continue
+    const monthDate = new Date(`${cellData.date}T00:00:00`)
+    const month = monthDate.getMonth()
+    if (
+      month !== lastMonth &&
+      cellData.w - lastLabeledWeek >= MIN_MONTH_LABEL_GAP
+    ) {
+      monthLabels.push({
+        wi: cellData.w,
+        label: new Intl.DateTimeFormat('en-US', { month: 'short' }).format(
+          monthDate,
+        ),
+      })
+      lastLabeledWeek = cellData.w
+      lastMonth = month
+    } else if (month !== lastMonth) {
+      lastMonth = month
+    }
+  }
 
-  const colors = [
-    'var(--lx-surface-alt)',
-    'oklch(72% 0.17 185 / 0.25)',
-    'oklch(72% 0.17 185 / 0.5)',
-    'oklch(72% 0.17 185 / 0.75)',
-    'var(--lx-accent)',
-  ]
+  const gridW = 53 * (cell + gap)
+  const gridH = 7 * (cell + gap)
+  const W = WEEKDAY_LABEL_WIDTH + gridW
+  const H = MONTH_LABEL_HEIGHT + gridH
 
   const formatTooltipLabel = (count: number, date: string | null) => {
     if (!date) {
@@ -124,15 +159,35 @@ export function ContributionGraph({
           : 'GitHub contribution graph'
       }
     >
+      {monthLabels.map(({ wi, label }) => (
+        <text
+          key={`month-${wi}`}
+          x={WEEKDAY_LABEL_WIDTH + wi * (cell + gap)}
+          y={MONTH_LABEL_HEIGHT - 5}
+          className="fill-current font-mono text-[11px] text-text-faint"
+        >
+          {label}
+        </text>
+      ))}
+      {Object.entries(WEEKDAY_LABELS).map(([d, label]) => (
+        <text
+          key={`weekday-${d}`}
+          x={0}
+          y={MONTH_LABEL_HEIGHT + Number(d) * (cell + gap) + cell - 1}
+          className="fill-current font-mono text-[11px] text-text-faint"
+        >
+          {label}
+        </text>
+      ))}
       {cells.map(({ w, d, level, count, date }, i) => (
         <rect
           key={i}
-          x={w * (cell + gap)}
-          y={d * (cell + gap)}
+          x={WEEKDAY_LABEL_WIDTH + w * (cell + gap)}
+          y={MONTH_LABEL_HEIGHT + d * (cell + gap)}
           width={cell}
           height={cell}
-          rx={2}
-          fill={colors[level]}
+          rx={3}
+          fill={CELL_COLORS[level]}
         >
           <title>{formatTooltipLabel(count, date)}</title>
         </rect>

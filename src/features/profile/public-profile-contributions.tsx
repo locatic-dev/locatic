@@ -1,4 +1,5 @@
 import { ContributionGraph } from '@/components/ui/contribution-graph'
+import { EmptyState } from '@/components/ui/empty-state'
 import { ProjectCard } from '@/components/ui/project-card'
 import type { ContributedProjectPreview } from '@/features/contracts'
 import {
@@ -56,18 +57,15 @@ export function PublicProfileContributionsList({
 }) {
   if (!visible) {
     return (
-      <div className="py-4.5 font-sans text-sm text-text-muted">
-        contributions are private on this profile.
-      </div>
+      <EmptyState
+        size="compact"
+        title="contributions are private on this profile."
+      />
     )
   }
 
   if (contributions.length === 0) {
-    return (
-      <div className="py-4.5 font-sans text-sm text-text-muted">
-        no public contributions yet.
-      </div>
-    )
+    return <EmptyState size="compact" title="no public contributions yet." />
   }
 
   return (

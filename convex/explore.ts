@@ -1,14 +1,13 @@
 import { ConvexError, v } from 'convex/values'
+import {
+  paginationOptsValidator,
+  paginationResultValidator,
+} from 'convex/server'
 
 import { mutation, query, type QueryCtx } from './_generated/server'
 import type { Doc, Id } from './_generated/dataModel'
 import { getViewerFromAuth, getViewerOrThrow } from './lib/auth'
 import { mergeBuilderSearchCandidates } from './lib/discoverability'
-import {
-  buildExploreCandidates,
-  rankNearbyBuilders,
-  selectExplorePostPage,
-} from './lib/explore'
 import { buildProjectCardPreview } from './lib/project_previews'
 import { getProjectTopics } from './lib/topics'
 import {
@@ -16,6 +15,14 @@ import {
   isPublicPostVisible,
   normalizePostSearchQuery,
 } from './lib/posts'
+import {
+  collectVisibleExplorePage,
+  isExplorePostInScope,
+  isExploreProjectVisible,
+  isNearbyBuilderVisible,
+  rankExploreProjectsByStack,
+  shouldReportPostSearchHasMore,
+} from './lib/explore'
 
 const projectSearchResultValidator = v.object({
   projectId: v.id('projects'),
@@ -112,37 +119,6 @@ const builderSearchResultValidator = v.object({
   followersCount: v.number(),
 })
 
-const exploreFeedResultValidator = v.object({
-  scope: exploreScopeValidator,
-  appliedCityIds: v.array(v.id('cities')),
-  isCityFiltered: v.boolean(),
-  projects: v.array(projectSearchResultValidator),
-})
-
-const EXPLORE_INDEXES = [
-  'by_explore_eligible_likes',
-  'by_explore_eligible_comments',
-  'by_explore_eligible_stars',
-  'by_explore_eligible_last_commit',
-  'by_explore_eligible_added',
-] as const
-
-const EXPLORE_CITY_INDEXES = [
-  'by_explore_city_likes',
-  'by_explore_city_comments',
-  'by_explore_city_stars',
-  'by_explore_city_last_commit',
-  'by_explore_city_added',
-] as const
-
-function uniqueProjects(projects: Array<Doc<'projects'>>) {
-  return [
-    ...new Map(
-      projects.map((project) => [String(project._id), project]),
-    ).values(),
-  ]
-}
-
 async function getCityByIdMap(ctx: QueryCtx, cityIds: Array<Id<'cities'>>) {
   const entries = await Promise.all(
     [...new Set(cityIds.map(String))].map(async (cityId) => {
@@ -177,53 +153,6 @@ function mapBuilderPreview(
       ? (cityById.get(String(user.profile.cityId))?.displayName ?? null)
       : null,
   }
-}
-
-async function fetchGlobalExploreProjects(
-  ctx: QueryCtx,
-  perIndexLimit: number,
-) {
-  return uniqueProjects(
-    (
-      await Promise.all(
-        EXPLORE_INDEXES.map((indexName) =>
-          ctx.db
-            .query('projects')
-            .withIndex(indexName, (query) =>
-              query.eq('exploreOwner.isEligible', true),
-            )
-            .order('desc')
-            .take(perIndexLimit),
-        ),
-      )
-    ).flat(),
-  )
-}
-
-async function fetchCityExploreProjects(
-  ctx: QueryCtx,
-  cityIds: Array<Id<'cities'>>,
-  perIndexLimit: number,
-) {
-  return uniqueProjects(
-    (
-      await Promise.all(
-        cityIds.flatMap((cityId) =>
-          EXPLORE_CITY_INDEXES.map((indexName) =>
-            ctx.db
-              .query('projects')
-              .withIndex(indexName, (query) =>
-                query
-                  .eq('exploreOwner.cityId', cityId)
-                  .eq('exploreOwner.isEligible', true),
-              )
-              .order('desc')
-              .take(perIndexLimit),
-          ),
-        ),
-      )
-    ).flat(),
-  )
 }
 
 function getExploreScopedCityIds({
@@ -281,25 +210,27 @@ function normalizeCityIds(ctx: QueryCtx, cityIds: Array<Id<'cities'>>) {
 
 export const list = query({
   args: {
-    limit: v.optional(v.number()),
+    paginationOpts: paginationOptsValidator,
     scope: v.optional(exploreScopeValidator),
     selectedCityIds: v.optional(v.array(v.id('cities'))),
   },
-  returns: exploreFeedResultValidator,
+  returns: paginationResultValidator(projectSearchResultValidator),
   handler: async (ctx, args) => {
     const viewer = await getViewerOrThrow(ctx)
-    const limit = Math.min(args.limit ?? 20, 50)
 
-    const { scope, selectedCityIds } = getExploreScopedCityIds({
+    const { selectedCityIds } = getExploreScopedCityIds({
       scope: args.scope,
       selectedCityIds: args.selectedCityIds,
       viewer,
     })
-    const perIndexLimit = Math.min(Math.max(limit * 2, 12), 40)
-    const [projects, ownedProjects, dismissedProjects] = await Promise.all([
-      selectedCityIds.length > 0
-        ? fetchCityExploreProjects(ctx, selectedCityIds, perIndexLimit)
-        : fetchGlobalExploreProjects(ctx, perIndexLimit),
+    const cityIdSet = new Set(selectedCityIds.map(String))
+    const stackPrefs = new Set(
+      viewer.exploreConfig.stackPrefs.map((preference) =>
+        preference.toLowerCase(),
+      ),
+    )
+
+    const [ownedProjects, dismissedProjects] = await Promise.all([
       ctx.db
         .query('projects')
         .withIndex('by_owner', (query) => query.eq('ownerId', viewer._id))
@@ -311,43 +242,63 @@ export const list = query({
         )
         .collect(),
     ])
+    const ownedProjectIds = new Set(
+      ownedProjects.map((project) => String(project._id)),
+    )
     const dismissedProjectIds = new Set(
       dismissedProjects.map((item) => String(item.projectId)),
     )
-    const result = buildExploreCandidates({
-      candidates: projects.map((project) => ({
-        id: String(project._id),
-        cityId: String(project.exploreOwner.cityId),
-        primaryLanguage: project.github.primaryLanguage,
-        topics: getProjectTopics(project),
-        likesCount: project.locatic.likesCount,
-        commentsCount: project.locatic.commentsCount,
-        stargazersCount: project.github.stargazersCount,
-        lastCommitAt: project.github.lastCommitAt,
-        addedToLocaticAt: project.addedToLocaticAt,
-      })),
-      ownedProjectIds: new Set(
-        ownedProjects.map((project) => String(project._id)),
-      ),
-      dismissedProjectIds,
-      selectedCityIds: new Set(selectedCityIds.map((cityId) => String(cityId))),
-      stackPrefs: viewer.exploreConfig.stackPrefs,
-      now: Date.now(),
-      limit,
+
+    const visibleProjectsPage = await collectVisibleExplorePage<
+      Doc<'projects'>
+    >({
+      cursor: args.paginationOpts.cursor,
+      getVisibleItems: (projects) =>
+        projects.filter((project) =>
+          isExploreProjectVisible({
+            dismissedProjectIds,
+            ownedProjectIds,
+            project,
+            selectedCityCount: selectedCityIds.length,
+            selectedCityIdSet: cityIdSet,
+          }),
+        ),
+      loadBatch: (cursor) =>
+        selectedCityIds.length === 1
+          ? ctx.db
+              .query('projects')
+              .withIndex('by_explore_city_last_commit', (query) =>
+                query
+                  .eq('exploreOwner.cityId', selectedCityIds[0])
+                  .eq('exploreOwner.isEligible', true),
+              )
+              .order('desc')
+              .paginate({
+                cursor,
+                numItems: args.paginationOpts.numItems,
+              })
+          : ctx.db
+              .query('projects')
+              .withIndex('by_explore_eligible_last_commit', (query) =>
+                query.eq('exploreOwner.isEligible', true),
+              )
+              .order('desc')
+              .paginate({
+                cursor,
+                numItems: args.paginationOpts.numItems,
+              }),
+      numItems: args.paginationOpts.numItems,
+    })
+    const filtered = rankExploreProjectsByStack({
+      getTopics: getProjectTopics,
+      projects: visibleProjectsPage.page,
+      stackPrefs,
     })
 
-    const projectById = new Map(
-      projects.map((project) => [String(project._id), project]),
-    )
-
-    const ranked = result.flatMap((candidate) => {
-      const project = projectById.get(candidate.id)
-      return project ? [project] : []
-    })
     const ownerById = new Map(
       (
         await Promise.all(
-          [...new Set(ranked.map((project) => project.ownerId))].map(
+          [...new Set(filtered.map((project) => project.ownerId))].map(
             async (ownerId) =>
               [String(ownerId), await ctx.db.get(ownerId)] as const,
           ),
@@ -358,11 +309,10 @@ export const list = query({
     )
 
     return {
-      scope,
-      appliedCityIds: selectedCityIds,
-      isCityFiltered: selectedCityIds.length > 0,
-      projects: await Promise.all(
-        ranked.map((project) =>
+      continueCursor: visibleProjectsPage.continueCursor,
+      isDone: visibleProjectsPage.isDone,
+      page: await Promise.all(
+        filtered.map((project) =>
           buildProjectCardPreview(ctx.db, project, {
             audience: 'public',
             owner: ownerById.get(String(project.ownerId)),
@@ -375,19 +325,21 @@ export const list = query({
 
 export const listPosts = query({
   args: {
-    limit: v.optional(v.number()),
+    paginationOpts: paginationOptsValidator,
     scope: v.optional(exploreScopeValidator),
     selectedCityIds: v.optional(v.array(v.id('cities'))),
   },
-  returns: postSearchPayloadValidator,
+  returns: paginationResultValidator(postSearchResultValidator),
   handler: async (ctx, args) => {
     const viewer = await getViewerFromAuth(ctx)
     if (!viewer) {
-      return { hasMore: false, posts: [] }
+      return {
+        page: [],
+        isDone: true,
+        continueCursor: '',
+      }
     }
 
-    const limit = getExplorePostLimit(args.limit)
-    const candidateTake = Math.min(Math.max((limit + 1) * 4, 40), 200)
     const dismissedPostIds = await getDismissedExplorePostIds(ctx, viewer._id)
     const { selectedCityIds } = getExploreScopedCityIds({
       scope: args.scope,
@@ -395,43 +347,53 @@ export const listPosts = query({
       viewer,
     })
     const cityIdValues = normalizeCityIds(ctx, selectedCityIds)
-    const perCityTake =
-      cityIdValues.length > 0
-        ? Math.ceil(candidateTake / cityIdValues.length)
-        : candidateTake
-    const posts =
-      cityIdValues.length > 0
-        ? (
-            await Promise.all(
-              cityIdValues.map((cityId) =>
-                ctx.db
-                  .query('posts')
-                  .withIndex('by_city_deleted_created', (query) =>
-                    query.eq('projectCityId', cityId).eq('deletedAt', null),
-                  )
-                  .order('desc')
-                  .take(perCityTake),
-              ),
-            )
-          ).flat()
-        : await ctx.db
-            .query('posts')
-            .withIndex('by_deleted_created', (query) =>
-              query.eq('deletedAt', null),
-            )
-            .order('desc')
-            .take(candidateTake)
+    const cityIdSet = new Set(cityIdValues.map(String))
 
-    const visiblePosts = await filterVisiblePosts(ctx, posts)
-    const page = selectExplorePostPage({
-      dismissedPostIds,
-      limit,
-      posts: visiblePosts,
+    const visiblePostsPage = await collectVisibleExplorePage<Doc<'posts'>>({
+      cursor: args.paginationOpts.cursor,
+      getVisibleItems: async (posts) =>
+        await filterVisiblePosts(
+          ctx,
+          posts.filter((post) =>
+            isExplorePostInScope({
+              dismissedPostIds,
+              post,
+              selectedCityCount: cityIdValues.length,
+              selectedCityIdSet: cityIdSet,
+            }),
+          ),
+        ),
+      loadBatch: (cursor) =>
+        cityIdValues.length === 1
+          ? ctx.db
+              .query('posts')
+              .withIndex('by_city_deleted_created', (query) =>
+                query
+                  .eq('projectCityId', cityIdValues[0])
+                  .eq('deletedAt', null),
+              )
+              .order('desc')
+              .paginate({
+                cursor,
+                numItems: args.paginationOpts.numItems,
+              })
+          : ctx.db
+              .query('posts')
+              .withIndex('by_deleted_created', (query) =>
+                query.eq('deletedAt', null),
+              )
+              .order('desc')
+              .paginate({
+                cursor,
+                numItems: args.paginationOpts.numItems,
+              }),
+      numItems: args.paginationOpts.numItems,
     })
 
     return {
-      hasMore: page.hasMore,
-      posts: page.posts,
+      continueCursor: visiblePostsPage.continueCursor,
+      isDone: visiblePostsPage.isDone,
+      page: visiblePostsPage.page,
     }
   },
 })
@@ -625,7 +587,12 @@ export const searchPosts = query({
       .slice(0, limit + 1)
 
     return {
-      hasMore: visiblePosts.length > limit,
+      hasMore: shouldReportPostSearchHasMore({
+        candidateCount: posts.length,
+        candidateTake,
+        limit,
+        visibleCount: visiblePosts.length,
+      }),
       posts: visiblePosts.slice(0, limit),
     }
   },
@@ -634,69 +601,67 @@ export const searchPosts = query({
 export const listNearbyBuilders = query({
   args: {
     cityIds: v.array(v.id('cities')),
+    paginationOpts: paginationOptsValidator,
   },
-  returns: v.array(builderSearchResultValidator),
+  returns: paginationResultValidator(builderSearchResultValidator),
   handler: async (ctx, args) => {
     const viewer = await getViewerOrThrow(ctx)
     const cityIds = Array.from(new Set(args.cityIds))
+    const cityIdSet = new Set(cityIds.map(String))
 
-    const usersById = new Map<string, Doc<'users'>>()
-    const cityById = await getCityByIdMap(ctx, cityIds)
-    const cityUsers =
-      cityIds.length > 0
-        ? await Promise.all(
-            cityIds.map((cityId) =>
+    const paginated =
+      cityIds.length === 1
+        ? await ctx.db
+            .query('users')
+            .withIndex('by_city_explore_rank', (query) =>
+              query
+                .eq('profile.cityId', cityIds[0])
+                .eq('appearInExplore', true)
+                .eq('deletedAt', null)
+                .eq('deactivatedAt', null),
+            )
+            .order('desc')
+            .filter((q) => q.neq(q.field('_id'), viewer._id))
+            .paginate(args.paginationOpts)
+        : await collectVisibleExplorePage<Doc<'users'>>({
+            cursor: args.paginationOpts.cursor,
+            getVisibleItems: (users) =>
+              users.filter((user) =>
+                isNearbyBuilderVisible({
+                  selectedCityCount: cityIds.length,
+                  selectedCityIdSet: cityIdSet,
+                  user,
+                  viewerId: viewer._id,
+                }),
+              ),
+            loadBatch: (cursor) =>
               ctx.db
                 .query('users')
-                .withIndex('by_city_explore_rank', (query) =>
+                .withIndex('by_explore_rank', (query) =>
                   query
-                    .eq('profile.cityId', cityId)
                     .eq('appearInExplore', true)
                     .eq('deletedAt', null)
                     .eq('deactivatedAt', null),
                 )
                 .order('desc')
-                .take(24),
-            ),
-          )
-        : [
-            await ctx.db
-              .query('users')
-              .withIndex('by_explore_rank', (query) =>
-                query
-                  .eq('appearInExplore', true)
-                  .eq('deletedAt', null)
-                  .eq('deactivatedAt', null),
-              )
-              .order('desc')
-              .take(48),
-          ]
+                .paginate({
+                  cursor,
+                  numItems: args.paginationOpts.numItems,
+                }),
+            numItems: args.paginationOpts.numItems,
+          })
 
-    for (const usersInCity of cityUsers) {
-      for (const user of usersInCity) {
-        if (user._id === viewer._id) {
-          continue
-        }
+    const cityById = await getCityByIdMap(
+      ctx,
+      paginated.page
+        .map((user) => user.profile.cityId)
+        .filter((cityId): cityId is Id<'cities'> => Boolean(cityId)),
+    )
 
-        usersById.set(String(user._id), user)
-      }
+    return {
+      ...paginated,
+      page: paginated.page.map((user) => mapBuilderPreview(user, cityById)),
     }
-
-    const rankedUsers = rankNearbyBuilders([...usersById.values()])
-    const missingCityIds = [
-      ...new Set(
-        rankedUsers
-          .map((user) => user.profile.cityId)
-          .filter((cityId): cityId is Id<'cities'> => Boolean(cityId))
-          .filter((cityId) => !cityById.has(String(cityId))),
-      ),
-    ]
-    const missingCities = await getCityByIdMap(ctx, missingCityIds)
-    for (const [cityId, city] of missingCities) {
-      cityById.set(cityId, city)
-    }
-
-    return rankedUsers.map((user) => mapBuilderPreview(user, cityById))
   },
 })
 

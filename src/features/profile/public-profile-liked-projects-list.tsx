@@ -1,5 +1,6 @@
 import { Link } from '@tanstack/react-router'
 import type { Id } from '../../../convex/_generated/dataModel'
+import { EmptyState } from '@/components/ui/empty-state'
 import type { ProjectCardPreview } from '@/features/contracts'
 import {
   getProjectCardFullName,
@@ -24,22 +25,15 @@ export function PublicProfileLikedProjectsList({
 }) {
   if (!visible) {
     return (
-      <div className="flex flex-col gap-3">
-        <div className="py-4.5 font-sans text-sm text-text-muted">
-          liked projects are private on this profile.
-        </div>
-      </div>
+      <EmptyState
+        size="compact"
+        title="liked projects are private on this profile."
+      />
     )
   }
 
   if (likedProjects.length === 0) {
-    return (
-      <div className="flex flex-col gap-3">
-        <div className="py-4.5 font-sans text-sm text-text-muted">
-          no public likes yet.
-        </div>
-      </div>
-    )
+    return <EmptyState size="compact" title="no public likes yet." />
   }
 
   return (
