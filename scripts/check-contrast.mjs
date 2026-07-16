@@ -56,7 +56,7 @@ function contrastRatio(fgLinear, bgLinear) {
 const styles = readFileSync(
   new URL('../src/styles.css', import.meta.url),
   'utf8',
-)
+).replace(/\r\n/g, '\n')
 
 function getDeclarations(selector) {
   const escapedSelector = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')

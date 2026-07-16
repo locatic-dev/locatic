@@ -1,8 +1,7 @@
 import { Link, useRouter } from '@tanstack/react-router'
-import type { KeyboardEvent, MouseEvent } from 'react'
+import type { KeyboardEvent, MouseEvent, ReactNode } from 'react'
 import { Star, Heart, MessageSquare, X, GitFork } from '@/lib/icons'
 import { LxAvatar } from './lx-avatar'
-import { LangDot, langColor } from './lang-dot'
 import { LanguageBar } from './language-bar'
 import { CityPill } from './city-pill'
 import { Button } from './button'
@@ -19,6 +18,8 @@ export interface ProjectCardData {
   lastCommitLabel?: string
   githubStars: number
   locaticLikes: number
+  reactionCounts?: Record<string, number>
+  viewerReactionTypes?: string[]
   commentsCount: number
   postsCount?: number
   topics?: string[]
@@ -53,6 +54,7 @@ type ProjectCardAuthorLink = {
 interface ProjectCardProps {
   project: ProjectCardData
   density?: 'cozy' | 'compact'
+  authorPlacement?: 'header' | 'footer'
   projectLink?: ProjectCardProjectLink
   authorLink?: ProjectCardAuthorLink
   onLike?: () => void
@@ -67,11 +69,15 @@ interface ProjectCardProps {
   dmPending?: boolean
   className?: string
   showActions?: boolean
+  showFullCity?: boolean
+  topLeftSlot?: ReactNode
+  reactionSlot?: ReactNode
 }
 
 export function ProjectCard({
   project,
   density = 'cozy',
+  authorPlacement = 'header',
   projectLink,
   authorLink,
   onLike,
@@ -86,6 +92,9 @@ export function ProjectCard({
   dmPending,
   className,
   showActions = true,
+  showFullCity = false,
+  topLeftSlot,
+  reactionSlot,
 }: ProjectCardProps) {
   const router = useRouter()
   const compact = density === 'compact'
@@ -96,7 +105,6 @@ export function ProjectCard({
       : project.lang
         ? [{ name: project.lang, bytes: 0 }]
         : []
-  const primaryLanguage = languages[0]?.name
   const projectNavigateOptions = projectLink
     ? {
         to: '/project/$owner/$repo' as const,
@@ -106,6 +114,53 @@ export function ProjectCard({
       }
     : null
   const projectLabel = project.fullName ?? `${project.owner}/${project.repo}`
+
+  const authorIdentity = authorLink ? (
+    <Link
+      to="/u/$username"
+      params={{ username: authorLink.username }}
+      search={authorLink.search ?? { tab: 'projects' }}
+      preload="intent"
+      aria-label={`Open ${authorLabel}'s profile`}
+      className="flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-md bg-transparent px-0 py-2 text-left transition-colors hover:text-text"
+    >
+      <LxAvatar
+        name={project.authorHandle}
+        avatarUrl={project.authorAvatarUrl}
+        size={22}
+      />
+      <span className="truncate font-sans text-[12.5px] font-medium text-text">
+        {authorLabel}
+      </span>
+    </Link>
+  ) : onAuthorClick ? (
+    <button
+      type="button"
+      onClick={onAuthorClick}
+      aria-label={`Open ${authorLabel}'s profile`}
+      className="flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-md bg-transparent px-0 py-2 text-left transition-colors hover:text-text"
+    >
+      <LxAvatar
+        name={project.authorHandle}
+        avatarUrl={project.authorAvatarUrl}
+        size={22}
+      />
+      <span className="truncate font-sans text-[12.5px] font-medium text-text">
+        {authorLabel}
+      </span>
+    </button>
+  ) : (
+    <div className="flex min-h-11 min-w-0 flex-1 items-center gap-2 py-2">
+      <LxAvatar
+        name={project.authorHandle}
+        avatarUrl={project.authorAvatarUrl}
+        size={22}
+      />
+      <span className="truncate font-sans text-[12.5px] font-medium text-text">
+        {authorLabel}
+      </span>
+    </div>
+  )
 
   const preloadProjectRoute = () => {
     if (!projectNavigateOptions) return
@@ -161,9 +216,27 @@ export function ProjectCard({
         className,
       )}
     >
-      {/* Top row: repo name + dismiss */}
+      {topLeftSlot && (
+        <div className="flex min-w-0 items-center" data-project-card-action>
+          {topLeftSlot}
+        </div>
+      )}
+
+      {/* Top row: optional author lead + repo name + dismiss */}
       <div className="flex items-start gap-2.5">
         <div className="min-w-0 flex-1">
+          {authorPlacement === 'header' && (
+            <div className="mb-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+              {authorIdentity}
+              {project.city && (
+                <CityPill
+                  city={project.city}
+                  truncate={!showFullCity}
+                  className="max-w-full"
+                />
+              )}
+            </div>
+          )}
           <div className="mb-1 flex items-center gap-2">
             {/* Repo name */}
             {projectLink ? (
@@ -230,20 +303,8 @@ export function ProjectCard({
             compact ? 'gap-x-3' : 'gap-x-3.5',
           )}
         >
-          {/* Identity group: primary language + recency + topics */}
+          {/* Identity group: recency + topics */}
           <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5 text-text-muted">
-            {primaryLanguage && (
-              <span
-                className="inline-flex items-center gap-1.5 rounded-control border px-1.5 py-0.5 text-text"
-                style={{
-                  background: `${langColor(primaryLanguage)}1f`,
-                  borderColor: `${langColor(primaryLanguage)}80`,
-                }}
-              >
-                <LangDot lang={primaryLanguage} />
-                {primaryLanguage}
-              </span>
-            )}
             {project.lastCommitLabel && (
               <span className="text-text-faint">{project.lastCommitLabel}</span>
             )}
@@ -293,120 +354,83 @@ export function ProjectCard({
         )}
       </div>
 
-      {/* Author row */}
-      <div
-        className={cn(
-          'flex flex-wrap items-start justify-between gap-2 border-t border-line',
-          compact ? 'pt-2' : 'pt-3',
-        )}
-      >
-        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-          {authorLink ? (
-            <Link
-              to="/u/$username"
-              params={{ username: authorLink.username }}
-              search={authorLink.search ?? { tab: 'projects' }}
-              preload="intent"
-              aria-label={`Open ${authorLabel}'s profile`}
-              className="flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-md bg-transparent px-0 py-2 text-left transition-colors hover:text-text"
-            >
-              <LxAvatar
-                name={project.authorHandle}
-                avatarUrl={project.authorAvatarUrl}
-                size={22}
-              />
-              <span className="truncate font-sans text-[12.5px] font-medium text-text">
-                {authorLabel}
-              </span>
-            </Link>
-          ) : onAuthorClick ? (
-            <button
-              type="button"
-              onClick={onAuthorClick}
-              aria-label={`Open ${authorLabel}'s profile`}
-              className="flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-md bg-transparent px-0 py-2 text-left transition-colors hover:text-text"
-            >
-              <LxAvatar
-                name={project.authorHandle}
-                avatarUrl={project.authorAvatarUrl}
-                size={22}
-              />
-              <span className="truncate font-sans text-[12.5px] font-medium text-text">
-                {authorLabel}
-              </span>
-            </button>
-          ) : (
-            <div className="flex min-h-11 min-w-0 flex-1 items-center gap-2 py-2">
-              <LxAvatar
-                name={project.authorHandle}
-                avatarUrl={project.authorAvatarUrl}
-                size={22}
-              />
-              <span className="truncate font-sans text-[12.5px] font-medium text-text">
-                {authorLabel}
-              </span>
+      {(authorPlacement === 'footer' || showActions || reactionSlot) && (
+        <div
+          className={cn(
+            'flex flex-wrap items-start justify-between gap-2 border-t border-line',
+            compact ? 'pt-2' : 'pt-3',
+          )}
+        >
+          {authorPlacement === 'footer' && (
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+              {authorIdentity}
+              {project.city && (
+                <CityPill
+                  city={project.city}
+                  truncate={!showFullCity}
+                  className="basis-full sm:basis-auto"
+                />
+              )}
             </div>
           )}
-          {project.city && (
-            <CityPill
-              city={project.city}
-              className="basis-full sm:basis-auto"
-            />
+
+          {reactionSlot && <div className="min-w-0 flex-1">{reactionSlot}</div>}
+
+          {showActions && (
+            <div className="ml-auto flex shrink-0 flex-wrap items-center gap-1.5">
+              {onFollow && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={onFollow}
+                  disabled={followPending}
+                  className={cn(
+                    'min-h-11 font-mono text-[11px]',
+                    project.followed && 'border-line-strong text-text-muted',
+                  )}
+                >
+                  {project.followed ? 'following' : 'follow'}
+                </Button>
+              )}
+              {onDM && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={onDM}
+                  disabled={dmPending}
+                  className="min-h-11 font-mono text-[11px] text-text-muted"
+                >
+                  {dmPending ? 'opening…' : 'message'}
+                </Button>
+              )}
+              {!reactionSlot && (
+                <button
+                  onClick={onLike}
+                  disabled={likePending}
+                  aria-label={project.liked ? 'Unlike' : 'Like'}
+                  aria-pressed={project.liked}
+                  className={cn(
+                    'flex min-h-11 min-w-11 items-center justify-center gap-1.5 border-none bg-transparent px-2.5 font-mono text-[11.5px] transition-colors',
+                    project.liked ? 'text-liked' : 'text-text-faint',
+                    likePending
+                      ? 'cursor-default opacity-60'
+                      : 'cursor-pointer hover:text-liked',
+                  )}
+                  type="button"
+                >
+                  <Heart
+                    size={16}
+                    strokeWidth={1.6}
+                    fill={project.liked ? 'currentColor' : 'none'}
+                  />
+                  {project.locaticLikes > 0 &&
+                    project.locaticLikes.toLocaleString()}
+                </button>
+              )}
+            </div>
           )}
         </div>
-
-        {showActions && (
-          <div className="flex shrink-0 flex-wrap items-center gap-1.5">
-            {onFollow && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={onFollow}
-                disabled={followPending}
-                className={cn(
-                  'min-h-11 font-mono text-[11px]',
-                  project.followed && 'border-line-strong text-text-muted',
-                )}
-              >
-                {project.followed ? 'following' : 'follow'}
-              </Button>
-            )}
-            {onDM && (
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={onDM}
-                disabled={dmPending}
-                className="min-h-11 font-mono text-[11px] text-text-muted"
-              >
-                {dmPending ? 'opening…' : 'message'}
-              </Button>
-            )}
-            <button
-              onClick={onLike}
-              disabled={likePending}
-              aria-label={project.liked ? 'Unlike' : 'Like'}
-              aria-pressed={project.liked}
-              className={cn(
-                'flex min-h-11 min-w-11 items-center justify-center gap-1.5 border-none bg-transparent px-2.5 font-mono text-[11.5px] transition-colors',
-                project.liked ? 'text-liked' : 'text-text-faint',
-                likePending
-                  ? 'cursor-default opacity-60'
-                  : 'cursor-pointer hover:text-liked',
-              )}
-              type="button"
-            >
-              <Heart
-                size={16}
-                strokeWidth={1.6}
-                fill={project.liked ? 'currentColor' : 'none'}
-              />
-              {project.locaticLikes > 0 &&
-                project.locaticLikes.toLocaleString()}
-            </button>
-          </div>
-        )}
-      </div>
+      )}
     </div>
   )
 }

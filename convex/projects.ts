@@ -37,6 +37,10 @@ import { recomputeContributionCountsForUsers } from './lib/project_contributor_s
 import { normalizeProjectTopics } from './lib/topics'
 import { buildStatusValidator, socialLinksValidator } from './lib/validators'
 import { enforceRateLimit } from './lib/rate_limits'
+import {
+  getProjectReactionCounts,
+  getViewerReactionTypesByTargetId,
+} from './lib/reactions'
 
 function getCommitFrequency(lastCommitAt: number) {
   const ageDays = (Date.now() - lastCommitAt) / (24 * 60 * 60 * 1000)
@@ -68,8 +72,9 @@ const projectDetailValidator = v.union(
     project: v.any(),
     releases: v.array(v.any()),
     comments: v.array(v.any()),
-    likedByPreview: v.array(projectLikerValidator),
     viewerHasLiked: v.boolean(),
+    reactionCounts: v.record(v.string(), v.number()),
+    viewerReactionTypes: v.array(v.string()),
     viewerFollowsOwner: v.boolean(),
     owner: v.object({
       userId: v.id('users'),
@@ -270,17 +275,13 @@ async function getPublicProjectDetail(
     .order('desc')
     .collect()
 
-  const viewerHasLiked = requester
-    ? await ctx.db
-        .query('reactions')
-        .withIndex('by_user_target_reaction', (query) =>
-          query
-            .eq('userId', requester._id)
-            .eq('targetId', String(project._id))
-            .eq('reactionType', 'like'),
-        )
-        .unique()
-    : null
+  const viewerReactionTypes =
+    (
+      await getViewerReactionTypesByTargetId(ctx, requester, {
+        targetIds: [String(project._id)],
+        targetType: 'project',
+      })
+    ).get(String(project._id)) ?? []
 
   const viewerFollowsOwner = requester
     ? await ctx.db
@@ -291,35 +292,6 @@ async function getPublicProjectDetail(
         .unique()
     : null
 
-  const likedByReactions = await ctx.db
-    .query('reactions')
-    .withIndex('by_target_reaction_created', (query) =>
-      query
-        .eq('targetType', 'project')
-        .eq('targetId', String(project._id))
-        .eq('reactionType', 'like'),
-    )
-    .order('desc')
-    .take(3)
-
-  const likedByPreview = (
-    await Promise.all(
-      likedByReactions.map(async (reaction) => {
-        const user = await ctx.db.get(reaction.userId)
-        if (!user || user.deletedAt || user.deactivatedAt) {
-          return null
-        }
-
-        return {
-          userId: user._id,
-          githubUsername: user.github.username,
-          displayName: user.profile.displayName,
-          avatarUrl: user.profile.avatarUrl,
-        }
-      }),
-    )
-  ).filter((user): user is NonNullable<typeof user> => user !== null)
-
   const ownerCity = owner.profile.cityId
     ? await ctx.db.get(owner.profile.cityId)
     : null
@@ -328,8 +300,9 @@ async function getPublicProjectDetail(
     project,
     releases,
     comments: [],
-    likedByPreview,
-    viewerHasLiked: Boolean(viewerHasLiked),
+    reactionCounts: getProjectReactionCounts(project),
+    viewerHasLiked: viewerReactionTypes.includes('like'),
+    viewerReactionTypes,
     viewerFollowsOwner: Boolean(viewerFollowsOwner),
     owner: {
       userId: owner._id,
@@ -355,6 +328,30 @@ export const getPublicByRoute = query({
   returns: projectDetailValidator,
   handler: async (ctx, args) => {
     return await getPublicProjectDetail(ctx, args)
+  },
+})
+
+export const getViewerReactionTypes = query({
+  args: { projectId: v.id('projects') },
+  returns: v.array(v.string()),
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) return []
+    const viewer = await ctx.db
+      .query('users')
+      .withIndex('by_clerk_id', (query) =>
+        query.eq('clerkId', identity.subject),
+      )
+      .unique()
+    if (!viewer) return []
+    return (
+      (
+        await getViewerReactionTypesByTargetId(ctx, viewer, {
+          targetIds: [String(args.projectId)],
+          targetType: 'project',
+        })
+      ).get(String(args.projectId)) ?? []
+    )
   },
 })
 
@@ -408,6 +405,93 @@ export const listLikers = query({
       ...page,
       page: likers,
     }
+  },
+})
+
+export const listReactors = query({
+  args: {
+    projectId: v.id('projects'),
+    reactionType: v.string(),
+    paginationOpts: paginationOptsValidator,
+  },
+  returns: paginationResultValidator(projectLikerValidator),
+  handler: async (ctx, args) => {
+    if (!(await getPubliclyInteractableProject(ctx, args.projectId))) {
+      return {
+        continueCursor: '',
+        isDone: true,
+        page: [],
+        pageStatus: null,
+        splitCursor: null,
+      }
+    }
+
+    const page = await ctx.db
+      .query('reactions')
+      .withIndex('by_target_reaction_created', (query) =>
+        query
+          .eq('targetType', 'project')
+          .eq('targetId', String(args.projectId))
+          .eq('reactionType', args.reactionType),
+      )
+      .order('desc')
+      .paginate(args.paginationOpts)
+
+    const reactors = (
+      await Promise.all(
+        page.page.map(async (reaction) => {
+          const user = await ctx.db.get(reaction.userId)
+          if (!user || user.deletedAt || user.deactivatedAt) return null
+          return {
+            userId: user._id,
+            githubUsername: user.github.username,
+            displayName: user.profile.displayName,
+            avatarUrl: user.profile.avatarUrl,
+          }
+        }),
+      )
+    ).filter(
+      (reactor): reactor is NonNullable<typeof reactor> => reactor !== null,
+    )
+
+    return { ...page, page: reactors }
+  },
+})
+
+export const backfillProjectReactionCounts = internalMutation({
+  args: { limit: v.optional(v.number()) },
+  returns: v.object({ patched: v.number(), remaining: v.boolean() }),
+  handler: async (ctx, args) => {
+    const limit = Math.min(Math.max(args.limit ?? 50, 1), 100)
+    const projects = await ctx.db
+      .query('projects')
+      .filter((query) =>
+        query.eq(query.field('locatic.reactionCounts'), undefined),
+      )
+      .take(limit + 1)
+    const batch = projects.slice(0, limit)
+
+    for (const project of batch) {
+      const reactions = await ctx.db
+        .query('reactions')
+        .withIndex('by_target', (query) =>
+          query.eq('targetType', 'project').eq('targetId', String(project._id)),
+        )
+        .collect()
+      const reactionCounts = reactions.reduce<Record<string, number>>(
+        (counts, reaction) => ({
+          ...counts,
+          [reaction.reactionType]: (counts[reaction.reactionType] ?? 0) + 1,
+        }),
+        {},
+      )
+      reactionCounts.like = project.locatic.likesCount
+      await ctx.db.patch(project._id, {
+        locatic: { ...project.locatic, reactionCounts },
+      })
+    }
+
+    return { patched: batch.length, remaining: projects.length > limit }
   },
 })
 

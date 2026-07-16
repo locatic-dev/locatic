@@ -163,7 +163,8 @@ export function ExploreHeader({
               <CityPill
                 key={city.id}
                 city={city.name}
-                className="max-w-full shrink sm:max-w-64"
+                truncate={false}
+                className="max-w-full shrink"
                 onRemove={() => onRemoveCity(city.id)}
               />
             ))

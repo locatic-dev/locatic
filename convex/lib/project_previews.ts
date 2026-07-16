@@ -1,6 +1,7 @@
 import type { DatabaseReader, DatabaseWriter } from '../_generated/server'
 import type { Doc } from './types'
 import { resolveProjectOwnerLogin } from './project_route'
+import { getProjectReactionCounts } from './reactions'
 
 type Reader = DatabaseReader | DatabaseWriter
 
@@ -17,6 +18,7 @@ export type ProjectCardPreviewRecord = {
   languages: Doc<'projects'>['github']['languages']
   githubStars: number
   locaticLikes: number
+  reactionCounts: Record<string, number>
   commentsCount: number
   postsCount: number
   topics: string[]
@@ -99,6 +101,7 @@ export async function buildProjectCardPreview(
     languages: project.github.languages,
     githubStars: project.github.stargazersCount,
     locaticLikes: project.locatic.likesCount,
+    reactionCounts: getProjectReactionCounts(project),
     commentsCount: project.locatic.commentsCount,
     postsCount: project.locatic.postsCount ?? 0,
     topics: project.locatic.tags,

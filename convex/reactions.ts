@@ -1,4 +1,8 @@
 import { ConvexError, v } from 'convex/values'
+import {
+  paginationOptsValidator,
+  paginationResultValidator,
+} from 'convex/server'
 
 import {
   internalMutation,
@@ -18,7 +22,10 @@ import {
   normalizeReactionEmoji,
   sanitizeReactionConfigForWrite,
 } from './lib/reaction_config'
-import { getCommentReactionCounts } from './lib/reactions'
+import {
+  getCommentReactionCounts,
+  getProjectReactionCounts,
+} from './lib/reactions'
 import type { Doc } from './lib/types'
 import { DEFAULT_REACTIONS } from './reactionConfigSeed'
 
@@ -35,6 +42,21 @@ const reactionDocValidator = v.object({
   reactionType: v.string(),
   createdAt: v.number(),
 })
+
+const reactorValidator = v.object({
+  userId: v.id('users'),
+  githubUsername: v.string(),
+  displayName: v.string(),
+  avatarUrl: v.union(v.string(), v.null()),
+})
+
+const emptyReactorPage = {
+  continueCursor: '',
+  isDone: true,
+  page: [],
+  pageStatus: null,
+  splitCursor: null,
+}
 
 async function upsertReaction(
   ctx: MutationCtx,
@@ -153,6 +175,81 @@ export const listConfig = query({
   },
 })
 
+export const listReactors = query({
+  args: {
+    targetType: v.union(
+      v.literal('project'),
+      v.literal('post'),
+      v.literal('comment'),
+    ),
+    targetId: v.string(),
+    reactionType: v.string(),
+    paginationOpts: paginationOptsValidator,
+  },
+  returns: paginationResultValidator(reactorValidator),
+  handler: async (ctx, args) => {
+    if (args.targetType === 'project') {
+      const projectId = ctx.db.normalizeId('projects', args.targetId)
+      if (
+        !projectId ||
+        !(await getPubliclyInteractableProject(ctx, projectId))
+      ) {
+        return emptyReactorPage
+      }
+    }
+
+    if (args.targetType === 'post') {
+      const postId = ctx.db.normalizeId('posts', args.targetId)
+      const post = postId ? await ctx.db.get(postId) : null
+      if (
+        !post ||
+        post.deletedAt !== null ||
+        !(await isPublicPostVisible(ctx, post))
+      ) {
+        return emptyReactorPage
+      }
+    }
+
+    if (args.targetType === 'comment') {
+      const commentId = ctx.db.normalizeId('comments', args.targetId)
+      const comment = commentId ? await ctx.db.get(commentId) : null
+      if (!comment || !(await isCommentPubliclyInteractable(ctx, comment))) {
+        return emptyReactorPage
+      }
+    }
+
+    const page = await ctx.db
+      .query('reactions')
+      .withIndex('by_target_reaction_created', (query) =>
+        query
+          .eq('targetType', args.targetType)
+          .eq('targetId', args.targetId)
+          .eq('reactionType', args.reactionType),
+      )
+      .order('desc')
+      .paginate(args.paginationOpts)
+
+    const reactors = (
+      await Promise.all(
+        page.page.map(async (reaction) => {
+          const user = await ctx.db.get(reaction.userId)
+          if (!user || user.deletedAt || user.deactivatedAt) return null
+          return {
+            userId: user._id,
+            githubUsername: user.github.username,
+            displayName: user.profile.displayName,
+            avatarUrl: user.profile.avatarUrl,
+          }
+        }),
+      )
+    ).filter(
+      (reactor): reactor is NonNullable<typeof reactor> => reactor !== null,
+    )
+
+    return { ...page, page: reactors }
+  },
+})
+
 export const reactToTarget = mutation({
   args: {
     targetType: v.union(
@@ -216,11 +313,19 @@ export const reactToTarget = mutation({
       return reaction
     }
 
-    if (projectTarget && args.reactionType === 'like') {
+    if (projectTarget) {
+      const reactionCounts = getProjectReactionCounts(projectTarget)
       await ctx.db.patch(projectTarget._id, {
         locatic: {
           ...projectTarget.locatic,
-          likesCount: projectTarget.locatic.likesCount + 1,
+          likesCount:
+            args.reactionType === 'like'
+              ? projectTarget.locatic.likesCount + 1
+              : projectTarget.locatic.likesCount,
+          reactionCounts: {
+            ...reactionCounts,
+            [args.reactionType]: (reactionCounts[args.reactionType] ?? 0) + 1,
+          },
         },
         updatedAt: Date.now(),
       })
@@ -307,11 +412,23 @@ export const unreactFromTarget = mutation({
       const project = projectId
         ? await getPubliclyInteractableProject(ctx, projectId)
         : null
-      if (project && args.reactionType === 'like') {
+      if (project) {
+        const reactionCounts = getProjectReactionCounts(project)
+        const nextCount = Math.max(
+          0,
+          (reactionCounts[args.reactionType] ?? 0) - 1,
+        )
         await ctx.db.patch(project._id, {
           locatic: {
             ...project.locatic,
-            likesCount: Math.max(0, project.locatic.likesCount - 1),
+            likesCount:
+              args.reactionType === 'like'
+                ? Math.max(0, project.locatic.likesCount - 1)
+                : project.locatic.likesCount,
+            reactionCounts: {
+              ...reactionCounts,
+              [args.reactionType]: nextCount,
+            },
           },
           updatedAt: Date.now(),
         })

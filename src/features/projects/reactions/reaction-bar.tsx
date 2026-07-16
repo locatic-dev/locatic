@@ -14,8 +14,9 @@ import {
   useReactToTarget,
   useUnreactFromTarget,
 } from '@/features/projects/mutations'
+import { ReactorInspector } from './project-reactor-inspector'
 
-type ReactionTargetType = 'post' | 'comment'
+type ReactionTargetType = 'project' | 'post' | 'comment'
 
 type ReactionConfig = {
   key?: string
@@ -66,6 +67,7 @@ function getVisibleReactionTypes(
   reactionConfigs: ReactionConfig[],
   reactionCounts: Record<string, number>,
   viewerReactionTypes: string[],
+  pinnedReactionTypes: string[] = [],
 ) {
   const configuredTypes = reactionConfigs.flatMap((config) =>
     config.key ? [config.key] : [],
@@ -73,6 +75,7 @@ function getVisibleReactionTypes(
   const visibleTypes = new Set([
     ...configuredTypes.filter((type) => (reactionCounts[type] ?? 0) > 0),
     ...viewerReactionTypes,
+    ...pinnedReactionTypes,
   ])
 
   return configuredTypes.filter((type) => visibleTypes.has(type))
@@ -119,13 +122,15 @@ export function ReactionBar({
   reactionCounts: Record<string, number>
   targetId: string
   targetType: ReactionTargetType
-  viewerReactionTypes: string[]
+  viewerReactionTypes?: string[]
 }) {
   const configs = useQuery(api.reactions.listConfig, { targetType })
   const reactToTarget = useReactToTarget()
   const unreactFromTarget = useUnreactFromTarget()
   const [open, setOpen] = useState(false)
   const [pendingReaction, setPendingReaction] = useState<PendingReaction>(null)
+  const [confirmedViewerReactionTypes, setConfirmedViewerReactionTypes] =
+    useState(viewerReactionTypes ?? [])
   const [burstReaction, setBurstReaction] = useState<string | null>(null)
   const [popReaction, setPopReaction] = useState<string | null>(null)
   const animationTimersRef = useRef<number[]>([])
@@ -137,11 +142,20 @@ export function ReactionBar({
       ),
     [configs],
   )
+  const effectiveViewerReactionTypes = confirmedViewerReactionTypes
+  const viewerReactionStateLoading = viewerReactionTypes === undefined
   const visibleReactionTypes = getVisibleReactionTypes(
     reactionConfigs,
     reactionCounts,
-    viewerReactionTypes,
+    effectiveViewerReactionTypes,
+    targetType === 'project' ? ['like'] : [],
   )
+
+  useEffect(() => {
+    if (viewerReactionTypes !== undefined) {
+      setConfirmedViewerReactionTypes(viewerReactionTypes)
+    }
+  }, [viewerReactionTypes])
 
   useEffect(
     () => () => {
@@ -162,7 +176,7 @@ export function ReactionBar({
       window.clearTimeout(timer)
     }
     animationTimersRef.current = []
-    const currentlyActive = viewerReactionTypes.includes(reactionType)
+    const currentlyActive = effectiveViewerReactionTypes.includes(reactionType)
     const nextActive = !currentlyActive
     setPendingReaction({ reactionType, nextActive })
     setBurstReaction(reactionType)
@@ -186,6 +200,11 @@ export function ReactionBar({
           targetType,
         })
       }
+      setConfirmedViewerReactionTypes((current) =>
+        nextActive
+          ? [...new Set([...current, reactionType])]
+          : current.filter((type) => type !== reactionType),
+      )
       setOpen(false)
     } catch (error) {
       console.error(error)
@@ -212,20 +231,32 @@ export function ReactionBar({
           pendingReaction,
           reactionCounts,
           reactionType,
-          viewerReactionTypes,
+          viewerReactionTypes: effectiveViewerReactionTypes,
         })
 
-        if (count <= 0 && !active) {
+        if (
+          count <= 0 &&
+          !active &&
+          !(targetType === 'project' && reactionType === 'like')
+        ) {
           return null
         }
 
-        return (
+        const chip = (
           <button
             key={reactionType}
             type="button"
             onClick={() => void handleToggleReaction(reactionType)}
-            disabled={disabled || Boolean(pendingReaction)}
-            aria-label={`${active ? 'Remove' : 'Add'} ${config.label} reaction`}
+            disabled={
+              viewerReactionStateLoading ||
+              Boolean(pendingReaction) ||
+              (disabled && count <= 0)
+            }
+            aria-label={
+              disabled
+                ? `View ${config.label} reactions`
+                : `${active ? 'Remove' : 'Add'} ${config.label} reaction`
+            }
             aria-pressed={active}
             style={reactionChipStyle(accent, active)}
             className={cn(
@@ -252,13 +283,33 @@ export function ReactionBar({
             )}
           </button>
         )
+
+        return count > 0 ? (
+          <ReactorInspector
+            key={reactionType}
+            targetId={targetId}
+            targetType={targetType}
+            reactionType={reactionType}
+            emoji={config.emoji}
+            label={config.label}
+            count={count}
+          >
+            {chip}
+          </ReactorInspector>
+        ) : (
+          chip
+        )
       })}
 
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <button
             type="button"
-            disabled={disabled || reactionConfigs.length === 0}
+            disabled={
+              disabled ||
+              viewerReactionStateLoading ||
+              reactionConfigs.length === 0
+            }
             aria-label={`Add ${targetType} reaction`}
             className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md border border-transparent bg-transparent text-text-faint transition-colors hover:border-line hover:text-text disabled:opacity-60"
           >
@@ -283,7 +334,7 @@ export function ReactionBar({
                 pendingReaction,
                 reactionCounts,
                 reactionType,
-                viewerReactionTypes,
+                viewerReactionTypes: effectiveViewerReactionTypes,
               })
 
               return (
@@ -291,7 +342,11 @@ export function ReactionBar({
                   key={reactionType}
                   type="button"
                   onClick={() => void handleToggleReaction(reactionType)}
-                  disabled={disabled || Boolean(pendingReaction)}
+                  disabled={
+                    disabled ||
+                    viewerReactionStateLoading ||
+                    Boolean(pendingReaction)
+                  }
                   aria-label={`${active ? 'Remove' : 'Add'} ${config.label} reaction`}
                   aria-pressed={active}
                   title={config.label}
