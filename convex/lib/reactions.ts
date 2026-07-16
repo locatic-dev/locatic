@@ -9,6 +9,16 @@ export function getCommentReactionCounts(
   return comment.reactionCounts ?? { like: comment.likesCount }
 }
 
+export function getProjectReactionCounts(
+  project: Pick<Doc<'projects'>, 'locatic'>,
+) {
+  return (
+    project.locatic.reactionCounts ?? {
+      like: project.locatic.likesCount,
+    }
+  )
+}
+
 export async function getViewerReactionTypesByTargetId(
   ctx: QueryCtx,
   viewer: Doc<'users'> | null,
@@ -42,4 +52,20 @@ export async function getViewerReactionTypesByTargetId(
       reactions[index]?.map((reaction) => reaction.reactionType) ?? [],
     ]),
   )
+}
+
+export function withViewerPostReactions(
+  posts: Array<Doc<'posts'>>,
+  viewerReactionTypesByTargetId: Map<string, string[]>,
+) {
+  return posts.map((post) => {
+    const viewerReactionTypes =
+      viewerReactionTypesByTargetId.get(String(post._id)) ?? []
+
+    return {
+      ...post,
+      viewerHasLiked: viewerReactionTypes.includes('like'),
+      viewerReactionTypes,
+    }
+  })
 }

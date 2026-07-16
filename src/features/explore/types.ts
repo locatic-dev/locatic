@@ -14,7 +14,10 @@ export type BuilderPreview = {
 
 export type ExploreProjectPreview = ProjectCardPreview
 
-export type ExplorePostPreview = Doc<'posts'>
+export type ExplorePostPreview = Doc<'posts'> & {
+  viewerHasLiked?: boolean
+  viewerReactionTypes?: string[]
+}
 
 export type ExploreCityChip = {
   id: string

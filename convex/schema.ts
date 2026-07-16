@@ -233,6 +233,7 @@ export default defineSchema({
       isVisible: v.boolean(),
       tags: v.array(v.string()),
       likesCount: v.number(),
+      reactionCounts: v.optional(v.record(v.string(), v.number())),
       commentsCount: v.number(),
       postsCount: v.optional(v.number()),
       topicsEditedAt: v.optional(v.number()),

@@ -17,6 +17,7 @@ import type { ProjectCardPreview } from '@/features/contracts'
 import { toProjectCardData } from '@/features/project-card-preview'
 import { NearbyBuilderRow } from './nearby-builder-row'
 import { ExplorePostCard } from './explore-post-card'
+import { ProjectReactionBar } from '@/features/projects/reactions/project-reaction-bar'
 
 function getInitialPageKeys<T>(items: T[], getKey: (item: T) => string) {
   return new Set(items.slice(0, EXPLORE_PAGINATED_PAGE_SIZE).map(getKey))
@@ -466,10 +467,13 @@ export function ExploreFeed({
       )}
 
       {!isBuildersMode && !isPostsMode && visibleItems.length > 0 && (
-        <div>
+        <div className="mb-8">
+          <div className="mb-3 font-mono text-[10.5px] uppercase tracking-[0.06em] text-text-muted">
+            {isProjectSearchActive ? 'matching projects' : 'projects'}
+          </div>
           <InitialPageMotionList
             key={`projects:${entranceKey}`}
-            className={cardSheetClass}
+            className="flex flex-col gap-2"
             items={visibleItems}
             getKey={(item) => String(item.projectId)}
           >
@@ -488,7 +492,17 @@ export function ExploreFeed({
                     liked,
                     followed,
                   }}
-                  className="rounded-none border-0 focus-visible:ring-inset"
+                  authorPlacement="header"
+                  showFullCity
+                  reactionSlot={
+                    <ProjectReactionBar
+                      projectId={projectKey}
+                      reactionCounts={item.reactionCounts}
+                      viewerReactionTypes={item.viewerReactionTypes}
+                      liked={liked}
+                    />
+                  }
+                  className="focus-visible:ring-inset"
                   onDismiss={() => onDismissProject(projectId, projectKey)}
                   onLike={() => onLikeProject(projectId, projectKey)}
                   authorLink={{ username: item.authorHandle }}

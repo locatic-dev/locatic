@@ -14,9 +14,8 @@ import { useDeactivateAccount, useDeleteAccount } from './mutations'
 
 // Danger-zone actions live behind in-app confirmation dialogs rather than the
 // browser's native confirm/prompt — the native dialogs can't be styled, read as
-// generic, and (for confirm) can't hold a typed acknowledgement. Deactivation is
-// reversible, so a single acknowledgement is enough; permanent deletion keeps the
-// type-DELETE gate.
+// generic, and (for confirm) can't hold a typed acknowledgement. Deactivation
+// uses a single acknowledgement; permanent deletion keeps the type-DELETE gate.
 export function AccountDangerZone() {
   const deactivate = useDeactivateAccount()
   const deleteAccount = useDeleteAccount()
@@ -70,14 +69,14 @@ export function AccountDangerZone() {
 
   return (
     <div className="flex max-w-140 flex-col gap-5">
-      {/* Deactivate — reversible */}
+      {/* Deactivate */}
       <div className="rounded-[6px] border border-line bg-surface p-5">
         <div className="mb-2 font-mono text-[13px] font-semibold text-text">
           deactivate account
         </div>
         <p className="mb-3.5 mt-0 font-sans text-[13px] leading-normal text-text-muted">
-          hides your profile from Explore and public surfaces until you
-          reactivate.
+          hides your profile from Explore and public surfaces without deleting
+          your account data.
         </p>
         <Button
           variant="monoOutline"
@@ -119,8 +118,7 @@ export function AccountDangerZone() {
             </DialogTitle>
             <DialogDescription className="font-sans text-[13px] leading-normal text-text-muted">
               Your profile disappears from Explore and public surfaces right
-              away. You can reactivate any time by signing back in — nothing is
-              deleted.
+              away. This does not delete your account data.
             </DialogDescription>
           </DialogHeader>
           {deactivateError && (

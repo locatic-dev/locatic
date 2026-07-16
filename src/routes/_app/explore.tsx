@@ -73,6 +73,7 @@ import { useDebouncedRouteSearch } from '@/features/explore/use-debounced-route-
 import { shouldPrefetchPrivateConvexQueries } from '@/lib/auth-routing'
 import type {
   BuilderPreview,
+  ExplorePostPreview,
   ExploreProjectPreview,
 } from '@/features/explore/types'
 
@@ -393,12 +394,12 @@ function ExplorePage() {
     | undefined
   const postSearchData = postSearchQuery.data as
     | {
-        posts: Array<Doc<'posts'>>
+        posts: Array<ExplorePostPreview>
         hasMore: boolean
       }
     | undefined
   const postBrowseResults =
-    (postListPaged.results as Array<Doc<'posts'>> | undefined) ?? []
+    (postListPaged.results as Array<ExplorePostPreview> | undefined) ?? []
   const postResults = isPostSearchActive
     ? (postSearchData?.posts ?? [])
     : postBrowseResults

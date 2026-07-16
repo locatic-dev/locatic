@@ -20,7 +20,6 @@ import {
   ROUTE_PENDING_MS,
 } from '@/components/app-shell/route-pending'
 import { compactNumber } from '@/lib/format'
-import { relativeTime } from '@/lib/time'
 import {
   mapPublicProfileOverview,
   mapViewerBootstrap,
@@ -49,15 +48,11 @@ import {
   type ProfileNetworkTab,
 } from '@/features/profile/state'
 import { ProfileContentTabs } from '@/features/profile/content-tabs'
-import {
-  commentAvailabilityCopy,
-  getProfileCommentDestination,
-  isCommentTargetOpenable,
-} from '@/features/profile/comment-navigation'
+import { getProfileCommentDestination } from '@/features/profile/comment-navigation'
 import { ProfileNetworkSection } from '@/features/profile/network-section'
 import { ProfilePostList } from '@/features/profile/post-list'
+import { ProfileCommentList } from '@/features/profile/comment-list'
 import { ProfileContentSkeleton } from '@/features/profile/content-skeleton'
-import { CardSheet } from '@/components/ui/card-sheet'
 import { EmptyState } from '@/components/ui/empty-state'
 import {
   PublicProfileContributionGraph,
@@ -881,6 +876,7 @@ function PublicProfileContent({
                 <ProfilePostList
                   posts={posts}
                   emptyLabel="no public posts yet."
+                  reactionsDisabled={!isSignedIn}
                 />
               )}
 
@@ -898,50 +894,15 @@ function PublicProfileContent({
                       size="compact"
                       title="comment history is private on this profile."
                     />
-                  ) : sortedComments.length === 0 ? (
-                    <EmptyState
-                      size="compact"
-                      title="no public comments yet."
-                    />
                   ) : (
-                    <CardSheet>
-                      {sortedComments.map((comment) => (
-                        <button
-                          key={String(comment._id)}
-                          type="button"
-                          onClick={() => openCommentTarget(comment)}
-                          disabled={!isCommentTargetOpenable(comment)}
-                          className={`w-full px-5 py-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-inset ${
-                            isCommentTargetOpenable(comment)
-                              ? 'bg-surface hover:bg-surface-alt'
-                              : 'bg-surface/70 opacity-70'
-                          }`}
-                        >
-                          <div className="mb-2 flex flex-wrap items-center justify-between gap-2.5">
-                            <span className="font-mono text-[11.5px] text-text-faint">
-                              {comment.targetLabel}
-                            </span>
-                            <span className="font-mono text-[11px] text-text-faint">
-                              {relativeTime(comment.createdAt)}
-                            </span>
-                          </div>
-                          <p className="m-0 line-clamp-3 font-sans text-[13.5px] leading-[1.6] text-text">
-                            {comment.content}
-                          </p>
-                          <div className="mt-3 flex flex-wrap items-center gap-3 font-mono text-[11px] text-text-faint">
-                            <span>
-                              {comment.likesCount}{' '}
-                              {comment.likesCount === 1 ? 'like' : 'likes'}
-                            </span>
-                            <span>
-                              {comment.replyCount}{' '}
-                              {comment.replyCount === 1 ? 'reply' : 'replies'}
-                            </span>
-                            <span>{commentAvailabilityCopy(comment)}</span>
-                          </div>
-                        </button>
-                      ))}
-                    </CardSheet>
+                    <ProfileCommentList
+                      authorAvatarUrl={overview.profile.avatarUrl}
+                      authorName={overview.profile.displayName}
+                      comments={sortedComments}
+                      emptyLabel="no public comments yet."
+                      onOpenComment={openCommentTarget}
+                      reactionsDisabled={!isSignedIn}
+                    />
                   )}
                 </div>
               )}

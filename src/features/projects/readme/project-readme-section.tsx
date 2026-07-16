@@ -13,6 +13,8 @@ export function ProjectReadmeSection({
   bases,
   readmePreview,
 }: ProjectReadmeSectionProps) {
+  if (!readmePreview.trim()) return null
+
   const readmeUrlTransform = (url: string, key: string) =>
     resolveGithubReadmeMarkdownUrl({
       bases,
@@ -27,15 +29,9 @@ export function ProjectReadmeSection({
         <span className="text-text-faint">repo overview</span>
       </div>
       <div className="px-5 py-5 md:px-7 md:py-6">
-        {readmePreview ? (
-          <MarkdownProse urlTransform={readmeUrlTransform}>
-            {readmePreview}
-          </MarkdownProse>
-        ) : (
-          <p className="m-0 font-sans text-sm leading-[1.65] text-text-muted">
-            README not available on GitHub.
-          </p>
-        )}
+        <MarkdownProse urlTransform={readmeUrlTransform}>
+          {readmePreview}
+        </MarkdownProse>
       </div>
     </div>
   )

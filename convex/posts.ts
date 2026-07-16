@@ -8,7 +8,7 @@ import { internalMutation, mutation, query } from './_generated/server'
 import { getViewerFromAuth, getViewerOrThrow } from './lib/auth'
 import { fanOutActivityEventToFollowers } from './lib/homeFeed'
 import { resolveProjectOwnerLogin } from './lib/project_route'
-import type { Doc, Id } from './_generated/dataModel'
+import type { Id } from './_generated/dataModel'
 import {
   buildActorSnapshot,
   buildPostSnapshot,
@@ -21,7 +21,10 @@ import {
   normalizePostSearchQuery,
   withCurrentProjectPostFields,
 } from './lib/posts'
-import { getViewerReactionTypesByTargetId } from './lib/reactions'
+import {
+  getViewerReactionTypesByTargetId,
+  withViewerPostReactions,
+} from './lib/reactions'
 
 const postPageItemValidator = v.object({
   _id: v.id('posts'),
@@ -71,22 +74,6 @@ const emptyPostPage = {
   page: [],
   pageStatus: null,
   splitCursor: null,
-}
-
-function withViewerPostReactions(
-  posts: Array<Doc<'posts'>>,
-  viewerReactionTypesByTargetId: Map<string, string[]>,
-) {
-  return posts.map((post) => {
-    const viewerReactionTypes =
-      viewerReactionTypesByTargetId.get(String(post._id)) ?? []
-
-    return {
-      ...post,
-      viewerHasLiked: viewerReactionTypes.includes('like'),
-      viewerReactionTypes,
-    }
-  })
 }
 
 export const listByProject = query({
