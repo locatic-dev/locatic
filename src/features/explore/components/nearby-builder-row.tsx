@@ -1,5 +1,11 @@
-import { LxAvatar } from '@/components/ui/lx-avatar'
+import { PersonRow } from '@/components/ui/person-row'
+import { MessageSquare } from '@/lib/icons'
 import type { BuilderPreview } from '@/features/explore/types'
+
+const followButtonClass =
+  'min-h-11 shrink-0 rounded-md border px-3 font-mono text-[11.5px] transition-colors'
+const messageIconButtonClass =
+  'inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-md border border-line text-text-muted transition-colors hover:border-text-muted hover:text-text disabled:cursor-default disabled:opacity-60'
 
 export function NearbyBuilderRow({
   builder,
@@ -30,57 +36,52 @@ export function NearbyBuilderRow({
     </>
   )
 
-  if (compact) {
-    return (
-      <div className="border-b border-line py-3 last:border-b-0">
-        <div className="flex items-start gap-3">
-          <button
-            type="button"
-            onClick={onOpenProfile}
-            className="flex min-w-0 flex-1 items-center gap-3 rounded-md bg-transparent p-0 text-left transition-colors hover:text-text"
-          >
-            <LxAvatar
-              name={builder.displayName}
-              avatarUrl={builder.avatarUrl}
-              size={32}
-            />
-            <div className="min-w-0 flex-1">
-              <div className="truncate font-mono text-[13px] font-semibold text-text">
-                {builder.displayName}
-              </div>
-              <div className="truncate font-mono text-[11px] text-text-faint">
-                {metadata}
-              </div>
-            </div>
-          </button>
-
-          {!isSelf && (
-            <button
-              type="button"
-              onClick={onFollow}
-              disabled={followPending}
-              className={`min-h-11 min-w-29 shrink-0 self-start rounded-md border px-3 py-2 text-center font-mono text-[11.5px] transition-colors ${
-                followed
-                  ? 'border-text-muted bg-transparent text-text'
-                  : 'border-line bg-transparent text-text-muted hover:border-text-muted hover:text-text'
-              }`}
-            >
-              {followPending ? '…' : followed ? 'following' : 'follow'}
-            </button>
-          )}
-        </div>
-
+  // Trailing actions: a message icon-button + a follow button, side by side, so
+  // the row stays a single compact line instead of stacking a full-width button.
+  const action =
+    !isSelf || onMessage ? (
+      <div className="flex items-center gap-1.5">
         {onMessage && (
           <button
             type="button"
             onClick={onMessage}
             disabled={messagePending}
-            className="mt-3 flex min-h-11 w-full items-center justify-center rounded-md border border-line px-3 py-2 font-mono text-[11.5px] text-text-muted transition-colors hover:border-text-muted hover:text-text disabled:cursor-default disabled:opacity-60"
+            aria-label={`Message ${builder.displayName}`}
+            className={messageIconButtonClass}
           >
-            {messagePending ? 'opening…' : 'message'}
+            <MessageSquare size={15} strokeWidth={1.6} />
+          </button>
+        )}
+        {!isSelf && (
+          <button
+            type="button"
+            onClick={onFollow}
+            disabled={followPending}
+            className={`${followButtonClass} ${
+              followed
+                ? 'border-text-muted text-text'
+                : 'border-brand/40 text-brand hover:border-brand hover:bg-selected'
+            }`}
+          >
+            {followPending ? '…' : followed ? 'following' : 'follow'}
           </button>
         )}
       </div>
+    ) : undefined
+
+  if (compact) {
+    return (
+      <PersonRow
+        avatarName={builder.displayName}
+        avatarUrl={builder.avatarUrl}
+        size={32}
+        title={builder.displayName}
+        meta={metadata}
+        onClick={onOpenProfile}
+        ariaLabel={`Open ${builder.displayName}'s profile`}
+        action={action}
+        className="border-b border-line py-3 last:border-b-0"
+      />
     )
   }
 
@@ -93,56 +94,20 @@ export function NearbyBuilderRow({
     }`,
   ].join(' · ')
 
+  // Frameless cozy row — the enclosing CardSheet owns the border + divider.
   return (
-    <div className="lx-card flex flex-wrap items-center gap-x-3 gap-y-3 rounded-card border border-line bg-surface px-4 py-3.5">
-      <button
-        type="button"
+    <div className="bg-surface px-5 py-4">
+      <PersonRow
+        avatarName={builder.displayName}
+        avatarUrl={builder.avatarUrl}
+        size={40}
+        title={builder.displayName}
+        meta={metadata}
+        subtitle={stats}
         onClick={onOpenProfile}
-        className="flex min-w-0 flex-1 items-center gap-3 rounded-md bg-transparent p-0 text-left transition-colors hover:text-text"
-      >
-        <LxAvatar
-          name={builder.displayName}
-          avatarUrl={builder.avatarUrl}
-          size={40}
-        />
-        <div className="min-w-0 flex-1">
-          <div className="truncate font-mono text-[14px] font-semibold text-text">
-            {builder.displayName}
-          </div>
-          <div className="truncate font-mono text-[11.5px] text-text-muted">
-            {metadata}
-          </div>
-          <div className="mt-0.5 truncate font-mono text-[11px] text-text-faint">
-            {stats}
-          </div>
-        </div>
-      </button>
-      <div className="flex shrink-0 items-center gap-2">
-        {onMessage && (
-          <button
-            type="button"
-            onClick={onMessage}
-            disabled={messagePending}
-            className="min-h-11 min-w-24 rounded-md border border-line px-3 py-2 font-mono text-[11.5px] text-text-muted transition-colors hover:border-text-muted hover:text-text disabled:cursor-default disabled:opacity-60"
-          >
-            {messagePending ? 'opening…' : 'message'}
-          </button>
-        )}
-        {!isSelf && (
-          <button
-            type="button"
-            onClick={onFollow}
-            disabled={followPending}
-            className={`min-h-11 min-w-22 rounded-md border px-3 py-2 font-mono text-[11.5px] transition-colors ${
-              followed
-                ? 'border-text-muted bg-transparent text-text'
-                : 'border-brand/40 bg-transparent text-brand hover:border-brand hover:bg-selected'
-            }`}
-          >
-            {followPending ? '…' : followed ? 'following' : 'follow'}
-          </button>
-        )}
-      </div>
+        ariaLabel={`Open ${builder.displayName}'s profile`}
+        action={action}
+      />
     </div>
   )
 }

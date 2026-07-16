@@ -276,6 +276,18 @@ describe('ExploreFeed', () => {
     expect(screen.getByText('posts')).toBeTruthy()
   })
 
+  it('gives explore posts an author identity (pfp + name) like project cards', () => {
+    renderFeed({
+      isPostsMode: true,
+      postResults: [post],
+    })
+
+    // Author name leads the header, and the avatar (initials fallback, empty
+    // avatarUrl) is labelled with the author name.
+    expect(screen.getByText('Avi')).toBeTruthy()
+    expect(screen.getByLabelText('Avi')).toBeTruthy()
+  })
+
   it('shows scoped post browse empty copy when there are no browsable posts', () => {
     renderFeed({
       isPostsMode: true,

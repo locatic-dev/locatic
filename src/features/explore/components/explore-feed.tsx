@@ -1,14 +1,13 @@
 import { useState, type ReactNode } from 'react'
 import * as m from 'motion/react-m'
 import type { Id } from '../../../../convex/_generated/dataModel'
-import { Link } from '@tanstack/react-router'
 import { EmptyState } from '@/components/ui/empty-state'
 import { ProjectCard, ProjectCardSkeleton } from '@/components/ui/project-card'
+import { CardSheet, cardSheetClass } from '@/components/ui/card-sheet'
 import { Skeleton } from '@/components/ui/skeleton'
 import { isExploreUserFollowed } from '@/features/explore/state'
 import { EXPLORE_PAGINATED_PAGE_SIZE } from '@/features/explore/pagination'
-import { relativeTime } from '@/lib/time'
-import { Compass, X } from '@/lib/icons'
+import { Compass } from '@/lib/icons'
 import { fadeUp, listStagger, pressScale } from '@/lib/motion'
 import type {
   BuilderPreview,
@@ -17,6 +16,7 @@ import type {
 import type { ProjectCardPreview } from '@/features/contracts'
 import { toProjectCardData } from '@/features/project-card-preview'
 import { NearbyBuilderRow } from './nearby-builder-row'
+import { ExplorePostCard } from './explore-post-card'
 
 function getInitialPageKeys<T>(items: T[], getKey: (item: T) => string) {
   return new Set(items.slice(0, EXPLORE_PAGINATED_PAGE_SIZE).map(getKey))
@@ -62,23 +62,19 @@ function InitialPageMotionList<T>({
   )
 }
 
-const cardPressClass =
-  'transition-transform duration-150 ease-out active:scale-[0.98]'
-
 function PostRowSkeleton() {
   return (
-    <div className="flex items-start gap-2 rounded-card border border-line bg-surface px-4 py-3.5">
+    <div className="flex items-start gap-2 bg-surface px-5 py-4">
       <div className="min-w-0 flex-1">
-        <div className="mb-2 flex items-center gap-2">
-          <Skeleton className="h-3 w-28" />
-          <Skeleton className="h-3 w-12" />
+        <div className="mb-2 flex items-center gap-2.5">
+          <Skeleton className="size-8 shrink-0 rounded-full" />
+          <div className="min-w-0 flex-1">
+            <Skeleton className="h-3 w-28" />
+            <Skeleton className="mt-1.5 h-2.5 w-36" />
+          </div>
         </div>
         <Skeleton className="h-3.5 w-full" />
         <Skeleton className="mt-2 h-3.5 w-4/5" />
-        <div className="mt-3 flex gap-1.5">
-          <Skeleton className="h-5 w-14 rounded-control" />
-          <Skeleton className="h-5 w-16 rounded-control" />
-        </div>
       </div>
     </div>
   )
@@ -86,7 +82,7 @@ function PostRowSkeleton() {
 
 function BuilderRowSkeleton() {
   return (
-    <div className="flex items-center gap-3 rounded-card border border-line bg-surface px-4 py-3.5">
+    <div className="flex items-center gap-3 bg-surface px-5 py-4">
       <Skeleton className="h-10 w-10 shrink-0 rounded-full" />
       <div className="min-w-0 flex-1">
         <Skeleton className="h-3.5 w-32" />
@@ -262,17 +258,17 @@ export function ExploreFeed({
         )}
 
       {isBuildersMode && isBuilderFeedLoading && (
-        <div
+        <CardSheet
           role="status"
           aria-label={
             isBuilderSearchActive ? 'searching builders…' : 'loading builders…'
           }
-          className="mb-8 flex flex-col gap-3"
+          className="mb-8"
         >
           {[0, 1, 2].map((index) => (
             <BuilderRowSkeleton key={index} />
           ))}
-        </div>
+        </CardSheet>
       )}
 
       {isBuildersMode && !isBuilderFeedLoading && builderResults.length > 0 && (
@@ -282,10 +278,9 @@ export function ExploreFeed({
           </div>
           <InitialPageMotionList
             key={`builders:${entranceKey}`}
-            className="flex flex-col gap-3"
+            className={cardSheetClass}
             items={builderResults}
             getKey={(builder) => String(builder.userId)}
-            motionClassName={cardPressClass}
           >
             {(builder) => (
               <NearbyBuilderRow
@@ -395,17 +390,16 @@ export function ExploreFeed({
         )}
 
       {isPostsMode && postSearchLoading && (
-        <div
+        <CardSheet
           role="status"
           aria-label={
             isPostSearchActive ? 'searching posts…' : 'loading posts…'
           }
-          className="flex flex-col gap-3"
         >
           {[0, 1, 2].map((index) => (
             <PostRowSkeleton key={index} />
           ))}
-        </div>
+        </CardSheet>
       )}
 
       {isPostsMode &&
@@ -428,64 +422,15 @@ export function ExploreFeed({
           </div>
           <InitialPageMotionList
             key={`posts:${entranceKey}`}
-            className="flex flex-col gap-3"
+            className={cardSheetClass}
             items={visiblePostResults}
             getKey={(post) => String(post._id)}
           >
             {(post) => (
-              <div
-                className={`lx-card flex items-start gap-2 rounded-card border border-line bg-surface ${cardPressClass}`}
-              >
-                <Link
-                  to="/project/$owner/$repo"
-                  params={{
-                    owner:
-                      post.projectSnapshot.ownerLogin ??
-                      post.projectSnapshot.fullName.split('/')[0] ??
-                      post.projectSnapshot.fullName,
-                    repo: post.projectSnapshot.name,
-                  }}
-                  search={{ post: String(post._id) }}
-                  hash={`post-${String(post._id)}`}
-                  preload="intent"
-                  className="min-w-0 flex-1 px-4 py-3.5 text-left"
-                >
-                  {/* Repo attribution — quiet mono prefix */}
-                  <div className="mb-1.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[11px] text-text-faint">
-                    <span className="text-text-muted">
-                      {post.projectSnapshot.fullName}
-                    </span>
-                    <span>{relativeTime(post.createdAt)}</span>
-                    {post.actorSnapshot.displayName && (
-                      <span>by {post.actorSnapshot.displayName}</span>
-                    )}
-                  </div>
-                  {/* Post body leads — this is the content */}
-                  <p className="m-0 line-clamp-2 font-sans text-[14px] leading-6 text-text">
-                    {post.body}
-                  </p>
-                  {post.projectTopics.length > 0 && (
-                    <div className="mt-3 flex flex-wrap gap-1.5">
-                      {post.projectTopics.slice(0, 4).map((topic) => (
-                        <span
-                          key={topic}
-                          className="rounded-control border border-line px-2 py-0.5 font-mono text-[10.5px] text-text-muted"
-                        >
-                          #{topic}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </Link>
-                <button
-                  type="button"
-                  onClick={() => onDismissPost(post._id, String(post._id))}
-                  aria-label="Dismiss post"
-                  className="mt-1 mr-1 flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-md border-none bg-transparent text-text-muted transition-colors hover:text-text"
-                >
-                  <X size={12} aria-hidden="true" />
-                </button>
-              </div>
+              <ExplorePostCard
+                post={post}
+                onDismiss={() => onDismissPost(post._id, String(post._id))}
+              />
             )}
           </InitialPageMotionList>
           {hasMorePosts && (
@@ -505,27 +450,28 @@ export function ExploreFeed({
       )}
 
       {!isBuildersMode && !isPostsMode && isProjectFeedLoading && (
-        <div
+        <CardSheet
           role="status"
           aria-label={
             isProjectSearchActive ? 'searching projects…' : 'loading projects…'
           }
-          className="flex flex-col gap-3.5"
         >
           {[0, 1, 2].map((index) => (
-            <ProjectCardSkeleton key={index} />
+            <ProjectCardSkeleton
+              key={index}
+              className="rounded-none border-0"
+            />
           ))}
-        </div>
+        </CardSheet>
       )}
 
       {!isBuildersMode && !isPostsMode && visibleItems.length > 0 && (
-        <div className="flex flex-col gap-3.5">
+        <div>
           <InitialPageMotionList
             key={`projects:${entranceKey}`}
-            className="flex flex-col gap-3.5"
+            className={cardSheetClass}
             items={visibleItems}
             getKey={(item) => String(item.projectId)}
-            motionClassName={cardPressClass}
           >
             {(item) => {
               const projectId = item.projectId
@@ -542,6 +488,7 @@ export function ExploreFeed({
                     liked,
                     followed,
                   }}
+                  className="rounded-none border-0 focus-visible:ring-inset"
                   onDismiss={() => onDismissProject(projectId, projectKey)}
                   onLike={() => onLikeProject(projectId, projectKey)}
                   authorLink={{ username: item.authorHandle }}
@@ -560,7 +507,7 @@ export function ExploreFeed({
             }}
           </InitialPageMotionList>
           {hasMoreProjects && (
-            <div className="flex justify-center pt-1">
+            <div className="mt-4 flex justify-center">
               <m.button
                 type="button"
                 onClick={onLoadMoreProjects}
