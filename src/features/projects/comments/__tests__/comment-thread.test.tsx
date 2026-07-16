@@ -161,10 +161,12 @@ describe('CommentThread', () => {
     const topLevelComment = container.querySelector('#comment-comment_1')
     const nestedReply = container.querySelector('#comment-comment_reply_1')
 
-    expect(topLevelComment?.className).toContain('lx-card')
+    // Top-level comments use the shared Card anatomy (rounded card surface);
+    // nested replies keep the borderless thread rail.
     expect(topLevelComment?.className).toContain('rounded-card')
+    expect(topLevelComment?.className).toContain('bg-surface')
     expect(nestedReply?.className).toContain('border-l')
-    expect(nestedReply?.className).not.toContain('lx-card')
+    expect(nestedReply?.className).not.toContain('bg-surface')
   })
 
   it('submits a reply without requiring the composer to stay open', () => {

@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react'
 import { api } from '../../../../convex/_generated/api'
 import type { Doc, Id } from '../../../../convex/_generated/dataModel'
 import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
 import { LxAvatar } from '@/components/ui/lx-avatar'
 import { Textarea } from '@/components/ui/textarea'
 import { relativeTime } from '@/lib/time'
@@ -301,13 +302,13 @@ export function ProjectPostCard({
   }
 
   return (
-    <article className="lx-card rounded-card border border-line bg-surface px-4 py-4">
+    <Card as="article" density="compact">
       <div className="mb-3 flex min-w-0 items-start justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
           <LxAvatar
             name={post.actorSnapshot.displayName}
             avatarUrl={post.actorSnapshot.avatarUrl}
-            size={34}
+            size={30}
           />
           <div className="min-w-0">
             <div className="font-mono text-[12.5px] font-semibold text-text">
@@ -347,7 +348,7 @@ export function ProjectPostCard({
       </div>
 
       {editing ? (
-        <div className="mb-4 rounded-[6px] border border-line bg-canvas px-3 py-3">
+        <div className="mb-3 rounded-[6px] border border-line bg-canvas px-3 py-3">
           <Textarea
             value={editBody}
             onChange={(event) => setEditBody(event.target.value)}
@@ -375,12 +376,12 @@ export function ProjectPostCard({
           </div>
         </div>
       ) : (
-        <p className="mb-4 whitespace-pre-wrap font-sans text-[14px] leading-7 text-text wrap-anywhere">
+        <p className="mb-3 whitespace-pre-wrap font-sans text-[14px] leading-6 text-text wrap-anywhere">
           {post.body}
         </p>
       )}
 
-      <div className="mb-4 flex flex-wrap items-center gap-2 border-y border-line py-2">
+      <div className="mb-3 flex flex-wrap items-center gap-2 border-y border-line py-2">
         <ReactionBar
           disabled={!isSignedIn}
           reactionCounts={post.reactionCounts}
@@ -400,7 +401,7 @@ export function ProjectPostCard({
       </div>
 
       {commentComposerOpen && isSignedIn && (
-        <div className="mb-4 flex flex-wrap gap-3 rounded-[6px] border border-line bg-canvas px-3 py-3">
+        <div className="mb-3 flex flex-wrap gap-3 rounded-[6px] border border-line bg-canvas px-3 py-3">
           <Textarea
             value={comment}
             onChange={(event) => setComment(event.target.value)}
@@ -467,6 +468,6 @@ export function ProjectPostCard({
           )}
         </div>
       )}
-    </article>
+    </Card>
   )
 }

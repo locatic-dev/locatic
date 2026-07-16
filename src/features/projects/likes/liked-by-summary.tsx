@@ -4,6 +4,7 @@ import { usePaginatedQuery } from 'convex/react'
 import { api } from '../../../../convex/_generated/api'
 import type { Id } from '../../../../convex/_generated/dataModel'
 import { LxAvatar } from '@/components/ui/lx-avatar'
+import { PersonRow } from '@/components/ui/person-row'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -166,28 +167,19 @@ export function LikedBySummary({
             <ul className="flex flex-col">
               {likers.results.map((user) => (
                 <li key={String(user.userId)}>
-                  <button
-                    type="button"
+                  <PersonRow
+                    avatarName={user.displayName}
+                    avatarUrl={user.avatarUrl}
+                    size={32}
+                    title={user.displayName}
+                    meta={`@${user.githubUsername}`}
                     onClick={() => {
                       setOpen(false)
                       onOpenProfile(user.githubUsername)
                     }}
-                    className="flex min-h-11 w-full items-center gap-2.5 rounded-md bg-transparent px-2 py-1.5 text-left transition-colors hover:bg-surface-alt"
-                  >
-                    <LxAvatar
-                      name={user.displayName}
-                      avatarUrl={user.avatarUrl}
-                      size={32}
-                    />
-                    <span className="min-w-0">
-                      <span className="block truncate font-mono text-[13px] text-text">
-                        {user.displayName}
-                      </span>
-                      <span className="block truncate font-mono text-[11.5px] text-text-faint">
-                        @{user.githubUsername}
-                      </span>
-                    </span>
-                  </button>
+                    ariaLabel={`Open ${user.displayName}'s profile`}
+                    identityClassName="px-2 py-1.5 hover:bg-surface-alt"
+                  />
                 </li>
               ))}
             </ul>

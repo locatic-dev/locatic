@@ -414,14 +414,17 @@ export function ProjectCard({
 /* ── Skeleton variant ─────────────────────────────────────────────── */
 export function ProjectCardSkeleton({
   compact = false,
+  className,
 }: {
   compact?: boolean
+  className?: string
 }) {
   return (
     <div
       className={cn(
         'flex flex-col gap-3 rounded-card border border-line bg-surface',
         compact ? 'px-4 py-3' : 'px-5 py-4',
+        className,
       )}
     >
       <div className="lx-skeleton h-3.5 w-3/5" />

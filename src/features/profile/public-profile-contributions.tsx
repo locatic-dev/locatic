@@ -1,4 +1,5 @@
 import { ContributionGraph } from '@/components/ui/contribution-graph'
+import { CardSheet } from '@/components/ui/card-sheet'
 import { EmptyState } from '@/components/ui/empty-state'
 import { ProjectCard } from '@/components/ui/project-card'
 import type { ContributedProjectPreview } from '@/features/contracts'
@@ -69,16 +70,13 @@ export function PublicProfileContributionsList({
   }
 
   return (
-    <div className="flex flex-col gap-3.5">
+    <CardSheet>
       {contributions.map((entry) => {
         const owner = getProjectCardOwner(entry.project)
         const repo = getProjectCardRepo(entry.project)
 
         return (
-          <div
-            key={getProjectCardId(entry.project)}
-            className="rounded-card border border-line bg-transparent"
-          >
+          <div key={getProjectCardId(entry.project)} className="bg-surface">
             <div className="border-b border-line px-4 py-3 font-mono text-[11px] text-text-faint">
               contributor · {compactNumber(entry.commitCount)} commits matched
             </div>
@@ -90,11 +88,11 @@ export function PublicProfileContributionsList({
               }}
               projectLink={{ owner, repo }}
               showActions={false}
-              className="rounded-none border-0"
+              className="rounded-none border-0 focus-visible:ring-inset"
             />
           </div>
         )
       })}
-    </div>
+    </CardSheet>
   )
 }

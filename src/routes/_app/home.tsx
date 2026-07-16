@@ -12,6 +12,7 @@ import type { Id } from '../../../convex/_generated/dataModel'
 import { viewerLikedProjectIdsQueryOptions } from '@/features/viewer/queries'
 import { homeFeedQueryOptions } from '@/integrations/convex/query-options'
 import { Button } from '@/components/ui/button'
+import { CardSheet, cardSheetClass } from '@/components/ui/card-sheet'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Skeleton } from '@/components/ui/skeleton'
 import { PageHeader } from '@/components/app-shell/page-header'
@@ -206,7 +207,7 @@ function HomePage() {
                 </div>
 
                 <m.div
-                  className="flex flex-col gap-3.5"
+                  className={cardSheetClass}
                   variants={listStagger}
                   initial="hidden"
                   animate="visible"
@@ -221,6 +222,7 @@ function HomePage() {
                         onLikeProject={(projectId, projectKey) =>
                           void handleLike(projectId, projectKey)
                         }
+                        className="rounded-none border-0"
                       />
                     )
 
@@ -234,25 +236,25 @@ function HomePage() {
                       <div key={itemId}>{card}</div>
                     )
                   })}
-                  {homeFeed.status === 'CanLoadMore' && (
-                    <div className="flex justify-center pt-1">
-                      <Button
-                        type="button"
-                        variant="monoOutline"
-                        size="meta"
-                        onClick={() => homeFeed.loadMore(20)}
-                        className="min-h-11 font-mono"
-                      >
-                        load older activity
-                      </Button>
-                    </div>
-                  )}
-                  {homeFeed.status === 'LoadingMore' && (
-                    <div className="py-2 text-center font-mono text-[11.5px] text-text-muted">
-                      loading older activity…
-                    </div>
-                  )}
                 </m.div>
+                {homeFeed.status === 'CanLoadMore' && (
+                  <div className="mt-4 flex justify-center">
+                    <Button
+                      type="button"
+                      variant="monoOutline"
+                      size="meta"
+                      onClick={() => homeFeed.loadMore(20)}
+                      className="min-h-11 font-mono"
+                    >
+                      load older activity
+                    </Button>
+                  </div>
+                )}
+                {homeFeed.status === 'LoadingMore' && (
+                  <div className="py-2 text-center font-mono text-[11.5px] text-text-muted">
+                    loading older activity…
+                  </div>
+                )}
               </>
             )}
           </div>
@@ -266,16 +268,9 @@ function HomePage() {
 
 function HomeFeedSkeletonRows() {
   return (
-    <div
-      role="status"
-      aria-label="Loading home feed"
-      className="flex flex-col gap-3.5"
-    >
+    <CardSheet role="status" aria-label="Loading home feed">
       {Array.from({ length: 3 }, (_, index) => (
-        <div
-          key={index}
-          className="overflow-hidden rounded-card border border-line bg-surface"
-        >
+        <div key={index} className="bg-surface">
           {/* Header: avatar + actor summary, matches HomeFeedCard header */}
           <div className="flex items-start gap-3 px-4 py-4 sm:px-5">
             <Skeleton className="size-10 shrink-0 rounded-full" />
@@ -294,6 +289,6 @@ function HomeFeedSkeletonRows() {
           </div>
         </div>
       ))}
-    </div>
+    </CardSheet>
   )
 }
