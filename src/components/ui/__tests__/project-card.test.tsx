@@ -119,15 +119,21 @@ describe('ProjectCard', () => {
       />,
     )
 
-    expect(screen.getByText(/TypeScript 80%/)).toBeTruthy()
-    expect(screen.getByText(/CSS 20%/)).toBeTruthy()
+    expect(screen.getByText('TypeScript')).toBeTruthy()
+    expect(screen.getByText('80%')).toBeTruthy()
+    expect(screen.getByText('CSS')).toBeTruthy()
+    expect(screen.getByText('20%')).toBeTruthy()
+    expect(screen.getByLabelText('Project languages').innerHTML).toContain(
+      'w-56',
+    )
   })
 
   it('renders a single full language segment when only one language', () => {
     render(<ProjectCard project={project} />)
 
     // The default project has a single language (TypeScript) -> 100% segment.
-    expect(screen.getByText(/TypeScript 100%/)).toBeTruthy()
+    expect(screen.getByText('TypeScript')).toBeTruthy()
+    expect(screen.getByText('100%')).toBeTruthy()
   })
 
   it('does not render a recommendation badge from legacy card data', () => {
@@ -145,5 +151,62 @@ describe('ProjectCard', () => {
 
     expect(screen.queryByText('recommended')).toBeNull()
     expect(screen.queryByText('97% match')).toBeNull()
+  })
+
+  it('can lead with the author and wrap the full city name', () => {
+    const { container } = render(
+      <ProjectCard
+        project={{
+          ...project,
+          city: 'Bengaluru, Karnataka, India',
+        }}
+        authorPlacement="header"
+        showFullCity
+        authorLink={{ username: 'avinash' }}
+        showActions={false}
+      />,
+    )
+
+    expect(container.textContent?.indexOf('Avi')).toBeLessThan(
+      container.textContent?.indexOf('locatic/app') ?? 0,
+    )
+    expect(
+      screen.getByText('Bengaluru, Karnataka, India').className,
+    ).not.toContain('truncate')
+  })
+
+  it('places project reactions on the left and suppresses the legacy heart', () => {
+    render(
+      <ProjectCard
+        project={project}
+        reactionSlot={<div>project reactions</div>}
+        onLike={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByText('project reactions')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /^like$/i })).toBeNull()
+  })
+
+  it('renders a project-level control without navigating the card', () => {
+    const onPin = vi.fn()
+
+    render(
+      <ProjectCard
+        project={project}
+        projectLink={{ owner: 'locatic', repo: 'app' }}
+        topLeftSlot={
+          <button type="button" onClick={onPin} aria-label="Unpin from profile">
+            pinned
+          </button>
+        }
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Unpin from profile' }))
+
+    expect(onPin).toHaveBeenCalledTimes(1)
+    expect(navigate).not.toHaveBeenCalled()
+    expect(screen.getByText('pinned')).toBeTruthy()
   })
 })

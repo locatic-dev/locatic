@@ -1,5 +1,5 @@
 import * as m from 'motion/react-m'
-import { LxAvatar } from '@/components/ui/lx-avatar'
+import { PersonRow } from '@/components/ui/person-row'
 import { Skeleton } from '@/components/ui/skeleton'
 import { EmptyState } from '@/components/ui/empty-state'
 import { indicatorSpring } from '@/lib/motion'
@@ -102,28 +102,21 @@ export function ProfileNetworkSection({
         ) : (
           <>
             {items.map((item) => (
-              <button
+              <PersonRow
                 key={item.userId}
-                type="button"
-                onClick={() => onSelectUser(item.githubUsername)}
-                className="group flex min-h-14 w-full items-center gap-3 rounded-[6px] px-2 py-3 text-left transition-colors hover:bg-surface-alt"
-              >
-                <LxAvatar
-                  name={item.displayName}
-                  avatarUrl={item.avatarUrl ?? undefined}
-                  size={36}
-                  className="ring-1 ring-transparent ring-offset-2 ring-offset-surface transition-[box-shadow] group-hover:ring-brand/40"
-                />
-                <div className="min-w-0 flex-1">
-                  <div className="truncate font-mono text-[12.5px] font-semibold text-text">
-                    {item.displayName}
-                  </div>
-                  <div className="truncate font-mono text-[11px] text-text-faint">
+                avatarName={item.displayName}
+                avatarUrl={item.avatarUrl}
+                title={item.displayName}
+                meta={
+                  <>
                     @{item.githubUsername}
                     {item.cityName ? ` · ${item.cityName}` : ''}
-                  </div>
-                </div>
-              </button>
+                  </>
+                }
+                onClick={() => onSelectUser(item.githubUsername)}
+                ariaLabel={`Open ${item.displayName}'s profile`}
+                identityClassName="px-2 py-2 hover:bg-surface-alt"
+              />
             ))}
             {hasMore && (
               <button

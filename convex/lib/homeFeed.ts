@@ -1,5 +1,6 @@
 import type { Id } from '../_generated/dataModel'
 import type { MutationCtx } from '../_generated/server'
+import { internal } from '../_generated/api'
 import {
   HOME_FEED_EXPANDED_PREVIEW_LIMIT,
   HOME_FEED_GROUP_KIND_VALUES,
@@ -244,24 +245,40 @@ export async function upsertHomeFeedItemForEvent(
   }
 }
 
-export async function fanOutActivityEventToFollowers(
+export async function enqueueActivityEventFanOut(
+  ctx: MutationCtx,
+  eventId: Id<'activity_events'>,
+) {
+  await ctx.scheduler.runAfter(0, internal.home.fanOutActivityEventBatch, {
+    eventId,
+    cursor: null,
+  })
+}
+
+export async function fanOutActivityEventToFollowersPage(
   ctx: MutationCtx,
   event: Doc<'activity_events'>,
+  cursor: string | null,
 ) {
   const target = getHomeFeedLegacyTarget(event)
   if (!target) {
-    return
+    return { continueCursor: null, isDone: true }
   }
 
-  const follows = await ctx.db
+  const followsPage = await ctx.db
     .query('follows')
     .withIndex('by_following', (query) =>
       query.eq('followingId', event.actorId),
     )
-    .collect()
+    .paginate({
+      cursor,
+      numItems: 100,
+      maximumRowsRead: 100,
+      maximumBytesRead: 2_000_000,
+    })
 
   await Promise.all(
-    follows
+    followsPage.page
       .filter((follow) => follow.followerId !== event.actorId)
       .map((follow) =>
         upsertHomeFeedItemForEvent(
@@ -286,6 +303,11 @@ export async function fanOutActivityEventToFollowers(
         ),
       ),
   )
+
+  return {
+    continueCursor: followsPage.isDone ? null : followsPage.continueCursor,
+    isDone: followsPage.isDone,
+  }
 }
 
 export async function backfillHomeFeedForFollow(

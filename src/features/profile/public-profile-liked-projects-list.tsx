@@ -1,5 +1,6 @@
 import { Link } from '@tanstack/react-router'
 import type { Id } from '../../../convex/_generated/dataModel'
+import { CardSheet } from '@/components/ui/card-sheet'
 import { EmptyState } from '@/components/ui/empty-state'
 import type { ProjectCardPreview } from '@/features/contracts'
 import {
@@ -37,7 +38,7 @@ export function PublicProfileLikedProjectsList({
   }
 
   return (
-    <div className="flex flex-col gap-3">
+    <CardSheet>
       {likedProjects.map((project) => {
         const owner = getProjectCardOwner(project.project)
         const repo = getProjectCardRepo(project.project)
@@ -48,7 +49,7 @@ export function PublicProfileLikedProjectsList({
             to="/project/$owner/$repo"
             params={{ owner, repo }}
             preload="intent"
-            className="rounded-[6px] border border-line bg-surface px-4 py-3.5 text-left"
+            className="block bg-surface px-5 py-4 text-left no-underline transition-colors hover:bg-surface-alt focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-inset"
           >
             <div className="mb-1 font-mono text-[13px] font-semibold text-text">
               {getProjectCardFullName(project.project)}
@@ -59,6 +60,6 @@ export function PublicProfileLikedProjectsList({
           </Link>
         )
       })}
-    </div>
+    </CardSheet>
   )
 }

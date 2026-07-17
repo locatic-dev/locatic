@@ -6,6 +6,7 @@ import {
   getProjectDeepLinkTab,
   normalizeProjectSearchParam,
   parseCommentPathSearch,
+  PROJECT_TAB_ORDER,
   shouldAutoLoadDeepLinkPage,
   shouldResetReleasedHighlight,
   shouldSyncProjectTab,
@@ -13,6 +14,9 @@ import {
 } from '../deep-link'
 
 describe('project deep links', () => {
+  it('uses the comments, posts, releases workspace order', () => {
+    expect(PROJECT_TAB_ORDER).toEqual(['comments', 'posts', 'releases'])
+  })
   it('parses compact comment path search params', () => {
     expect(parseCommentPathSearch('root, parent ,, child ')).toEqual([
       'root',
@@ -78,21 +82,21 @@ describe('project deep links', () => {
         postId: null,
         postsCount: 3,
       }),
-    ).toBe('discussion')
+    ).toBe('comments')
     expect(
       getProjectDeepLinkTab({
         commentId: null,
         postId: null,
         postsCount: 3,
       }),
-    ).toBe('posts')
+    ).toBe('comments')
     expect(
       getProjectDeepLinkTab({
         commentId: null,
         postId: null,
         postsCount: 0,
       }),
-    ).toBe('readme')
+    ).toBe('comments')
   })
 
   it('prefers explicit ancestor paths over thread fallback', () => {
