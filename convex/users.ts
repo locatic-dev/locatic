@@ -64,6 +64,9 @@ import {
 } from './lib/validators'
 import {
   getCommentReactionCounts,
+  getNextCommentReactionState,
+  getNextPostReactionCounts,
+  getNextProjectReactionLocatic,
   getViewerReactionTypesByTargetId,
 } from './lib/reactions'
 
@@ -1979,29 +1982,73 @@ export const scrubDeletedAccount = internalMutation({
       }
     }
 
+    const reactionsByTarget = new Map<string, typeof reactions>()
     for (const reaction of reactions) {
-      if (reaction.targetType === 'project') {
-        const projectId = ctx.db.normalizeId('projects', reaction.targetId)
+      const targetKey = `${reaction.targetType}:${reaction.targetId}`
+      const targetReactions = reactionsByTarget.get(targetKey) ?? []
+      targetReactions.push(reaction)
+      reactionsByTarget.set(targetKey, targetReactions)
+    }
+
+    const reactionCleanupAt = Date.now()
+    for (const targetReactions of reactionsByTarget.values()) {
+      const [firstReaction] = targetReactions
+      if (!firstReaction) continue
+
+      if (firstReaction.targetType === 'project') {
+        const projectId = ctx.db.normalizeId('projects', firstReaction.targetId)
         const project = projectId ? await ctx.db.get(projectId) : null
         if (project) {
+          const locatic = targetReactions.reduce(
+            (current, reaction) =>
+              getNextProjectReactionLocatic(
+                { locatic: current },
+                reaction.reactionType,
+                -1,
+              ),
+            project.locatic,
+          )
           await ctx.db.patch(project._id, {
-            locatic: {
-              ...project.locatic,
-              likesCount: Math.max(0, project.locatic.likesCount - 1),
-            },
-            updatedAt: Date.now(),
+            locatic,
+            updatedAt: reactionCleanupAt,
           })
         }
+        continue
       }
 
-      if (reaction.targetType === 'comment') {
-        const commentId = ctx.db.normalizeId('comments', reaction.targetId)
-        const comment = commentId ? await ctx.db.get(commentId) : null
-        if (comment) {
-          await ctx.db.patch(comment._id, {
-            likesCount: Math.max(0, comment.likesCount - 1),
+      if (firstReaction.targetType === 'post') {
+        const postId = ctx.db.normalizeId('posts', firstReaction.targetId)
+        const post = postId ? await ctx.db.get(postId) : null
+        if (post) {
+          const reactionCounts = targetReactions.reduce(
+            (current, reaction) =>
+              getNextPostReactionCounts(
+                { reactionCounts: current },
+                reaction.reactionType,
+                -1,
+              ),
+            post.reactionCounts,
+          )
+          await ctx.db.patch(post._id, {
+            reactionCounts,
+            updatedAt: reactionCleanupAt,
           })
         }
+        continue
+      }
+
+      const commentId = ctx.db.normalizeId('comments', firstReaction.targetId)
+      const comment = commentId ? await ctx.db.get(commentId) : null
+      if (comment) {
+        const reactionState = targetReactions.reduce(
+          (current, reaction) =>
+            getNextCommentReactionState(current, reaction.reactionType, -1),
+          {
+            likesCount: comment.likesCount,
+            reactionCounts: comment.reactionCounts,
+          },
+        )
+        await ctx.db.patch(comment._id, reactionState)
       }
     }
 

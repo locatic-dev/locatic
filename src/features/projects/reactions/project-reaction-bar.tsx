@@ -12,14 +12,16 @@ export function ProjectReactionBar({
 }: {
   disabled?: boolean
   liked?: boolean
-  projectId: string
+  projectId: Id<'projects'>
   reactionCounts?: Record<string, number>
   viewerReactionTypes?: string[]
 }) {
   const { isAuthenticated, isLoading } = useConvexAuth()
+  const shouldQueryViewerReactions =
+    viewerReactionTypes === undefined && !isLoading && isAuthenticated
   const queriedViewerReactionTypes = useQuery(
     api.projects.getViewerReactionTypes,
-    { projectId: projectId as Id<'projects'> },
+    shouldQueryViewerReactions ? { projectId } : 'skip',
   )
   const effectiveViewerReactionTypes = new Set(
     viewerReactionTypes ?? queriedViewerReactionTypes ?? [],
@@ -32,11 +34,10 @@ export function ProjectReactionBar({
         disabled ||
         isLoading ||
         !isAuthenticated ||
-        (viewerReactionTypes === undefined &&
-          queriedViewerReactionTypes === undefined)
+        (shouldQueryViewerReactions && queriedViewerReactionTypes === undefined)
       }
       reactionCounts={reactionCounts ?? {}}
-      targetId={projectId}
+      targetId={String(projectId)}
       targetType="project"
       viewerReactionTypes={[...effectiveViewerReactionTypes]}
     />

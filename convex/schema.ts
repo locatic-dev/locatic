@@ -475,8 +475,7 @@ export default defineSchema({
       'targetType',
       'targetId',
       'reactionType',
-    ])
-    .index('by_user_target_reaction', ['userId', 'targetId', 'reactionType']),
+    ]),
 
   comments: defineTable({
     targetType: commentTargetTypeValidator,

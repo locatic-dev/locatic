@@ -201,6 +201,18 @@ The Convex backend includes scheduled jobs for:
 
 Default city seed data lives in [convex/citiesSeed.ts](convex/citiesSeed.ts), and the cron definitions live in [convex/crons.ts](convex/crons.ts).
 
+#### Project reaction-count backfill
+
+Deploy the Convex functions before starting this one-time compatibility
+backfill. Run `pnpm project-reactions:backfill:development` against the
+development deployment first, then use
+`pnpm project-reactions:backfill:production` only after reviewing the
+development result. The first batch schedules the remaining bounded batches;
+monitor Convex function logs until `scheduledContinuation` is `false` and
+review the reported `likeMismatches` total. Re-running the command is safe:
+projects that already have reaction counts are skipped, and existing public
+like totals are preserved.
+
 ## Available Scripts
 
 ```bash

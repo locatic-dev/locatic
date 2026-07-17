@@ -121,7 +121,6 @@ export function ExploreFeed({
   onDismissPost,
   onDismissProject,
   onFollowUser,
-  onLikeProject,
   onLoadMoreBuilders,
   onLoadMoreProjects,
   onLoadMorePosts,
@@ -129,7 +128,6 @@ export function ExploreFeed({
   onOpenBuilderProfile,
   onResetExplore,
   pendingFollows,
-  pendingLikes,
   pendingUserId,
   projectFeedLoading,
   projectSearchLoading,
@@ -168,7 +166,6 @@ export function ExploreFeed({
     userKey: string,
     currentlyFollowed: boolean,
   ) => void
-  onLikeProject: (projectId: Id<'projects'>, projectKey: string) => void
   onLoadMoreBuilders: () => void
   onLoadMoreProjects: () => void
   onLoadMorePosts: () => void
@@ -176,7 +173,6 @@ export function ExploreFeed({
   onOpenBuilderProfile: (builder: BuilderPreview) => void
   onResetExplore?: () => void
   pendingFollows: Set<string>
-  pendingLikes: Set<string>
   pendingUserId: string | null
   projectFeedLoading: boolean
   projectSearchLoading: boolean
@@ -496,7 +492,7 @@ export function ExploreFeed({
                   showFullCity
                   reactionSlot={
                     <ProjectReactionBar
-                      projectId={projectKey}
+                      projectId={projectId}
                       reactionCounts={item.reactionCounts}
                       viewerReactionTypes={item.viewerReactionTypes}
                       liked={liked}
@@ -504,7 +500,6 @@ export function ExploreFeed({
                   }
                   className="focus-visible:ring-inset"
                   onDismiss={() => onDismissProject(projectId, projectKey)}
-                  onLike={() => onLikeProject(projectId, projectKey)}
                   authorLink={{ username: item.authorHandle }}
                   onFollow={() => onFollowUser(ownerId, ownerKey, followed)}
                   onDM={
@@ -513,7 +508,6 @@ export function ExploreFeed({
                       : undefined
                   }
                   projectLink={{ owner: item.owner, repo: item.repo }}
-                  likePending={pendingLikes.has(projectKey)}
                   followPending={pendingFollows.has(ownerKey)}
                   dmPending={pendingUserId === ownerKey}
                 />

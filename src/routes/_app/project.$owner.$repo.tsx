@@ -23,12 +23,11 @@ import { CityPill } from '@/components/ui/city-pill'
 import { BrandIcon } from '@/components/ui/brand-icon'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
-import { Input } from '@/components/ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { relativeTime } from '@/lib/time'
 import { compactNumber } from '@/lib/format'
 import { linkify } from '@/lib/linkify'
-import { Star, ArrowLeft, Plus, X } from '@/lib/icons'
+import { Star, ArrowLeft } from '@/lib/icons'
 import {
   useAddComment,
   useDeleteComment,
@@ -55,6 +54,7 @@ import { ProjectReleasesSection } from '@/features/projects/releases/project-rel
 import { ProjectPostsSection } from '@/features/projects/posts/project-posts-section'
 import { EmptyState } from '@/components/ui/empty-state'
 import { ProjectReactionBar } from '@/features/projects/reactions/project-reaction-bar'
+import { ProjectTopicEditor } from '@/features/projects/project-topic-editor'
 import {
   ProjectRoutePending,
   ROUTE_PENDING_MIN_MS,
@@ -689,61 +689,22 @@ function ProjectDetailPage() {
               </div>
 
               <ProjectReactionBar
-                projectId={String(detail.project._id)}
+                projectId={detail.project._id}
                 reactionCounts={detail.reactionCounts}
                 viewerReactionTypes={detail.viewerReactionTypes}
                 liked={detail.viewerHasLiked}
                 disabled={!isSignedIn}
               />
 
-              <div className="mb-5 flex flex-wrap items-center gap-2">
-                {projectTopics.map((topic) => (
-                  <span
-                    key={topic}
-                    className="inline-flex min-h-7 items-center gap-1 rounded-pill border border-brand/30 bg-brand-quiet px-2.5 py-1 font-mono text-[11px] text-brand"
-                  >
-                    #{topic}
-                    {isOwnProject && (
-                      <button
-                        type="button"
-                        onClick={() => void handleRemoveTopic(topic)}
-                        disabled={pendingTopics}
-                        className="-my-2 -mr-2 inline-flex min-h-11 min-w-11 items-center justify-center rounded-md bg-transparent text-brand transition-colors hover:text-text"
-                        aria-label={`Remove ${topic}`}
-                      >
-                        <X size={12} />
-                      </button>
-                    )}
-                  </span>
-                ))}
-                {isOwnProject && (
-                  <form
-                    className="flex min-w-0 flex-wrap items-center gap-2"
-                    onSubmit={(event) => {
-                      event.preventDefault()
-                      void handleAddTopic()
-                    }}
-                  >
-                    <Input
-                      value={topicDraft}
-                      onChange={(event) => setTopicDraft(event.target.value)}
-                      placeholder="add topic"
-                      className="h-9 w-36 border-line bg-surface font-mono text-[12px]"
-                    />
-                    <Button
-                      type="submit"
-                      variant="monoOutline"
-                      size="compact"
-                      disabled={!topicDraft.trim() || pendingTopics}
-                      className="font-mono"
-                      aria-label="Add topic"
-                    >
-                      <Plus size={13} />
-                      topic
-                    </Button>
-                  </form>
-                )}
-              </div>
+              <ProjectTopicEditor
+                isOwnProject={isOwnProject}
+                onAddTopic={handleAddTopic}
+                onRemoveTopic={handleRemoveTopic}
+                pending={pendingTopics}
+                setTopicDraft={setTopicDraft}
+                topicDraft={topicDraft}
+                topics={projectTopics}
+              />
 
               <div className="flex flex-wrap items-center gap-2">
                 {languages.map((language) => (

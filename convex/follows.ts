@@ -4,7 +4,7 @@ import { mutation, query } from './_generated/server'
 import { getViewerOrThrow } from './lib/auth'
 import {
   backfillHomeFeedForFollow,
-  fanOutActivityEventToFollowers,
+  enqueueActivityEventFanOut,
   removeHomeFeedItemsForFollow,
 } from './lib/homeFeed'
 import {
@@ -109,10 +109,7 @@ export const follow = mutation({
       createdAt: Date.now(),
     })
 
-    const event = await ctx.db.get(eventId)
-    if (event) {
-      await fanOutActivityEventToFollowers(ctx, event)
-    }
+    await enqueueActivityEventFanOut(ctx, eventId)
 
     await createNotificationIfEnabled(ctx, {
       recipient: targetUser,

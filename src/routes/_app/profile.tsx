@@ -759,7 +759,7 @@ function ProfilePage() {
                               }
                               reactionSlot={
                                 <ProjectReactionBar
-                                  projectId={projectKey}
+                                  projectId={projectId}
                                   reactionCounts={project.reactionCounts}
                                   viewerReactionTypes={
                                     project.viewerReactionTypes
@@ -812,7 +812,9 @@ function ProfilePage() {
                                 showActions={false}
                                 reactionSlot={
                                   <ProjectReactionBar
-                                    projectId={getProjectCardId(entry.project)}
+                                    projectId={getProjectCardDbId(
+                                      entry.project,
+                                    )}
                                     reactionCounts={
                                       entry.project.reactionCounts
                                     }
@@ -873,7 +875,7 @@ function ProfilePage() {
                               showActions={false}
                               reactionSlot={
                                 <ProjectReactionBar
-                                  projectId={String(likedProject.projectId)}
+                                  projectId={likedProject.projectId}
                                   reactionCounts={
                                     likedProject.project.reactionCounts
                                   }
