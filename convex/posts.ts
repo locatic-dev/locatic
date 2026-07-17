@@ -6,7 +6,7 @@ import { ConvexError, v } from 'convex/values'
 
 import { internalMutation, mutation, query } from './_generated/server'
 import { getViewerFromAuth, getViewerOrThrow } from './lib/auth'
-import { fanOutActivityEventToFollowers } from './lib/homeFeed'
+import { enqueueActivityEventFanOut } from './lib/homeFeed'
 import { resolveProjectOwnerLogin } from './lib/project_route'
 import type { Id } from './_generated/dataModel'
 import {
@@ -257,10 +257,7 @@ export const create = mutation({
       createdAt: now,
     })
 
-    const event = await ctx.db.get(eventId)
-    if (event) {
-      await fanOutActivityEventToFollowers(ctx, event)
-    }
+    await enqueueActivityEventFanOut(ctx, eventId)
 
     return {
       ...post,

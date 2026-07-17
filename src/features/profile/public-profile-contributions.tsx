@@ -3,6 +3,7 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { ProjectCard } from '@/components/ui/project-card'
 import type { ContributedProjectPreview } from '@/features/contracts'
 import {
+  getProjectCardDbId,
   getProjectCardId,
   getProjectCardOwner,
   getProjectCardRepo,
@@ -93,7 +94,7 @@ export function PublicProfileContributionsList({
               showActions={false}
               reactionSlot={
                 <ProjectReactionBar
-                  projectId={getProjectCardId(entry.project)}
+                  projectId={getProjectCardDbId(entry.project)}
                   reactionCounts={entry.project.reactionCounts}
                   viewerReactionTypes={entry.project.viewerReactionTypes}
                 />

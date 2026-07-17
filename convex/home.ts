@@ -4,9 +4,13 @@ import {
 } from 'convex/server'
 import { v } from 'convex/values'
 
-import { query, type QueryCtx } from './_generated/server'
+import { internalMutation, query, type QueryCtx } from './_generated/server'
+import { internal } from './_generated/api'
 import { getViewerOrThrow } from './lib/auth'
-import { getHomeFeedLegacyTarget } from './lib/homeFeed'
+import {
+  fanOutActivityEventToFollowersPage,
+  getHomeFeedLegacyTarget,
+} from './lib/homeFeed'
 import { buildProjectCardPreview } from './lib/project_previews'
 import { buildProjectSnapshot } from './lib/snapshots'
 import {
@@ -100,6 +104,31 @@ const enrichedHomeFeedTargetValidator = v.union(
   enrichedProfileTargetValidator,
   enrichedPullRequestTargetValidator,
 )
+
+export const fanOutActivityEventBatch = internalMutation({
+  args: {
+    eventId: v.id('activity_events'),
+    cursor: v.union(v.string(), v.null()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const event = await ctx.db.get(args.eventId)
+    if (!event) return null
+
+    const page = await fanOutActivityEventToFollowersPage(
+      ctx,
+      event,
+      args.cursor,
+    )
+    if (!page.isDone && page.continueCursor !== null) {
+      await ctx.scheduler.runAfter(0, internal.home.fanOutActivityEventBatch, {
+        eventId: event._id,
+        cursor: page.continueCursor,
+      })
+    }
+    return null
+  },
+})
 
 const homeFeedItemValidator = v.object({
   _id: v.id('home_feed_items'),

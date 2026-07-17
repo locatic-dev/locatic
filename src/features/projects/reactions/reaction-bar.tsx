@@ -242,38 +242,27 @@ export function ReactionBar({
           return null
         }
 
-        const chip = (
+        const chipClassName = cn(
+          'lx-reaction-chip relative inline-flex min-h-11 items-center rounded-md border transition-colors',
+          active
+            ? cn('font-medium', !HEX_COLOR_RE.test(accent) && 'bg-brand-quiet')
+            : 'border-transparent bg-transparent text-text-faint hover:border-line hover:text-text',
+          popReaction === reactionType && 'lx-reaction-pop',
+        )
+        const actionDisabled =
+          disabled || viewerReactionStateLoading || Boolean(pendingReaction)
+        const action = (
           <button
-            key={reactionType}
             type="button"
             onClick={() => void handleToggleReaction(reactionType)}
-            disabled={
-              viewerReactionStateLoading ||
-              Boolean(pendingReaction) ||
-              (disabled && count <= 0)
-            }
-            aria-label={
-              disabled
-                ? `View ${config.label} reactions`
-                : `${active ? 'Remove' : 'Add'} ${config.label} reaction`
-            }
+            disabled={actionDisabled}
+            aria-label={`${active ? 'Remove' : 'Add'} ${config.label} reaction`}
             aria-pressed={active}
-            style={reactionChipStyle(accent, active)}
-            className={cn(
-              'lx-reaction-chip relative inline-flex min-h-11 items-center gap-1.5 rounded-md border px-2 py-2 transition-colors',
-              active
-                ? cn(
-                    'font-medium',
-                    !HEX_COLOR_RE.test(accent) && 'bg-brand-quiet',
-                  )
-                : 'border-transparent bg-transparent text-text-faint hover:border-line hover:text-text',
-              popReaction === reactionType && 'lx-reaction-pop',
-            )}
+            className="inline-flex min-h-11 items-center px-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand disabled:opacity-60"
           >
             <span aria-hidden="true" className="lx-reaction-emoji text-sm">
               {config.emoji}
             </span>
-            <span className="tabular-nums">{count}</span>
             {burstReaction === reactionType && (
               <span aria-hidden="true" className="lx-reaction-burst">
                 <span />
@@ -287,17 +276,39 @@ export function ReactionBar({
         return count > 0 ? (
           <ReactorInspector
             key={reactionType}
+            action={action}
+            className={chipClassName}
+            style={reactionChipStyle(accent, active)}
             targetId={targetId}
             targetType={targetType}
             reactionType={reactionType}
             emoji={config.emoji}
             label={config.label}
             count={count}
-          >
-            {chip}
-          </ReactorInspector>
+          />
         ) : (
-          chip
+          <button
+            key={reactionType}
+            type="button"
+            onClick={() => void handleToggleReaction(reactionType)}
+            disabled={actionDisabled}
+            aria-label={`${active ? 'Remove' : 'Add'} ${config.label} reaction`}
+            aria-pressed={active}
+            style={reactionChipStyle(accent, active)}
+            className={cn(chipClassName, 'gap-1.5 px-2 py-2')}
+          >
+            <span aria-hidden="true" className="lx-reaction-emoji text-sm">
+              {config.emoji}
+            </span>
+            <span className="tabular-nums">{count}</span>
+            {burstReaction === reactionType && (
+              <span aria-hidden="true" className="lx-reaction-burst">
+                <span />
+                <span />
+                <span />
+              </span>
+            )}
+          </button>
         )
       })}
 

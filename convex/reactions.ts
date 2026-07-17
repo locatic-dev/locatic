@@ -23,9 +23,13 @@ import {
   sanitizeReactionConfigForWrite,
 } from './lib/reaction_config'
 import {
-  getCommentReactionCounts,
-  getProjectReactionCounts,
+  getNextCommentReactionState,
+  getNextPostReactionCounts,
 } from './lib/reactions'
+import {
+  addProjectReaction,
+  removeProjectReaction,
+} from './lib/project_reactions'
 import type { Doc } from './lib/types'
 import { DEFAULT_REACTIONS } from './reactionConfigSeed'
 
@@ -301,6 +305,16 @@ export const reactToTarget = mutation({
       }
     }
 
+    if (projectTarget) {
+      const { reaction } = await addProjectReaction(ctx, {
+        viewer,
+        project: projectTarget,
+        reactionType: args.reactionType,
+        now: Date.now(),
+      })
+      return reaction
+    }
+
     const { reaction, created } = await upsertReaction(
       ctx,
       viewer._id,
@@ -313,30 +327,12 @@ export const reactToTarget = mutation({
       return reaction
     }
 
-    if (projectTarget) {
-      const reactionCounts = getProjectReactionCounts(projectTarget)
-      await ctx.db.patch(projectTarget._id, {
-        locatic: {
-          ...projectTarget.locatic,
-          likesCount:
-            args.reactionType === 'like'
-              ? projectTarget.locatic.likesCount + 1
-              : projectTarget.locatic.likesCount,
-          reactionCounts: {
-            ...reactionCounts,
-            [args.reactionType]: (reactionCounts[args.reactionType] ?? 0) + 1,
-          },
-        },
-        updatedAt: Date.now(),
-      })
-    }
-
     if (postTarget) {
-      const reactionCounts = {
-        ...postTarget.reactionCounts,
-        [args.reactionType]:
-          (postTarget.reactionCounts[args.reactionType] ?? 0) + 1,
-      }
+      const reactionCounts = getNextPostReactionCounts(
+        postTarget,
+        args.reactionType,
+        1,
+      )
 
       await ctx.db.patch(postTarget._id, {
         reactionCounts,
@@ -357,19 +353,10 @@ export const reactToTarget = mutation({
     }
 
     if (commentTarget) {
-      const currentReactionCounts = getCommentReactionCounts(commentTarget)
-      const reactionCounts = {
-        ...currentReactionCounts,
-        [args.reactionType]:
-          (currentReactionCounts[args.reactionType] ?? 0) + 1,
-      }
-      await ctx.db.patch(commentTarget._id, {
-        reactionCounts,
-        likesCount:
-          args.reactionType === 'like'
-            ? commentTarget.likesCount + 1
-            : commentTarget.likesCount,
-      })
+      await ctx.db.patch(
+        commentTarget._id,
+        getNextCommentReactionState(commentTarget, args.reactionType, 1),
+      )
     }
 
     return reaction
@@ -390,6 +377,22 @@ export const unreactFromTarget = mutation({
   handler: async (ctx, args) => {
     const viewer = await getViewerOrThrow(ctx)
     await enforceRateLimit(ctx, 'reactionWrite', String(viewer._id))
+
+    if (args.targetType === 'project') {
+      const projectId = ctx.db.normalizeId('projects', args.targetId)
+      const project = projectId ? await ctx.db.get(projectId) : null
+      if (!project) {
+        throw new ConvexError('Project not found')
+      }
+      await removeProjectReaction(ctx, {
+        viewer,
+        project,
+        reactionType: args.reactionType,
+        now: Date.now(),
+      })
+      return null
+    }
+
     const existing = await ctx.db
       .query('reactions')
       .withIndex('by_user_target_type_id_reaction', (query) =>
@@ -407,34 +410,6 @@ export const unreactFromTarget = mutation({
 
     await ctx.db.delete(existing._id)
 
-    if (args.targetType === 'project') {
-      const projectId = ctx.db.normalizeId('projects', args.targetId)
-      const project = projectId
-        ? await getPubliclyInteractableProject(ctx, projectId)
-        : null
-      if (project) {
-        const reactionCounts = getProjectReactionCounts(project)
-        const nextCount = Math.max(
-          0,
-          (reactionCounts[args.reactionType] ?? 0) - 1,
-        )
-        await ctx.db.patch(project._id, {
-          locatic: {
-            ...project.locatic,
-            likesCount:
-              args.reactionType === 'like'
-                ? Math.max(0, project.locatic.likesCount - 1)
-                : project.locatic.likesCount,
-            reactionCounts: {
-              ...reactionCounts,
-              [args.reactionType]: nextCount,
-            },
-          },
-          updatedAt: Date.now(),
-        })
-      }
-    }
-
     if (args.targetType === 'post') {
       const postId = ctx.db.normalizeId('posts', args.targetId)
       const post = postId ? await ctx.db.get(postId) : null
@@ -443,15 +418,12 @@ export const unreactFromTarget = mutation({
         post.deletedAt === null &&
         (await isPublicPostVisible(ctx, post))
       ) {
-        const nextCount = Math.max(
-          0,
-          (post.reactionCounts[args.reactionType] ?? 0) - 1,
-        )
         await ctx.db.patch(post._id, {
-          reactionCounts: {
-            ...post.reactionCounts,
-            [args.reactionType]: nextCount,
-          },
+          reactionCounts: getNextPostReactionCounts(
+            post,
+            args.reactionType,
+            -1,
+          ),
           updatedAt: Date.now(),
         })
       }
@@ -461,21 +433,10 @@ export const unreactFromTarget = mutation({
       const commentId = ctx.db.normalizeId('comments', args.targetId)
       const comment = commentId ? await ctx.db.get(commentId) : null
       if (comment && (await isCommentPubliclyInteractable(ctx, comment))) {
-        const currentReactionCounts = getCommentReactionCounts(comment)
-        const nextReactionCount = Math.max(
-          0,
-          (currentReactionCounts[args.reactionType] ?? 0) - 1,
+        await ctx.db.patch(
+          comment._id,
+          getNextCommentReactionState(comment, args.reactionType, -1),
         )
-        await ctx.db.patch(comment._id, {
-          reactionCounts: {
-            ...currentReactionCounts,
-            [args.reactionType]: nextReactionCount,
-          },
-          likesCount:
-            args.reactionType === 'like'
-              ? Math.max(0, comment.likesCount - 1)
-              : comment.likesCount,
-        })
       }
     }
 

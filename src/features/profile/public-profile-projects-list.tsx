@@ -2,6 +2,7 @@ import { ProjectCard } from '@/components/ui/project-card'
 import { EmptyState } from '@/components/ui/empty-state'
 import type { ProjectCardPreview } from '@/features/contracts'
 import {
+  getProjectCardDbId,
   getProjectCardId,
   getProjectCardOwner,
   getProjectCardRepo,
@@ -30,7 +31,7 @@ export function PublicProfileProjectsList({
             project={toProjectCardData(project)}
             reactionSlot={
               <ProjectReactionBar
-                projectId={getProjectCardId(project)}
+                projectId={getProjectCardDbId(project)}
                 reactionCounts={project.reactionCounts}
                 viewerReactionTypes={project.viewerReactionTypes}
               />

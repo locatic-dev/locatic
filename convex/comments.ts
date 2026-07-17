@@ -11,7 +11,7 @@ import {
   type QueryCtx,
 } from './_generated/server'
 import { getViewerOrThrow } from './lib/auth'
-import { fanOutActivityEventToFollowers } from './lib/homeFeed'
+import { enqueueActivityEventFanOut } from './lib/homeFeed'
 import type { Doc } from './lib/types'
 import {
   buildActorSnapshot,
@@ -505,10 +505,7 @@ export const create = mutation({
           createdAt: Date.now(),
         })
 
-        const event = await ctx.db.get(eventId)
-        if (event) {
-          await fanOutActivityEventToFollowers(ctx, event)
-        }
+        await enqueueActivityEventFanOut(ctx, eventId)
       }
     }
 
@@ -569,10 +566,7 @@ export const create = mutation({
             createdAt: Date.now(),
           })
 
-          const event = await ctx.db.get(eventId)
-          if (event) {
-            await fanOutActivityEventToFollowers(ctx, event)
-          }
+          await enqueueActivityEventFanOut(ctx, eventId)
         }
       }
     }

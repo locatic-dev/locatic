@@ -33,6 +33,7 @@ interface CreateNotificationArgs {
   conversationId?: Doc<'conversations'>['_id'] | null
   projectName?: string | null
   target?: NotificationTarget | null
+  createdAt?: number
 }
 
 export function buildProfileNotificationTarget(
@@ -100,6 +101,7 @@ export async function createNotificationIfEnabled(
     conversationId = null,
     projectName = null,
     target = null,
+    createdAt = Date.now(),
   }: CreateNotificationArgs,
 ) {
   if (recipient._id === actor._id) {
@@ -131,6 +133,6 @@ export async function createNotificationIfEnabled(
         }
       : {}),
     isRead: false,
-    createdAt: Date.now(),
+    createdAt,
   })
 }

@@ -7,7 +7,12 @@ import {
   within,
 } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ReactNode } from 'react'
+import {
+  cloneElement,
+  type CSSProperties,
+  type ReactElement,
+  type ReactNode,
+} from 'react'
 import { ReactionBar } from '../reaction-bar'
 
 const mocks = vi.hoisted(() => ({
@@ -66,8 +71,38 @@ vi.mock('@/features/projects/mutations', () => ({
 }))
 
 vi.mock('../project-reactor-inspector', () => ({
-  ReactorInspector: ({ children }: { children: ReactNode }) => children,
-  ProjectReactorInspector: ({ children }: { children: ReactNode }) => children,
+  ReactorInspector: ({
+    action,
+    className,
+    count,
+    label,
+    style,
+  }: {
+    action: ReactElement<{
+      className?: string
+      children?: ReactNode
+      style?: CSSProperties
+    }>
+    className?: string
+    count: number
+    label: string
+    style?: CSSProperties
+  }) => (
+    <>
+      {cloneElement(
+        action,
+        {
+          className: `${action.props.className ?? ''} ${className ?? ''}`,
+          style,
+        },
+        action.props.children,
+        <span key="count">{count}</span>,
+      )}
+      <button type="button" aria-label={`View ${count} ${label} reactions`}>
+        {count}
+      </button>
+    </>
+  ),
 }))
 
 vi.mock('@/components/ui/popover', async () => {
@@ -396,13 +431,15 @@ describe('ReactionBar', () => {
     renderReactionBar({ disabled: true })
 
     expect(
-      screen.getByRole('button', { name: 'View Like reactions' }),
+      screen.getByRole('button', { name: 'View 2 Like reactions' }),
     ).toHaveProperty('disabled', false)
     expect(
       screen.getByRole('button', { name: 'Add post reaction' }),
     ).toHaveProperty('disabled', true)
 
-    fireEvent.click(screen.getByRole('button', { name: 'View Like reactions' }))
+    fireEvent.click(
+      screen.getByRole('button', { name: 'View 2 Like reactions' }),
+    )
     expect(mocks.reactToTarget).not.toHaveBeenCalled()
     expect(mocks.unreactFromTarget).not.toHaveBeenCalled()
   })
