@@ -18,7 +18,6 @@ import {
   citiesByIdsQueryOptions,
   citiesSearchQueryOptions,
 } from '@/features/cities/queries'
-import { useLikeProject, useUnlikeProject } from '@/features/projects/mutations'
 import { useFollowUser, useUnfollowUser } from '@/features/follows/mutations'
 import {
   useDismissExplorePost,
@@ -73,6 +72,7 @@ import { useDebouncedRouteSearch } from '@/features/explore/use-debounced-route-
 import { shouldPrefetchPrivateConvexQueries } from '@/lib/auth-routing'
 import type {
   BuilderPreview,
+  ExplorePostPreview,
   ExploreProjectPreview,
 } from '@/features/explore/types'
 
@@ -149,7 +149,6 @@ function ExplorePage() {
   const [dismissedPostIds, setDismissedPostIds] = useState<Set<string>>(
     new Set(),
   )
-  const [pendingLikes, setPendingLikes] = useState<Set<string>>(new Set())
   const [pendingFollows, setPendingFollows] = useState<Set<string>>(new Set())
   const [resetPending, setResetPending] = useState(false)
   const [followOverrides, setFollowOverrides] = useState<
@@ -250,8 +249,6 @@ function ExplorePage() {
     followingQueryOptions(viewerId as Id<'users'>),
   )
 
-  const likeProject = useLikeProject()
-  const unlikeProject = useUnlikeProject()
   const followUser = useFollowUser()
   const unfollowUser = useUnfollowUser()
   const dismissProject = useDismissExploreProject()
@@ -325,7 +322,6 @@ function ExplorePage() {
   const followingQueryKey = followingQueryOptions(
     viewerId as Id<'users'>,
   ).queryKey
-  const likedProjectIdsQueryKey = viewerLikedProjectIdsQueryOptions().queryKey
 
   useEffect(() => {
     setPostSearchLimit(POST_SEARCH_DEFAULT_LIMIT)
@@ -393,12 +389,12 @@ function ExplorePage() {
     | undefined
   const postSearchData = postSearchQuery.data as
     | {
-        posts: Array<Doc<'posts'>>
+        posts: Array<ExplorePostPreview>
         hasMore: boolean
       }
     | undefined
   const postBrowseResults =
-    (postListPaged.results as Array<Doc<'posts'>> | undefined) ?? []
+    (postListPaged.results as Array<ExplorePostPreview> | undefined) ?? []
   const postResults = isPostSearchActive
     ? (postSearchData?.posts ?? [])
     : postBrowseResults
@@ -572,37 +568,6 @@ function ExplorePage() {
     }
   }
 
-  const handleLike = async (projectId: Id<'projects'>, projectKey: string) => {
-    if (pendingLikes.has(projectKey)) return
-    setPendingLikes((current) => new Set(current).add(projectKey))
-
-    try {
-      const currentLikedProjectIds =
-        queryClient.getQueryData<ViewerLikedProjectIdsPayload>(
-          likedProjectIdsQueryKey,
-        )
-      const currentlyLiked = Boolean(
-        currentLikedProjectIds?.likedProjectIds
-          .map(String)
-          .includes(projectKey) ?? likedProjectIds.has(projectKey),
-      )
-      if (currentlyLiked) {
-        await unlikeProject({ projectId })
-      } else {
-        await likeProject({ projectId })
-      }
-      await queryClient.invalidateQueries({ queryKey: likedProjectIdsQueryKey })
-    } catch (error) {
-      console.error('Like failed', error)
-    } finally {
-      setPendingLikes((current) => {
-        const next = new Set(current)
-        next.delete(projectKey)
-        return next
-      })
-    }
-  }
-
   const handleFollow = async (
     userId: Id<'users'>,
     userKey: string,
@@ -710,7 +675,6 @@ function ExplorePage() {
             onDismissPost={handleDismissPost}
             onDismissProject={handleDismiss}
             onFollowUser={handleFollow}
-            onLikeProject={handleLike}
             onLoadMoreBuilders={() => nearbyBuildersPaged.loadMore(20)}
             onLoadMorePosts={() => {
               if (
@@ -737,7 +701,6 @@ function ExplorePage() {
             }
             onResetExplore={handleResetExplore}
             pendingFollows={pendingFollows}
-            pendingLikes={pendingLikes}
             pendingUserId={pendingUserId}
             projectFeedLoading={scopedFeedPaged.status === 'LoadingFirstPage'}
             resetPending={resetPending}

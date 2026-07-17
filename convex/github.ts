@@ -1,17 +1,12 @@
 import { ConvexError, v } from 'convex/values'
 
 import { internalMutation, internalQuery } from './_generated/server'
-import { fanOutActivityEventToFollowers } from './lib/homeFeed'
-import {
-  createNotificationIfEnabled,
-  buildProjectNotificationTarget,
-} from './lib/notifications'
-import { buildActorSnapshot, buildProjectSnapshot } from './lib/snapshots'
-import {
-  normalizeProjectRouteKey,
-  resolveProjectOwnerLogin,
-} from './lib/project_route'
+import { normalizeProjectRouteKey } from './lib/project_route'
 import { getPubliclyInteractableProject } from './lib/project_access'
+import {
+  addProjectReaction,
+  removeProjectReaction,
+} from './lib/project_reactions'
 import {
   isProjectContributorSyncDue,
   needsGithubReadmeUrlBaseKeyNormalization,
@@ -105,6 +100,7 @@ export const applyProjectLike = internalMutation({
     projectId: v.id('projects'),
     clerkId: v.string(),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const viewer = await ctx.db
       .query('users')
@@ -116,94 +112,12 @@ export const applyProjectLike = internalMutation({
       throw new ConvexError('Missing project or viewer')
     }
 
-    const existing = await ctx.db
-      .query('reactions')
-      .withIndex('by_user_target_reaction', (query) =>
-        query
-          .eq('userId', viewer._id)
-          .eq('targetId', String(project._id))
-          .eq('reactionType', 'like'),
-      )
-      .unique()
-
-    if (!existing) {
-      await ctx.db.insert('reactions', {
-        userId: viewer._id,
-        targetType: 'project',
-        targetId: String(project._id),
-        reactionType: 'like',
-        createdAt: Date.now(),
-      })
-
-      await ctx.db.patch(viewer._id, {
-        stats: {
-          ...viewer.stats,
-          likedCount: viewer.stats.likedCount + 1,
-        },
-        updatedAt: Date.now(),
-      })
-
-      const eventId = await ctx.db.insert('activity_events', {
-        actorId: viewer._id,
-        eventType: 'project_liked',
-        projectId: project._id,
-        commentId: null,
-        actorSnapshot: await buildActorSnapshot(ctx.db, viewer),
-        projectSnapshot: buildProjectSnapshot(project),
-        target: {
-          kind: 'project',
-          projectId: project._id,
-          projectSnapshot: buildProjectSnapshot(project),
-        },
-        createdAt: Date.now(),
-      })
-
-      const event = await ctx.db.get(eventId)
-      if (event) {
-        await fanOutActivityEventToFollowers(ctx, event)
-      }
-
-      const owner = await ctx.db.get(project.ownerId)
-      if (owner) {
-        await createNotificationIfEnabled(ctx, {
-          recipient: owner,
-          actor: viewer,
-          type: 'project_liked',
-          projectId: project._id,
-          projectName: project.github.name,
-          target: buildProjectNotificationTarget({
-            fullName: project.github.fullName,
-            owner: resolveProjectOwnerLogin(project),
-            repo: project.github.name,
-          }),
-        })
-      }
-    }
-
-    await ctx.db.patch(project._id, {
-      locatic: {
-        ...project.locatic,
-        likesCount: existing
-          ? project.locatic.likesCount
-          : project.locatic.likesCount + 1,
-      },
-      updatedAt: Date.now(),
+    await addProjectReaction(ctx, {
+      viewer,
+      project,
+      reactionType: 'like',
+      now: Date.now(),
     })
-
-    const history = await ctx.db
-      .query('explore_history')
-      .withIndex('by_user_project', (query) =>
-        query.eq('userId', viewer._id).eq('projectId', project._id),
-      )
-      .unique()
-
-    if (history) {
-      await ctx.db.patch(history._id, {
-        likedAt: Date.now(),
-        lastSeenAt: Date.now(),
-        dismissedAt: null,
-      })
-    }
 
     return null
   },
@@ -214,6 +128,7 @@ export const removeProjectLike = internalMutation({
     projectId: v.id('projects'),
     clerkId: v.string(),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const viewer = await ctx.db
       .query('users')
@@ -225,36 +140,11 @@ export const removeProjectLike = internalMutation({
       throw new ConvexError('Missing project or viewer')
     }
 
-    const existing = await ctx.db
-      .query('reactions')
-      .withIndex('by_user_target_reaction', (query) =>
-        query
-          .eq('userId', viewer._id)
-          .eq('targetId', String(project._id))
-          .eq('reactionType', 'like'),
-      )
-      .unique()
-
-    if (existing) {
-      await ctx.db.delete(existing._id)
-      await ctx.db.patch(viewer._id, {
-        stats: {
-          ...viewer.stats,
-          likedCount: Math.max(0, viewer.stats.likedCount - 1),
-        },
-        updatedAt: Date.now(),
-      })
-    }
-
-    await ctx.db.patch(project._id, {
-      locatic: {
-        ...project.locatic,
-        likesCount: Math.max(
-          0,
-          project.locatic.likesCount - (existing ? 1 : 0),
-        ),
-      },
-      updatedAt: Date.now(),
+    await removeProjectReaction(ctx, {
+      viewer,
+      project,
+      reactionType: 'like',
+      now: Date.now(),
     })
 
     return null

@@ -16,6 +16,9 @@ function profileComment(
     content: 'nice build',
     createdAt: 1_700_000_000_000,
     likesCount: 0,
+    reactionCounts: {},
+    viewerHasLiked: false,
+    viewerReactionTypes: [],
     projectFullName: 'owner/repo',
     projectOwner: 'owner',
     projectRepo: 'repo',
@@ -31,7 +34,7 @@ function profileComment(
 }
 
 describe('profile comment navigation', () => {
-  it('routes project comments to the project discussion thread', () => {
+  it('routes project comments to the project comments thread', () => {
     const destination = getProfileCommentDestination(profileComment())
 
     expect(destination).toMatchObject({

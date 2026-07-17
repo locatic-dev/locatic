@@ -9,6 +9,72 @@ export function getCommentReactionCounts(
   return comment.reactionCounts ?? { like: comment.likesCount }
 }
 
+export function getProjectReactionCounts(
+  project: Pick<Doc<'projects'>, 'locatic'>,
+) {
+  return (
+    project.locatic.reactionCounts ?? {
+      like: project.locatic.likesCount,
+    }
+  )
+}
+
+export function applyReactionCountDelta(
+  reactionCounts: Record<string, number>,
+  reactionType: string,
+  delta: number,
+) {
+  return {
+    ...reactionCounts,
+    [reactionType]: Math.max(0, (reactionCounts[reactionType] ?? 0) + delta),
+  }
+}
+
+export function getNextProjectReactionLocatic(
+  project: Pick<Doc<'projects'>, 'locatic'>,
+  reactionType: string,
+  delta: number,
+) {
+  return {
+    ...project.locatic,
+    likesCount:
+      reactionType === 'like'
+        ? Math.max(0, project.locatic.likesCount + delta)
+        : project.locatic.likesCount,
+    reactionCounts: applyReactionCountDelta(
+      getProjectReactionCounts(project),
+      reactionType,
+      delta,
+    ),
+  }
+}
+
+export function getNextPostReactionCounts(
+  post: Pick<Doc<'posts'>, 'reactionCounts'>,
+  reactionType: string,
+  delta: number,
+) {
+  return applyReactionCountDelta(post.reactionCounts, reactionType, delta)
+}
+
+export function getNextCommentReactionState(
+  comment: Pick<Doc<'comments'>, 'likesCount' | 'reactionCounts'>,
+  reactionType: string,
+  delta: number,
+) {
+  return {
+    reactionCounts: applyReactionCountDelta(
+      getCommentReactionCounts(comment),
+      reactionType,
+      delta,
+    ),
+    likesCount:
+      reactionType === 'like'
+        ? Math.max(0, comment.likesCount + delta)
+        : comment.likesCount,
+  }
+}
+
 export async function getViewerReactionTypesByTargetId(
   ctx: QueryCtx,
   viewer: Doc<'users'> | null,
@@ -42,4 +108,20 @@ export async function getViewerReactionTypesByTargetId(
       reactions[index]?.map((reaction) => reaction.reactionType) ?? [],
     ]),
   )
+}
+
+export function withViewerPostReactions(
+  posts: Array<Doc<'posts'>>,
+  viewerReactionTypesByTargetId: Map<string, string[]>,
+) {
+  return posts.map((post) => {
+    const viewerReactionTypes =
+      viewerReactionTypesByTargetId.get(String(post._id)) ?? []
+
+    return {
+      ...post,
+      viewerHasLiked: viewerReactionTypes.includes('like'),
+      viewerReactionTypes,
+    }
+  })
 }

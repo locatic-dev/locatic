@@ -246,9 +246,15 @@ export function RepositoryManagerDialog({
                                 size="compact"
                                 onClick={() => void handleTogglePin(item)}
                                 disabled={busy}
+                                aria-label={
+                                  item.isPinned
+                                    ? `Unpin ${item.fullName} from profile`
+                                    : `Pin ${item.fullName} to profile`
+                                }
+                                aria-pressed={item.isPinned}
                               >
                                 <Pin size={12} />
-                                {item.isPinned ? 'unpinned' : 'pin'}
+                                {item.isPinned ? 'unpin' : 'pin'}
                               </Button>
                               <Button
                                 variant="monoGhost"

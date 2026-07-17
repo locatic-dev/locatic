@@ -3,12 +3,14 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { ProjectCard } from '@/components/ui/project-card'
 import type { ContributedProjectPreview } from '@/features/contracts'
 import {
+  getProjectCardDbId,
   getProjectCardId,
   getProjectCardOwner,
   getProjectCardRepo,
   toProjectCardData,
 } from '@/features/project-card-preview'
 import { compactNumber } from '@/lib/format'
+import { ProjectReactionBar } from '@/features/projects/reactions/project-reaction-bar'
 
 type GithubContributions = {
   totalContributions: number
@@ -69,7 +71,7 @@ export function PublicProfileContributionsList({
   }
 
   return (
-    <div className="flex flex-col gap-3.5">
+    <div className="flex flex-col gap-2">
       {contributions.map((entry) => {
         const owner = getProjectCardOwner(entry.project)
         const repo = getProjectCardRepo(entry.project)
@@ -77,9 +79,9 @@ export function PublicProfileContributionsList({
         return (
           <div
             key={getProjectCardId(entry.project)}
-            className="rounded-card border border-line bg-transparent"
+            className="overflow-hidden rounded-card border border-line bg-surface"
           >
-            <div className="border-b border-line px-4 py-3 font-mono text-[11px] text-text-faint">
+            <div className="border-b border-line-strong px-4 py-3 font-mono text-[11px] text-text-faint">
               contributor · {compactNumber(entry.commitCount)} commits matched
             </div>
             <ProjectCard
@@ -90,7 +92,14 @@ export function PublicProfileContributionsList({
               }}
               projectLink={{ owner, repo }}
               showActions={false}
-              className="rounded-none border-0"
+              reactionSlot={
+                <ProjectReactionBar
+                  projectId={getProjectCardDbId(entry.project)}
+                  reactionCounts={entry.project.reactionCounts}
+                  viewerReactionTypes={entry.project.viewerReactionTypes}
+                />
+              }
+              className="rounded-none border-0 focus-visible:ring-inset"
             />
           </div>
         )

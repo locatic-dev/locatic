@@ -7,6 +7,12 @@ import {
   within,
 } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  cloneElement,
+  type CSSProperties,
+  type ReactElement,
+  type ReactNode,
+} from 'react'
 import { ReactionBar } from '../reaction-bar'
 
 const mocks = vi.hoisted(() => ({
@@ -53,13 +59,50 @@ vi.mock('convex/react', () => ({
 
 vi.mock('../../../../../convex/_generated/api', () => ({
   api: {
-    reactions: { listConfig: 'reactions.listConfig' },
+    reactions: {
+      listConfig: 'reactions.listConfig',
+    },
   },
 }))
 
 vi.mock('@/features/projects/mutations', () => ({
   useReactToTarget: () => mocks.reactToTarget,
   useUnreactFromTarget: () => mocks.unreactFromTarget,
+}))
+
+vi.mock('../project-reactor-inspector', () => ({
+  ReactorInspector: ({
+    action,
+    className,
+    count,
+    label,
+    style,
+  }: {
+    action: ReactElement<{
+      className?: string
+      children?: ReactNode
+      style?: CSSProperties
+    }>
+    className?: string
+    count: number
+    label: string
+    style?: CSSProperties
+  }) => (
+    <>
+      {cloneElement(
+        action,
+        {
+          className: `${action.props.className ?? ''} ${className ?? ''}`,
+          style,
+        },
+        action.props.children,
+        <span key="count">{count}</span>,
+      )}
+      <button type="button" aria-label={`View ${count} ${label} reactions`}>
+        {count}
+      </button>
+    </>
+  ),
 }))
 
 vi.mock('@/components/ui/popover', async () => {
@@ -147,6 +190,28 @@ describe('ReactionBar', () => {
     ).toContain('🚀')
   })
 
+  it('pins the heart first for project reactions even at zero', () => {
+    renderReactionBar({
+      reactionCounts: {},
+      targetType: 'project',
+      viewerReactionTypes: [],
+    })
+
+    const buttons = screen.getAllByRole('button')
+    expect(buttons[0]?.getAttribute('aria-label')).toBe('Add Like reaction')
+    expect(buttons[0]?.textContent).toContain('0')
+  })
+
+  it('disables toggles when a cached payload lacks viewer reaction state', () => {
+    renderReactionBar({ viewerReactionTypes: undefined })
+
+    expect(
+      screen.getByRole('button', { name: 'Add Like reaction' }),
+    ).toHaveProperty('disabled', true)
+    expect(mocks.reactToTarget).not.toHaveBeenCalled()
+    expect(mocks.unreactFromTarget).not.toHaveBeenCalled()
+  })
+
   it('adds a reaction from the picker', async () => {
     renderReactionBar({ reactionCounts: {} })
 
@@ -179,6 +244,36 @@ describe('ReactionBar', () => {
         targetType: 'post',
       }),
     )
+  })
+
+  it('optimistically subtracts and hides a reaction when its count reaches zero', () => {
+    mocks.unreactFromTarget.mockReturnValue(new Promise(() => {}))
+    const firstRender = renderReactionBar({
+      reactionCounts: { like: 2 },
+      viewerReactionTypes: ['like'],
+    })
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Remove Like reaction' }),
+    )
+    expect(
+      screen.getByRole('button', { name: 'Add Like reaction' }).textContent,
+    ).toContain('1')
+
+    firstRender.unmount()
+    render(
+      <ReactionBar
+        disabled={false}
+        reactionCounts={{ like: 1 }}
+        targetId="post_2"
+        targetType="post"
+        viewerReactionTypes={['like']}
+      />,
+    )
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Remove Like reaction' }),
+    )
+    expect(screen.queryByRole('button', { name: /Like reaction/ })).toBeNull()
   })
 
   it('shows optimistic count changes while a mutation is pending', async () => {
@@ -336,10 +431,16 @@ describe('ReactionBar', () => {
     renderReactionBar({ disabled: true })
 
     expect(
-      screen.getByRole('button', { name: 'Add Like reaction' }),
-    ).toHaveProperty('disabled', true)
+      screen.getByRole('button', { name: 'View 2 Like reactions' }),
+    ).toHaveProperty('disabled', false)
     expect(
       screen.getByRole('button', { name: 'Add post reaction' }),
     ).toHaveProperty('disabled', true)
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'View 2 Like reactions' }),
+    )
+    expect(mocks.reactToTarget).not.toHaveBeenCalled()
+    expect(mocks.unreactFromTarget).not.toHaveBeenCalled()
   })
 })

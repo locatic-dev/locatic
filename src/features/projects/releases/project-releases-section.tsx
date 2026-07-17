@@ -1,4 +1,5 @@
 import type { ProjectDetailPayload } from '@/features/contracts'
+import { Card } from '@/components/ui/card'
 import { ProjectMarkdownPreview } from '@/features/projects/readme/markdown-prose'
 import { relativeTime } from '@/lib/time'
 
@@ -10,14 +11,14 @@ function getReleaseBodyPreview(body: string) {
     return trimmed
   }
 
-  return `${trimmed.slice(0, 700).trimEnd()}...`
+  return `${trimmed.slice(0, 700).trimEnd()}…`
 }
 
 function ProjectReleaseCard({ release }: { release: ProjectRelease }) {
   const title = release.name || release.tagName
 
   return (
-    <article className="group relative border-b border-line px-4 py-4 transition-colors last:border-b-0 hover:bg-surface-alt sm:px-5">
+    <article className="group relative border-b border-line px-4 py-3 transition-colors last:border-b-0 hover:bg-surface-alt sm:px-5">
       <a
         href={release.htmlUrl}
         target="_blank"
@@ -44,7 +45,7 @@ function ProjectReleaseCard({ release }: { release: ProjectRelease }) {
           <span className="text-text-muted">view on GitHub</span>
         </div>
         {release.body ? (
-          <div className="max-h-44 overflow-hidden font-sans text-[13px] leading-6 text-text-muted">
+          <div className="max-h-32 overflow-hidden font-sans text-[13px] leading-6 text-text-muted">
             <ProjectMarkdownPreview>
               {getReleaseBodyPreview(release.body)}
             </ProjectMarkdownPreview>
@@ -65,7 +66,7 @@ export function ProjectReleasesSection({
   releases: ProjectRelease[]
 }) {
   return (
-    <div className="rounded-[6px] border border-line bg-surface">
+    <Card density="flush" className="overflow-hidden">
       {releases.length === 0 ? (
         <div className="p-4.5 font-sans text-[13px] text-text-muted">
           no GitHub releases imported yet.
@@ -75,6 +76,6 @@ export function ProjectReleasesSection({
           <ProjectReleaseCard key={String(release._id)} release={release} />
         ))
       )}
-    </div>
+    </Card>
   )
 }

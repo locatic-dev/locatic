@@ -23,15 +23,12 @@ import { CityPill } from '@/components/ui/city-pill'
 import { BrandIcon } from '@/components/ui/brand-icon'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
-import { Input } from '@/components/ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { relativeTime } from '@/lib/time'
 import { compactNumber } from '@/lib/format'
 import { linkify } from '@/lib/linkify'
-import { Star, Heart, MessageSquare, ArrowLeft, Plus, X } from '@/lib/icons'
+import { Star, ArrowLeft } from '@/lib/icons'
 import {
-  useLikeProject,
-  useUnlikeProject,
   useAddComment,
   useDeleteComment,
   useUpdateProjectTopics,
@@ -55,9 +52,9 @@ import type { ProjectCommentView } from '@/features/projects/comments/types'
 import { ProjectReadmeSection } from '@/features/projects/readme/project-readme-section'
 import { ProjectReleasesSection } from '@/features/projects/releases/project-releases-section'
 import { ProjectPostsSection } from '@/features/projects/posts/project-posts-section'
-import { LikedBySummary } from '@/features/projects/likes/liked-by-summary'
 import { EmptyState } from '@/components/ui/empty-state'
-import { getProjectLikeButtonStyle } from '@/features/projects/like-button-style'
+import { ProjectReactionBar } from '@/features/projects/reactions/project-reaction-bar'
+import { ProjectTopicEditor } from '@/features/projects/project-topic-editor'
 import {
   ProjectRoutePending,
   ROUTE_PENDING_MIN_MS,
@@ -69,35 +66,13 @@ import {
   getProjectDeepLinkTab,
   normalizeProjectSearchParam,
   parseCommentPathSearch,
+  PROJECT_TAB_ORDER,
   shouldAutoLoadDeepLinkPage,
   shouldResetReleasedHighlight,
   shouldSyncProjectTab,
   stripProjectCommentSearch,
   type ProjectTab,
 } from '@/features/projects/deep-link'
-
-function updateProjectLikePayload(
-  payload: ProjectDetailPayload | null | undefined,
-  nextLiked: boolean,
-) {
-  if (!payload) {
-    return payload
-  }
-
-  const delta = nextLiked === payload.viewerHasLiked ? 0 : nextLiked ? 1 : -1
-
-  return {
-    ...payload,
-    viewerHasLiked: nextLiked,
-    project: {
-      ...payload.project,
-      locatic: {
-        ...payload.project.locatic,
-        likesCount: Math.max(0, payload.project.locatic.likesCount + delta),
-      },
-    },
-  }
-}
 
 function updateProjectFollowPayload(
   payload: ProjectDetailPayload | null | undefined,
@@ -189,8 +164,6 @@ function ProjectDetailPage() {
   const { isSignedIn } = useAuth()
   const convexAuth = useConvexAuth()
   const queryClient = useQueryClient()
-  const likeProject = useLikeProject()
-  const unlikeProject = useUnlikeProject()
   const addComment = useAddComment()
   const deleteComment = useDeleteComment()
   const updateProjectTopics = useUpdateProjectTopics()
@@ -226,7 +199,6 @@ function ProjectDetailPage() {
   const [comment, setComment] = useState('')
   const [topicDraft, setTopicDraft] = useState('')
   const [pendingTopics, setPendingTopics] = useState(false)
-  const [commentComposerOpen, setCommentComposerOpen] = useState(false)
   const [postingComment, setPostingComment] = useState(false)
   const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({})
   const [pendingDeleteIds, setPendingDeleteIds] = useState<Set<string>>(
@@ -240,7 +212,8 @@ function ProjectDetailPage() {
   const [releasedHighlightId, setReleasedHighlightId] = useState<string | null>(
     null,
   )
-  const [activeProjectTab, setActiveProjectTab] = useState<ProjectTab>('readme')
+  const [activeProjectTab, setActiveProjectTab] =
+    useState<ProjectTab>('comments')
   const projectCommentLoadAttemptsRef = useRef(0)
   const projectCommentLoadTargetRef = useRef<string | null>(null)
   const didSyncInitialProjectTabRef = useRef(false)
@@ -254,38 +227,6 @@ function ProjectDetailPage() {
   const [pendingReplies, setPendingReplies] = useState<
     Record<string, ProjectCommentView[]>
   >({})
-
-  const likeMutation = useMutation({
-    mutationFn: async ({
-      currentlyLiked,
-      projectId,
-    }: {
-      currentlyLiked: boolean
-      projectId: ProjectDetailPayload['project']['_id']
-    }) =>
-      currentlyLiked
-        ? unlikeProject({ projectId })
-        : likeProject({ projectId }),
-    onMutate: async ({ currentlyLiked }) => {
-      await queryClient.cancelQueries({ queryKey: projectDetailQueryKey })
-      const previous = queryClient.getQueryData<ProjectDetailPayload | null>(
-        projectDetailQueryKey,
-      )
-
-      queryClient.setQueryData<ProjectDetailPayload | null>(
-        projectDetailQueryKey,
-        (current) => updateProjectLikePayload(current, !currentlyLiked) ?? null,
-      )
-
-      return { previous }
-    },
-    onError: (_error, _variables, context) => {
-      queryClient.setQueryData(projectDetailQueryKey, context?.previous ?? null)
-    },
-    onSettled: async () => {
-      await queryClient.invalidateQueries({ queryKey: projectDetailQueryKey })
-    },
-  })
 
   const followMutation = useMutation({
     mutationFn: async ({
@@ -324,22 +265,15 @@ function ProjectDetailPage() {
     return <div className="p-8 text-text-muted">project not found.</div>
   }
 
-  const liked = detail.viewerHasLiked
-  const likeButtonStyle = getProjectLikeButtonStyle(liked)
   const followed = detail.viewerFollowsOwner
   const githubStars = detail.project.github.stargazersCount
-  const locaticLikes = detail.project.locatic.likesCount
   const comments = (commentRoots.results ?? []) as ProjectCommentView[]
   const visibleRootComments = comments.filter(
     (commentItem) => !commentItem.isDeleted || commentItem.replyCount > 0,
   )
-  const description =
-    detail.project.github.description || 'no project description provided yet.'
+  const description = detail.project.github.description?.trim() ?? ''
   const storedReadmePreview = detail.project.github.readmePreview?.trim() ?? ''
-  const readmePreview =
-    storedReadmePreview && storedReadmePreview !== description.trim()
-      ? storedReadmePreview
-      : ''
+  const readmePreview = storedReadmePreview
   const readmeUrlBases = {
     readmeAssetBaseUrl: detail.project.github.readmeAssetBaseUrl,
     readmeAssetRootUrl: detail.project.github.readmeAssetRootUrl,
@@ -367,21 +301,6 @@ function ProjectDetailPage() {
     'website',
     detail.owner.socialLinks.website,
   )
-
-  const handleLike = async () => {
-    if (likeMutation.isPending || !isSignedIn) {
-      return
-    }
-
-    try {
-      await likeMutation.mutateAsync({
-        currentlyLiked: liked,
-        projectId: detail.project._id,
-      })
-    } catch (error) {
-      console.error(error)
-    }
-  }
 
   const handleAddTopic = async () => {
     const topic = topicDraft.trim()
@@ -454,7 +373,6 @@ function ProjectDetailPage() {
         targetType: 'project',
       })
       setComment('')
-      setCommentComposerOpen(false)
       await queryClient.invalidateQueries({
         queryKey: projectDetailQueryKey,
       })
@@ -750,9 +668,11 @@ function ProjectDetailPage() {
                 {repo}
               </h1>
 
-              <p className="mb-6 max-w-170 font-sans text-base leading-[1.55] text-text-muted wrap-anywhere">
-                {linkify(description)}
-              </p>
+              {description && (
+                <p className="mb-6 max-w-170 font-sans text-base leading-[1.55] text-text-muted wrap-anywhere">
+                  {linkify(description)}
+                </p>
+              )}
 
               <div className="mb-5 flex flex-wrap items-center gap-2">
                 <a
@@ -766,84 +686,25 @@ function ProjectDetailPage() {
                   <Star size={13} strokeWidth={1.4} />
                   {compactNumber(githubStars)}
                 </a>
-                <Button
-                  variant={likeButtonStyle.variant}
-                  size="meta"
-                  onClick={() => void handleLike()}
-                  disabled={likeMutation.isPending || !isSignedIn}
-                  className={likeButtonStyle.className}
-                  aria-label={liked ? 'Unlike project' : 'Like project'}
-                >
-                  <Heart
-                    size={13}
-                    fill={liked ? 'currentColor' : 'none'}
-                    strokeWidth={1.6}
-                  />
-                  {compactNumber(locaticLikes)}
-                </Button>
               </div>
 
-              <LikedBySummary
+              <ProjectReactionBar
                 projectId={detail.project._id}
-                likedByPreview={detail.likedByPreview}
-                likesCount={locaticLikes}
-                onOpenProfile={(username) =>
-                  void router.navigate({
-                    to: '/u/$username',
-                    params: { username },
-                    search: { tab: 'projects' },
-                  })
-                }
+                reactionCounts={detail.reactionCounts}
+                viewerReactionTypes={detail.viewerReactionTypes}
+                liked={detail.viewerHasLiked}
+                disabled={!isSignedIn}
               />
 
-              <div className="mb-5 flex flex-wrap items-center gap-2">
-                {projectTopics.map((topic) => (
-                  <span
-                    key={topic}
-                    className="inline-flex min-h-7 items-center gap-1 rounded-pill border border-brand/30 bg-brand-quiet px-2.5 py-1 font-mono text-[11px] text-brand"
-                  >
-                    #{topic}
-                    {isOwnProject && (
-                      <button
-                        type="button"
-                        onClick={() => void handleRemoveTopic(topic)}
-                        disabled={pendingTopics}
-                        className="-my-2 -mr-2 inline-flex min-h-11 min-w-11 items-center justify-center rounded-md bg-transparent text-brand transition-colors hover:text-text"
-                        aria-label={`Remove ${topic}`}
-                      >
-                        <X size={12} />
-                      </button>
-                    )}
-                  </span>
-                ))}
-                {isOwnProject && (
-                  <form
-                    className="flex min-w-0 flex-wrap items-center gap-2"
-                    onSubmit={(event) => {
-                      event.preventDefault()
-                      void handleAddTopic()
-                    }}
-                  >
-                    <Input
-                      value={topicDraft}
-                      onChange={(event) => setTopicDraft(event.target.value)}
-                      placeholder="add topic"
-                      className="h-9 w-36 border-line bg-surface font-mono text-[12px]"
-                    />
-                    <Button
-                      type="submit"
-                      variant="monoOutline"
-                      size="compact"
-                      disabled={!topicDraft.trim() || pendingTopics}
-                      className="font-mono"
-                      aria-label="Add topic"
-                    >
-                      <Plus size={13} />
-                      topic
-                    </Button>
-                  </form>
-                )}
-              </div>
+              <ProjectTopicEditor
+                isOwnProject={isOwnProject}
+                onAddTopic={handleAddTopic}
+                onRemoveTopic={handleRemoveTopic}
+                pending={pendingTopics}
+                setTopicDraft={setTopicDraft}
+                topicDraft={topicDraft}
+                topics={projectTopics}
+              />
 
               <div className="flex flex-wrap items-center gap-2">
                 {languages.map((language) => (
@@ -974,6 +835,15 @@ function ProjectDetailPage() {
             </div>
           </div>
 
+          {readmePreview && (
+            <div className="mb-8">
+              <ProjectReadmeSection
+                bases={readmeUrlBases}
+                readmePreview={readmePreview}
+              />
+            </div>
+          )}
+
           <Tabs
             value={activeProjectTab}
             onValueChange={(value) => setActiveProjectTab(value as ProjectTab)}
@@ -981,21 +851,17 @@ function ProjectDetailPage() {
           >
             <div className="mb-5 overflow-x-auto overflow-y-hidden border-b border-line">
               <TabsList className="h-auto min-w-max justify-start rounded-none bg-transparent p-0">
-                {[
-                  ['posts', `posts ${detail.project.locatic.postsCount ?? 0}`],
-                  ['readme', 'README'],
-                  ['releases', `releases ${detail.releases.length}`],
-                  [
-                    'discussion',
-                    `discussion ${detail.project.locatic.commentsCount}`,
-                  ],
-                ].map(([value, label]) => (
+                {PROJECT_TAB_ORDER.map((value) => (
                   <TabsTrigger
                     key={value}
                     value={value}
                     className="min-h-11 rounded-none border-b-2 border-transparent bg-transparent px-3.5 py-3 font-mono text-[12px] text-text-muted shadow-none data-[state=active]:border-brand data-[state=active]:bg-transparent data-[state=active]:text-text data-[state=active]:shadow-none"
                   >
-                    {label}
+                    {value === 'comments'
+                      ? `comments ${detail.project.locatic.commentsCount}`
+                      : value === 'posts'
+                        ? `posts ${detail.project.locatic.postsCount ?? 0}`
+                        : `releases ${detail.releases.length}`}
                   </TabsTrigger>
                 ))}
               </TabsList>
@@ -1016,65 +882,56 @@ function ProjectDetailPage() {
               />
             </TabsContent>
 
-            <TabsContent value="readme" className="mt-0">
-              <ProjectReadmeSection
-                bases={readmeUrlBases}
-                readmePreview={readmePreview}
-              />
-            </TabsContent>
-
             <TabsContent value="releases" className="mt-0">
               <ProjectReleasesSection releases={detail.releases} />
             </TabsContent>
 
             <TabsContent
-              id="project-discussion"
-              value="discussion"
+              id="project-comments"
+              value="comments"
               className="mt-0"
             >
               <div>
-                {isSignedIn && !commentComposerOpen ? (
-                  <Button
-                    variant="monoOutline"
-                    size="meta"
-                    onClick={() => setCommentComposerOpen(true)}
-                    className="mb-4 font-mono"
-                  >
-                    <MessageSquare size={13} />
-                    add project comment
-                  </Button>
-                ) : null}
-
-                {isSignedIn && commentComposerOpen ? (
-                  <div className="mb-4 flex flex-wrap gap-3 rounded-[6px] border border-line bg-surface px-3.5 py-3">
-                    <Textarea
-                      value={comment}
-                      onChange={(event) => setComment(event.target.value)}
-                      placeholder="say something thoughtful..."
-                      rows={2}
-                      className={commentComposerTextareaClass}
+                {isSignedIn ? (
+                  <div className="mb-5 flex items-start gap-3 rounded-card border border-line bg-surface px-4 py-4">
+                    <LxAvatar
+                      name={viewer?.displayName ?? 'You'}
+                      avatarUrl={viewer?.avatarUrl}
+                      size={36}
                     />
-                    <div className="flex items-end gap-2">
-                      <Button
-                        variant="monoOutline"
-                        size="meta"
-                        onClick={() => {
-                          setComment('')
-                          setCommentComposerOpen(false)
+                    <div className="min-w-0 flex-1">
+                      <Textarea
+                        value={comment}
+                        onChange={(event) => setComment(event.target.value)}
+                        placeholder="say something thoughtful..."
+                        rows={3}
+                        className={commentComposerTextareaClass}
+                        onKeyDown={(event) => {
+                          if (
+                            (event.metaKey || event.ctrlKey) &&
+                            event.key === 'Enter' &&
+                            comment.trim() &&
+                            !postingComment
+                          ) {
+                            event.preventDefault()
+                            void handlePostComment()
+                          }
                         }}
-                        className="font-mono"
-                      >
-                        cancel
-                      </Button>
-                      <Button
-                        variant="brand"
-                        size="meta"
-                        onClick={() => void handlePostComment()}
-                        disabled={!comment.trim() || postingComment}
-                        className="font-mono font-semibold"
-                      >
-                        {postingComment ? 'posting...' : 'post'}
-                      </Button>
+                      />
+                      <div className="mt-2 flex items-center justify-between gap-3">
+                        <span className="font-mono text-[10.5px] text-text-faint">
+                          Ctrl/⌘ + Enter to post
+                        </span>
+                        <Button
+                          variant="brand"
+                          size="meta"
+                          onClick={() => void handlePostComment()}
+                          disabled={!comment.trim() || postingComment}
+                          className="font-mono font-semibold"
+                        >
+                          {postingComment ? 'posting...' : 'post'}
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 ) : null}

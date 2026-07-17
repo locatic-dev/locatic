@@ -13,12 +13,11 @@ import {
   popularCitiesQueryOptions,
 } from '@/features/cities/queries'
 import {
-  useDeactivateAccount,
-  useDeleteAccount,
   useUpdateNotificationPrefs,
   useUpdatePrivacy,
   useUpdateProfile,
 } from '@/features/settings/mutations'
+import { AccountDangerZone } from '@/features/settings/account-danger-zone'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { CityCombobox } from '@/components/ui/city-combobox'
@@ -114,8 +113,6 @@ function SettingsPage() {
   const updateProfile = useUpdateProfile()
   const updatePrivacy = useUpdatePrivacy()
   const updateNotifPrefs = useUpdateNotificationPrefs()
-  const deactivate = useDeactivateAccount()
-  const deleteAccount = useDeleteAccount()
   const viewerAccountState = getSettingsAccountStateFromViewer(profile.viewer)
 
   const [saved, setSaved] = useState(false)
@@ -595,68 +592,7 @@ function SettingsPage() {
               </div>
             )}
 
-            {tab === 'danger' && (
-              <div className="flex max-w-140 flex-col gap-5">
-                <div className="rounded-[6px] border border-line bg-surface p-5">
-                  <div className="mb-2 font-mono text-[13px] font-semibold text-text">
-                    deactivate account
-                  </div>
-                  <p className="mb-3.5 mt-0 font-sans text-[13px] leading-normal text-text-muted">
-                    hides your profile from Explore and public surfaces until
-                    you reactivate.
-                  </p>
-                  <Button
-                    variant="monoOutline"
-                    size="meta"
-                    onClick={async () => {
-                      if (
-                        window.confirm(
-                          'Deactivate your account? Your profile will be hidden.',
-                        )
-                      ) {
-                        try {
-                          await deactivate({})
-                        } catch (error) {
-                          console.error(error)
-                        }
-                      }
-                    }}
-                    className="font-mono"
-                  >
-                    deactivate account
-                  </Button>
-                </div>
-
-                <div className="rounded-[6px] border border-danger/40 bg-danger/4 p-5">
-                  <div className="mb-2 font-mono text-[13px] font-semibold text-danger">
-                    delete account
-                  </div>
-                  <p className="mb-3.5 mt-0 font-sans text-[13px] leading-normal text-text-muted">
-                    permanently removes all your Locatic data. this cannot be
-                    undone.
-                  </p>
-                  <Button
-                    variant="destructive"
-                    size="meta"
-                    onClick={async () => {
-                      const confirmed = window.prompt(
-                        'Type DELETE to confirm permanent account deletion:',
-                      )
-                      if (confirmed === 'DELETE') {
-                        try {
-                          await deleteAccount({})
-                        } catch (error) {
-                          console.error(error)
-                        }
-                      }
-                    }}
-                    className="font-mono"
-                  >
-                    delete account permanently
-                  </Button>
-                </div>
-              </div>
-            )}
+            {tab === 'danger' && <AccountDangerZone />}
 
             {tab === 'account' && (isAccountDirty || saving || saved) && (
               <div className="lx-fade-up sticky bottom-[var(--lx-mobile-tab-height)] z-10 mt-8 flex flex-wrap items-center justify-between gap-3 rounded-card border border-line bg-surface px-4 py-3 shadow-floating md:bottom-4">

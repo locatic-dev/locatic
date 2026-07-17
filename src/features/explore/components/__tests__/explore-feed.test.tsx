@@ -9,15 +9,40 @@ import type { ProjectCardPreview } from '@/features/contracts'
 
 vi.mock('@/components/ui/project-card', () => ({
   ProjectCard: ({
+    authorPlacement,
     project,
+    showFullCity,
   }: {
+    authorPlacement?: string
     project: { fullName: string; projectId: string }
+    showFullCity?: boolean
   }) => (
-    <article data-testid={`project-${project.projectId}`}>
+    <article
+      data-testid={`project-${project.projectId}`}
+      data-author-placement={authorPlacement}
+      data-show-full-city={showFullCity ? 'true' : 'false'}
+    >
       {project.fullName}
     </article>
   ),
   ProjectCardSkeleton: () => <div data-testid="project-card-skeleton" />,
+}))
+
+vi.mock('@/features/projects/reactions/reaction-bar', () => ({
+  ReactionBar: ({
+    reactionCounts,
+    viewerReactionTypes,
+  }: {
+    reactionCounts: Record<string, number>
+    viewerReactionTypes?: string[]
+  }) => (
+    <button type="button" aria-label="Toggle explore reaction">
+      {Object.entries(reactionCounts)
+        .map(([type, count]) => `${type}:${count}`)
+        .join(',')}{' '}
+      active:{viewerReactionTypes?.join(',') ?? ''}
+    </button>
+  ),
 }))
 
 vi.mock('@tanstack/react-router', () => ({
@@ -72,7 +97,7 @@ const project = {
   authorName: 'Avi',
   authorHandle: 'avinash',
   authorAvatarUrl: null,
-  cityLabel: null,
+  cityLabel: 'Bengaluru, Karnataka, India',
   cityVisibilityState: 'unset',
 } satisfies ProjectCardPreview
 
@@ -98,6 +123,8 @@ const post = {
   searchText:
     'shipping map-based discovery for builders locatic/app react #react maps #maps',
   reactionCounts: {},
+  viewerHasLiked: false,
+  viewerReactionTypes: [],
   commentsCount: 0,
   projectCityId: 'city_1' as Id<'cities'>,
   projectTopics: ['react', 'maps'],
@@ -147,14 +174,12 @@ function renderFeed(
     onDismissPost: vi.fn(),
     onDismissProject: vi.fn(),
     onFollowUser: vi.fn(),
-    onLikeProject: vi.fn(),
     onLoadMoreBuilders: vi.fn(),
     onLoadMorePosts: vi.fn(),
     onLoadMoreProjects: vi.fn(),
     onMessageUser: vi.fn(),
     onOpenBuilderProfile: vi.fn(),
     pendingFollows: new Set<string>(),
-    pendingLikes: new Set<string>(),
     pendingUserId: null,
     projectFeedLoading: false,
     projectSearchLoading: false,
@@ -246,6 +271,23 @@ describe('ExploreFeed', () => {
     expect(screen.getByText('locatic/app')).toBeTruthy()
     expect(screen.queryByText('Mira Builder')).toBeNull()
     expect(screen.queryByText(/Shipping map-based discovery/)).toBeNull()
+    expect(screen.getByText('projects')).toBeTruthy()
+    expect(
+      screen
+        .getByTestId('project-project_1')
+        .getAttribute('data-author-placement'),
+    ).toBe('header')
+    expect(
+      screen
+        .getByTestId('project-project_1')
+        .getAttribute('data-show-full-city'),
+    ).toBe('true')
+  })
+
+  it('labels project search results as matching projects', () => {
+    renderFeed({ isProjectSearchActive: true, items: [project] })
+
+    expect(screen.getByText('matching projects')).toBeTruthy()
   })
 
   it('renders builders only in builders mode', () => {
@@ -274,6 +316,53 @@ describe('ExploreFeed', () => {
     expect(screen.queryByText('Mira Builder')).toBeNull()
     expect(screen.queryByText('search posts by body or topic.')).toBeNull()
     expect(screen.getByText('posts')).toBeTruthy()
+  })
+
+  it('gives explore posts an author identity (pfp + name) like project cards', () => {
+    renderFeed({
+      isPostsMode: true,
+      postResults: [post],
+    })
+
+    // Author name leads the header, and the avatar (initials fallback, empty
+    // avatarUrl) is labelled with the author name.
+    expect(screen.getByText('Avi')).toBeTruthy()
+    expect(screen.getByLabelText('Avi')).toBeTruthy()
+  })
+
+  it('renders interactive reaction state without dismissing the post', () => {
+    const reactedPost = {
+      ...post,
+      reactionCounts: { like: 3, rocket: 1 },
+      viewerHasLiked: true,
+      viewerReactionTypes: ['like'],
+    }
+    const { props } = renderFeed({
+      isPostsMode: true,
+      postResults: [reactedPost],
+    })
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Toggle explore reaction' }),
+    )
+
+    expect(screen.getByText(/like:3,rocket:1/)).toBeTruthy()
+    expect(screen.getByText(/active:like/)).toBeTruthy()
+    expect(props.onDismissPost).not.toHaveBeenCalled()
+  })
+
+  it('renders cached post payloads that predate viewer reaction state', () => {
+    const cachedPost: ExplorePostPreview = { ...post }
+    delete cachedPost.viewerHasLiked
+    delete cachedPost.viewerReactionTypes
+
+    renderFeed({
+      isPostsMode: true,
+      postResults: [cachedPost],
+    })
+
+    expect(screen.getByText(/Shipping map-based discovery/)).toBeTruthy()
+    expect(screen.getByText(/active:/)).toBeTruthy()
   })
 
   it('shows scoped post browse empty copy when there are no browsable posts', () => {

@@ -39,6 +39,9 @@ export type ProfileCommentPreview = {
   content: string
   replyCount: number
   likesCount: number
+  reactionCounts: Record<string, number>
+  viewerHasLiked: boolean
+  viewerReactionTypes: string[]
   createdAt: number
   projectFullName: string | null
   projectOwner: string | null
@@ -68,6 +71,8 @@ export type ProjectCardPreview = {
   languages: Doc<'projects'>['github']['languages']
   githubStars: number
   locaticLikes: number
+  reactionCounts?: Record<string, number>
+  viewerReactionTypes?: string[]
   commentsCount: number
   postsCount?: number
   topics?: string[]
@@ -111,6 +116,8 @@ export type PrivateProfileOverviewPayload = {
 
 export type ViewerSummaryPayload = {
   viewerId: Id<'users'>
+  displayName: string
+  avatarUrl: string
 }
 
 export type ViewerLikedProjectIdsPayload = {
@@ -196,13 +203,9 @@ export type ProjectDetailPayload = {
   project: Doc<'projects'>
   releases: Array<Doc<'project_releases'>>
   comments: Array<ThreadedProjectComment>
-  likedByPreview: Array<{
-    userId: Id<'users'>
-    githubUsername: string
-    displayName: string
-    avatarUrl: string | null
-  }>
   viewerHasLiked: boolean
+  reactionCounts: Record<string, number>
+  viewerReactionTypes: string[]
   viewerFollowsOwner: boolean
   canonicalRoute: ProjectRouteParams
   owner: {
@@ -332,6 +335,8 @@ export function mapViewerSummary(payload: ViewerSummaryPayload | undefined) {
   if (!payload) return null
 
   return {
+    avatarUrl: payload.avatarUrl,
+    displayName: payload.displayName,
     id: payload.viewerId,
   }
 }
@@ -407,12 +412,13 @@ export function mapProjectDetail(
   return {
     canonicalRoute: payload.canonicalRoute,
     comments: payload.comments,
-    likedByPreview: payload.likedByPreview,
     owner: payload.owner,
     project: payload.project,
     releases: payload.releases,
     viewerFollowsOwner: payload.viewerFollowsOwner,
     viewerHasLiked: payload.viewerHasLiked,
+    reactionCounts: payload.reactionCounts,
+    viewerReactionTypes: payload.viewerReactionTypes,
   }
 }
 
