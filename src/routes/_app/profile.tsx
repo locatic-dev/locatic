@@ -24,14 +24,11 @@ import {
   type ProfileNetworkTab,
 } from '@/features/profile/state'
 import { ProfileContentTabs } from '@/features/profile/content-tabs'
-import {
-  commentAvailabilityCopy,
-  getProfileCommentDestination,
-  isCommentTargetOpenable,
-} from '@/features/profile/comment-navigation'
+import { getProfileCommentDestination } from '@/features/profile/comment-navigation'
 import { ProfileMobileAccountActions } from '@/features/profile/mobile-account-actions'
 import { ProfileNetworkSection } from '@/features/profile/network-section'
 import { ProfilePostList } from '@/features/profile/post-list'
+import { ProfileCommentList } from '@/features/profile/comment-list'
 import { ProfileContentSkeleton } from '@/features/profile/content-skeleton'
 import { LxAvatar } from '@/components/ui/lx-avatar'
 import { StatusPill } from '@/components/ui/status-pill'
@@ -40,8 +37,9 @@ import { ContributionGraph } from '@/components/ui/contribution-graph'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
 import { compactNumber } from '@/lib/format'
-import { relativeTime } from '@/lib/time'
 import { ProjectCard } from '@/components/ui/project-card'
+import { CardSheet } from '@/components/ui/card-sheet'
+import { ProjectReactionBar } from '@/features/projects/reactions/project-reaction-bar'
 import {
   FormRoutePending,
   ROUTE_PENDING_MIN_MS,
@@ -681,7 +679,7 @@ function ProfilePage() {
                 {contentIsLoading && <ProfileContentSkeleton />}
 
                 {!contentIsLoading && tab === 'projects' && (
-                  <div className="flex flex-col gap-3.5">
+                  <div className="flex flex-col gap-3">
                     <div className="rounded-card border border-line bg-surface px-4 py-4 shadow-card">
                       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                         <div className="min-w-0">
@@ -714,68 +712,71 @@ function ProfilePage() {
                         title="no projects imported yet."
                       />
                     )}
-                    {projects.map((project) => {
-                      const owner = getProjectCardOwner(project)
-                      const repo = getProjectCardRepo(project)
-                      const projectId = getProjectCardDbId(project)
-                      const projectKey = getProjectCardId(project)
-                      const isPinned = pinnedProjectIds.has(projectKey)
+                    {projects.length > 0 && (
+                      <CardSheet className="flex flex-col gap-2 overflow-visible border-0 bg-transparent divide-y-0">
+                        {projects.map((project) => {
+                          const owner = getProjectCardOwner(project)
+                          const repo = getProjectCardRepo(project)
+                          const projectId = getProjectCardDbId(project)
+                          const projectKey = getProjectCardId(project)
+                          const isPinned = pinnedProjectIds.has(projectKey)
 
-                      return (
-                        <div
-                          key={projectId}
-                          className="rounded-card border border-line bg-transparent"
-                        >
-                          <div className="flex flex-col items-stretch gap-3 border-b border-line px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-                            <div className="min-w-0 font-mono text-[11px] text-text-faint">
-                              {isPinned
-                                ? 'pinned on profile'
-                                : 'visible on profile'}
-                            </div>
-                            <Button
-                              variant={isPinned ? 'brand' : 'monoOutline'}
-                              size="meta"
-                              onClick={() =>
-                                void handleTogglePin(
-                                  projectId,
-                                  projectKey,
-                                  isPinned,
-                                )
+                          return (
+                            <ProjectCard
+                              key={projectId}
+                              project={{
+                                ...toProjectCardData(project),
+                                isPinned,
+                              }}
+                              showActions={false}
+                              topLeftSlot={
+                                <Button
+                                  variant="monoGhost"
+                                  size="compact"
+                                  onClick={() =>
+                                    void handleTogglePin(
+                                      projectId,
+                                      projectKey,
+                                      isPinned,
+                                    )
+                                  }
+                                  disabled={pinPendingId === projectKey}
+                                  aria-label={
+                                    isPinned
+                                      ? 'Unpin from profile'
+                                      : 'Pin to profile'
+                                  }
+                                  aria-pressed={isPinned}
+                                  className="-ml-2 min-h-8 px-2 font-mono text-[10.5px] text-text-faint hover:text-text"
+                                >
+                                  <Pin size={12} />
+                                  {pinPendingId === projectKey
+                                    ? 'saving…'
+                                    : isPinned
+                                      ? 'pinned'
+                                      : 'pin'}
+                                </Button>
                               }
-                              disabled={pinPendingId === projectKey}
-                              className="self-start font-mono sm:self-auto"
-                            >
-                              <Pin size={12} />
-                              {pinPendingId === projectKey ? (
-                                'saving…'
-                              ) : (
-                                <>
-                                  <span className="sm:hidden">
-                                    {isPinned ? 'unpin' : 'pin'}
-                                  </span>
-                                  <span className="hidden sm:inline">
-                                    {isPinned ? 'unpinned' : 'pin to profile'}
-                                  </span>
-                                </>
-                              )}
-                            </Button>
-                          </div>
-                          <ProjectCard
-                            project={{
-                              ...toProjectCardData(project),
-                              isPinned,
-                            }}
-                            showActions={false}
-                            className="rounded-none border-0"
-                            authorLink={{
-                              username: project.authorHandle,
-                              search: { tab: 'projects' },
-                            }}
-                            projectLink={{ owner, repo }}
-                          />
-                        </div>
-                      )
-                    })}
+                              reactionSlot={
+                                <ProjectReactionBar
+                                  projectId={projectId}
+                                  reactionCounts={project.reactionCounts}
+                                  viewerReactionTypes={
+                                    project.viewerReactionTypes
+                                  }
+                                />
+                              }
+                              className="focus-visible:ring-inset"
+                              authorLink={{
+                                username: project.authorHandle,
+                                search: { tab: 'projects' },
+                              }}
+                              projectLink={{ owner, repo }}
+                            />
+                          )
+                        })}
+                      </CardSheet>
+                    )}
                   </div>
                 )}
 
@@ -784,114 +785,121 @@ function ProfilePage() {
                 )}
 
                 {!contentIsLoading && tab === 'contributions' && (
-                  <div className="flex flex-col gap-3.5">
+                  <div className="flex flex-col gap-3">
                     {contributions.length === 0 && (
                       <EmptyState
                         size="compact"
                         title="no matched contributions yet."
                       />
                     )}
-                    {contributions.map((entry) => {
-                      const owner = getProjectCardOwner(entry.project)
-                      const repo = getProjectCardRepo(entry.project)
+                    {contributions.length > 0 && (
+                      <CardSheet className="flex flex-col gap-2 overflow-visible border-0 bg-transparent divide-y-0">
+                        {contributions.map((entry) => {
+                          const owner = getProjectCardOwner(entry.project)
+                          const repo = getProjectCardRepo(entry.project)
 
-                      return (
-                        <div
-                          key={getProjectCardId(entry.project)}
-                          className="rounded-card border border-line bg-transparent"
-                        >
-                          <div className="border-b border-line px-4 py-3 font-mono text-[11px] text-text-faint">
-                            contributor · {compactNumber(entry.commitCount)}{' '}
-                            commits matched
-                          </div>
-                          <ProjectCard
-                            project={toProjectCardData(entry.project)}
-                            showActions={false}
-                            className="rounded-none border-0"
-                            authorLink={{
-                              username: entry.project.authorHandle,
-                              search: { tab: 'projects' },
-                            }}
-                            projectLink={{ owner, repo }}
-                          />
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
-
-                {!contentIsLoading && tab === 'comments' && (
-                  <div className="flex flex-col gap-4">
-                    {comments.map((comment) => (
-                      <button
-                        key={String(comment._id)}
-                        type="button"
-                        onClick={() => openCommentTarget(comment)}
-                        disabled={!isCommentTargetOpenable(comment)}
-                        className={`rounded-[6px] border px-4.5 py-4 text-left transition-colors ${
-                          isCommentTargetOpenable(comment)
-                            ? 'border-line bg-surface hover:border-line-strong hover:bg-surface-alt'
-                            : 'border-line bg-surface/70 opacity-70'
-                        }`}
-                      >
-                        <div className="mb-2 flex flex-wrap items-center justify-between gap-2.5">
-                          <span className="font-mono text-[11px] text-text-faint">
-                            {comment.targetLabel}
-                          </span>
-                          <span className="font-mono text-[11px] text-text-faint">
-                            {relativeTime(comment.createdAt)}
-                          </span>
-                        </div>
-                        <p className="m-0 font-sans text-[13.5px] leading-[1.6] text-text">
-                          {comment.content}
-                        </p>
-                        <div className="mt-3 flex flex-wrap items-center gap-3 font-mono text-[11px] text-text-faint">
-                          <span>
-                            {comment.likesCount}{' '}
-                            {comment.likesCount === 1 ? 'like' : 'likes'}
-                          </span>
-                          <span>
-                            {comment.replyCount}{' '}
-                            {comment.replyCount === 1 ? 'reply' : 'replies'}
-                          </span>
-                          <span>{commentAvailabilityCopy(comment)}</span>
-                        </div>
-                      </button>
-                    ))}
-                    {comments.length === 0 && (
-                      <EmptyState size="compact" title="no comments yet." />
+                          return (
+                            <div
+                              key={getProjectCardId(entry.project)}
+                              className="overflow-hidden rounded-card border border-line bg-surface"
+                            >
+                              <div className="border-b border-line px-4 py-3 font-mono text-[11px] text-text-faint">
+                                contributor · {compactNumber(entry.commitCount)}{' '}
+                                commits matched
+                              </div>
+                              <ProjectCard
+                                project={toProjectCardData(entry.project)}
+                                showActions={false}
+                                reactionSlot={
+                                  <ProjectReactionBar
+                                    projectId={getProjectCardDbId(
+                                      entry.project,
+                                    )}
+                                    reactionCounts={
+                                      entry.project.reactionCounts
+                                    }
+                                    viewerReactionTypes={
+                                      entry.project.viewerReactionTypes
+                                    }
+                                  />
+                                }
+                                className="rounded-none border-0 focus-visible:ring-inset"
+                                authorLink={{
+                                  username: entry.project.authorHandle,
+                                  search: { tab: 'projects' },
+                                }}
+                                projectLink={{ owner, repo }}
+                              />
+                            </div>
+                          )
+                        })}
+                      </CardSheet>
                     )}
                   </div>
                 )}
 
+                {!contentIsLoading && tab === 'comments' && (
+                  <ProfileCommentList
+                    authorAvatarUrl={overview.viewer.avatarUrl}
+                    authorName={overview.viewer.displayName}
+                    comments={comments}
+                    emptyLabel="no comments yet."
+                    onOpenComment={openCommentTarget}
+                    reactionsDisabled={false}
+                  />
+                )}
+
                 {!contentIsLoading && tab === 'liked' && (
-                  <div className="flex flex-col gap-3.5">
+                  <div className="flex flex-col gap-3">
                     {likedProjects.length === 0 && (
                       <EmptyState
                         size="compact"
                         title="no liked projects yet."
                       />
                     )}
-                    {likedProjects.map((likedProject) => {
-                      const owner = getProjectCardOwner(likedProject.project)
-                      const repo = getProjectCardRepo(likedProject.project)
+                    {likedProjects.length > 0 && (
+                      <CardSheet>
+                        {likedProjects.map((likedProject) => {
+                          const owner = getProjectCardOwner(
+                            likedProject.project,
+                          )
+                          const repo = getProjectCardRepo(likedProject.project)
 
-                      return (
-                        <ProjectCard
-                          key={String(likedProject.projectId)}
-                          project={{
-                            ...toProjectCardData(likedProject.project),
-                            liked: true,
-                          }}
-                          showActions={false}
-                          authorLink={{
-                            username: likedProject.project.authorHandle,
-                            search: { tab: 'projects' },
-                          }}
-                          projectLink={{ owner, repo }}
-                        />
-                      )
-                    })}
+                          return (
+                            <ProjectCard
+                              key={String(likedProject.projectId)}
+                              project={{
+                                ...toProjectCardData(likedProject.project),
+                                liked: true,
+                              }}
+                              showActions={false}
+                              reactionSlot={
+                                <ProjectReactionBar
+                                  projectId={likedProject.projectId}
+                                  reactionCounts={
+                                    likedProject.project.reactionCounts
+                                  }
+                                  viewerReactionTypes={[
+                                    ...new Set([
+                                      ...(likedProject.project
+                                        .viewerReactionTypes ?? []),
+                                      'like',
+                                    ]),
+                                  ]}
+                                  liked
+                                />
+                              }
+                              className="focus-visible:ring-inset"
+                              authorLink={{
+                                username: likedProject.project.authorHandle,
+                                search: { tab: 'projects' },
+                              }}
+                              projectLink={{ owner, repo }}
+                            />
+                          )
+                        })}
+                      </CardSheet>
+                    )}
                   </div>
                 )}
               </div>

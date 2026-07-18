@@ -3,6 +3,7 @@ import type React from 'react'
 import type { Id } from '../../../../convex/_generated/dataModel'
 import { api } from '../../../../convex/_generated/api'
 import { Button } from '@/components/ui/button'
+import { cardVariants } from '@/components/ui/card'
 import { CityPill } from '@/components/ui/city-pill'
 import { LxAvatar } from '@/components/ui/lx-avatar'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -121,7 +122,7 @@ export function CommentThread({
       className={
         nested
           ? 'relative min-w-0 border-l border-line pl-3 sm:pl-4'
-          : 'lx-card rounded-card border border-line bg-surface px-3.5 py-3.5'
+          : cardVariants({ density: 'compact' })
       }
     >
       <div

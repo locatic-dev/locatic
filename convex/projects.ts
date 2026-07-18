@@ -1,8 +1,4 @@
 import { ConvexError, v } from 'convex/values'
-import {
-  paginationOptsValidator,
-  paginationResultValidator,
-} from 'convex/server'
 
 import {
   action,
@@ -13,14 +9,13 @@ import {
 } from './_generated/server'
 import type { QueryCtx } from './_generated/server'
 import { internal } from './_generated/api'
-import { fanOutActivityEventToFollowers } from './lib/homeFeed'
+import { enqueueActivityEventFanOut } from './lib/homeFeed'
 import {
   buildViewerSeedFromIdentity,
   getViewerOrThrow,
   requireIdentity,
 } from './lib/auth'
 import { buildPostSearchText } from './lib/posts'
-import { getPubliclyInteractableProject } from './lib/project_access'
 import { canPinProject } from './lib/project_pins'
 import { resolvePublicCityLabel } from './lib/project_previews'
 import {
@@ -37,6 +32,10 @@ import { recomputeContributionCountsForUsers } from './lib/project_contributor_s
 import { normalizeProjectTopics } from './lib/topics'
 import { buildStatusValidator, socialLinksValidator } from './lib/validators'
 import { enforceRateLimit } from './lib/rate_limits'
+import {
+  getProjectReactionCounts,
+  getViewerReactionTypesByTargetId,
+} from './lib/reactions'
 
 function getCommitFrequency(lastCommitAt: number) {
   const ageDays = (Date.now() - lastCommitAt) / (24 * 60 * 60 * 1000)
@@ -56,20 +55,14 @@ function getSnapshotOwnerLogin(args: {
   )
 }
 
-const projectLikerValidator = v.object({
-  userId: v.id('users'),
-  githubUsername: v.string(),
-  displayName: v.string(),
-  avatarUrl: v.union(v.string(), v.null()),
-})
-
 const projectDetailValidator = v.union(
   v.object({
     project: v.any(),
     releases: v.array(v.any()),
     comments: v.array(v.any()),
-    likedByPreview: v.array(projectLikerValidator),
     viewerHasLiked: v.boolean(),
+    reactionCounts: v.record(v.string(), v.number()),
+    viewerReactionTypes: v.array(v.string()),
     viewerFollowsOwner: v.boolean(),
     owner: v.object({
       userId: v.id('users'),
@@ -270,17 +263,13 @@ async function getPublicProjectDetail(
     .order('desc')
     .collect()
 
-  const viewerHasLiked = requester
-    ? await ctx.db
-        .query('reactions')
-        .withIndex('by_user_target_reaction', (query) =>
-          query
-            .eq('userId', requester._id)
-            .eq('targetId', String(project._id))
-            .eq('reactionType', 'like'),
-        )
-        .unique()
-    : null
+  const viewerReactionTypes =
+    (
+      await getViewerReactionTypesByTargetId(ctx, requester, {
+        targetIds: [String(project._id)],
+        targetType: 'project',
+      })
+    ).get(String(project._id)) ?? []
 
   const viewerFollowsOwner = requester
     ? await ctx.db
@@ -291,35 +280,6 @@ async function getPublicProjectDetail(
         .unique()
     : null
 
-  const likedByReactions = await ctx.db
-    .query('reactions')
-    .withIndex('by_target_reaction_created', (query) =>
-      query
-        .eq('targetType', 'project')
-        .eq('targetId', String(project._id))
-        .eq('reactionType', 'like'),
-    )
-    .order('desc')
-    .take(3)
-
-  const likedByPreview = (
-    await Promise.all(
-      likedByReactions.map(async (reaction) => {
-        const user = await ctx.db.get(reaction.userId)
-        if (!user || user.deletedAt || user.deactivatedAt) {
-          return null
-        }
-
-        return {
-          userId: user._id,
-          githubUsername: user.github.username,
-          displayName: user.profile.displayName,
-          avatarUrl: user.profile.avatarUrl,
-        }
-      }),
-    )
-  ).filter((user): user is NonNullable<typeof user> => user !== null)
-
   const ownerCity = owner.profile.cityId
     ? await ctx.db.get(owner.profile.cityId)
     : null
@@ -328,8 +288,9 @@ async function getPublicProjectDetail(
     project,
     releases,
     comments: [],
-    likedByPreview,
-    viewerHasLiked: Boolean(viewerHasLiked),
+    reactionCounts: getProjectReactionCounts(project),
+    viewerHasLiked: viewerReactionTypes.includes('like'),
+    viewerReactionTypes,
     viewerFollowsOwner: Boolean(viewerFollowsOwner),
     owner: {
       userId: owner._id,
@@ -358,55 +319,207 @@ export const getPublicByRoute = query({
   },
 })
 
-export const listLikers = query({
-  args: {
-    projectId: v.id('projects'),
-    paginationOpts: paginationOptsValidator,
-  },
-  returns: paginationResultValidator(projectLikerValidator),
+export const getViewerReactionTypes = query({
+  args: { projectId: v.id('projects') },
+  returns: v.array(v.string()),
   handler: async (ctx, args) => {
-    if (!(await getPubliclyInteractableProject(ctx, args.projectId))) {
-      return {
-        continueCursor: '',
-        isDone: true,
-        page: [],
-        pageStatus: null,
-        splitCursor: null,
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) return []
+    const viewer = await ctx.db
+      .query('users')
+      .withIndex('by_clerk_id', (query) =>
+        query.eq('clerkId', identity.subject),
+      )
+      .unique()
+    if (!viewer) return []
+    return (
+      (
+        await getViewerReactionTypesByTargetId(ctx, viewer, {
+          targetIds: [String(args.projectId)],
+          targetType: 'project',
+        })
+      ).get(String(args.projectId)) ?? []
+    )
+  },
+})
+
+export const backfillProjectReactionCounts = internalMutation({
+  args: {
+    afterProjectCreationTime: v.optional(v.union(v.number(), v.null())),
+    limit: v.optional(v.number()),
+    activeProject: v.optional(
+      v.object({
+        projectId: v.id('projects'),
+        projectCreationTime: v.number(),
+        reactionCursor: v.union(v.string(), v.null()),
+        reactionCounts: v.record(v.string(), v.number()),
+      }),
+    ),
+    totals: v.optional(
+      v.object({
+        likeMismatches: v.number(),
+        patched: v.number(),
+        scanned: v.number(),
+      }),
+    ),
+  },
+  returns: v.object({
+    nextProjectCreationTime: v.union(v.number(), v.null()),
+    likeMismatches: v.number(),
+    patched: v.number(),
+    scanned: v.number(),
+    scheduledContinuation: v.boolean(),
+  }),
+  handler: async (ctx, args) => {
+    const limit = Math.min(Math.max(args.limit ?? 250, 1), 250)
+    let patched = args.totals?.patched ?? 0
+    let likeMismatches = args.totals?.likeMismatches ?? 0
+    let scanned = args.totals?.scanned ?? 0
+    let activeProject = args.activeProject
+
+    if (!activeProject) {
+      const project = await ctx.db
+        .query('projects')
+        .withIndex('by_creation_time', (query) =>
+          args.afterProjectCreationTime == null
+            ? query
+            : query.gt('_creationTime', args.afterProjectCreationTime),
+        )
+        .first()
+
+      if (!project) {
+        const totals = { likeMismatches, patched, scanned }
+        console.info(
+          'Project reaction-count backfill complete',
+          JSON.stringify(totals),
+        )
+        return {
+          nextProjectCreationTime: null,
+          ...totals,
+          scheduledContinuation: false,
+        }
+      }
+
+      scanned += 1
+      if (project.locatic.reactionCounts !== undefined) {
+        const totals = { likeMismatches, patched, scanned }
+        await ctx.scheduler.runAfter(
+          0,
+          internal.projects.backfillProjectReactionCounts,
+          {
+            afterProjectCreationTime: project._creationTime,
+            limit,
+            totals,
+          },
+        )
+        return {
+          nextProjectCreationTime: project._creationTime,
+          ...totals,
+          scheduledContinuation: true,
+        }
+      }
+
+      activeProject = {
+        projectId: project._id,
+        projectCreationTime: project._creationTime,
+        reactionCursor: null,
+        reactionCounts: {},
       }
     }
 
-    const page = await ctx.db
+    const project = await ctx.db.get(activeProject.projectId)
+    if (!project || project.locatic.reactionCounts !== undefined) {
+      const totals = { likeMismatches, patched, scanned }
+      await ctx.scheduler.runAfter(
+        0,
+        internal.projects.backfillProjectReactionCounts,
+        {
+          afterProjectCreationTime: activeProject.projectCreationTime,
+          limit,
+          totals,
+        },
+      )
+      return {
+        nextProjectCreationTime: activeProject.projectCreationTime,
+        ...totals,
+        scheduledContinuation: true,
+      }
+    }
+
+    const reactionPage = await ctx.db
       .query('reactions')
-      .withIndex('by_target_reaction_created', (query) =>
-        query
-          .eq('targetType', 'project')
-          .eq('targetId', String(args.projectId))
-          .eq('reactionType', 'like'),
+      .withIndex('by_target', (query) =>
+        query.eq('targetType', 'project').eq('targetId', String(project._id)),
       )
-      .order('desc')
-      .paginate(args.paginationOpts)
+      .paginate({
+        cursor: activeProject.reactionCursor,
+        numItems: limit,
+        maximumRowsRead: limit,
+        maximumBytesRead: 2_000_000,
+      })
+    const reactionCounts = { ...activeProject.reactionCounts }
+    for (const reaction of reactionPage.page) {
+      reactionCounts[reaction.reactionType] =
+        (reactionCounts[reaction.reactionType] ?? 0) + 1
+    }
 
-    const likers = (
-      await Promise.all(
-        page.page.map(async (reaction) => {
-          const user = await ctx.db.get(reaction.userId)
-          if (!user || user.deletedAt || user.deactivatedAt) {
-            return null
-          }
-
-          return {
-            userId: user._id,
-            githubUsername: user.github.username,
-            displayName: user.profile.displayName,
-            avatarUrl: user.profile.avatarUrl,
-          }
-        }),
+    if (!reactionPage.isDone) {
+      const totals = { likeMismatches, patched, scanned }
+      await ctx.scheduler.runAfter(
+        0,
+        internal.projects.backfillProjectReactionCounts,
+        {
+          limit,
+          totals,
+          activeProject: {
+            ...activeProject,
+            reactionCursor: reactionPage.continueCursor,
+            reactionCounts,
+          },
+        },
       )
-    ).filter((liker): liker is NonNullable<typeof liker> => liker !== null)
+      return {
+        nextProjectCreationTime: activeProject.projectCreationTime,
+        ...totals,
+        scheduledContinuation: true,
+      }
+    }
+
+    if ((reactionCounts.like ?? 0) !== project.locatic.likesCount) {
+      likeMismatches += 1
+    }
+    reactionCounts.like = project.locatic.likesCount
+    await ctx.db.patch(project._id, {
+      locatic: { ...project.locatic, reactionCounts },
+    })
+    patched += 1
+
+    const totals = { likeMismatches, patched, scanned }
+
+    console.info(
+      'Project reaction-count backfill batch',
+      JSON.stringify({
+        ...totals,
+        projectId: project._id,
+        reactionRows: reactionPage.page.length,
+        scheduledContinuation: true,
+      }),
+    )
+
+    await ctx.scheduler.runAfter(
+      0,
+      internal.projects.backfillProjectReactionCounts,
+      {
+        afterProjectCreationTime: activeProject.projectCreationTime,
+        limit,
+        totals,
+      },
+    )
 
     return {
-      ...page,
-      page: likers,
+      nextProjectCreationTime: activeProject.projectCreationTime,
+      ...totals,
+      scheduledContinuation: true,
     }
   },
 })
@@ -780,10 +893,7 @@ export const upsertImportedRepositories = internalMutation({
         createdAt: now,
       })
 
-      const event = await ctx.db.get(eventId)
-      if (event) {
-        await fanOutActivityEventToFollowers(ctx, event)
-      }
+      await enqueueActivityEventFanOut(ctx, eventId)
 
       await ctx.scheduler.runAfter(
         (createdProjectIds.length - 1) * 5_000,

@@ -40,6 +40,7 @@ import type * as lib_project_access from "../lib/project_access.js";
 import type * as lib_project_contributor_sync from "../lib/project_contributor_sync.js";
 import type * as lib_project_pins from "../lib/project_pins.js";
 import type * as lib_project_previews from "../lib/project_previews.js";
+import type * as lib_project_reactions from "../lib/project_reactions.js";
 import type * as lib_project_route from "../lib/project_route.js";
 import type * as lib_pulse from "../lib/pulse.js";
 import type * as lib_rate_limits from "../lib/rate_limits.js";
@@ -99,6 +100,7 @@ declare const fullApi: ApiFromModules<{
   "lib/project_contributor_sync": typeof lib_project_contributor_sync;
   "lib/project_pins": typeof lib_project_pins;
   "lib/project_previews": typeof lib_project_previews;
+  "lib/project_reactions": typeof lib_project_reactions;
   "lib/project_route": typeof lib_project_route;
   "lib/pulse": typeof lib_pulse;
   "lib/rate_limits": typeof lib_rate_limits;
