@@ -62,7 +62,13 @@ import {
   socialLinksValidator,
   tabVisibilityValidator,
 } from './lib/validators'
-import { getViewerReactionTypesByTargetId } from './lib/reactions'
+import {
+  getCommentReactionCounts,
+  getNextCommentReactionState,
+  getNextPostReactionCounts,
+  getNextProjectReactionLocatic,
+  getViewerReactionTypesByTargetId,
+} from './lib/reactions'
 
 const viewerBootstrapStatusValidator = v.union(
   v.literal('unauthenticated'),
@@ -155,6 +161,9 @@ const profileCommentPreviewValidator = v.object({
   content: v.string(),
   replyCount: v.number(),
   likesCount: v.number(),
+  reactionCounts: v.record(v.string(), v.number()),
+  viewerHasLiked: v.boolean(),
+  viewerReactionTypes: v.array(v.string()),
   createdAt: v.number(),
   projectFullName: v.union(v.string(), v.null()),
   projectOwner: v.union(v.string(), v.null()),
@@ -235,6 +244,7 @@ const projectCardPreviewValidator = v.object({
   ),
   githubStars: v.number(),
   locaticLikes: v.number(),
+  reactionCounts: v.record(v.string(), v.number()),
   commentsCount: v.number(),
   postsCount: v.number(),
   topics: v.array(v.string()),
@@ -665,25 +675,18 @@ async function buildProfileCommentPreview(
   }
 }
 
-async function listPrivateProfileComments(
-  ctx: QueryCtx,
-  userId: Doc<'users'>['_id'],
-) {
+async function listPrivateProfileComments(ctx: QueryCtx, viewer: Doc<'users'>) {
   const comments = await ctx.db
     .query('comments')
-    .withIndex('by_author', (query) => query.eq('authorId', userId))
+    .withIndex('by_author', (query) => query.eq('authorId', viewer._id))
     .collect()
-
-  return await Promise.all(
-    comments
-      .filter((comment) => !comment.isDeleted)
-      .map((comment) => buildProfileCommentPreview(ctx, comment)),
-  )
+  return await buildProfileCommentPreviews(ctx, comments, viewer)
 }
 
 async function listPublicProfileComments(
   ctx: QueryCtx,
   viewer: NonNullable<Awaited<ReturnType<typeof getViewerByClerkId>>>,
+  requester: Doc<'users'> | null,
 ) {
   if (viewer.privacy.commentHistoryVisibility !== 'public') {
     return []
@@ -694,11 +697,38 @@ async function listPublicProfileComments(
     .withIndex('by_author', (query) => query.eq('authorId', viewer._id))
     .collect()
 
-  return await Promise.all(
-    comments
-      .filter((comment) => !comment.isDeleted)
-      .map((comment) => buildProfileCommentPreview(ctx, comment)),
+  return await buildProfileCommentPreviews(ctx, comments, requester)
+}
+
+async function buildProfileCommentPreviews(
+  ctx: QueryCtx,
+  comments: Array<Doc<'comments'>>,
+  requester: Doc<'users'> | null,
+) {
+  const visibleComments = comments.filter((comment) => !comment.isDeleted)
+  const viewerReactionTypesByTargetId = await getViewerReactionTypesByTargetId(
+    ctx,
+    requester,
+    {
+      targetIds: visibleComments.map((comment) => String(comment._id)),
+      targetType: 'comment',
+    },
   )
+  const previews = await Promise.all(
+    visibleComments.map((comment) => buildProfileCommentPreview(ctx, comment)),
+  )
+
+  return previews.map((preview, index) => {
+    const comment = visibleComments[index]
+    const viewerReactionTypes =
+      viewerReactionTypesByTargetId.get(String(comment._id)) ?? []
+    return {
+      ...preview,
+      reactionCounts: getCommentReactionCounts(comment),
+      viewerHasLiked: viewerReactionTypes.includes('like'),
+      viewerReactionTypes,
+    }
+  })
 }
 
 async function listPrivateLikedProjects(
@@ -915,7 +945,7 @@ async function getPublicProfilePayload(
       requester,
       userId: viewer._id,
     }),
-    listPublicProfileComments(ctx, viewer),
+    listPublicProfileComments(ctx, viewer, requester),
     listPublicLikedProjects(ctx, viewer),
     contributionsArePublic
       ? listContributedProjects(ctx, viewer._id, 'public')
@@ -1012,7 +1042,7 @@ export const privateProfile = query({
         requester: viewer,
         userId: viewer._id,
       }),
-      listPrivateProfileComments(ctx, viewer._id),
+      listPrivateProfileComments(ctx, viewer),
       listContributedProjects(ctx, viewer._id, 'private'),
       listFollowPreviewSlice(ctx, {
         userId: viewer._id,
@@ -1090,7 +1120,7 @@ export const privateProfileComments = query({
   returns: v.array(profileCommentPreviewValidator),
   handler: async (ctx) => {
     const viewer = await getViewerOrThrow(ctx)
-    return await listPrivateProfileComments(ctx, viewer._id)
+    return await listPrivateProfileComments(ctx, viewer)
   },
 })
 
@@ -1155,6 +1185,8 @@ export const viewerSummary = query({
 
     return {
       viewerId: viewer._id,
+      displayName: viewer.profile.displayName,
+      avatarUrl: viewer.profile.avatarUrl,
     }
   },
 })
@@ -1353,7 +1385,7 @@ export const publicProfileComments = query({
   },
   returns: v.union(v.array(profileCommentPreviewValidator), v.null()),
   handler: async (ctx, args) => {
-    const { viewer } = await getAccessiblePublicProfileViewer(
+    const { requester, viewer } = await getAccessiblePublicProfileViewer(
       ctx,
       args.username,
     )
@@ -1361,7 +1393,7 @@ export const publicProfileComments = query({
       return null
     }
 
-    return await listPublicProfileComments(ctx, viewer)
+    return await listPublicProfileComments(ctx, viewer, requester)
   },
 })
 
@@ -1950,29 +1982,73 @@ export const scrubDeletedAccount = internalMutation({
       }
     }
 
+    const reactionsByTarget = new Map<string, typeof reactions>()
     for (const reaction of reactions) {
-      if (reaction.targetType === 'project') {
-        const projectId = ctx.db.normalizeId('projects', reaction.targetId)
+      const targetKey = `${reaction.targetType}:${reaction.targetId}`
+      const targetReactions = reactionsByTarget.get(targetKey) ?? []
+      targetReactions.push(reaction)
+      reactionsByTarget.set(targetKey, targetReactions)
+    }
+
+    const reactionCleanupAt = Date.now()
+    for (const targetReactions of reactionsByTarget.values()) {
+      const [firstReaction] = targetReactions
+      if (!firstReaction) continue
+
+      if (firstReaction.targetType === 'project') {
+        const projectId = ctx.db.normalizeId('projects', firstReaction.targetId)
         const project = projectId ? await ctx.db.get(projectId) : null
         if (project) {
+          const locatic = targetReactions.reduce(
+            (current, reaction) =>
+              getNextProjectReactionLocatic(
+                { locatic: current },
+                reaction.reactionType,
+                -1,
+              ),
+            project.locatic,
+          )
           await ctx.db.patch(project._id, {
-            locatic: {
-              ...project.locatic,
-              likesCount: Math.max(0, project.locatic.likesCount - 1),
-            },
-            updatedAt: Date.now(),
+            locatic,
+            updatedAt: reactionCleanupAt,
           })
         }
+        continue
       }
 
-      if (reaction.targetType === 'comment') {
-        const commentId = ctx.db.normalizeId('comments', reaction.targetId)
-        const comment = commentId ? await ctx.db.get(commentId) : null
-        if (comment) {
-          await ctx.db.patch(comment._id, {
-            likesCount: Math.max(0, comment.likesCount - 1),
+      if (firstReaction.targetType === 'post') {
+        const postId = ctx.db.normalizeId('posts', firstReaction.targetId)
+        const post = postId ? await ctx.db.get(postId) : null
+        if (post) {
+          const reactionCounts = targetReactions.reduce(
+            (current, reaction) =>
+              getNextPostReactionCounts(
+                { reactionCounts: current },
+                reaction.reactionType,
+                -1,
+              ),
+            post.reactionCounts,
+          )
+          await ctx.db.patch(post._id, {
+            reactionCounts,
+            updatedAt: reactionCleanupAt,
           })
         }
+        continue
+      }
+
+      const commentId = ctx.db.normalizeId('comments', firstReaction.targetId)
+      const comment = commentId ? await ctx.db.get(commentId) : null
+      if (comment) {
+        const reactionState = targetReactions.reduce(
+          (current, reaction) =>
+            getNextCommentReactionState(current, reaction.reactionType, -1),
+          {
+            likesCount: comment.likesCount,
+            reactionCounts: comment.reactionCounts,
+          },
+        )
+        await ctx.db.patch(comment._id, reactionState)
       }
     }
 

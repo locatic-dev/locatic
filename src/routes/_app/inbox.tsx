@@ -245,7 +245,7 @@ function InboxPage() {
                   <m.div
                     key={String(conversation._id)}
                     variants={fadeUp}
-                    className={`relative flex items-stretch gap-3 border-b border-line px-5 py-3.5 transition-colors active:scale-[0.99] ${
+                    className={`relative flex items-stretch gap-3 border-b border-line px-4 py-3 transition-colors active:scale-[0.99] ${
                       isSelected
                         ? 'bg-selected'
                         : 'bg-transparent hover:bg-surface-raised'
@@ -319,23 +319,28 @@ function InboxPage() {
                       >
                         {conversation.lastMessage.content}
                       </div>
-                      <div className="mt-1.5 flex items-center justify-between gap-2">
-                        <span className="font-mono text-[10.5px] text-text-faint">
-                          {conversation.otherUser?.cityName ??
-                            'location hidden'}
-                        </span>
-                        {isUnread && (
-                          <span className="flex items-center gap-1.5">
-                            <span
-                              aria-hidden
-                              className="size-1.5 rounded-full bg-unread"
-                            />
-                            <span className="rounded-pill bg-unread px-1.5 py-px font-mono text-[10px] leading-[1.4] text-brand-foreground">
-                              {unreadCount}
+                      {(conversation.otherUser?.cityName || isUnread) && (
+                        <div className="mt-1.5 flex items-center justify-between gap-2">
+                          {conversation.otherUser?.cityName ? (
+                            <span className="font-mono text-[10.5px] text-text-faint">
+                              {conversation.otherUser.cityName}
                             </span>
-                          </span>
-                        )}
-                      </div>
+                          ) : (
+                            <span />
+                          )}
+                          {isUnread && (
+                            <span className="flex items-center gap-1.5">
+                              <span
+                                aria-hidden
+                                className="size-1.5 rounded-full bg-unread"
+                              />
+                              <span className="rounded-pill bg-unread px-1.5 py-px font-mono text-[10px] leading-[1.4] text-brand-foreground">
+                                {unreadCount}
+                              </span>
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </button>
                   </m.div>
                 )

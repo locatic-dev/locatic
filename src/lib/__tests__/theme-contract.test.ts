@@ -5,7 +5,7 @@ import { DEFAULT_THEME_ID, THEME_IDS } from '../theme'
 const styles = readFileSync(
   new URL('../../styles.css', import.meta.url),
   'utf8',
-)
+).replace(/\r\n/g, '\n')
 
 function getThemeDeclarations(themeId: string) {
   const selector =

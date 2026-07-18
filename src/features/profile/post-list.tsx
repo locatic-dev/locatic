@@ -1,62 +1,69 @@
-import { Link } from '@tanstack/react-router'
+import { useRouter } from '@tanstack/react-router'
 
 import type { ProfilePostPreview } from '@/features/contracts'
-import { compactNumber } from '@/lib/format'
-import { relativeTime } from '@/lib/time'
+import { ReactionBar } from '@/features/projects/reactions/reaction-bar'
 import { EmptyState } from '@/components/ui/empty-state'
+import { MessageSquare } from '@/lib/icons'
+import { ProfileActivityCard } from './activity-card'
 
 export function ProfilePostList({
   emptyLabel,
   posts,
+  reactionsDisabled = false,
 }: {
   emptyLabel: string
   posts: ProfilePostPreview[]
+  reactionsDisabled?: boolean
 }) {
+  const router = useRouter()
+
   if (posts.length === 0) {
     return <EmptyState size="compact" title={emptyLabel} />
   }
 
   return (
-    <div className="flex flex-col gap-3.5">
+    <div className="flex flex-col gap-2">
       {posts.map((post) => {
         const owner = post.projectSnapshot.ownerLogin
         const repo = post.projectSnapshot.name
+        const navigateOptions = {
+          to: '/project/$owner/$repo' as const,
+          params: { owner, repo },
+          search: { post: String(post._id) },
+          hash: `post-${String(post._id)}`,
+        }
 
         return (
-          <Link
+          <ProfileActivityCard
             key={String(post._id)}
-            to="/project/$owner/$repo"
-            params={{ owner, repo }}
-            search={{ post: String(post._id) }}
-            hash={`post-${String(post._id)}`}
-            preload="intent"
-            className="rounded-card border border-line bg-surface px-4 py-4 text-left no-underline transition-colors hover:border-line-strong hover:bg-surface-alt"
-          >
-            <div className="mb-2 flex flex-wrap items-center justify-between gap-2.5">
-              <span className="min-w-0 truncate font-mono text-[11.5px] text-text-faint">
-                {post.projectSnapshot.fullName}
-              </span>
-              <span className="shrink-0 font-mono text-[11px] text-text-faint">
-                {relativeTime(post.createdAt)}
-              </span>
-            </div>
-            <p className="m-0 line-clamp-4 font-sans text-[13.5px] leading-[1.6] text-text">
-              {post.body}
-            </p>
-            <div className="mt-3 flex flex-wrap items-center gap-3 font-mono text-[11px] text-text-faint">
-              <span>
-                {compactNumber(post.reactionCounts.like ?? 0)}{' '}
-                {(post.reactionCounts.like ?? 0) === 1 ? 'like' : 'likes'}
-              </span>
-              <span>
-                {compactNumber(post.commentsCount)}{' '}
-                {post.commentsCount === 1 ? 'comment' : 'comments'}
-              </span>
-              {post.projectSnapshot.primaryLanguage && (
-                <span>{post.projectSnapshot.primaryLanguage}</span>
-              )}
-            </div>
-          </Link>
+            authorAvatarUrl={post.actorSnapshot.avatarUrl}
+            authorName={post.actorSnapshot.displayName}
+            body={post.body}
+            context={post.projectSnapshot.fullName}
+            createdAt={post.createdAt}
+            topics={post.projectTopics}
+            onOpen={() => void router.navigate(navigateOptions)}
+            footer={
+              <>
+                <ReactionBar
+                  disabled={reactionsDisabled}
+                  reactionCounts={post.reactionCounts}
+                  targetId={String(post._id)}
+                  targetType="post"
+                  viewerReactionTypes={post.viewerReactionTypes}
+                />
+                <button
+                  type="button"
+                  onClick={() => void router.navigate(navigateOptions)}
+                  className="ml-auto inline-flex min-h-11 items-center gap-1.5 rounded-md px-2 font-mono text-[11px] text-text-faint transition-colors hover:text-text"
+                >
+                  <MessageSquare size={12} aria-hidden="true" />
+                  {post.commentsCount}{' '}
+                  {post.commentsCount === 1 ? 'comment' : 'comments'}
+                </button>
+              </>
+            }
+          />
         )
       })}
     </div>

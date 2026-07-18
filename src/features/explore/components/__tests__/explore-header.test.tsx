@@ -61,6 +61,14 @@ describe('ExploreHeader', () => {
     expect(props.onRemoveCity).toHaveBeenCalledWith('city_1')
   })
 
+  it('allows the full selected city label to wrap', () => {
+    renderHeader()
+
+    const city = screen.getByText('Bengaluru, Karnataka, India')
+    expect(city.className).not.toContain('truncate')
+    expect(city.className).toContain('whitespace-normal')
+  })
+
   it('keeps the city add control on a stable responsive basis', () => {
     renderHeader()
     const cityInput = screen.getByLabelText('Add a city filter')

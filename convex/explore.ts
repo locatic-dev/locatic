@@ -23,6 +23,10 @@ import {
   rankExploreProjectsByStack,
   shouldReportPostSearchHasMore,
 } from './lib/explore'
+import {
+  getViewerReactionTypesByTargetId,
+  withViewerPostReactions,
+} from './lib/reactions'
 
 const projectSearchResultValidator = v.object({
   projectId: v.id('projects'),
@@ -40,6 +44,7 @@ const projectSearchResultValidator = v.object({
   ),
   githubStars: v.number(),
   locaticLikes: v.number(),
+  reactionCounts: v.record(v.string(), v.number()),
   commentsCount: v.number(),
   postsCount: v.number(),
   topics: v.array(v.string()),
@@ -95,6 +100,8 @@ const postSearchResultValidator = v.object({
   createdAt: v.number(),
   updatedAt: v.number(),
   deletedAt: v.union(v.number(), v.null()),
+  viewerHasLiked: v.boolean(),
+  viewerReactionTypes: v.array(v.string()),
 })
 
 const postSearchPayloadValidator = v.object({
@@ -390,10 +397,19 @@ export const listPosts = query({
       numItems: args.paginationOpts.numItems,
     })
 
+    const viewerReactionTypesByTargetId =
+      await getViewerReactionTypesByTargetId(ctx, viewer, {
+        targetIds: visiblePostsPage.page.map((post) => String(post._id)),
+        targetType: 'post',
+      })
+
     return {
       continueCursor: visiblePostsPage.continueCursor,
       isDone: visiblePostsPage.isDone,
-      page: visiblePostsPage.page,
+      page: withViewerPostReactions(
+        visiblePostsPage.page,
+        viewerReactionTypesByTargetId,
+      ),
     }
   },
 })
@@ -585,6 +601,12 @@ export const searchPosts = query({
     const visiblePosts = (await filterVisiblePosts(ctx, posts))
       .filter((post) => !dismissedPostIds.has(String(post._id)))
       .slice(0, limit + 1)
+    const resultPosts = visiblePosts.slice(0, limit)
+    const viewerReactionTypesByTargetId =
+      await getViewerReactionTypesByTargetId(ctx, viewer, {
+        targetIds: resultPosts.map((post) => String(post._id)),
+        targetType: 'post',
+      })
 
     return {
       hasMore: shouldReportPostSearchHasMore({
@@ -593,7 +615,10 @@ export const searchPosts = query({
         limit,
         visibleCount: visiblePosts.length,
       }),
-      posts: visiblePosts.slice(0, limit),
+      posts: withViewerPostReactions(
+        resultPosts,
+        viewerReactionTypesByTargetId,
+      ),
     }
   },
 })

@@ -33,6 +33,7 @@ type HomeFeedCardProps = {
   likedProjectIds: Set<string>
   pendingLikes: Set<string>
   onLikeProject: (projectId: Id<'projects'>, projectKey: string) => void
+  className?: string
 }
 
 function isCommentGroup(item: HomeFeedItem) {
@@ -540,6 +541,7 @@ export function HomeFeedCard({
   likedProjectIds,
   pendingLikes,
   onLikeProject,
+  className,
 }: HomeFeedCardProps) {
   const [expanded, setExpanded] = useState(false)
   const {
@@ -564,7 +566,12 @@ export function HomeFeedCard({
     remainingCount > 0 && isCommentGroup(item) && Boolean(commentMoreRoute)
   const showExpand = remainingCount > 0 && hasStoredTargetsToExpand
   return (
-    <article className="lx-card @container overflow-hidden rounded-card border border-line bg-surface transition-colors active:scale-[0.997]">
+    <article
+      className={cn(
+        'lx-card @container overflow-hidden rounded-card border border-line bg-surface transition-colors active:scale-[0.997]',
+        className,
+      )}
+    >
       <header className="flex min-w-0 items-start gap-3 px-4 py-4 sm:px-5">
         <LxAvatar
           name={item.actorSnapshot.displayName}

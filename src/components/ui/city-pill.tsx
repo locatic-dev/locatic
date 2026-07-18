@@ -5,9 +5,15 @@ interface CityPillProps {
   city: string
   onRemove?: () => void
   className?: string
+  truncate?: boolean
 }
 
-export function CityPill({ city, onRemove, className }: CityPillProps) {
+export function CityPill({
+  city,
+  onRemove,
+  className,
+  truncate = true,
+}: CityPillProps) {
   return (
     <span
       className={cn(
@@ -17,7 +23,14 @@ export function CityPill({ city, onRemove, className }: CityPillProps) {
       title={city}
     >
       <MapPin size={10} className="shrink-0 text-text-faint" />
-      <span className="truncate">{city}</span>
+      <span
+        className={cn(
+          'min-w-0',
+          truncate ? 'truncate' : 'wrap-anywhere whitespace-normal leading-4',
+        )}
+      >
+        {city}
+      </span>
       {onRemove && (
         <button
           type="button"

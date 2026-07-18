@@ -1,4 +1,6 @@
-export type ProjectTab = 'posts' | 'readme' | 'releases' | 'discussion'
+export type ProjectTab = 'comments' | 'posts' | 'releases'
+
+export const PROJECT_TAB_ORDER: ProjectTab[] = ['comments', 'posts', 'releases']
 
 export const DEEP_LINK_LOAD_MORE_ATTEMPT_LIMIT = 5
 
@@ -49,15 +51,16 @@ export function getProjectDeepLinkTab({
   postId: string | null
   postsCount: number
 }): ProjectTab {
+  void postsCount
   if (postId) {
     return 'posts'
   }
 
   if (commentId) {
-    return 'discussion'
+    return 'comments'
   }
 
-  return postsCount > 0 ? 'posts' : 'readme'
+  return 'comments'
 }
 
 export function getCommentExpansionPath({
