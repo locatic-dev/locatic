@@ -1,4 +1,4 @@
-name: Convex Deploy
+name: App Deploy
 
 on:
   workflow_run:
@@ -12,18 +12,24 @@ permissions:
 
 jobs:
   deploy-development:
-    name: Deploy Convex Development
+    name: Deploy Development
     runs-on: ubuntu-latest
     if: >
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'push' &&
       github.event.workflow_run.head_branch == 'dev'
-    environment: development
+    environment:
+      name: development
+      url: https://development.locatic.dev
     concurrency:
-      group: deploy-convex-development
+      group: deploy-app-development
       cancel-in-progress: false
     env:
       CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      VITE_CLERK_PUBLISHABLE_KEY: ${{ vars.VITE_CLERK_PUBLISHABLE_KEY }}
+      VITE_CONVEX_URL: ${{ vars.VITE_CONVEX_URL }}
 
     steps:
       - name: Checkout repository
@@ -46,19 +52,33 @@ jobs:
       - name: Deploy Convex development
         run: pnpm run deploy:convex:development
 
+      # Keep the same revision and environment lock through both deployments.
+      # A failed backend deployment must never publish its frontend.
+      - name: Build development Worker
+        run: pnpm run build:development
+
+      - name: Deploy development Worker
+        run: pnpm exec wrangler deploy --env development
+
   deploy-production:
-    name: Deploy Convex Production
+    name: Deploy Production
     runs-on: ubuntu-latest
     if: >
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'push' &&
       github.event.workflow_run.head_branch == 'main'
-    environment: production
+    environment:
+      name: production
+      url: https://locatic.dev
     concurrency:
-      group: deploy-convex-production
+      group: deploy-app-production
       cancel-in-progress: false
     env:
       CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      VITE_CLERK_PUBLISHABLE_KEY: ${{ vars.VITE_CLERK_PUBLISHABLE_KEY }}
+      VITE_CONVEX_URL: ${{ vars.VITE_CONVEX_URL }}
 
     steps:
       - name: Checkout repository
@@ -80,3 +100,11 @@ jobs:
 
       - name: Deploy Convex production
         run: pnpm run deploy:convex:production
+
+      # Keep the same revision and environment lock through both deployments.
+      # A failed backend deployment must never publish its frontend.
+      - name: Build production Worker
+        run: pnpm run build:production
+
+      - name: Deploy production Worker
+        run: pnpm exec wrangler deploy --env production

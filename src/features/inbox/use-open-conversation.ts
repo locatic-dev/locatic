@@ -1,11 +1,15 @@
 import { useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
-import { toast } from 'sonner'
 import type { Id } from '../../../convex/_generated/dataModel'
 
 import { api } from '../../../convex/_generated/api'
 import { convexClient } from '@/integrations/convex/client'
-import { getInboxComposeSearch, getInboxDestinationSearch } from './navigation'
+import { reportActionError } from '@/lib/action-error'
+import {
+  getInboxComposeSearch,
+  getInboxDestinationSearch,
+  getInboxTabForConversation,
+} from './navigation'
 
 export function useOpenConversation() {
   const navigate = useNavigate()
@@ -32,7 +36,7 @@ export function useOpenConversation() {
           to: '/inbox',
           search: getInboxDestinationSearch(
             String(conversation._id),
-            conversation.isRequest,
+            getInboxTabForConversation(conversation, otherUserKey),
           ),
         })
         return
@@ -43,8 +47,11 @@ export function useOpenConversation() {
         search: getInboxComposeSearch(otherUserKey),
       })
     } catch (error) {
-      console.error('Conversation open failed', error)
-      toast.error('Could not open the conversation. Please try again.')
+      // Opening is a read plus navigation, so retrying is always safe.
+      reportActionError(error, {
+        title: "couldn't open the conversation",
+        retry: () => openConversation(otherUserId),
+      })
     } finally {
       setPendingUserId((current) => (current === otherUserKey ? null : current))
     }

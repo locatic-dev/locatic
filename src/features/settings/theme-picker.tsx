@@ -2,6 +2,16 @@ import { useEffect, useState } from 'react'
 import { useTheme } from 'next-themes'
 import { THEMES, DEFAULT_THEME_ID } from '@/lib/theme'
 
+// Each swatch sits in its own `data-theme` scope and rebuilds the colour from
+// the accent components that scope overrides. Tokens such as `--primary` and
+// `--lx-accent` are resolved once at :root, so `bg-primary` / `bg-brand` would
+// always show the active theme instead of the option's own accent.
+const SWATCH_ACCENT = {
+  backgroundColor:
+    'oklch(var(--lx-accent-l) var(--lx-accent-c) var(--lx-accent-h))',
+}
+const SWATCH_ACCENT_2 = { backgroundColor: 'var(--lx-accent-2)' }
+
 // Accent theme picker. Selection persists via next-themes localStorage; no
 // backend involvement. Rendered only after mount so the active swatch never
 // mismatches the SSR default.
@@ -34,9 +44,11 @@ export function ThemePicker() {
                 onChange={() => setTheme(themeOption.id)}
                 className="peer sr-only"
               />
+              {/* The radio is visually hidden, so its label carries the
+                  global focus recipe (2px solid focus colour, 2px offset). */}
               <label
                 htmlFor={inputId}
-                className={`inline-flex min-h-11 cursor-pointer items-center gap-2.5 rounded-control border px-3.5 py-2.5 font-mono text-[12px] transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-brand/40 peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-canvas ${
+                className={`inline-flex min-h-11 cursor-pointer items-center gap-2.5 rounded-control border px-3.5 py-2.5 text-label transition-colors peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-focus ${
                   selected
                     ? 'border-brand bg-brand-quiet text-text'
                     : 'border-line bg-surface text-text-muted hover:border-line-strong hover:text-text'
@@ -47,10 +59,22 @@ export function ThemePicker() {
                   data-theme={themeOption.id}
                   aria-hidden="true"
                 >
-                  <span className="h-3.5 w-3.5 rounded-full border border-line-strong bg-primary" />
-                  <span className="h-3.5 w-3.5 rounded-full border border-line-strong bg-brand-2" />
+                  <span
+                    className="h-3.5 w-3.5 rounded-full border border-line-strong"
+                    style={SWATCH_ACCENT}
+                  />
+                  <span
+                    className="h-3.5 w-3.5 rounded-full border border-line-strong"
+                    style={SWATCH_ACCENT_2}
+                  />
                 </span>
                 {themeOption.label}
+                {themeOption.id === DEFAULT_THEME_ID ? (
+                  <>
+                    {' '}
+                    <span className="text-text-faint">(default)</span>
+                  </>
+                ) : null}
               </label>
             </div>
           )

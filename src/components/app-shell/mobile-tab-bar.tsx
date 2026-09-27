@@ -4,10 +4,14 @@ import { Home, Compass, Inbox, User, Bell } from '@/lib/icons'
 import type { ReactNode } from 'react'
 import { useResumeExploreSearch } from '@/features/explore/state'
 import { indicatorSpring } from '@/lib/motion'
+import { formatUnreadCount, unreadNavLabel } from '@/lib/format'
 
 interface TabItem {
   id: string
+  /** Accessible name; the unread count is appended to it. */
   label: string
+  /** Visible caption, short enough for five tabs at 320px. */
+  shortLabel: string
   href: string
   icon: ReactNode
   badge?: number
@@ -26,31 +30,42 @@ export function MobileTabBar({
   const currentPath = routerState.location.pathname
   const resumeExploreSearch = useResumeExploreSearch(routerState.location.href)
 
+  // Same order as the desktop sidebar so the two navigations never disagree.
   const tabs: TabItem[] = [
-    { id: 'home', label: 'home', href: '/home', icon: <Home size={20} /> },
+    {
+      id: 'home',
+      label: 'home',
+      shortLabel: 'home',
+      href: '/home',
+      icon: <Home size={20} />,
+    },
     {
       id: 'explore',
       label: 'explore',
+      shortLabel: 'explore',
       href: '/explore',
       icon: <Compass size={20} />,
     },
     {
-      id: 'notifications',
-      label: 'notifications',
-      href: '/notifications',
-      icon: <Bell size={20} />,
-      badge: unreadNotifications,
-    },
-    {
       id: 'inbox',
       label: 'inbox',
+      shortLabel: 'inbox',
       href: '/inbox',
       icon: <Inbox size={20} />,
       badge: unreadMessages,
     },
     {
+      id: 'notifications',
+      label: 'notifications',
+      shortLabel: 'alerts',
+      href: '/notifications',
+      icon: <Bell size={20} />,
+      badge: unreadNotifications,
+    },
+    {
       id: 'profile',
       label: 'profile',
+      shortLabel: 'profile',
       href: '/profile',
       icon: <User size={20} />,
     },
@@ -64,6 +79,7 @@ export function MobileTabBar({
       {tabs.map((item) => {
         const isActive =
           currentPath === item.href || currentPath.startsWith(item.href + '/')
+        const unreadCount = item.badge ?? 0
         return (
           <Link
             key={item.id}
@@ -71,7 +87,7 @@ export function MobileTabBar({
             search={item.href === '/explore' ? resumeExploreSearch : true}
             preload={false}
             aria-current={isActive ? 'page' : undefined}
-            aria-label={item.label}
+            aria-label={unreadNavLabel(item.label, unreadCount)}
             className="relative flex min-h-11 min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-md px-1.5 py-1.5 no-underline transition-transform duration-[140ms] ease-out active:scale-[0.97]"
           >
             {isActive && (
@@ -90,23 +106,23 @@ export function MobileTabBar({
               }
             >
               {item.icon}
-              {item.badge != null && item.badge > 0 && (
+              {unreadCount > 0 && (
                 <span
-                  className="absolute -top-2 -right-3 min-w-5 rounded-pill bg-surface-alt px-1 py-0.5 text-center font-mono text-[11px] leading-none text-text-muted"
-                  aria-label={`${item.badge} unread ${item.label}`}
+                  aria-hidden
+                  className="absolute -top-2 -right-3 min-w-5 rounded-pill bg-surface-raised px-1 py-0.5 text-center font-mono text-meta leading-none text-text tabular-nums"
                 >
-                  {item.badge > 99 ? '99+' : item.badge}
+                  {formatUnreadCount(unreadCount)}
                 </span>
               )}
             </span>
             <span
               className={
                 isActive
-                  ? 'sr-only min-[380px]:not-sr-only min-[380px]:max-w-full min-[380px]:truncate min-[380px]:whitespace-nowrap min-[380px]:font-mono min-[380px]:text-[11px] min-[380px]:leading-none min-[380px]:text-text'
-                  : 'sr-only min-[380px]:not-sr-only min-[380px]:max-w-full min-[380px]:truncate min-[380px]:whitespace-nowrap min-[380px]:font-mono min-[380px]:text-[11px] min-[380px]:leading-none min-[380px]:text-text-muted'
+                  ? 'max-w-full truncate text-meta leading-none text-text'
+                  : 'max-w-full truncate text-meta leading-none text-text-muted'
               }
             >
-              {item.label}
+              {item.shortLabel}
             </span>
           </Link>
         )

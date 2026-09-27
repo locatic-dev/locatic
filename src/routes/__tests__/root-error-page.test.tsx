@@ -59,7 +59,7 @@ describe('RootErrorPage', () => {
       />,
     )
 
-    expect(screen.getByText('Something interrupted this page')).toBeTruthy()
+    expect(screen.getByText("couldn't load this page.")).toBeTruthy()
     expect(screen.queryByText(/Viewer not found/)).toBeNull()
     expect(screen.queryByText(/ConvexError/)).toBeNull()
     expect(screen.queryByText(/users:viewerLikedProjectIds/)).toBeNull()
@@ -87,7 +87,7 @@ describe('RootErrorPage', () => {
       <RootErrorPage error={new Error('Viewer not found')} reset={reset} />,
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    fireEvent.click(screen.getByRole('button', { name: 'retry' }))
 
     expect(reset).toHaveBeenCalledTimes(1)
     expect(invalidate).toHaveBeenCalledTimes(1)

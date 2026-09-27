@@ -57,5 +57,12 @@ export function toProjectCardData(
     authorHandle: project.authorHandle,
     authorAvatarUrl: project.authorAvatarUrl,
     city: project.cityLabel,
+    cityId:
+      project.ownerLocation?.kind === 'city'
+        ? String(project.ownerLocation.cityId)
+        : null,
+    buildStatus: project.ownerBuildStatus,
+    latestUpdate: project.latestUpdate,
+    syncStatus: project.syncStatus,
   }
 }

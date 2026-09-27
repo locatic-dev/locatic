@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { LxAvatar } from '@/components/ui/lx-avatar'
 import { Textarea } from '@/components/ui/textarea'
+import { getActionErrorMessage, reportActionError } from '@/lib/action-error'
 import { relativeTime } from '@/lib/time'
 import { MessageSquare, Pencil, Trash2 } from '@/lib/icons'
 import { shouldAutoLoadDeepLinkPage } from '@/features/projects/deep-link'
@@ -18,6 +19,7 @@ import {
   useUpdatePost,
 } from '@/features/projects/mutations'
 import { CommentThread } from '@/features/projects/comments/comment-thread'
+import { ConfirmDeleteDialog } from '@/features/projects/confirm-delete-dialog'
 import { commentComposerTextareaClass } from '@/features/projects/comments/composer-styles'
 import { removeReplyDraft } from '@/features/projects/comments/drafts'
 import { useCommentThreadState } from '@/features/projects/comments/use-comment-thread-state'
@@ -54,9 +56,11 @@ export function ProjectPostCard({
 
   const [comment, setComment] = useState('')
   const [postingComment, setPostingComment] = useState(false)
+  const [commentError, setCommentError] = useState<string | null>(null)
   const [commentComposerOpen, setCommentComposerOpen] = useState(false)
   const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({})
   const [replyingToId, setReplyingToId] = useState<string | null>(null)
+  const [replyErrors, setReplyErrors] = useState<Record<string, string>>({})
   const [pendingDeleteIds, setPendingDeleteIds] = useState<Set<string>>(
     new Set(),
   )
@@ -66,7 +70,9 @@ export function ProjectPostCard({
   const [editing, setEditing] = useState(false)
   const [editBody, setEditBody] = useState(post.body)
   const [savingEdit, setSavingEdit] = useState(false)
+  const [editError, setEditError] = useState<string | null>(null)
   const [deletingPost, setDeletingPost] = useState(false)
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
   const commentLoadAttemptsRef = useRef(0)
   const commentLoadTargetRef = useRef<string | null>(null)
   const commentRefs = useRef<Record<string, HTMLElement | null>>({})
@@ -157,6 +163,7 @@ export function ProjectPostCard({
     }
 
     setPostingComment(true)
+    setCommentError(null)
     try {
       await addComment({
         content,
@@ -169,6 +176,7 @@ export function ProjectPostCard({
       await queryClient.invalidateQueries({ queryKey: projectDetailQueryKey })
     } catch (error) {
       console.error(error)
+      setCommentError(getActionErrorMessage(error))
     } finally {
       setPostingComment(false)
     }
@@ -182,6 +190,7 @@ export function ProjectPostCard({
     }
 
     setReplyingToId(parentKey)
+    setReplyErrors((current) => removeReplyDraft(current, parentKey))
     expandCommentThread(parentKey)
     const pendingReplyId = `pending-${parentKey}-${Date.now()}`
     const pendingReply: ProjectCommentView = {
@@ -237,6 +246,10 @@ export function ProjectPostCard({
         ...current,
         [parentKey]: draft,
       }))
+      setReplyErrors((current) => ({
+        ...current,
+        [parentKey]: getActionErrorMessage(error),
+      }))
     } finally {
       setPendingReplies((current) => ({
         ...current,
@@ -258,7 +271,10 @@ export function ProjectPostCard({
     try {
       await deleteComment({ commentId })
     } catch (error) {
-      console.error(error)
+      reportActionError(error, {
+        title: "couldn't delete the comment",
+        retry: () => handleDeleteComment(commentId),
+      })
     } finally {
       setPendingDeleteIds((current) => {
         const next = new Set(current)
@@ -275,11 +291,13 @@ export function ProjectPostCard({
     }
 
     setSavingEdit(true)
+    setEditError(null)
     try {
       await updatePost({ postId: post._id, body })
       setEditing(false)
     } catch (error) {
       console.error(error)
+      setEditError(getActionErrorMessage(error))
     } finally {
       setSavingEdit(false)
     }
@@ -295,7 +313,10 @@ export function ProjectPostCard({
       await deletePost({ postId: post._id })
       await queryClient.invalidateQueries({ queryKey: projectDetailQueryKey })
     } catch (error) {
-      console.error(error)
+      reportActionError(error, {
+        title: "couldn't delete the post",
+        retry: handleDeletePost,
+      })
     } finally {
       setDeletingPost(false)
     }
@@ -311,10 +332,10 @@ export function ProjectPostCard({
             size={30}
           />
           <div className="min-w-0">
-            <div className="font-mono text-[12.5px] font-semibold text-text">
+            <div className="font-mono text-label font-semibold text-text">
               {post.actorSnapshot.displayName}
             </div>
-            <div className="font-mono text-[11px] text-text-faint">
+            <div className="font-mono text-meta text-text-faint">
               {relativeTime(post.createdAt)}
               {post.updatedAt > post.createdAt ? ' · edited' : ''}
             </div>
@@ -328,6 +349,7 @@ export function ProjectPostCard({
               size="icon"
               onClick={() => {
                 setEditBody(post.body)
+                setEditError(null)
                 setEditing(true)
               }}
               aria-label="Edit post"
@@ -337,46 +359,61 @@ export function ProjectPostCard({
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => void handleDeletePost()}
+              onClick={() => setConfirmDeleteOpen(true)}
               disabled={deletingPost}
               aria-label="Delete post"
             >
               <Trash2 size={14} />
             </Button>
+            {/* posts.remove hides the post, and its comments with it. */}
+            <ConfirmDeleteDialog
+              open={confirmDeleteOpen}
+              onOpenChange={setConfirmDeleteOpen}
+              title="delete this post?"
+              description={
+                post.commentsCount > 0
+                  ? 'comments go with it.'
+                  : "this can't be undone."
+              }
+              onConfirm={() => void handleDeletePost()}
+            />
           </div>
         )}
       </div>
 
       {editing ? (
-        <div className="mb-3 rounded-[6px] border border-line bg-canvas px-3 py-3">
+        <div className="mb-3 rounded-card border border-line bg-canvas px-3 py-3">
           <Textarea
             value={editBody}
             onChange={(event) => setEditBody(event.target.value)}
             rows={4}
-            className="min-h-28 resize-none border-0 bg-transparent px-0 py-0 font-sans text-sm text-text shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+            aria-label="Edit post"
+            className="min-h-28 border-0 bg-transparent p-0 font-sans"
           />
-          <div className="mt-3 flex flex-wrap justify-end gap-2">
-            <Button
-              variant="monoOutline"
-              size="meta"
-              onClick={() => setEditing(false)}
-              className="font-mono"
+          {editError && (
+            <p
+              role="alert"
+              className="mt-2 mb-0 font-mono text-label text-danger"
             >
+              {editError}
+            </p>
+          )}
+          <div className="mt-3 flex flex-wrap justify-end gap-2">
+            <Button size="meta" onClick={() => setEditing(false)}>
               cancel
             </Button>
             <Button
-              variant="brand"
+              variant="primary"
               size="meta"
               onClick={() => void handleSaveEdit()}
               disabled={!editBody.trim() || savingEdit}
-              className="font-mono"
             >
-              {savingEdit ? 'saving...' : 'save'}
+              {savingEdit ? 'saving…' : 'save'}
             </Button>
           </div>
         </div>
       ) : (
-        <p className="mb-3 whitespace-pre-wrap font-sans text-[14px] leading-6 text-text wrap-anywhere">
+        <p className="mb-3 whitespace-pre-wrap font-sans text-body leading-6 text-text wrap-anywhere">
           {post.body}
         </p>
       )}
@@ -393,7 +430,7 @@ export function ProjectPostCard({
           type="button"
           onClick={() => setCommentComposerOpen((current) => !current)}
           disabled={!isSignedIn}
-          className="inline-flex min-h-11 items-center gap-1.5 rounded-md bg-transparent px-2 py-2 font-mono text-[11.5px] text-text-muted transition-colors hover:text-text"
+          className="inline-flex min-h-11 items-center gap-1.5 rounded-md bg-transparent px-2 py-2 font-mono text-label text-text-muted transition-colors hover:text-text"
         >
           <MessageSquare size={14} strokeWidth={1.6} />
           {post.commentsCount} comments
@@ -401,34 +438,41 @@ export function ProjectPostCard({
       </div>
 
       {commentComposerOpen && isSignedIn && (
-        <div className="mb-3 flex flex-wrap gap-3 rounded-[6px] border border-line bg-canvas px-3 py-3">
+        <div className="mb-3 flex flex-wrap gap-3 rounded-card border border-line bg-canvas px-3 py-3">
           <Textarea
             value={comment}
             onChange={(event) => setComment(event.target.value)}
-            placeholder="reply to this repo post..."
+            placeholder="reply to this repo post…"
+            aria-label="Reply to this repo post"
             rows={2}
             className={commentComposerTextareaClass}
           />
+          {commentError && (
+            <p
+              role="alert"
+              className="m-0 basis-full font-mono text-label text-danger"
+            >
+              {commentError}
+            </p>
+          )}
           <div className="flex items-end gap-2">
             <Button
-              variant="monoOutline"
               size="meta"
               onClick={() => {
                 setComment('')
+                setCommentError(null)
                 setCommentComposerOpen(false)
               }}
-              className="font-mono"
             >
               cancel
             </Button>
             <Button
-              variant="brand"
+              variant="primary"
               size="meta"
               onClick={() => void handlePostComment()}
               disabled={!comment.trim() || postingComment}
-              className="font-mono font-semibold"
             >
-              {postingComment ? 'posting...' : 'post'}
+              {postingComment ? 'posting…' : 'post'}
             </Button>
           </div>
         </div>
@@ -451,20 +495,18 @@ export function ProjectPostCard({
               pendingDeleteIds={pendingDeleteIds}
               pendingReplies={pendingReplies}
               replyDrafts={replyDrafts}
+              replyErrors={replyErrors}
               replyingToId={replyingToId}
               setReplyDrafts={setReplyDrafts}
               viewerId={viewerId}
             />
           ))}
           {commentRoots.status === 'CanLoadMore' && (
-            <Button
-              variant="monoOutline"
-              size="meta"
-              onClick={() => commentRoots.loadMore(6)}
-              className="self-start font-mono"
-            >
-              load more comments
-            </Button>
+            <div>
+              <Button size="meta" onClick={() => commentRoots.loadMore(6)}>
+                load more comments
+              </Button>
+            </div>
           )}
         </div>
       )}

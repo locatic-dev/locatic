@@ -26,7 +26,7 @@ export function ProjectTopicEditor({
       {topics.map((topic) => (
         <span
           key={topic}
-          className="inline-flex min-h-7 items-center gap-1 rounded-pill border border-brand/30 bg-brand-quiet px-2.5 py-1 font-mono text-[11px] text-brand"
+          className="inline-flex min-h-7 items-center gap-1 rounded-pill border border-brand/30 bg-brand-quiet px-2.5 py-1 font-mono text-meta text-brand"
         >
           #{topic}
           {isOwnProject && (
@@ -54,14 +54,12 @@ export function ProjectTopicEditor({
             value={topicDraft}
             onChange={(event) => setTopicDraft(event.target.value)}
             placeholder="add topic"
-            className="h-9 w-36 border-line bg-surface font-mono text-[12px]"
+            aria-label="New topic"
+            className="h-9 w-36"
           />
           <Button
             type="submit"
-            variant="monoOutline"
-            size="compact"
             disabled={!topicDraft.trim() || pending}
-            className="font-mono"
             aria-label="Add topic"
           >
             <Plus size={13} />

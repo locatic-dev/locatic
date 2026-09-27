@@ -1,23 +1,144 @@
-import { useState, type ReactNode } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
 import * as m from 'motion/react-m'
 import type { Id } from '../../../../convex/_generated/dataModel'
+import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
-import { ProjectCard, ProjectCardSkeleton } from '@/components/ui/project-card'
+import { ProjectCard } from '@/components/ui/project-card'
 import { CardSheet, cardSheetClass } from '@/components/ui/card-sheet'
 import { Skeleton } from '@/components/ui/skeleton'
-import { isExploreUserFollowed } from '@/features/explore/state'
+import { useEmptyStateActionMetric } from '@/integrations/convex/metrics'
+import {
+  describeExploreResults,
+  type ExploreFeedState,
+} from '@/features/explore/feed-state'
+import {
+  isExploreUserFollowed,
+  type ExploreMode,
+} from '@/features/explore/state'
 import { EXPLORE_PAGINATED_PAGE_SIZE } from '@/features/explore/pagination'
 import { Compass } from '@/lib/icons'
-import { fadeUp, listStagger, pressScale } from '@/lib/motion'
-import type {
-  BuilderPreview,
-  ExplorePostPreview,
-} from '@/features/explore/types'
-import type { ProjectCardPreview } from '@/features/contracts'
+import { fadeUp, listStagger } from '@/lib/motion'
+import type { BuilderPreview } from '@/features/explore/types'
 import { toProjectCardData } from '@/features/project-card-preview'
 import { NearbyBuilderRow } from './nearby-builder-row'
 import { ExplorePostCard } from './explore-post-card'
+import { SignInLink } from './sign-in-link'
 import { ProjectReactionBar } from '@/features/projects/reactions/project-reaction-bar'
+import { useProjectSaveToggle } from '@/features/projects/saves'
+import { useExploreSavedProjectIds } from '../use-explore-saves'
+
+/**
+ * The one explicitly selected city of an empty browse feed (plan item C2).
+ * `builderCount` comes from the city counters (null while loading);
+ * `localBuilders` is a short, bounded list of the city's builders.
+ */
+export type ExploreEmptyCity = {
+  cityName: string
+  builderCount: number | null
+  onBrowseEverywhere: () => void
+  onChooseAnotherCity: () => void
+  localBuilders: BuilderPreview[]
+}
+
+/** Signed-out visitor: personal actions become sign-in links. */
+export type ExploreVisitor = { signInRedirect: string | undefined }
+
+/**
+ * The URL filters narrowing the current feed (D2, D3): a plain description
+ * ("primary language rust, topic #webgpu") and the action that clears them.
+ */
+export type ExploreActiveFilters = {
+  description: string
+  onClear: () => void
+}
+
+/**
+ * A feed exhausted under filters: the filters, not the city or Explore as a
+ * whole, are why nothing shows, so the way out is clearing them.
+ */
+function FilteredEmptyState({
+  filters,
+  mode,
+}: {
+  filters: ExploreActiveFilters
+  mode: ExploreMode
+}) {
+  const counted = useEmptyStateActionMetric()
+
+  return (
+    <div className="py-6">
+      <EmptyState
+        icon={<Compass size={28} strokeWidth={1.2} />}
+        title={`no ${mode} match these filters.`}
+        description={`Nothing here with ${filters.description}.`}
+        action={{ label: 'clear filters', onClick: counted(filters.onClear) }}
+      />
+    </div>
+  )
+}
+
+function formatBuilderCount(count: number) {
+  return `${count.toLocaleString()} ${count === 1 ? 'builder' : 'builders'} here`
+}
+
+/**
+ * Empty browse feed for one explicitly selected city: names the city, says
+ * how many builders it has, and offers two actions. Neither changes the
+ * scope until clicked.
+ */
+function EmptyCityState({
+  emptyCity,
+  mode,
+  renderBuilder,
+}: {
+  emptyCity: ExploreEmptyCity
+  mode: ExploreMode
+  renderBuilder: (builder: BuilderPreview) => ReactNode
+}) {
+  // The builders feed is itself the list of local builders.
+  const localBuilders = mode === 'builders' ? [] : emptyCity.localBuilders
+  const counted = useEmptyStateActionMetric()
+
+  return (
+    <div className="py-6">
+      <EmptyState
+        icon={<Compass size={28} strokeWidth={1.2} />}
+        title={`no ${mode} in ${emptyCity.cityName} yet.`}
+        description={
+          emptyCity.builderCount === null
+            ? undefined
+            : formatBuilderCount(emptyCity.builderCount)
+        }
+        action={{
+          label: 'browse everywhere',
+          onClick: counted(emptyCity.onBrowseEverywhere),
+        }}
+        secondaryAction={{
+          label: 'choose another city',
+          onClick: counted(emptyCity.onChooseAnotherCity),
+        }}
+      />
+      {localBuilders.length > 0 ? (
+        <section
+          aria-labelledby="explore-empty-city-builders"
+          className="mt-6 border-t border-line pt-6"
+        >
+          <h2
+            id="explore-empty-city-builders"
+            className="m-0 mb-3 text-title text-text"
+          >
+            builders in {emptyCity.cityName}
+          </h2>
+          <CardSheet>
+            {localBuilders.map((builder) => (
+              <div key={String(builder.userId)}>{renderBuilder(builder)}</div>
+            ))}
+          </CardSheet>
+        </section>
+      ) : null}
+    </div>
+  )
+}
 
 function getInitialPageKeys<T>(items: T[], getKey: (item: T) => string) {
   return new Set(items.slice(0, EXPLORE_PAGINATED_PAGE_SIZE).map(getKey))
@@ -63,19 +184,32 @@ function InitialPageMotionList<T>({
   )
 }
 
+/** Mirrors ExplorePostCard: author identity, body lines, reaction row. */
 function PostRowSkeleton() {
   return (
-    <div className="flex items-start gap-2 bg-surface px-5 py-4">
-      <div className="min-w-0 flex-1">
-        <div className="mb-2 flex items-center gap-2.5">
-          <Skeleton className="size-8 shrink-0 rounded-full" />
+    <div className="bg-surface">
+      <div className="px-5 pt-4 pb-2">
+        <div className="mb-3 flex items-center gap-2.5">
+          <Skeleton className="size-8.5 shrink-0 rounded-full" />
           <div className="min-w-0 flex-1">
-            <Skeleton className="h-3 w-28" />
-            <Skeleton className="mt-1.5 h-2.5 w-36" />
+            <div className="flex h-5 items-center">
+              <Skeleton className="h-3 w-28" />
+            </div>
+            <div className="flex h-4 items-center">
+              <Skeleton className="h-2.5 w-36" />
+            </div>
           </div>
         </div>
-        <Skeleton className="h-3.5 w-full" />
-        <Skeleton className="mt-2 h-3.5 w-4/5" />
+        <div className="flex h-6 items-center">
+          <Skeleton className="h-3.5 w-full" />
+        </div>
+        <div className="flex h-6 items-center">
+          <Skeleton className="h-3.5 w-4/5" />
+        </div>
+      </div>
+      <div className="flex items-center gap-1.5 px-5 pb-2">
+        <Skeleton className="h-11 w-14 rounded-control" />
+        <Skeleton className="size-11 rounded-control" />
       </div>
     </div>
   )
@@ -94,70 +228,279 @@ function BuilderRowSkeleton() {
   )
 }
 
-export function ExploreFeed({
-  builderFeedLoading,
-  builderResults,
-  builderSearchLoading,
-  canLoadMoreBuilders,
-  debouncedSearchQuery,
-  dismissedIds,
-  dismissedPostIds,
+function FeedMoreButton({
+  label,
+  onClick,
+  pending,
+}: {
+  label: string
+  onClick: () => void
+  pending: boolean
+}) {
+  return (
+    <div className="mt-4 flex justify-center">
+      <Button
+        variant="secondary"
+        size="touch"
+        onClick={onClick}
+        disabled={pending}
+      >
+        {pending ? 'loading…' : label}
+      </Button>
+    </div>
+  )
+}
+
+/**
+ * Footer for a feed with continuation: a filtered-empty page never reads as
+ * "no results" while the server has more; the feed either fetches on its own
+ * (`emptyPageWithMore`) or offers "keep looking" once its budget is spent.
+ */
+function FeedFooter({
+  mode,
+  onLoadMore,
+  state,
+}: {
+  mode: ExploreMode
+  onLoadMore: () => void
+  state: Extract<
+    ExploreFeedState,
+    { status: 'ready' | 'emptyPageWithMore' | 'needsContinuation' }
+  >
+}) {
+  switch (state.status) {
+    case 'ready':
+      return state.more === 'none' ? null : (
+        <FeedMoreButton
+          label={`load more ${mode}`}
+          onClick={onLoadMore}
+          pending={state.more === 'loading'}
+        />
+      )
+    case 'emptyPageWithMore':
+      return (
+        <FeedMoreButton
+          label={`load more ${mode}`}
+          onClick={onLoadMore}
+          pending
+        />
+      )
+    case 'needsContinuation':
+    default:
+      return (
+        <FeedMoreButton
+          label="keep looking"
+          onClick={onLoadMore}
+          pending={false}
+        />
+      )
+  }
+}
+
+/**
+ * Mirrors ProjectCard with the author in the header: identity row, repo
+ * title, two description lines, meta and language lines, then the footer
+ * with reactions and follow/message actions.
+ */
+function ProjectCardSkeletonRow() {
+  return (
+    <div
+      data-testid="project-card-skeleton"
+      className="flex flex-col gap-3 rounded-card border border-line bg-surface px-5 py-4"
+    >
+      <div>
+        <div className="mb-1 flex min-h-11 items-center gap-2">
+          <Skeleton className="size-5.5 shrink-0 rounded-full" />
+          <Skeleton className="h-3 w-24" />
+          <Skeleton className="h-5 w-28 rounded-pill" />
+        </div>
+        <div className="mb-1 flex h-5 items-center">
+          <Skeleton className="h-3.5 w-3/5" />
+        </div>
+        <div className="flex h-6 items-center">
+          <Skeleton className="h-3 w-full" />
+        </div>
+        <div className="flex h-6 items-center">
+          <Skeleton className="h-3 w-3/4" />
+        </div>
+      </div>
+      <div className="flex flex-col gap-2">
+        <div className="flex h-5 items-center justify-between gap-3">
+          <Skeleton className="h-2.5 w-28" />
+          <Skeleton className="h-2.5 w-20" />
+        </div>
+        <div className="flex h-4 items-center">
+          <Skeleton className="h-2.5 w-32" />
+        </div>
+      </div>
+      <div className="flex items-center justify-between gap-2 border-t border-line pt-3">
+        <Skeleton className="h-11 w-24 rounded-control" />
+        <Skeleton className="h-11 w-36 rounded-control" />
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Built from the ready state's containers so rows land where the skeleton
+ * was: the same outer spacing, a reserved list-heading line, and the same
+ * list wrapper (separate cards with a gap for projects, one sheet otherwise).
+ */
+function FeedSkeleton({ state }: { state: ExploreFeedState }) {
+  const label = `${state.source === 'search' ? 'searching' : 'loading'} ${state.mode}…`
+  const rows = [0, 1, 2]
+
+  return (
+    <div role="status" aria-label={label} className="mb-8">
+      <div aria-hidden="true" className="mb-3 flex h-4 items-center">
+        <Skeleton className="h-2.5 w-16" />
+      </div>
+      {state.mode === 'projects' ? (
+        <div className="flex flex-col gap-2">
+          {rows.map((index) => (
+            <ProjectCardSkeletonRow key={index} />
+          ))}
+        </div>
+      ) : (
+        <CardSheet>
+          {rows.map((index) =>
+            state.mode === 'builders' ? (
+              <BuilderRowSkeleton key={index} />
+            ) : (
+              <PostRowSkeleton key={index} />
+            ),
+          )}
+        </CardSheet>
+      )}
+    </div>
+  )
+}
+
+function FeedEmptyState({
+  onClearCityFilters,
+  onResetExplore,
+  resetPending,
+  state,
+}: {
+  onClearCityFilters?: () => void
+  onResetExplore?: () => void
+  resetPending?: boolean
+  state: Extract<ExploreFeedState, { status: 'exhausted' }>
+}) {
+  const counted = useEmptyStateActionMetric()
+  const resetAction = onResetExplore
+    ? {
+        label: resetPending ? 'resetting…' : 'reset dismissed',
+        onClick: counted(onResetExplore),
+      }
+    : undefined
+  const clearCitiesAction = onClearCityFilters
+    ? { label: 'clear city filters', onClick: counted(onClearCityFilters) }
+    : undefined
+  const icon = <Compass size={28} strokeWidth={1.2} />
+
+  const content = (() => {
+    if (state.source === 'search') {
+      switch (state.mode) {
+        case 'builders':
+          return {
+            title: `no builders found for “${state.query}”.`,
+            description: 'Try a different name or username.',
+          }
+        case 'posts':
+          return {
+            title: `no posts found for “${state.query}”.`,
+            description: 'Try a different phrase or topic.',
+          }
+        case 'projects':
+        default:
+          return {
+            title: 'no projects found.',
+            description: 'Try a different search term or check the spelling.',
+          }
+      }
+    }
+
+    const isGlobal = state.scope === 'global'
+    switch (state.mode) {
+      case 'builders':
+        return {
+          title: 'no builders found for this city context.',
+          description:
+            'Try another city or check back once more builders join nearby.',
+        }
+      case 'posts':
+        return isGlobal
+          ? {
+              title: 'no posts to explore right now.',
+              description:
+                'Try searching for a phrase or check back after more project posts are published.',
+              action: resetAction,
+            }
+          : {
+              title: 'no posts found for this city context.',
+              description:
+                'Try another city, remove one of your selected filters, or search post text directly.',
+              action: resetAction,
+              secondaryAction: clearCitiesAction,
+            }
+      case 'projects':
+      default:
+        return isGlobal
+          ? {
+              title: 'nothing to explore right now.',
+              description:
+                'Try searching for builders, add city filters, or check back after more projects are imported.',
+              action: resetAction,
+            }
+          : {
+              title: 'no projects match these cities yet.',
+              description:
+                'Try another city, remove one of your selected filters, or check back after more projects are imported.',
+              action: resetAction,
+              secondaryAction: clearCitiesAction,
+            }
+    }
+  })()
+
+  return (
+    <div className="py-6">
+      <EmptyState icon={icon} {...content} />
+    </div>
+  )
+}
+
+function ExploreFeedBody({
+  activeFilters,
+  emptyCity,
   entranceKey,
   followOverrides,
   followedUserIds,
-  hasMoreProjects,
-  hasMorePosts,
-  isBuilderSearchActive,
-  isBuildersMode,
-  isGlobalFeed,
-  isLoadingMoreBuilders,
-  isPostSearchActive,
-  isPostsMode,
-  isProjectSearchActive,
-  items,
   likedProjectIds,
-  loadMorePending,
   onClearCityFilters,
   onDismissPost,
   onDismissProject,
   onFollowUser,
-  onLoadMoreBuilders,
-  onLoadMoreProjects,
-  onLoadMorePosts,
+  onLoadMore,
   onMessageUser,
   onOpenBuilderProfile,
   onResetExplore,
+  orderingCopy,
   pendingFollows,
   pendingUserId,
-  projectFeedLoading,
-  projectSearchLoading,
-  postSearchLoading,
-  postResults,
   resetPending,
+  state,
   viewerId,
+  visitor,
 }: {
-  builderFeedLoading?: boolean
-  builderResults: BuilderPreview[]
-  builderSearchLoading: boolean
-  canLoadMoreBuilders: boolean
-  debouncedSearchQuery: string
-  dismissedIds: Set<string>
-  dismissedPostIds: Set<string>
+  /** Filters narrowing this feed; absent when none apply to the mode. */
+  activeFilters?: ExploreActiveFilters
+  /** Set when exactly one city is explicitly selected (custom scope). */
+  emptyCity?: ExploreEmptyCity
   entranceKey: string
   followOverrides: Record<string, boolean>
   followedUserIds: Set<string>
-  hasMoreProjects: boolean
-  hasMorePosts: boolean
-  isBuilderSearchActive: boolean
-  isBuildersMode: boolean
-  isGlobalFeed: boolean
-  isLoadingMoreBuilders: boolean
-  isPostSearchActive: boolean
-  isPostsMode: boolean
-  isProjectSearchActive: boolean
-  items: ProjectCardPreview[]
   likedProjectIds: Set<string>
-  loadMorePending: boolean
   onClearCityFilters?: () => void
   onDismissPost: (postId: Id<'posts'>, postKey: string) => void
   onDismissProject: (projectId: Id<'projects'>, projectKey: string) => void
@@ -166,27 +509,29 @@ export function ExploreFeed({
     userKey: string,
     currentlyFollowed: boolean,
   ) => void
-  onLoadMoreBuilders: () => void
-  onLoadMoreProjects: () => void
-  onLoadMorePosts: () => void
+  /** Loads the next page; also the "keep looking" continuation action. */
+  onLoadMore: () => void
   onMessageUser: (userId: Id<'users'>) => void
   onOpenBuilderProfile: (builder: BuilderPreview) => void
   onResetExplore?: () => void
+  /** How the browse feed is ordered, shown beside the list heading. */
+  orderingCopy?: string | null
   pendingFollows: Set<string>
   pendingUserId: string | null
-  projectFeedLoading: boolean
-  projectSearchLoading: boolean
-  postSearchLoading: boolean
-  postResults: ExplorePostPreview[]
   resetPending?: boolean
+  state: ExploreFeedState
   viewerId?: Id<'users'>
+  visitor?: ExploreVisitor
 }) {
-  const visibleItems = items.filter(
-    (item) => !dismissedIds.has(String(item.projectId)),
+  // Saved state for the loaded project cards (plan item D1), members only.
+  const saveToggle = useProjectSaveToggle()
+  const savedProjectIds = useExploreSavedProjectIds(
+    state.mode === 'projects' && 'items' in state
+      ? state.items.map((item) => item.projectId)
+      : [],
+    !visitor,
   )
-  const visiblePostResults = postResults.filter(
-    (post) => !dismissedPostIds.has(String(post._id)),
-  )
+
   const getFollowedState = (userId: Id<'users'>) =>
     isExploreUserFollowed({
       followOverrides,
@@ -194,341 +539,305 @@ export function ExploreFeed({
       userId,
     })
 
-  const isProjectFeedLoading =
-    (projectFeedLoading || (isProjectSearchActive && projectSearchLoading)) &&
-    visibleItems.length === 0
-  const isBuilderFeedLoading =
-    (builderSearchLoading || (!isBuilderSearchActive && builderFeedLoading)) &&
-    builderResults.length === 0
+  const renderBuilderRow = (builder: BuilderPreview) => (
+    <NearbyBuilderRow
+      builder={builder}
+      onOpenProfile={() => onOpenBuilderProfile(builder)}
+      onFollow={() =>
+        onFollowUser(
+          builder.userId,
+          String(builder.userId),
+          getFollowedState(builder.userId),
+        )
+      }
+      followed={getFollowedState(builder.userId)}
+      followPending={pendingFollows.has(String(builder.userId))}
+      onMessage={
+        viewerId && builder.userId !== viewerId
+          ? () => onMessageUser(builder.userId)
+          : undefined
+      }
+      messagePending={pendingUserId === String(builder.userId)}
+      isSelf={builder.userId === viewerId}
+      visitor={visitor}
+    />
+  )
+
+  if (
+    state.status === 'loading' ||
+    (state.status === 'emptyPageWithMore' && state.items.length === 0)
+  ) {
+    return <FeedSkeleton state={state} />
+  }
+
+  if (state.status === 'exhausted') {
+    if (activeFilters) {
+      return <FilteredEmptyState filters={activeFilters} mode={state.mode} />
+    }
+
+    if (emptyCity && state.source === 'browse') {
+      return (
+        <EmptyCityState
+          emptyCity={emptyCity}
+          mode={state.mode}
+          renderBuilder={renderBuilderRow}
+        />
+      )
+    }
+
+    return (
+      <FeedEmptyState
+        state={state}
+        onClearCityFilters={onClearCityFilters}
+        onResetExplore={onResetExplore}
+        resetPending={resetPending}
+      />
+    )
+  }
+
+  if (state.status === 'error') {
+    return (
+      <div className="py-6">
+        <EmptyState
+          icon={<Compass size={28} strokeWidth={1.2} />}
+          title={`couldn't load ${state.mode}.`}
+          description="Try again in a moment."
+        />
+      </div>
+    )
+  }
+
+  const footer = (
+    <FeedFooter mode={state.mode} onLoadMore={onLoadMore} state={state} />
+  )
+
+  if (state.items.length === 0) {
+    // Continuation remains, so this is never "no results" (D2).
+    return (
+      <div className="py-6 text-center">
+        <p className="font-mono text-label text-text-muted">
+          {activeFilters
+            ? `no ${state.mode} with ${activeFilters.description} in the latest results yet.`
+            : `no ${state.mode} in the latest results yet.`}
+        </p>
+        {footer}
+      </div>
+    )
+  }
+
+  const heading = (
+    <div className="mb-3 font-mono text-meta text-text-muted">
+      {state.source === 'search' ? `matching ${state.mode}` : state.mode}
+      {state.source === 'browse' && orderingCopy ? (
+        <span className="text-text-faint"> · {orderingCopy}</span>
+      ) : null}
+    </div>
+  )
+
+  if (state.mode === 'builders') {
+    return (
+      <div className="mb-8">
+        {heading}
+        <InitialPageMotionList
+          key={`builders:${entranceKey}`}
+          className={cardSheetClass}
+          items={state.items}
+          getKey={(builder) => String(builder.userId)}
+        >
+          {renderBuilderRow}
+        </InitialPageMotionList>
+        {footer}
+      </div>
+    )
+  }
+
+  if (state.mode === 'posts') {
+    return (
+      <div className="mb-8">
+        {heading}
+        <InitialPageMotionList
+          key={`posts:${entranceKey}`}
+          className={cardSheetClass}
+          items={state.items}
+          getKey={(post) => String(post._id)}
+        >
+          {(post) => (
+            <ExplorePostCard
+              post={post}
+              onDismiss={
+                visitor
+                  ? undefined
+                  : () => onDismissPost(post._id, String(post._id))
+              }
+              visitor={visitor}
+            />
+          )}
+        </InitialPageMotionList>
+        {footer}
+      </div>
+    )
+  }
 
   return (
-    <>
-      {!isBuildersMode &&
-        !isPostsMode &&
-        !isProjectSearchActive &&
-        !isGlobalFeed &&
-        !projectFeedLoading &&
-        visibleItems.length === 0 && (
-          <div className="py-6">
-            <EmptyState
-              icon={<Compass size={28} strokeWidth={1.2} />}
-              title="no projects match these cities yet."
-              description="Try another city, remove one of your selected filters, or check back after more projects are imported."
-              action={
-                onResetExplore
-                  ? {
-                      label: resetPending ? 'resetting…' : 'reset dismissed',
-                      onClick: onResetExplore,
-                    }
-                  : undefined
+    <div className="mb-8">
+      {heading}
+      <InitialPageMotionList
+        key={`projects:${entranceKey}`}
+        className="flex flex-col gap-2"
+        items={state.items}
+        getKey={(item) => String(item.projectId)}
+      >
+        {(item) => {
+          const projectId = item.projectId
+          const projectKey = String(item.projectId)
+          const ownerId = item.ownerUserId
+          const ownerKey = String(ownerId)
+          const liked = likedProjectIds.has(projectKey)
+          const saved = savedProjectIds.has(projectKey)
+          const followed = getFollowedState(ownerId)
+          const cardData = { ...toProjectCardData(item), liked, followed }
+          const projectLink = { owner: item.owner, repo: item.repo }
+          const authorLink = { username: item.authorHandle }
+          // Search results do not carry `isViewerProject`, so the owner id
+          // decides too: nobody follows, hides or saves their own project.
+          const isOwn =
+            item.isViewerProject === true ||
+            (viewerId !== undefined && ownerId === viewerId)
+
+          const card = visitor ? (
+            <ProjectCard
+              project={cardData}
+              authorPlacement="header"
+              showFullCity
+              reactionSlot={
+                <div className="flex flex-wrap items-center gap-2">
+                  <ProjectReactionBar
+                    disabled
+                    projectId={projectId}
+                    reactionCounts={item.reactionCounts}
+                    viewerReactionTypes={[]}
+                  />
+                  <SignInLink
+                    label={`Sign in to like, save or follow ${item.fullName}`}
+                    redirect={visitor.signInRedirect}
+                    variant="ghost"
+                  >
+                    sign in to like, save or follow
+                  </SignInLink>
+                </div>
               }
-              secondaryAction={
-                onClearCityFilters
-                  ? { label: 'clear city filters', onClick: onClearCityFilters }
-                  : undefined
-              }
+              className="focus-visible:ring-inset"
+              authorLink={authorLink}
+              projectLink={projectLink}
             />
-          </div>
-        )}
-
-      {!isBuildersMode &&
-        !isPostsMode &&
-        !isProjectSearchActive &&
-        isGlobalFeed &&
-        !projectFeedLoading &&
-        visibleItems.length === 0 && (
-          <div className="py-6">
-            <EmptyState
-              icon={<Compass size={28} strokeWidth={1.2} />}
-              title="nothing to explore right now."
-              description="Try searching for builders, add city filters, or check back after more projects are imported."
-              action={
-                onResetExplore
-                  ? {
-                      label: resetPending ? 'resetting…' : 'reset dismissed',
-                      onClick: onResetExplore,
-                    }
-                  : undefined
-              }
-            />
-          </div>
-        )}
-
-      {isBuildersMode && isBuilderFeedLoading && (
-        <CardSheet
-          role="status"
-          aria-label={
-            isBuilderSearchActive ? 'searching builders…' : 'loading builders…'
-          }
-          className="mb-8"
-        >
-          {[0, 1, 2].map((index) => (
-            <BuilderRowSkeleton key={index} />
-          ))}
-        </CardSheet>
-      )}
-
-      {isBuildersMode && !isBuilderFeedLoading && builderResults.length > 0 && (
-        <div className="mb-8">
-          <div className="mb-3 font-mono text-[10.5px] uppercase tracking-[0.06em] text-text-muted">
-            {isBuilderSearchActive ? 'matching builders' : 'builders'}
-          </div>
-          <InitialPageMotionList
-            key={`builders:${entranceKey}`}
-            className={cardSheetClass}
-            items={builderResults}
-            getKey={(builder) => String(builder.userId)}
-          >
-            {(builder) => (
-              <NearbyBuilderRow
-                builder={builder}
-                onOpenProfile={() => onOpenBuilderProfile(builder)}
-                onFollow={() =>
-                  onFollowUser(
-                    builder.userId,
-                    String(builder.userId),
-                    getFollowedState(builder.userId),
-                  )
-                }
-                followed={getFollowedState(builder.userId)}
-                followPending={pendingFollows.has(String(builder.userId))}
-                onMessage={
-                  viewerId && builder.userId !== viewerId
-                    ? () => onMessageUser(builder.userId)
-                    : undefined
-                }
-                messagePending={pendingUserId === String(builder.userId)}
-                isSelf={builder.userId === viewerId}
-              />
-            )}
-          </InitialPageMotionList>
-          {canLoadMoreBuilders && (
-            <div className="mt-4 flex justify-center">
-              <m.button
-                type="button"
-                onClick={onLoadMoreBuilders}
-                disabled={isLoadingMoreBuilders}
-                whileTap={isLoadingMoreBuilders ? undefined : pressScale}
-                className="min-h-11 rounded-md border border-line px-4 font-mono text-[12px] text-text-muted transition-colors hover:border-line-strong hover:text-text disabled:cursor-default disabled:opacity-60"
-              >
-                {isLoadingMoreBuilders ? 'loading…' : 'load more builders'}
-              </m.button>
-            </div>
-          )}
-        </div>
-      )}
-
-      {isBuildersMode &&
-        !isBuilderFeedLoading &&
-        builderResults.length === 0 && (
-          <div className="py-6">
-            <EmptyState
-              icon={<Compass size={28} strokeWidth={1.2} />}
-              title={
-                isBuilderSearchActive
-                  ? `no builders found for “${debouncedSearchQuery}”.`
-                  : 'no builders found for this city context.'
-              }
-              description={
-                isBuilderSearchActive
-                  ? 'Try a different name or username.'
-                  : 'Try another city or check back once more builders join nearby.'
-              }
-            />
-          </div>
-        )}
-
-      {!isBuildersMode &&
-        !isPostsMode &&
-        isProjectSearchActive &&
-        !projectSearchLoading &&
-        visibleItems.length === 0 && (
-          <div className="py-6">
-            <EmptyState
-              icon={<Compass size={28} strokeWidth={1.2} />}
-              title="no projects found."
-              description="Try a different search term or check the spelling."
-            />
-          </div>
-        )}
-
-      {isPostsMode &&
-        !isPostSearchActive &&
-        visiblePostResults.length === 0 &&
-        !postSearchLoading && (
-          <div className="py-6">
-            <EmptyState
-              icon={<Compass size={28} strokeWidth={1.2} />}
-              title={
-                isGlobalFeed
-                  ? 'no posts to explore right now.'
-                  : 'no posts found for this city context.'
-              }
-              description={
-                isGlobalFeed
-                  ? 'Try searching for a phrase or check back after more project posts are published.'
-                  : 'Try another city, remove one of your selected filters, or search post text directly.'
-              }
-              action={
-                onResetExplore
-                  ? {
-                      label: resetPending ? 'resetting…' : 'reset dismissed',
-                      onClick: onResetExplore,
-                    }
-                  : undefined
-              }
-              secondaryAction={
-                !isGlobalFeed && onClearCityFilters
-                  ? { label: 'clear city filters', onClick: onClearCityFilters }
-                  : undefined
-              }
-            />
-          </div>
-        )}
-
-      {isPostsMode && postSearchLoading && (
-        <CardSheet
-          role="status"
-          aria-label={
-            isPostSearchActive ? 'searching posts…' : 'loading posts…'
-          }
-        >
-          {[0, 1, 2].map((index) => (
-            <PostRowSkeleton key={index} />
-          ))}
-        </CardSheet>
-      )}
-
-      {isPostsMode &&
-        isPostSearchActive &&
-        visiblePostResults.length === 0 &&
-        !postSearchLoading && (
-          <div className="py-6">
-            <EmptyState
-              icon={<Compass size={28} strokeWidth={1.2} />}
-              title={`no posts found for “${debouncedSearchQuery}”.`}
-              description="Try a different phrase or topic."
-            />
-          </div>
-        )}
-
-      {isPostsMode && !postSearchLoading && visiblePostResults.length > 0 && (
-        <div className="mb-8">
-          <div className="mb-3 font-mono text-[10.5px] uppercase tracking-[0.06em] text-text-muted">
-            {isPostSearchActive ? 'matching posts' : 'posts'}
-          </div>
-          <InitialPageMotionList
-            key={`posts:${entranceKey}`}
-            className={cardSheetClass}
-            items={visiblePostResults}
-            getKey={(post) => String(post._id)}
-          >
-            {(post) => (
-              <ExplorePostCard
-                post={post}
-                onDismiss={() => onDismissPost(post._id, String(post._id))}
-              />
-            )}
-          </InitialPageMotionList>
-          {hasMorePosts && (
-            <div className="mt-4 flex justify-center">
-              <m.button
-                type="button"
-                onClick={onLoadMorePosts}
-                disabled={loadMorePending}
-                whileTap={loadMorePending ? undefined : pressScale}
-                className="min-h-11 rounded-md border border-line px-4 font-mono text-[12px] text-text-muted transition-colors hover:border-line-strong hover:text-text disabled:cursor-default disabled:opacity-60"
-              >
-                {loadMorePending ? 'loading…' : 'load more posts'}
-              </m.button>
-            </div>
-          )}
-        </div>
-      )}
-
-      {!isBuildersMode && !isPostsMode && isProjectFeedLoading && (
-        <CardSheet
-          role="status"
-          aria-label={
-            isProjectSearchActive ? 'searching projects…' : 'loading projects…'
-          }
-        >
-          {[0, 1, 2].map((index) => (
-            <ProjectCardSkeleton
-              key={index}
-              className="rounded-none border-0"
-            />
-          ))}
-        </CardSheet>
-      )}
-
-      {!isBuildersMode && !isPostsMode && visibleItems.length > 0 && (
-        <div className="mb-8">
-          <div className="mb-3 font-mono text-[10.5px] uppercase tracking-[0.06em] text-text-muted">
-            {isProjectSearchActive ? 'matching projects' : 'projects'}
-          </div>
-          <InitialPageMotionList
-            key={`projects:${entranceKey}`}
-            className="flex flex-col gap-2"
-            items={visibleItems}
-            getKey={(item) => String(item.projectId)}
-          >
-            {(item) => {
-              const projectId = item.projectId
-              const projectKey = String(item.projectId)
-              const ownerId = item.ownerUserId
-              const ownerKey = String(ownerId)
-              const liked = likedProjectIds.has(projectKey)
-              const followed = getFollowedState(ownerId)
-
-              return (
-                <ProjectCard
-                  project={{
-                    ...toProjectCardData(item),
-                    liked,
-                    followed,
-                  }}
-                  authorPlacement="header"
-                  showFullCity
-                  reactionSlot={
-                    <ProjectReactionBar
-                      projectId={projectId}
-                      reactionCounts={item.reactionCounts}
-                      viewerReactionTypes={item.viewerReactionTypes}
-                      liked={liked}
-                    />
-                  }
-                  className="focus-visible:ring-inset"
-                  onDismiss={() => onDismissProject(projectId, projectKey)}
-                  authorLink={{ username: item.authorHandle }}
-                  onFollow={() => onFollowUser(ownerId, ownerKey, followed)}
-                  onDM={
-                    viewerId !== ownerId
-                      ? () => onMessageUser(ownerId)
-                      : undefined
-                  }
-                  projectLink={{ owner: item.owner, repo: item.repo }}
-                  followPending={pendingFollows.has(ownerKey)}
-                  dmPending={pendingUserId === ownerKey}
+          ) : (
+            <ProjectCard
+              project={cardData}
+              authorPlacement="header"
+              showFullCity
+              reactionSlot={
+                <ProjectReactionBar
+                  projectId={projectId}
+                  reactionCounts={item.reactionCounts}
+                  viewerReactionTypes={item.viewerReactionTypes}
+                  liked={liked}
                 />
-              )
-            }}
-          </InitialPageMotionList>
-          {hasMoreProjects && (
-            <div className="mt-4 flex justify-center">
-              <m.button
-                type="button"
-                onClick={onLoadMoreProjects}
-                disabled={loadMorePending}
-                whileTap={loadMorePending ? undefined : pressScale}
-                className="min-h-11 rounded-md border border-line px-4 font-mono text-[12px] text-text-muted transition-colors hover:border-line-strong hover:text-text disabled:cursor-default disabled:opacity-60"
-              >
-                {loadMorePending ? 'loading…' : 'load more projects'}
-              </m.button>
+              }
+              className="focus-visible:ring-inset"
+              onDismiss={
+                isOwn
+                  ? undefined
+                  : () => onDismissProject(projectId, projectKey)
+              }
+              authorLink={authorLink}
+              onFollow={
+                isOwn
+                  ? undefined
+                  : () => onFollowUser(ownerId, ownerKey, followed)
+              }
+              onDM={isOwn ? undefined : () => onMessageUser(ownerId)}
+              projectLink={projectLink}
+              followPending={pendingFollows.has(ownerKey)}
+              dmPending={pendingUserId === ownerKey}
+              saved={saved}
+              savePending={saveToggle.isPending(projectId)}
+              onToggleSave={
+                isOwn
+                  ? undefined
+                  : () =>
+                      void saveToggle.toggle({
+                        projectId,
+                        projectName: item.fullName,
+                        saved,
+                      })
+              }
+            />
+          )
+
+          // The viewer's own projects, after everyone else's in a selected
+          // city: labelled as theirs, never framed as a recommendation.
+          return isOwn ? (
+            <div className="flex flex-col gap-1">
+              <p className="m-0 font-mono text-meta text-text-muted">yours</p>
+              {card}
             </div>
-          )}
-        </div>
-      )}
-    </>
+          ) : (
+            card
+          )
+        }}
+      </InitialPageMotionList>
+      {footer}
+    </div>
+  )
+}
+
+type ExploreFeedProps = Parameters<typeof ExploreFeedBody>[0]
+
+/**
+ * The Explore results, in a labelled region that can take focus, with a
+ * polite status line that says how many results there are ("12 projects",
+ * "no projects match"). Empty-state actions (clear filters, browse
+ * everywhere, clear city filters, reset dismissed) unmount the button that
+ * was pressed, so they move focus to the results rather than losing it.
+ */
+export function ExploreFeed(props: ExploreFeedProps) {
+  const resultsRef = useRef<HTMLElement>(null)
+  const { activeFilters, emptyCity, onClearCityFilters, onResetExplore } = props
+  const thenFocusResults = (action: () => void) => () => {
+    action()
+    resultsRef.current?.focus()
+  }
+
+  return (
+    <section
+      ref={resultsRef}
+      tabIndex={-1}
+      aria-label={`${props.state.mode} results`}
+    >
+      <p role="status" className="sr-only">
+        {describeExploreResults(props.state, {
+          filtered: Boolean(activeFilters),
+        })}
+      </p>
+      <ExploreFeedBody
+        {...props}
+        activeFilters={
+          activeFilters && {
+            ...activeFilters,
+            onClear: thenFocusResults(activeFilters.onClear),
+          }
+        }
+        emptyCity={
+          emptyCity && {
+            ...emptyCity,
+            onBrowseEverywhere: thenFocusResults(emptyCity.onBrowseEverywhere),
+          }
+        }
+        onClearCityFilters={
+          onClearCityFilters && thenFocusResults(onClearCityFilters)
+        }
+        onResetExplore={onResetExplore && thenFocusResults(onResetExplore)}
+      />
+    </section>
   )
 }

@@ -24,7 +24,7 @@ export function ProfileCommentList({
   reactionsDisabled: boolean
 }) {
   if (comments.length === 0) {
-    return <EmptyState size="compact" title={emptyLabel} />
+    return <EmptyState size="compact" headingLevel={3} title={emptyLabel} />
   }
 
   return (
@@ -50,7 +50,7 @@ export function ProfileCommentList({
                   targetType="comment"
                   viewerReactionTypes={comment.viewerReactionTypes}
                 />
-                <div className="ml-auto flex min-h-11 items-center gap-3 px-2 font-mono text-[11px] text-text-faint">
+                <div className="ml-auto flex min-h-11 items-center gap-3 px-2 font-mono text-meta text-text-faint">
                   <span className="inline-flex items-center gap-1.5">
                     <MessageSquare size={12} aria-hidden="true" />
                     {comment.replyCount}{' '}

@@ -12,6 +12,7 @@ pnpm typecheck           # TypeScript without emitting files
 pnpm ci:quality          # check + typecheck + tests
 pnpm ci:build            # production build + bundle budget
 pnpm e2e                 # Playwright (starts a local server)
+pnpm design:tokens       # regenerate docs/DESIGN.md front matter after changing src/styles.css
 ```
 
 Run the narrowest relevant check while iterating; run `pnpm ci:quality` for cross-cutting changes. Use `pnpm format` only when formatting the files in scope; it applies fixes across the repository.

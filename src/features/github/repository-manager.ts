@@ -189,18 +189,23 @@ export function buildOptimisticSelfProjectPreview(args: {
     : null
   const publicOverview =
     args.overview && !isPrivateOverview(args.overview) ? args.overview : null
+  const ownerLocation = getOptimisticOwnerLocation(
+    args.audience,
+    privateOverview,
+    publicOverview,
+  )
   const cityLabel =
-    args.audience === 'private'
-      ? (privateOverview?.cityName ?? null)
-      : (publicOverview?.profile.city ?? null)
+    ownerLocation.kind === 'city'
+      ? ownerLocation.cityName
+      : ownerLocation.kind === 'region'
+        ? ownerLocation.regionLabel
+        : null
   const cityVisibilityState =
-    args.audience === 'private'
-      ? cityLabel
-        ? 'exact_city'
-        : 'unset'
-      : cityLabel
-        ? (publicOverview?.privacy.cityVisibility ?? 'exact_city')
-        : 'unset'
+    ownerLocation.kind === 'city'
+      ? ('exact_city' as const)
+      : ownerLocation.kind === 'region'
+        ? ('region_only' as const)
+        : ('unset' as const)
 
   return {
     projectId: args.project._id,
@@ -227,7 +232,31 @@ export function buildOptimisticSelfProjectPreview(args: {
       args.project.ownerSnapshot.avatarUrl,
     cityLabel,
     cityVisibilityState,
+    ownerLocation,
   } satisfies ProjectCardPreview
+}
+
+type OwnerLocation = NonNullable<ProjectCardPreview['ownerLocation']>
+
+/**
+ * The owner's location as the server would disclose it on this audience's
+ * preview: the owner always sees their own city; visitors see the profile's
+ * public disclosure.
+ */
+function getOptimisticOwnerLocation(
+  audience: 'private' | 'public',
+  privateOverview: PrivateProfileOverviewPayload | null,
+  publicOverview: PublicProfileOverviewPayload | null,
+): OwnerLocation {
+  if (audience === 'public') {
+    return publicOverview?.profile.location ?? { kind: 'none' }
+  }
+
+  const cityId = privateOverview?.viewer.profile.cityId ?? null
+  const cityName = privateOverview?.cityName ?? null
+  return cityId && cityName
+    ? { kind: 'city', cityId, cityName, regionLabel: null }
+    : { kind: 'none' }
 }
 
 export function updateMineProjectsVisibility(

@@ -12,6 +12,7 @@ import {
   createNotificationIfEnabled,
 } from './lib/notifications'
 import { buildActorSnapshot, buildProfileTargetSnapshot } from './lib/snapshots'
+import { countMetric } from './metrics'
 
 export const listFollowers = query({
   args: {
@@ -87,7 +88,7 @@ export const follow = mutation({
       updatedAt: Date.now(),
     })
 
-    await backfillHomeFeedForFollow(ctx, viewer._id, targetUser._id)
+    await backfillHomeFeedForFollow(ctx, viewer._id, targetUser._id, Date.now())
 
     const targetSnapshot = await buildActorSnapshot(ctx.db, targetUser)
     const eventId = await ctx.db.insert('activity_events', {
@@ -118,6 +119,7 @@ export const follow = mutation({
       target: buildProfileNotificationTarget(viewer.github.username),
     })
 
+    await countMetric(ctx, 'follow')
     return await ctx.db.get(followId)
   },
 })

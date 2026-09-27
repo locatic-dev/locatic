@@ -13,6 +13,15 @@ import {
   normalizeLegacyGithubReadmeUrlBaseKeys,
 } from './lib/github'
 import { recomputeContributionCountsForUsers } from './lib/project_contributor_sync'
+import { getProjectActivityAt, recordProjectActivity } from './lib/cityStats'
+import {
+  METADATA_REFRESH_SCAN_FACTOR,
+  bumpLastPublicActivity,
+  clampMetadataRefreshLimit,
+  recomputeLastPublicActivityIfLatest,
+  recomputeProjectPublicActivity,
+  selectMetadataRefreshTargets,
+} from './lib/activity'
 
 const MAX_README_BACKFILL_BATCH = 100
 const README_BACKFILL_SCAN_PAGE_SIZE = 100
@@ -188,6 +197,9 @@ export const patchProjectMetadata = internalMutation({
     if (!project) {
       return null
     }
+    const previousActivityAt =
+      project.locatic.lastPublicActivityAt ??
+      (await getProjectActivityAt(ctx.db, project))
 
     await ctx.db.patch(project._id, {
       github: {
@@ -206,6 +218,34 @@ export const patchProjectMetadata = internalMutation({
       },
       updatedAt: Date.now(),
     })
+    const projectActivityAt = await recomputeProjectPublicActivity(
+      ctx.db,
+      project._id,
+    )
+    // The patch leaves `exploreOwner` unchanged, so the loaded row is current.
+    await recordProjectActivity(
+      ctx.db,
+      project,
+      projectActivityAt ?? args.repository.lastCommitAt,
+    )
+    if (project.locatic.isVisible) {
+      if (
+        projectActivityAt !== null &&
+        projectActivityAt >= previousActivityAt
+      ) {
+        await bumpLastPublicActivity(ctx.db, project.ownerId, projectActivityAt)
+      } else {
+        const owner = await ctx.db.get(project.ownerId)
+        if (owner) {
+          const stats = await recomputeLastPublicActivityIfLatest(
+            ctx.db,
+            owner,
+            previousActivityAt,
+          )
+          if (stats !== owner.stats) await ctx.db.patch(owner._id, { stats })
+        }
+      }
+    }
 
     return null
   },
@@ -544,21 +584,29 @@ export const recordProjectMetadataSyncFailure = internalMutation({
   },
 })
 
+/**
+ * Projects for the hourly metadata refresh (plan item D4): one bounded read of
+ * the `METADATA_REFRESH_SCAN_FACTOR * limit` visible projects least recently
+ * attempted, then discovery-visible projects first with a share reserved for
+ * the stalest rows (`selectMetadataRefreshTargets`).
+ */
 export const listRefreshableProjectIds = internalQuery({
   args: {
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const limit = Math.min(Math.max(Math.floor(args.limit ?? 25), 1), 100)
-    const projects = await ctx.db
+    const limit = clampMetadataRefreshLimit(args.limit)
+    const candidates = await ctx.db
       .query('projects')
       .withIndex('by_visible_metadata_attempted', (query) =>
         query.eq('locatic.isVisible', true),
       )
       .order('asc')
-      .take(limit)
+      .take(limit * METADATA_REFRESH_SCAN_FACTOR)
 
-    return projects.map((project) => project._id)
+    return selectMetadataRefreshTargets(candidates, limit).map(
+      (project) => project._id,
+    )
   },
 })
 
@@ -570,6 +618,11 @@ export const patchProjectReleases = internalMutation({
   },
   handler: async (ctx, args) => {
     const now = Date.now()
+    const project = await ctx.db.get(args.projectId)
+    const previousActivityAt = project
+      ? (project.locatic.lastPublicActivityAt ??
+        (await getProjectActivityAt(ctx.db, project)))
+      : null
     const current = await ctx.db
       .query('project_releases')
       .withIndex('by_project_release', (query) =>
@@ -613,6 +666,37 @@ export const patchProjectReleases = internalMutation({
       (args.deleteMissing ?? false)
         ? current.filter((release) => !seen.has(release.githubReleaseId)).length
         : 0
+
+    const projectActivityAt = project
+      ? await recomputeProjectPublicActivity(ctx.db, project._id)
+      : null
+    if (project && projectActivityAt !== null) {
+      await recordProjectActivity(ctx.db, project, projectActivityAt)
+      if (project.locatic.isVisible) {
+        if (
+          previousActivityAt === null ||
+          projectActivityAt >= previousActivityAt
+        ) {
+          await bumpLastPublicActivity(
+            ctx.db,
+            project.ownerId,
+            projectActivityAt,
+          )
+        } else {
+          const owner = await ctx.db.get(project.ownerId)
+          if (owner) {
+            const stats = await recomputeLastPublicActivityIfLatest(
+              ctx.db,
+              owner,
+              previousActivityAt,
+            )
+            if (stats !== owner.stats) {
+              await ctx.db.patch(owner._id, { stats })
+            }
+          }
+        }
+      }
+    }
 
     return {
       deleted,

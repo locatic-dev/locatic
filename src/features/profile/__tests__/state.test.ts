@@ -3,8 +3,10 @@ import { describe, expect, it } from 'vitest'
 import {
   getProfileContentTabs,
   isProfileContributionsPublic,
+  mergeSocialItems,
   normalizeProfileSearch,
   PROFILE_CONTENT_TAB_VALUES,
+  summarizeProfileLanguages,
 } from '../state'
 
 describe('profile state helpers', () => {
@@ -93,5 +95,44 @@ describe('profile state helpers', () => {
       network: 'followers',
       tab: 'contributions',
     })
+  })
+
+  it('sums language bytes once per project, largest first, capped', () => {
+    const typescript = { name: 'TypeScript', bytes: 100 }
+    const projects = [
+      { projectId: 'a', languages: [typescript, { name: 'Go', bytes: 50 }] },
+      // The same project listed twice (pinned and recent) counts once.
+      { projectId: 'a', languages: [typescript] },
+      { projectId: 'b', languages: [{ name: 'Rust', bytes: 120 }, typescript] },
+      { projectId: 'c', languages: [{ name: '', bytes: 999 }] },
+    ]
+
+    expect(summarizeProfileLanguages(projects)).toEqual([
+      { name: 'TypeScript', bytes: 200 },
+      { name: 'Rust', bytes: 120 },
+      { name: 'Go', bytes: 50 },
+    ])
+    expect(summarizeProfileLanguages(projects, 1)).toEqual([
+      { name: 'TypeScript', bytes: 200 },
+    ])
+  })
+
+  it('merges follow-graph pages without duplicating users', () => {
+    expect(
+      mergeSocialItems(
+        [
+          { userId: 'u1', name: 'old' },
+          { userId: 'u2', name: 'two' },
+        ],
+        [
+          { userId: 'u1', name: 'new' },
+          { userId: 'u3', name: 'three' },
+        ],
+      ),
+    ).toEqual([
+      { userId: 'u1', name: 'new' },
+      { userId: 'u2', name: 'two' },
+      { userId: 'u3', name: 'three' },
+    ])
   })
 })
