@@ -9,6 +9,10 @@ const webServerCommand = process.env.E2E_PRODUCTION_SERVER
 export default defineConfig({
   testDir: './playwright',
   fullyParallel: true,
+  // `pnpm dev` compiles each route on its first visit, which can take most of
+  // the 30s default under a parallel run; specs wait up to 30s for a route to
+  // settle (playwright/fixtures/test.ts).
+  timeout: 60_000,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 2 : 0,
   reporter: process.env.CI ? [['html'], ['github']] : [['list'], ['html']],
@@ -25,12 +29,18 @@ export default defineConfig({
   },
   projects: [
     {
+      name: 'preflight',
+      testMatch: /preflight\.setup\.ts/,
+    },
+    {
       name: 'chromium-public',
+      dependencies: ['preflight'],
       testMatch: /.*\.public\.spec\.ts/,
       use: devices['Desktop Chrome'],
     },
     {
       name: 'setup',
+      dependencies: ['preflight'],
       testMatch: /auth\.setup\.ts/,
     },
     {

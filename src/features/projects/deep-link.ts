@@ -118,3 +118,30 @@ export function shouldAutoLoadDeepLinkPage({
     !isLoaded
   )
 }
+
+const PROJECT_DEEP_LINK_KEYS = ['comment', 'commentPath', 'post', 'thread']
+
+/**
+ * The project URL (path and deep-link query) a signed-out visitor returns to
+ * after sign-in, so a shared `?comment=` or `?post=` link survives it. The
+ * hash is added by the caller on the client.
+ */
+export function buildProjectReturnHref({
+  owner,
+  repo,
+  search,
+}: {
+  owner: string
+  repo: string
+  search: Record<string, unknown>
+}) {
+  const query = new URLSearchParams()
+  for (const key of PROJECT_DEEP_LINK_KEYS) {
+    const value = normalizeProjectSearchParam(search[key])
+    if (value) query.set(key, value)
+  }
+  const queryString = query.toString()
+  const path = `/project/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`
+
+  return queryString ? `${path}?${queryString}` : path
+}

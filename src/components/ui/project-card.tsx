@@ -1,11 +1,32 @@
 import { Link, useRouter } from '@tanstack/react-router'
-import type { KeyboardEvent, MouseEvent, ReactNode } from 'react'
-import { Star, Heart, MessageSquare, X, GitFork } from '@/lib/icons'
+import type { ReactNode } from 'react'
+import { Bookmark, Star, Heart, MessageSquare, X, GitFork } from '@/lib/icons'
+import { formatDate, relativeTime } from '@/lib/time'
 import { LxAvatar } from './lx-avatar'
 import { LanguageBar } from './language-bar'
 import { CityPill } from './city-pill'
+import { StatusPill, isCollaborationStatus } from './status-pill'
 import { Button } from './button'
+import { cardVariants } from './card'
 import { cn } from '@/lib/utils'
+
+/** Most recent public activity (`latestUpdate` on project previews). */
+export type ProjectLatestUpdate = {
+  kind: 'release' | 'post' | 'repo'
+  at: number
+  label?: string
+} | null
+
+/**
+ * Metadata sync state, separate from activity (`syncStatus` on previews).
+ * `at` is the last successful sync; `failed` and `error` reach owners only.
+ */
+export type ProjectSyncStatus = {
+  kind: 'fresh' | 'stale' | 'failed' | 'never'
+  at: number | null
+  hasReadme: boolean
+  error?: string
+}
 
 export interface ProjectCardData {
   id?: string
@@ -15,7 +36,10 @@ export interface ProjectCardData {
   description?: string | null
   lang?: string | null
   languages?: Array<{ name: string; bytes: number }>
+  /** Legacy push age, shown only when `latestUpdate` is not provided. */
   lastCommitLabel?: string
+  latestUpdate?: ProjectLatestUpdate
+  syncStatus?: ProjectSyncStatus
   githubStars: number
   locaticLikes: number
   reactionCounts?: Record<string, number>
@@ -28,6 +52,8 @@ export interface ProjectCardData {
   authorHandle: string
   authorAvatarUrl?: string | null
   city?: string | null
+  /** Set only for exact-city owners; the city pill then links to the city page. */
+  cityId?: string | null
   buildStatus?: string | null
   liked?: boolean
   followed?: boolean
@@ -62,17 +88,80 @@ interface ProjectCardProps {
   onDM?: () => void
   onFollow?: () => void
   onDismiss?: () => void
-  onCardClick?: () => void
-  onAuthorClick?: () => void
+  /** Owner-only: re-runs a failed metadata refresh. */
+  onRetrySync?: () => void
+  /** Signed-in viewers only; visitors get a sign-in link from the caller. */
+  onToggleSave?: () => void
+  /** Whether the viewer has saved this project (plan item D1). */
+  saved?: boolean
+  savePending?: boolean
   likePending?: boolean
   followPending?: boolean
   dmPending?: boolean
+  retrySyncPending?: boolean
   className?: string
   showActions?: boolean
   showFullCity?: boolean
   topLeftSlot?: ReactNode
   reactionSlot?: ReactNode
 }
+
+const ACTIVITY_RELATIVE_LIMIT_MS = 28 * 24 * 60 * 60 * 1000
+
+/** "3d ago" for the last four weeks, then the calendar date. */
+export function formatActivityAge(at: number, now = Date.now()) {
+  return now - at < ACTIVITY_RELATIVE_LIMIT_MS
+    ? relativeTime(at)
+    : formatDate(at)
+}
+
+/** "released v1.2 · 3d ago", "posted · 2h ago" or "pushed · 5d ago". */
+export function describeLatestUpdate(update: NonNullable<ProjectLatestUpdate>) {
+  const age = formatActivityAge(update.at)
+  switch (update.kind) {
+    case 'release':
+      return update.label
+        ? `released ${update.label} · ${age}`
+        : `released · ${age}`
+    case 'post':
+      return `posted · ${age}`
+    case 'repo':
+    default:
+      return `pushed · ${age}`
+  }
+}
+
+/**
+ * Freshness a visitor sees: when the data was last updated from GitHub and
+ * whether a README exists. A failed refresh is reported separately (owners).
+ */
+export function describeSyncFreshness(status: ProjectSyncStatus) {
+  const parts: string[] = []
+  if (status.at === null) {
+    parts.push('not synced yet')
+  } else {
+    parts.push(
+      `${status.kind === 'stale' ? 'last updated' : 'updated'} ${formatActivityAge(status.at)}`,
+    )
+  }
+  if (!status.hasReadme) {
+    parts.push('no README')
+  }
+  return parts.join(' · ')
+}
+
+function commentActionLabel(count: number) {
+  if (count <= 0) return 'start the conversation'
+  return `${count.toLocaleString()} ${count === 1 ? 'comment' : 'comments'}`
+}
+
+// The title link stretches over the card (the one tab stop that opens the
+// project); every other control sits above it so it stays its own target.
+const coverLinkClassName =
+  'after:absolute after:inset-0 after:rounded-card focus-visible:outline-none'
+const coverFocusClassName =
+  'has-[[data-card-cover]:focus-visible]:outline-2 has-[[data-card-cover]:focus-visible]:outline-focus has-[[data-card-cover]:focus-visible]:-outline-offset-2'
+const aboveCover = 'relative z-10'
 
 export function ProjectCard({
   project,
@@ -85,11 +174,14 @@ export function ProjectCard({
   onDM,
   onFollow,
   onDismiss,
-  onCardClick,
-  onAuthorClick,
+  onRetrySync,
+  onToggleSave,
+  saved = false,
+  savePending,
   likePending,
   followPending,
   dmPending,
+  retrySyncPending,
   className,
   showActions = true,
   showFullCity = false,
@@ -114,7 +206,41 @@ export function ProjectCard({
       }
     : null
   const projectLabel = project.fullName ?? `${project.owner}/${project.repo}`
+  const latestUpdateLabel = project.latestUpdate
+    ? describeLatestUpdate(project.latestUpdate)
+    : project.latestUpdate === undefined && project.lastCommitLabel
+      ? `pushed · ${project.lastCommitLabel}`
+      : null
+  const syncFailed = project.syncStatus?.kind === 'failed'
+  const freshnessLabel =
+    project.syncStatus && !syncFailed
+      ? describeSyncFreshness(project.syncStatus)
+      : null
+  const collaborationStatus = isCollaborationStatus(project.buildStatus)
+    ? project.buildStatus
+    : null
+  const commentLabel = commentActionLabel(project.commentsCount)
+  const showLike = showActions && !reactionSlot && Boolean(onLike)
+  const hasActions =
+    showActions && Boolean(onFollow || onDM || onToggleSave || showLike)
 
+  const preloadProjectRoute = () => {
+    if (!projectNavigateOptions) return
+    void router.preloadRoute(projectNavigateOptions)
+  }
+
+  const avatar = (
+    <LxAvatar
+      name={project.authorHandle}
+      avatarUrl={project.authorAvatarUrl}
+      size={22}
+    />
+  )
+  const authorName = (
+    <span className="min-w-0 font-sans text-label font-medium text-text wrap-anywhere">
+      {authorLabel}
+    </span>
+  )
   const authorIdentity = authorLink ? (
     <Link
       to="/u/$username"
@@ -122,158 +248,121 @@ export function ProjectCard({
       search={authorLink.search ?? { tab: 'projects' }}
       preload="intent"
       aria-label={`Open ${authorLabel}'s profile`}
-      className="flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-md bg-transparent px-0 py-2 text-left transition-colors hover:text-text"
+      className={cn(
+        aboveCover,
+        'flex min-h-11 min-w-0 items-center gap-2 rounded-control py-2 text-left transition-colors hover:text-text',
+      )}
     >
-      <LxAvatar
-        name={project.authorHandle}
-        avatarUrl={project.authorAvatarUrl}
-        size={22}
-      />
-      <span className="truncate font-sans text-[12.5px] font-medium text-text">
-        {authorLabel}
-      </span>
+      {avatar}
+      {authorName}
     </Link>
-  ) : onAuthorClick ? (
-    <button
-      type="button"
-      onClick={onAuthorClick}
-      aria-label={`Open ${authorLabel}'s profile`}
-      className="flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-md bg-transparent px-0 py-2 text-left transition-colors hover:text-text"
-    >
-      <LxAvatar
-        name={project.authorHandle}
-        avatarUrl={project.authorAvatarUrl}
-        size={22}
-      />
-      <span className="truncate font-sans text-[12.5px] font-medium text-text">
-        {authorLabel}
-      </span>
-    </button>
   ) : (
-    <div className="flex min-h-11 min-w-0 flex-1 items-center gap-2 py-2">
-      <LxAvatar
-        name={project.authorHandle}
-        avatarUrl={project.authorAvatarUrl}
-        size={22}
-      />
-      <span className="truncate font-sans text-[12.5px] font-medium text-text">
-        {authorLabel}
-      </span>
+    <div className="flex min-h-11 min-w-0 items-center gap-2 py-2">
+      {avatar}
+      {authorName}
+    </div>
+  )
+  const cityPill = project.city ? (
+    <CityPill
+      city={project.city}
+      cityId={project.cityId ?? null}
+      truncate={!showFullCity}
+      className={cn(aboveCover, 'max-w-full')}
+    />
+  ) : null
+  const identityRow = (
+    <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+      {authorIdentity}
+      {cityPill}
+      {collaborationStatus && <StatusPill status={collaborationStatus} />}
     </div>
   )
 
-  const preloadProjectRoute = () => {
-    if (!projectNavigateOptions) return
-    void router.preloadRoute(projectNavigateOptions)
-  }
-
-  const isInteractiveTarget = (target: EventTarget | null) =>
-    target instanceof Element &&
-    Boolean(
-      target.closest(
-        'a,button,input,textarea,select,[role="button"],[data-project-card-action]',
-      ),
-    )
-
-  const handleCardClick = (event: MouseEvent<HTMLDivElement>) => {
-    if (isInteractiveTarget(event.target)) return
-
-    if (projectNavigateOptions) {
-      void router.navigate(projectNavigateOptions)
-      return
-    }
-
-    onCardClick?.()
-  }
-
-  const handleCardKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (
-      !projectNavigateOptions ||
-      event.currentTarget !== event.target ||
-      (event.key !== 'Enter' && event.key !== ' ')
-    ) {
-      return
-    }
-
-    event.preventDefault()
-    void router.navigate(projectNavigateOptions)
-  }
+  const commentAction = onComment ? (
+    <button
+      type="button"
+      onClick={onComment}
+      className={cn(
+        aboveCover,
+        'inline-flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-control px-2 font-mono text-label text-text-muted transition-colors hover:text-text',
+      )}
+    >
+      <MessageSquare size={13} strokeWidth={1.5} aria-hidden="true" />
+      {commentLabel}
+    </button>
+  ) : projectLink ? (
+    <Link
+      to="/project/$owner/$repo"
+      params={{ owner: projectLink.owner, repo: projectLink.repo }}
+      hash="comments"
+      className={cn(
+        aboveCover,
+        'inline-flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-control px-2 font-mono text-label text-text-muted no-underline transition-colors hover:text-text',
+      )}
+    >
+      <MessageSquare size={13} strokeWidth={1.5} aria-hidden="true" />
+      {commentLabel}
+    </Link>
+  ) : project.commentsCount > 0 ? (
+    <span className="inline-flex items-center gap-1.5 font-mono text-label text-text-faint">
+      <MessageSquare size={13} strokeWidth={1.5} aria-hidden="true" />
+      {commentLabel}
+    </span>
+  ) : null
 
   return (
     <div
-      tabIndex={projectNavigateOptions ? 0 : undefined}
-      aria-label={projectNavigateOptions ? `Open ${projectLabel}` : undefined}
-      onClick={handleCardClick}
       onFocus={preloadProjectRoute}
-      onKeyDown={handleCardKeyDown}
       onPointerEnter={preloadProjectRoute}
       onTouchStart={preloadProjectRoute}
       className={cn(
-        'lx-card @container relative flex flex-col rounded-card border border-line bg-surface transition-transform duration-[140ms] ease-out',
-        projectNavigateOptions &&
-          'cursor-pointer active:scale-[0.997] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-canvas',
-        compact ? 'gap-2 px-4 py-3' : 'gap-3 px-5 py-4',
+        cardVariants({ density: compact ? 'compact' : 'cozy' }),
+        '@container relative flex flex-col',
+        compact ? 'gap-2' : 'gap-3',
+        projectNavigateOptions && ['lx-card', coverFocusClassName],
         className,
       )}
     >
       {topLeftSlot && (
-        <div className="flex min-w-0 items-center" data-project-card-action>
+        <div className={cn(aboveCover, 'flex min-w-0 items-center')}>
           {topLeftSlot}
         </div>
       )}
 
-      {/* Top row: optional author lead + repo name + dismiss */}
       <div className="flex items-start gap-2.5">
-        <div className="min-w-0 flex-1">
-          {authorPlacement === 'header' && (
-            <div className="mb-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-              {authorIdentity}
-              {project.city && (
-                <CityPill
-                  city={project.city}
-                  truncate={!showFullCity}
-                  className="max-w-full"
-                />
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
+          {authorPlacement === 'header' && identityRow}
+          {projectLink ? (
+            <Link
+              to="/project/$owner/$repo"
+              params={{ owner: projectLink.owner, repo: projectLink.repo }}
+              search={projectLink.search}
+              hash={projectLink.hash}
+              preload="intent"
+              data-card-cover=""
+              className={cn(
+                coverLinkClassName,
+                'max-w-full text-left text-title leading-snug text-text no-underline wrap-anywhere',
               )}
-            </div>
+            >
+              <span className="font-normal text-text-faint">
+                {project.owner}/
+              </span>
+              {project.repo}
+            </Link>
+          ) : (
+            <p className="m-0 max-w-full text-title leading-snug text-text wrap-anywhere">
+              <span className="font-normal text-text-faint">
+                {project.owner}/
+              </span>
+              {project.repo}
+            </p>
           )}
-          <div className="mb-1 flex items-center gap-2">
-            {/* Repo name */}
-            {projectLink ? (
-              <Link
-                to="/project/$owner/$repo"
-                params={{ owner: projectLink.owner, repo: projectLink.repo }}
-                search={projectLink.search}
-                hash={projectLink.hash}
-                preload="intent"
-                aria-label={`Open ${projectLabel}`}
-                className="max-w-full whitespace-normal border-none bg-transparent p-0 text-left font-mono text-[14.5px] font-semibold tracking-[-0.01em] text-text transition-colors wrap-anywhere leading-[1.35]"
-              >
-                <span className="font-normal text-text-faint">
-                  {project.owner}/
-                </span>
-                {project.repo}
-              </Link>
-            ) : (
-              <button
-                onClick={onCardClick}
-                aria-label={onCardClick ? `Open ${projectLabel}` : undefined}
-                className="max-w-full whitespace-normal border-none bg-transparent p-0 text-left font-mono text-[14.5px] font-semibold tracking-[-0.01em] text-text transition-colors wrap-anywhere leading-[1.35] disabled:cursor-default"
-                disabled={!onCardClick}
-                type="button"
-              >
-                <span className="font-normal text-text-faint">
-                  {project.owner}/
-                </span>
-                {project.repo}
-              </button>
-            )}
-          </div>
 
           {project.description && (
             <p
               className={cn(
-                'm-0 overflow-hidden font-sans text-[13.5px] leading-6 text-text-muted',
+                'm-0 text-body text-text-muted wrap-anywhere',
                 compact ? 'line-clamp-1' : 'line-clamp-2',
               )}
             >
@@ -285,68 +374,79 @@ export function ProjectCard({
         {onDismiss && (
           <button
             onClick={onDismiss}
-            aria-label="Dismiss"
-            className="-mt-2 -mr-3 -mb-2 flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-md border-none bg-transparent text-text-faint transition-colors hover:text-text"
+            aria-label={`Dismiss ${projectLabel}`}
+            className={cn(
+              aboveCover,
+              '-mt-2 -mr-3 -mb-2 flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-control text-text-faint transition-colors hover:text-text',
+            )}
             type="button"
-            data-project-card-action
           >
-            <X size={12} />
+            <X size={12} aria-hidden="true" />
           </button>
         )}
       </div>
 
-      {/* Identity + stat row, with the language proportion bar grouped beneath it */}
-      <div className="flex flex-col gap-2">
+      {(latestUpdateLabel || freshnessLabel) && (
+        <p className="m-0 flex flex-wrap gap-x-3 gap-y-1 text-meta">
+          {latestUpdateLabel && (
+            <span className="text-text-muted">{latestUpdateLabel}</span>
+          )}
+          {freshnessLabel && (
+            <span className="text-text-faint">{freshnessLabel}</span>
+          )}
+        </p>
+      )}
+
+      {syncFailed && (
         <div
+          role="status"
           className={cn(
-            'flex flex-wrap items-center justify-between gap-x-3.5 gap-y-2 font-mono text-[11.5px]',
-            compact ? 'gap-x-3' : 'gap-x-3.5',
+            aboveCover,
+            'flex flex-wrap items-center gap-x-3 gap-y-1 text-meta',
           )}
         >
-          {/* Identity group: recency + topics */}
-          <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5 text-text-muted">
-            {project.lastCommitLabel && (
-              <span className="text-text-faint">{project.lastCommitLabel}</span>
-            )}
-            {project.topics?.slice(0, 3).map((topic) => (
-              <span
-                key={topic}
-                className="rounded-control border border-line px-1.5 py-0.5 text-[11px] text-text-muted"
-              >
-                #{topic}
-              </span>
-            ))}
-          </div>
+          <span className="min-w-0 text-danger wrap-anywhere">
+            last refresh failed
+            {project.syncStatus?.error ? `: ${project.syncStatus.error}` : ''}
+          </span>
+          {onRetrySync && (
+            <Button size="sm" onClick={onRetrySync} disabled={retrySyncPending}>
+              {retrySyncPending ? 'retrying…' : 'retry'}
+            </Button>
+          )}
+        </div>
+      )}
 
-          {/* Stat group: stars · comments · forks · posts (likes live in the footer) */}
-          <div className="flex shrink-0 items-center gap-3 text-text-faint">
+      <div className="flex flex-col gap-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5 text-label text-text-faint">
+          {project.topics?.slice(0, 3).map((topic) => (
+            <span
+              key={topic}
+              className="rounded-control border border-line px-1.5 py-0.5 text-meta text-text-muted"
+            >
+              #{topic}
+            </span>
+          ))}
+          {project.githubStars > 0 && (
             <span className="inline-flex items-center gap-1">
-              <Star size={11} strokeWidth={1.4} />
+              <Star size={11} strokeWidth={1.4} aria-hidden="true" />
+              <span className="sr-only">GitHub stars:</span>
               {project.githubStars.toLocaleString()}
             </span>
-            <button
-              onClick={onComment}
-              aria-label="Comments"
-              className="-my-3 inline-flex min-h-11 min-w-11 items-center justify-center gap-1 rounded-md border-none bg-transparent px-1 text-inherit transition-colors enabled:hover:text-text"
-              disabled={!onComment}
-              type="button"
-              data-project-card-action
-            >
-              <MessageSquare size={11} strokeWidth={1.4} />
-              {project.commentsCount}
-            </button>
-            {project.forksCount !== undefined && (
-              <span className="inline-flex items-center gap-1">
-                <GitFork size={11} strokeWidth={1.4} />
-                {project.forksCount.toLocaleString()}
-              </span>
-            )}
-            {project.postsCount !== undefined && project.postsCount > 0 && (
-              <span className="inline-flex items-center gap-1">
-                {project.postsCount} posts
-              </span>
-            )}
-          </div>
+          )}
+          {project.forksCount !== undefined && project.forksCount > 0 && (
+            <span className="inline-flex items-center gap-1">
+              <GitFork size={11} strokeWidth={1.4} aria-hidden="true" />
+              <span className="sr-only">forks:</span>
+              {project.forksCount.toLocaleString()}
+            </span>
+          )}
+          {project.postsCount !== undefined && project.postsCount > 0 && (
+            <span>
+              {project.postsCount.toLocaleString()}{' '}
+              {project.postsCount === 1 ? 'post' : 'posts'}
+            </span>
+          )}
         </div>
 
         {!compact && languages.length > 0 && (
@@ -354,63 +454,79 @@ export function ProjectCard({
         )}
       </div>
 
-      {(authorPlacement === 'footer' || showActions || reactionSlot) && (
+      {(authorPlacement === 'footer' ||
+        reactionSlot ||
+        commentAction ||
+        hasActions) && (
         <div
           className={cn(
-            'flex flex-wrap items-start justify-between gap-2 border-t border-line',
+            'flex flex-wrap items-center justify-between gap-2 border-t border-line',
             compact ? 'pt-2' : 'pt-3',
           )}
         >
           {authorPlacement === 'footer' && (
-            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-              {authorIdentity}
-              {project.city && (
-                <CityPill
-                  city={project.city}
-                  truncate={!showFullCity}
-                  className="basis-full sm:basis-auto"
-                />
-              )}
-            </div>
+            <div className="flex min-w-0 basis-full">{identityRow}</div>
           )}
 
-          {reactionSlot && <div className="min-w-0 flex-1">{reactionSlot}</div>}
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
+            {reactionSlot && <div className={aboveCover}>{reactionSlot}</div>}
+            {commentAction}
+          </div>
 
-          {showActions && (
-            <div className="ml-auto flex shrink-0 flex-wrap items-center gap-1.5">
+          {hasActions && (
+            <div
+              className={cn(
+                aboveCover,
+                'ml-auto flex shrink-0 flex-wrap items-center gap-1.5',
+              )}
+            >
               {onFollow && (
                 <Button
-                  size="sm"
-                  variant="outline"
+                  size="touch"
                   onClick={onFollow}
                   disabled={followPending}
-                  className={cn(
-                    'min-h-11 font-mono text-[11px]',
-                    project.followed && 'border-line-strong text-text-muted',
-                  )}
                 >
                   {project.followed ? 'following' : 'follow'}
                 </Button>
               )}
               {onDM && (
                 <Button
-                  size="sm"
+                  size="touch"
                   variant="ghost"
                   onClick={onDM}
                   disabled={dmPending}
-                  className="min-h-11 font-mono text-[11px] text-text-muted"
                 >
                   {dmPending ? 'opening…' : 'message'}
                 </Button>
               )}
-              {!reactionSlot && (
+              {onToggleSave && (
+                <Button
+                  size="touch"
+                  variant="ghost"
+                  onClick={onToggleSave}
+                  disabled={savePending}
+                >
+                  <Bookmark
+                    size={14}
+                    strokeWidth={1.6}
+                    fill={saved ? 'currentColor' : 'none'}
+                    aria-hidden="true"
+                  />
+                  {saved ? 'saved' : 'save'}
+                </Button>
+              )}
+              {showLike && (
                 <button
                   onClick={onLike}
                   disabled={likePending}
-                  aria-label={project.liked ? 'Unlike' : 'Like'}
-                  aria-pressed={project.liked}
+                  aria-label={
+                    project.locaticLikes > 0
+                      ? `like, ${project.locaticLikes} ${project.locaticLikes === 1 ? 'like' : 'likes'}`
+                      : 'like'
+                  }
+                  aria-pressed={Boolean(project.liked)}
                   className={cn(
-                    'flex min-h-11 min-w-11 items-center justify-center gap-1.5 border-none bg-transparent px-2.5 font-mono text-[11.5px] transition-colors',
+                    'flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-control px-2.5 font-mono text-label transition-colors',
                     project.liked ? 'text-liked' : 'text-text-faint',
                     likePending
                       ? 'cursor-default opacity-60'
@@ -422,6 +538,7 @@ export function ProjectCard({
                     size={16}
                     strokeWidth={1.6}
                     fill={project.liked ? 'currentColor' : 'none'}
+                    aria-hidden="true"
                   />
                   {project.locaticLikes > 0 &&
                     project.locaticLikes.toLocaleString()}
@@ -431,34 +548,6 @@ export function ProjectCard({
           )}
         </div>
       )}
-    </div>
-  )
-}
-
-/* ── Skeleton variant ─────────────────────────────────────────────── */
-export function ProjectCardSkeleton({
-  compact = false,
-  className,
-}: {
-  compact?: boolean
-  className?: string
-}) {
-  return (
-    <div
-      className={cn(
-        'flex flex-col gap-3 rounded-card border border-line bg-surface',
-        compact ? 'px-4 py-3' : 'px-5 py-4',
-        className,
-      )}
-    >
-      <div className="lx-skeleton h-3.5 w-3/5" />
-      <div className="lx-skeleton h-3 w-[90%]" />
-      <div className="lx-skeleton h-3 w-3/4" />
-      <div className="mt-1 flex gap-2">
-        <div className="lx-skeleton h-2.5 w-10" />
-        <div className="lx-skeleton h-2.5 w-10" />
-        <div className="lx-skeleton h-2.5 w-10" />
-      </div>
     </div>
   )
 }

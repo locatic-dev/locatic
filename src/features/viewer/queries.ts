@@ -4,5 +4,4 @@ export {
   viewerSummaryQueryOptions,
   viewerLikedProjectIdsQueryOptions,
   viewerExplorePrefsQueryOptions,
-  viewerInboxSummaryQueryOptions,
 } from '@/integrations/convex/query-options'

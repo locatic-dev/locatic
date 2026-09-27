@@ -1,9 +1,12 @@
+import { useId, type ReactNode } from 'react'
 import { PersonRow } from '@/components/ui/person-row'
+import { isCollaborationStatus, StatusPill } from '@/components/ui/status-pill'
 import { MessageSquare } from '@/lib/icons'
 import type { BuilderPreview } from '@/features/explore/types'
+import { SignInLink } from './sign-in-link'
 
 const followButtonClass =
-  'min-h-11 shrink-0 rounded-md border px-3 font-mono text-[11.5px] transition-colors'
+  'min-h-11 shrink-0 rounded-md border px-3 font-mono text-label transition-colors'
 const messageIconButtonClass =
   'inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-md border border-line text-text-muted transition-colors hover:border-text-muted hover:text-text disabled:cursor-default disabled:opacity-60'
 
@@ -17,6 +20,7 @@ export function NearbyBuilderRow({
   followPending,
   messagePending,
   isSelf,
+  visitor,
 }: {
   builder: BuilderPreview
   compact?: boolean
@@ -27,47 +31,84 @@ export function NearbyBuilderRow({
   followPending: boolean
   messagePending?: boolean
   isSelf?: boolean
+  /** Signed-out visitor: follow becomes a sign-in link, message is hidden. */
+  visitor?: { signInRedirect: string | undefined }
 }) {
-  const metadata = (
+  // A young account without public work reads as new, not inactive (D4).
+  const handle = (
     <>
       @{builder.githubUsername}
       {isSelf ? ' · you' : ''}
-      {builder.cityName ? ` · ${builder.cityName}` : ''}
+      {builder.isNewBuilder ? ' · new builder' : ''}
     </>
+  )
+  // Collaboration intent (D3) beside the handle. The identity button's
+  // `aria-label` hides its content from assistive tech, so the pill is also
+  // the button's description.
+  const statusId = useId()
+  const collaborationStatus = isCollaborationStatus(builder.buildStatus)
+    ? builder.buildStatus
+    : null
+  const metadata = collaborationStatus ? (
+    <span className="flex min-w-0 items-center gap-2">
+      <span className="min-w-0 truncate">{handle}</span>
+      <span id={statusId} className="shrink-0">
+        <StatusPill status={collaborationStatus} />
+      </span>
+    </span>
+  ) : (
+    handle
+  )
+  const renderIdentity = (content: ReactNode, className: string) => (
+    <button
+      type="button"
+      onClick={onOpenProfile}
+      aria-label={`Open ${builder.displayName}'s profile`}
+      aria-describedby={collaborationStatus ? statusId : undefined}
+      className={className}
+    >
+      {content}
+    </button>
   )
 
   // Trailing actions: a message icon-button + a follow button, side by side, so
   // the row stays a single compact line instead of stacking a full-width button.
-  const action =
-    !isSelf || onMessage ? (
-      <div className="flex items-center gap-1.5">
-        {onMessage && (
-          <button
-            type="button"
-            onClick={onMessage}
-            disabled={messagePending}
-            aria-label={`Message ${builder.displayName}`}
-            className={messageIconButtonClass}
-          >
-            <MessageSquare size={15} strokeWidth={1.6} />
-          </button>
-        )}
-        {!isSelf && (
-          <button
-            type="button"
-            onClick={onFollow}
-            disabled={followPending}
-            className={`${followButtonClass} ${
-              followed
-                ? 'border-text-muted text-text'
-                : 'border-brand/40 text-brand hover:border-brand hover:bg-selected'
-            }`}
-          >
-            {followPending ? '…' : followed ? 'following' : 'follow'}
-          </button>
-        )}
-      </div>
-    ) : undefined
+  const action = visitor ? (
+    <SignInLink
+      label={`Sign in to follow ${builder.displayName}`}
+      redirect={visitor.signInRedirect}
+    >
+      follow
+    </SignInLink>
+  ) : !isSelf || onMessage ? (
+    <div className="flex items-center gap-1.5">
+      {onMessage && (
+        <button
+          type="button"
+          onClick={onMessage}
+          disabled={messagePending}
+          aria-label={`Message ${builder.displayName}`}
+          className={messageIconButtonClass}
+        >
+          <MessageSquare size={15} strokeWidth={1.6} />
+        </button>
+      )}
+      {!isSelf && (
+        <button
+          type="button"
+          onClick={onFollow}
+          disabled={followPending}
+          className={`${followButtonClass} ${
+            followed
+              ? 'border-text-muted text-text'
+              : 'border-brand/40 text-brand hover:border-brand hover:bg-selected'
+          }`}
+        >
+          {followPending ? '…' : followed ? 'following' : 'follow'}
+        </button>
+      )}
+    </div>
+  ) : undefined
 
   if (compact) {
     return (
@@ -77,8 +118,8 @@ export function NearbyBuilderRow({
         size={32}
         title={builder.displayName}
         meta={metadata}
-        onClick={onOpenProfile}
-        ariaLabel={`Open ${builder.displayName}'s profile`}
+        location={builder.location}
+        renderIdentity={renderIdentity}
         action={action}
         className="border-b border-line py-3 last:border-b-0"
       />
@@ -104,8 +145,8 @@ export function NearbyBuilderRow({
         title={builder.displayName}
         meta={metadata}
         subtitle={stats}
-        onClick={onOpenProfile}
-        ariaLabel={`Open ${builder.displayName}'s profile`}
+        location={builder.location}
+        renderIdentity={renderIdentity}
         action={action}
       />
     </div>

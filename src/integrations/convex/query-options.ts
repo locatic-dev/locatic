@@ -37,9 +37,6 @@ export const viewerLikedProjectIdsQueryOptions = () =>
 export const viewerExplorePrefsQueryOptions = () =>
   convexQuery(api.users.viewerExplorePrefs, {})
 
-export const viewerInboxSummaryQueryOptions = () =>
-  convexQuery(api.users.viewerInboxSummary, {})
-
 export const publicProfileQueryOptions = (username: string) =>
   convexQuery(api.users.publicProfile, { username })
 
@@ -95,35 +92,58 @@ export const homeFeedQueryOptions = (
   },
 ) => convexQuery(api.home.list, { paginationOpts })
 
+// Convex subscribes to every query key in the cache, even a disabled one, so
+// an inactive query passes 'skip' instead of placeholder args: an empty
+// search, an empty id list or a missing id reads nothing.
+
 export const builderSearchQueryOptions = ({
   cityIds = [],
   limit = 20,
+  openToCollab,
   q,
 }: {
   cityIds?: Array<Id<'cities'>>
   limit?: number
+  openToCollab?: boolean
   q: string
 }) =>
-  convexQuery(api.explore.searchBuilders, {
-    cityIds,
-    limit,
-    q,
-  })
+  convexQuery(
+    api.explore.searchBuilders,
+    q.trim()
+      ? {
+          cityIds,
+          limit,
+          ...(openToCollab ? { openToCollab: true } : {}),
+          q,
+        }
+      : 'skip',
+  )
 
 export const projectSearchQueryOptions = ({
   cityIds = [],
+  language,
   limit = 10,
   q,
+  topic,
 }: {
   cityIds?: Array<Id<'cities'>>
+  language?: string
   limit?: number
   q: string
+  topic?: string
 }) =>
-  convexQuery(api.explore.searchProjects, {
-    cityIds,
-    limit,
-    q,
-  })
+  convexQuery(
+    api.explore.searchProjects,
+    q.trim()
+      ? {
+          cityIds,
+          ...(language ? { language } : {}),
+          limit,
+          q,
+          ...(topic ? { topic } : {}),
+        }
+      : 'skip',
+  )
 
 export const postSearchQueryOptions = ({
   cityIds = [],
@@ -134,41 +154,28 @@ export const postSearchQueryOptions = ({
   limit?: number
   q: string
 }) =>
-  convexQuery(api.explore.searchPosts, {
-    cityIds,
-    limit,
-    q,
-  })
+  convexQuery(
+    api.explore.searchPosts,
+    q.trim() ? { cityIds, limit, q } : 'skip',
+  )
 
-export const citiesSearchQueryOptions = (query: string, limit = 10) =>
-  convexQuery(api.cities.search, { query, limit })
+// CityCombobox shows at most 8 rows, so read no more than it can render.
+export const citiesSearchQueryOptions = (query: string, limit = 8) =>
+  convexQuery(api.cities.search, query.trim() ? { query, limit } : 'skip')
 
 export const popularCitiesQueryOptions = () =>
   convexQuery(api.cities.listPopular, {})
 
 export const citiesByIdsQueryOptions = (cityIds: Array<any>) =>
-  convexQuery(api.cities.listByIds, { cityIds })
+  convexQuery(api.cities.listByIds, cityIds.length > 0 ? { cityIds } : 'skip')
 
-export const pulseQueryOptions = ({
-  scopeType,
-  scopeId,
-  timeWindow,
-  sort,
-  page = 1,
-}: {
-  scopeType: 'city' | 'global'
-  scopeId: string | null
-  timeWindow: 'day' | 'week' | 'month'
-  sort: 'locatic_likes' | 'comments' | 'github_stars'
-  page?: number
-}) =>
-  convexQuery(api.pulse.listPublic, {
-    scopeType,
-    scopeId,
-    timeWindow,
-    sort,
-    page,
-  })
+/** Landing map (plan item D7): active cities with builders, public. */
+export const landingMapCitiesQueryOptions = () =>
+  convexQuery(api.cities.listActiveForMap, {})
+
+/** Landing showcase (plan item D7): up to three eligible public projects. */
+export const landingShowcaseQueryOptions = () =>
+  convexQuery(api.projects.listLandingShowcase, {})
 
 export const projectDetailQueryOptions = ({
   owner,
@@ -188,8 +195,8 @@ export const notificationsQueryOptions = (
   },
 ) => convexQuery(api.notifications.list, { paginationOpts })
 
-export const notificationsUnreadCountQueryOptions = () =>
-  convexQuery(api.notifications.unreadCount, {})
+export const notificationsUnreadCountQueryOptions = (ready = true) =>
+  convexQuery(api.notifications.unreadCount, ready ? {} : 'skip')
 
 export const conversationsQueryOptions = () =>
   convexQuery(api.conversations.list, {})
@@ -198,8 +205,13 @@ export const conversationDetailQueryOptions = (
   conversationId: Id<'conversations'>,
 ) => convexQuery(api.conversations.get, { conversationId })
 
-export const conversationRecipientPreviewQueryOptions = (otherUserId: string) =>
-  convexQuery(api.conversations.getRecipientPreview, { otherUserId })
+export const conversationRecipientPreviewQueryOptions = (
+  otherUserId: string | null,
+) =>
+  convexQuery(
+    api.conversations.getRecipientPreview,
+    otherUserId ? { otherUserId } : 'skip',
+  )
 
 export const followingQueryOptions = (userId: Id<'users'>) =>
   convexQuery(api.follows.listFollowing, { userId })

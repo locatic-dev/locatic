@@ -1,0 +1,43 @@
+{
+  "$comment": "Existing arbitrary values in src/features and src/routes (plan item E3). Lower or remove entries as files move to tokens; never raise one to accept a new hit. Written by `node scripts/check-arbitrary-values.mjs --update`.",
+  "files": {
+    "src/features/github/repository-manager-dialog.tsx": {
+      "font-size": 3
+    },
+    "src/features/home/home-feed-card.tsx": {
+      "font-size": 3
+    },
+    "src/features/landing/feature-row.tsx": {
+      "font-size": 1
+    },
+    "src/features/landing/hero-copy.tsx": {
+      "font-size": 3
+    },
+    "src/features/legal/legal-page.tsx": {
+      "font-size": 2
+    },
+    "src/features/onboarding/components/city-step.tsx": {
+      "font-size": 3
+    },
+    "src/features/onboarding/components/follow-step.tsx": {
+      "font-size": 1
+    },
+    "src/features/onboarding/components/onboarding-shell.tsx": {
+      "font-size": 6
+    },
+    "src/features/onboarding/components/repo-step.tsx": {
+      "font-size": 8,
+      "radius": 1
+    },
+    "src/features/onboarding/components/status-step.tsx": {
+      "font-size": 1
+    },
+    "src/features/projects/posts/project-posts-section.tsx": {
+      "radius": 1
+    },
+    "src/routes/__root.tsx": {
+      "font-size": 1,
+      "hex-colour": 1
+    }
+  }
+}

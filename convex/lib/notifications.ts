@@ -132,7 +132,11 @@ export async function createNotificationIfEnabled(
             buildConversationNotificationTarget(conversationId!, false),
         }
       : {}),
-    isRead: false,
+    // A direct message is one task, counted by the inbox badge
+    // (`users.unreadMessagesCount`) and cleared by reading the conversation,
+    // so its notification row is created read: it still appears in the
+    // notifications list but never counts toward the notifications badge.
+    isRead: type === 'dm_received',
     createdAt,
   })
 }
