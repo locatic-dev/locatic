@@ -129,44 +129,33 @@ describe('CommentThread', () => {
     expect(screen.getByRole('status', { name: 'Loading replies' })).toBeTruthy()
   })
 
-  it('uses padded mobile-safe spacing for the reply textarea', () => {
+  it('labels the reply textarea with the comment author', () => {
     renderThread({
       replyDrafts: { comment_1: '' },
     })
 
-    const textarea = screen.getByPlaceholderText('reply to Saroj Pedada...')
-
-    expect(textarea.className).toContain('px-3')
-    expect(textarea.className).toContain('py-2.5')
-    expect(textarea.className).toContain('text-[16px]')
-    expect(textarea.className).not.toContain('px-0')
-    expect(textarea.className).not.toContain('py-0')
+    expect(
+      screen.getByRole('textbox', { name: 'Reply to Saroj Pedada' }),
+    ).toBeDefined()
   })
 
-  it('uses shared card anatomy for top-level comments while nested replies keep thread rails', () => {
-    paginatedState = {
-      results: [
-        makeComment({
-          _id: 'comment_reply_1' as Id<'comments'>,
-          content: 'Loaded reply',
-          parentId: 'comment_1' as Id<'comments'>,
-        }),
-      ],
-      status: 'CanLoadMore',
-      loadMore: vi.fn(),
-    }
+  it('deletes a comment only after the confirmation, which says replies stay', () => {
+    const handleDeleteComment = vi.fn()
+    renderThread({ handleDeleteComment, viewerId: 'user_1' })
 
-    const { container } = renderThread({})
+    fireEvent.click(screen.getByRole('button', { name: 'Delete comment' }))
 
-    const topLevelComment = container.querySelector('#comment-comment_1')
-    const nestedReply = container.querySelector('#comment-comment_reply_1')
+    const dialog = screen.getByRole('dialog', { name: 'delete this comment?' })
+    expect(dialog.textContent).toContain('replies stay.')
+    expect(handleDeleteComment).not.toHaveBeenCalled()
 
-    // Top-level comments use the shared Card anatomy (rounded card surface);
-    // nested replies keep the borderless thread rail.
-    expect(topLevelComment?.className).toContain('rounded-card')
-    expect(topLevelComment?.className).toContain('bg-surface')
-    expect(nestedReply?.className).toContain('border-l')
-    expect(nestedReply?.className).not.toContain('bg-surface')
+    fireEvent.click(screen.getByRole('button', { name: 'cancel' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(handleDeleteComment).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete comment' }))
+    fireEvent.click(screen.getByRole('button', { name: 'delete' }))
+    expect(handleDeleteComment).toHaveBeenCalledWith('comment_1')
   })
 
   it('submits a reply without requiring the composer to stay open', () => {
@@ -188,8 +177,8 @@ describe('CommentThread', () => {
     })
 
     expect(screen.getByText('Optimistic reply')).toBeTruthy()
-    expect(screen.getByText('posting...')).toBeTruthy()
-    expect(screen.queryByPlaceholderText('reply to Saroj Pedada...')).toBeNull()
+    expect(screen.getByText('posting…')).toBeTruthy()
+    expect(screen.queryByPlaceholderText('reply to Saroj Pedada…')).toBeNull()
 
     fireEvent.click(screen.getByRole('button', { name: 'Reply to comment' }))
 

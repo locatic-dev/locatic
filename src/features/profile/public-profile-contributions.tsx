@@ -1,4 +1,3 @@
-import { ContributionGraph } from '@/components/ui/contribution-graph'
 import { EmptyState } from '@/components/ui/empty-state'
 import { ProjectCard } from '@/components/ui/project-card'
 import type { ContributedProjectPreview } from '@/features/contracts'
@@ -12,44 +11,6 @@ import {
 import { compactNumber } from '@/lib/format'
 import { ProjectReactionBar } from '@/features/projects/reactions/project-reaction-bar'
 
-type GithubContributions = {
-  totalContributions: number
-  weeks: Array<{
-    days: Array<{
-      count: number
-      date: string
-    }>
-  }>
-} | null
-
-export function PublicProfileContributionGraph({
-  githubContributions,
-}: {
-  githubContributions: GithubContributions
-}) {
-  return (
-    <div className="mb-8">
-      <div className="mb-2.5 font-mono text-[10.5px] uppercase tracking-[0.06em] text-text-faint">
-        {githubContributions?.totalContributions != null
-          ? `${githubContributions.totalContributions.toLocaleString()} contributions this year`
-          : 'contributions this year'}
-      </div>
-      <div className="overflow-x-auto">
-        <ContributionGraph
-          weeks={githubContributions?.weeks ?? undefined}
-          totalContributions={
-            githubContributions?.totalContributions ?? undefined
-          }
-          unavailable={
-            !githubContributions?.weeks ||
-            githubContributions.weeks.length === 0
-          }
-        />
-      </div>
-    </div>
-  )
-}
-
 export function PublicProfileContributionsList({
   contributions,
   visible,
@@ -61,13 +22,20 @@ export function PublicProfileContributionsList({
     return (
       <EmptyState
         size="compact"
+        headingLevel={3}
         title="contributions are private on this profile."
       />
     )
   }
 
   if (contributions.length === 0) {
-    return <EmptyState size="compact" title="no public contributions yet." />
+    return (
+      <EmptyState
+        size="compact"
+        headingLevel={3}
+        title="no public contributions yet."
+      />
+    )
   }
 
   return (
@@ -81,7 +49,7 @@ export function PublicProfileContributionsList({
             key={getProjectCardId(entry.project)}
             className="overflow-hidden rounded-card border border-line bg-surface"
           >
-            <div className="border-b border-line-strong px-4 py-3 font-mono text-[11px] text-text-faint">
+            <div className="border-b border-line-strong px-4 py-3 font-mono text-meta text-text-faint">
               contributor · {compactNumber(entry.commitCount)} commits matched
             </div>
             <ProjectCard

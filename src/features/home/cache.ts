@@ -107,6 +107,12 @@ export type HomeFeedItem = Omit<
   project: Doc<'projects'> | null
   projectPreview: ProjectCardPreview | null
   projectSnapshot: NonNullable<Doc<'home_feed_items'>['projectSnapshot']> | null
+  /**
+   * The actor's current GitHub login for the profile link; absent when the
+   * payload does not carry it or the actor is gone (the row then shows the
+   * actor without a link).
+   */
+  actorGithubUsername?: string | null
 }
 
 export type HomeFeedPage = {

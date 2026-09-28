@@ -20,8 +20,10 @@ import { Textarea } from '@/components/ui/textarea'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Skeleton } from '@/components/ui/skeleton'
 import { fadeUp, listStagger } from '@/lib/motion'
+import { getActionErrorMessage } from '@/lib/action-error'
 import { relativeTime } from '@/lib/time'
 import { Inbox, Send } from '@/lib/icons'
+import { formatUnreadCount } from '@/lib/format'
 import {
   mapConversationList,
   mapViewerBootstrap,
@@ -35,7 +37,12 @@ import {
   ROUTE_PENDING_MIN_MS,
   ROUTE_PENDING_MS,
 } from '@/components/app-shell/route-pending'
-import { getInboxDestinationSearch } from '@/features/inbox/navigation'
+import {
+  getInboxDestinationSearch,
+  getInboxTabForStatus,
+  type InboxConversation,
+  type InboxTab,
+} from '@/features/inbox/navigation'
 
 export const Route = createFileRoute('/_app/inbox')({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -69,6 +76,14 @@ export const Route = createFileRoute('/_app/inbox')({
   component: InboxPage,
 })
 
+function conversationPartnerName(conversation: InboxConversation) {
+  return (
+    conversation.otherUser?.displayName ??
+    conversation.otherUser?.githubUsername ??
+    'user'
+  )
+}
+
 function InboxPage() {
   const {
     tab,
@@ -85,19 +100,32 @@ function InboxPage() {
     viewerData as ViewerBootstrapPayload | undefined,
   )
   const viewerId = viewer?.viewer?.id ? String(viewer.viewer.id) : null
+  // The one message-attention count: the server counter the sidebar and the
+  // mobile tab bar badge also read (`users.viewerBootstrap`).
+  const unreadMessages = viewer?.viewer?.unreadMessagesCount ?? 0
   const allConversations =
     mapConversationList(conversationsData as Array<EnrichedConversation>) ?? []
-  const conversations = allConversations.filter((conversation) =>
-    tab === 'requests' ? conversation.isRequest : !conversation.isRequest,
-  )
   const selectedConversation =
     allConversations.find(
       (conversation) => String(conversation._id) === selectedId,
     ) ?? null
-  const recipientPreviewQuery = useQuery({
-    ...conversationRecipientPreviewQueryOptions(composeUserId ?? ''),
-    enabled: Boolean(composeUserId) && !selectedConversation,
-  })
+  // A stored link (a notification, a bookmark) can name a tab the
+  // conversation has since left, e.g. a request accepted after it was sent.
+  // The selected conversation's own status decides which list shows it.
+  const activeTab = selectedConversation
+    ? getInboxTabForStatus(selectedConversation.status)
+    : tab
+  const conversations = allConversations.filter(
+    (conversation) => getInboxTabForStatus(conversation.status) === activeTab,
+  )
+  const incomingRequestCount = allConversations.filter(
+    (conversation) => conversation.status === 'request',
+  ).length
+  const recipientPreviewQuery = useQuery(
+    conversationRecipientPreviewQueryOptions(
+      composeUserId && !selectedConversation ? composeUserId : null,
+    ),
+  )
   const draftRecipient = recipientPreviewQuery.data ?? null
   const composePreviewLoading =
     Boolean(composeUserId) &&
@@ -114,6 +142,13 @@ function InboxPage() {
     composePreviewLoading ||
     composePreviewInvalid,
   )
+  // Phones show one pane at a time and the URL decides which: a selected
+  // conversation or draft shows the thread, otherwise the list. Desktop
+  // always shows both side by side.
+  const mobileView = hasDetailPanel ? 'thread' : 'list'
+  // With nothing to list and nothing open, the list's empty state is the only
+  // message; no second "select a conversation" placeholder beside it.
+  const listOnly = conversations.length === 0 && !hasDetailPanel
   const markConversationRead = useMarkConversationRead()
 
   useEffect(() => {
@@ -128,18 +163,8 @@ function InboxPage() {
   }, [markConversationRead, selectedConversation, viewerId])
 
   const tabItems = [
-    {
-      id: 'inbox',
-      label: 'inbox',
-      count: allConversations.filter((conversation) => !conversation.isRequest)
-        .length,
-    },
-    {
-      id: 'requests',
-      label: 'requests',
-      count: allConversations.filter((conversation) => conversation.isRequest)
-        .length,
-    },
+    { id: 'inbox', label: 'inbox', count: 0 },
+    { id: 'requests', label: 'requests', count: incomingRequestCount },
   ] as const
 
   const openProfile = (username: string | null | undefined) => {
@@ -157,10 +182,13 @@ function InboxPage() {
   return (
     <div className="lx-page-shell h-[calc(100dvh-var(--lx-mobile-tab-height))] min-h-0 overflow-hidden md:h-dvh">
       <div className="shrink-0 border-b border-line">
-        <div className="flex min-h-14 items-center px-[var(--lx-gutter)]">
-          <h1 className="m-0 font-mono text-sm font-semibold text-text">
-            inbox
-          </h1>
+        <div className="flex min-h-14 items-center gap-3 px-[var(--lx-gutter)]">
+          <h1 className="m-0 text-headline text-text">inbox</h1>
+          {unreadMessages > 0 && (
+            <span className="font-mono text-meta text-text-muted">
+              {formatUnreadCount(unreadMessages)} unread
+            </span>
+          )}
         </div>
         <div className="lx-inline-tabs gap-0 px-[var(--lx-gutter)]">
           {tabItems.map((tabItem) => (
@@ -176,8 +204,9 @@ function InboxPage() {
                   },
                 })
               }
-              className={`relative inline-flex items-center gap-[7px] rounded-md px-4 py-2.5 font-mono text-[12px] transition-colors active:scale-[0.98] ${
-                tab === tabItem.id
+              aria-current={activeTab === tabItem.id ? 'page' : undefined}
+              className={`relative inline-flex items-center gap-[7px] rounded-md px-4 py-2.5 font-mono text-label transition-colors active:scale-[0.98] ${
+                activeTab === tabItem.id
                   ? 'font-semibold text-text'
                   : 'text-text-muted hover:text-text'
               }`}
@@ -185,11 +214,11 @@ function InboxPage() {
             >
               {tabItem.label}
               {tabItem.count > 0 && (
-                <span className="rounded-pill bg-surface-alt px-[5px] py-px font-mono text-[10px] leading-[1.3] text-text-muted">
+                <span className="rounded-pill bg-surface-alt px-[5px] py-px font-mono text-meta leading-[1.3] text-text-muted">
                   {tabItem.count}
                 </span>
               )}
-              {tab === tabItem.id && (
+              {activeTab === tabItem.id && (
                 <div className="absolute right-2 -bottom-px left-2 h-0.5 bg-brand" />
               )}
             </button>
@@ -197,30 +226,27 @@ function InboxPage() {
         </div>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col">
-        <div
-          className={
-            hasDetailPanel
-              ? 'hidden'
-              : 'flex min-h-0 w-full shrink-0 flex-col border-b border-line'
-          }
+      <div data-mobile-view={mobileView} className="flex min-h-0 flex-1">
+        <section
+          aria-label="conversations"
+          className={`min-h-0 w-full flex-col md:flex ${
+            listOnly
+              ? 'md:flex-1'
+              : 'md:w-88 md:shrink-0 md:border-r md:border-line'
+          } ${mobileView === 'thread' ? 'hidden' : 'flex'}`}
         >
-          <div
-            className={
-              conversations.length > 0 ? 'flex-1 overflow-y-auto' : undefined
-            }
-          >
+          <div className="min-h-0 flex-1 overflow-y-auto">
             {conversations.length === 0 && (
               <EmptyState
                 size="compact"
                 icon={<Inbox size={28} strokeWidth={1.2} />}
                 title={
-                  tab === 'requests'
+                  activeTab === 'requests'
                     ? 'no message requests'
                     : 'no conversations yet'
                 }
                 description={
-                  tab === 'requests'
+                  activeTab === 'requests'
                     ? 'requests from builders you don’t follow back will land here.'
                     : 'start a conversation from a builder’s profile to see it here.'
                 }
@@ -228,7 +254,7 @@ function InboxPage() {
             )}
 
             <m.div
-              key={tab}
+              key={activeTab}
               variants={listStagger}
               initial="hidden"
               animate="visible"
@@ -239,7 +265,16 @@ function InboxPage() {
                     ? conversation.unreadCounts[viewerId]
                     : 0
                 const isUnread = unreadCount > 0
+                const isPending = conversation.status === 'pending'
                 const isSelected = selectedId === String(conversation._id)
+                const partnerName = conversationPartnerName(conversation)
+                const openLabel = [
+                  `Open conversation with ${partnerName}`,
+                  isPending ? 'pending' : null,
+                  isUnread ? `${unreadCount} unread` : null,
+                ]
+                  .filter(Boolean)
+                  .join(', ')
 
                 return (
                   <m.div
@@ -262,15 +297,11 @@ function InboxPage() {
                       onClick={() =>
                         openProfile(conversation.otherUser?.githubUsername)
                       }
-                      className="flex min-h-11 shrink-0 items-center rounded-[6px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
-                      aria-label={`Open ${conversation.otherUser?.displayName ?? conversation.otherUser?.githubUsername ?? 'user'} profile`}
+                      className="flex min-h-11 shrink-0 items-center rounded-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                      aria-label={`Open ${partnerName} profile`}
                     >
                       <LxAvatar
-                        name={
-                          conversation.otherUser?.displayName ??
-                          conversation.otherUser?.githubUsername ??
-                          'user'
-                        }
+                        name={partnerName}
                         avatarUrl={
                           conversation.otherUser?.avatarUrl ?? undefined
                         }
@@ -283,22 +314,19 @@ function InboxPage() {
                           to: '/inbox',
                           search: {
                             compose: null,
-                            tab,
+                            tab: activeTab,
                             conversation: String(conversation._id),
                           },
                         })
                       }
-                      aria-label={`Open conversation with ${
-                        conversation.otherUser?.displayName ??
-                        conversation.otherUser?.githubUsername ??
-                        'user'
-                      }`}
+                      aria-label={openLabel}
+                      aria-current={isSelected ? 'true' : undefined}
                       className="min-w-0 flex-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
                       type="button"
                     >
                       <div className="mb-1 flex flex-wrap justify-between gap-2">
                         <span
-                          className={`font-mono text-[12.5px] [overflow-wrap:anywhere] ${
+                          className={`font-mono text-label [overflow-wrap:anywhere] ${
                             isUnread
                               ? 'font-semibold text-text'
                               : 'font-medium text-text-muted'
@@ -308,7 +336,12 @@ function InboxPage() {
                             conversation.otherUser?.githubUsername ??
                             'Unknown user'}
                         </span>
-                        <span className="ml-2 shrink-0 font-mono text-[10.5px] text-text-faint">
+                        <span className="ml-2 flex shrink-0 items-center gap-2 font-mono text-meta text-text-faint">
+                          {isPending && (
+                            <span className="rounded-pill border border-line px-1.5 py-px text-text-muted">
+                              pending
+                            </span>
+                          )}
                           {relativeTime(conversation.lastMessage.sentAt)}
                         </span>
                       </div>
@@ -322,7 +355,7 @@ function InboxPage() {
                       {(conversation.otherUser?.cityName || isUnread) && (
                         <div className="mt-1.5 flex items-center justify-between gap-2">
                           {conversation.otherUser?.cityName ? (
-                            <span className="font-mono text-[10.5px] text-text-faint">
+                            <span className="font-mono text-meta text-text-faint">
                               {conversation.otherUser.cityName}
                             </span>
                           ) : (
@@ -334,7 +367,7 @@ function InboxPage() {
                                 aria-hidden
                                 className="size-1.5 rounded-full bg-unread"
                               />
-                              <span className="rounded-pill bg-unread px-1.5 py-px font-mono text-[10px] leading-[1.4] text-brand-foreground">
+                              <span className="rounded-pill bg-unread px-1.5 py-px font-mono text-meta leading-[1.4] text-brand-foreground">
                                 {unreadCount}
                               </span>
                             </span>
@@ -347,10 +380,15 @@ function InboxPage() {
               })}
             </m.div>
           </div>
-        </div>
+        </section>
 
-        <div className="flex min-h-0 flex-1 flex-col">
-          {!hasDetailPanel && (
+        <section
+          aria-label="conversation"
+          className={`min-h-0 flex-1 flex-col ${
+            listOnly ? 'hidden' : 'md:flex'
+          } ${mobileView === 'list' ? 'hidden' : 'flex'}`}
+        >
+          {!hasDetailPanel && !listOnly && (
             <EmptyState
               icon={<Inbox size={32} strokeWidth={1.2} />}
               title="select a conversation"
@@ -359,8 +397,12 @@ function InboxPage() {
           )}
 
           {composePreviewLoading && (
-            <div className="flex flex-1 flex-col items-center justify-center gap-3.5 px-[var(--lx-gutter)]">
-              <Skeleton className="size-9 rounded-avatar" />
+            <div
+              role="status"
+              aria-label="loading recipient"
+              className="flex flex-1 flex-col items-center justify-center gap-3.5 px-[var(--lx-gutter)]"
+            >
+              <Skeleton className="size-9 rounded-full" />
               <div className="flex flex-col items-center gap-2">
                 <Skeleton className="h-3.5 w-32" />
                 <Skeleton className="h-3 w-20" />
@@ -378,7 +420,11 @@ function InboxPage() {
                 onClick: () =>
                   void navigate({
                     to: '/inbox',
-                    search: { compose: null, tab, conversation: null },
+                    search: {
+                      compose: null,
+                      tab: activeTab,
+                      conversation: null,
+                    },
                   }),
               }}
             />
@@ -386,7 +432,7 @@ function InboxPage() {
 
           {selectedConversation && viewerId && (
             <SelectedConversationPanel
-              tab={tab}
+              tab={activeTab}
               selectedConversation={selectedConversation}
               viewerId={viewerId}
             />
@@ -394,12 +440,12 @@ function InboxPage() {
 
           {!selectedConversation && composeUserId && draftRecipient && (
             <DraftConversationPanel
-              tab={tab}
+              tab={activeTab}
               otherUserId={draftRecipient.userId}
               recipient={draftRecipient}
             />
           )}
-        </div>
+        </section>
       </div>
     </div>
   )
@@ -420,15 +466,17 @@ function DraftConversationPanel({
 }: {
   otherUserId: Id<'users'>
   recipient: DraftRecipient
-  tab: 'inbox' | 'requests'
+  tab: InboxTab
 }) {
   const navigate = Route.useNavigate()
   const sendFirstMessage = useSendFirstMessage()
   const [newMessage, setNewMessage] = useState('')
   const [sending, setSending] = useState(false)
+  const [sendError, setSendError] = useState<string | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
 
   useEffect(() => {
+    setSendError(null)
     requestAnimationFrame(() => textareaRef.current?.focus())
   }, [otherUserId])
 
@@ -436,6 +484,7 @@ function DraftConversationPanel({
     if (!newMessage.trim() || sending) return
 
     setSending(true)
+    setSendError(null)
     try {
       const result = await sendFirstMessage({
         otherUserId,
@@ -444,13 +493,16 @@ function DraftConversationPanel({
       setNewMessage('')
       await navigate({
         to: '/inbox',
+        // The sender's own conversation always lives in the main inbox
+        // (pending until the other person replies), never under requests.
         search: getInboxDestinationSearch(
           String(result.conversationId),
-          result.isRequest,
+          'inbox',
         ),
       })
     } catch (error) {
       console.error('Send failed', error)
+      setSendError(getActionErrorMessage(error))
     } finally {
       setSending(false)
     }
@@ -461,6 +513,7 @@ function DraftConversationPanel({
       <div className="flex min-h-14 shrink-0 items-center gap-3 border-b border-line px-[var(--lx-gutter)]">
         <Button
           variant="ghost"
+          size="touch"
           onClick={() =>
             void navigate({
               to: '/inbox',
@@ -480,7 +533,7 @@ function DraftConversationPanel({
               search: { tab: 'projects', network: 'followers' },
             })
           }
-          className="flex min-w-0 items-center gap-3 rounded-[6px] px-1 py-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+          className="flex min-w-0 items-center gap-3 rounded-card px-1 py-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
         >
           <LxAvatar
             name={recipient.displayName}
@@ -488,10 +541,10 @@ function DraftConversationPanel({
             size={32}
           />
           <div className="min-w-0">
-            <div className="font-mono text-[12.5px] font-semibold text-text">
+            <div className="truncate font-mono text-label font-semibold text-text">
               {recipient.displayName}
             </div>
-            <div className="font-mono text-[10.5px] text-text-faint">
+            <div className="truncate font-mono text-meta text-text-faint">
               {recipient.cityName ?? 'location hidden'}
             </div>
           </div>
@@ -511,8 +564,9 @@ function DraftConversationPanel({
             value={newMessage}
             onChange={(event) => setNewMessage(event.target.value)}
             placeholder="write a message…"
+            aria-label="Message"
             rows={1}
-            className="max-h-28 min-h-11 min-w-0 resize-none border-0 bg-transparent px-3 py-2.5 font-sans text-[16px] leading-6 text-text shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 md:min-h-20 md:border md:border-line md:bg-surface md:px-3 md:py-2 md:text-sm md:focus-visible:ring-2 md:focus-visible:ring-ring md:focus-visible:ring-offset-2"
+            className="max-h-28 min-h-11 min-w-0 border-0 bg-transparent py-2.5 font-sans md:min-h-20 md:border md:bg-surface md:py-2"
             onKeyDown={(event) => {
               if (event.key === 'Enter' && !event.shiftKey) {
                 event.preventDefault()
@@ -524,7 +578,9 @@ function DraftConversationPanel({
             type="button"
             onClick={() => void handleSend()}
             disabled={!newMessage.trim() || sending}
-            className="h-11 min-h-11 w-11 min-w-11 shrink-0 self-end border-none bg-brand px-0 font-mono text-[12.5px] font-semibold text-brand-foreground transition-transform hover:bg-brand/90 active:scale-95 md:w-auto md:px-4"
+            variant="primary"
+            size="touch"
+            className="w-11 px-0 md:w-auto md:px-4"
             aria-label={sending ? 'Sending message' : 'Send message'}
           >
             <Send size={16} aria-hidden="true" className="md:hidden" />
@@ -533,6 +589,14 @@ function DraftConversationPanel({
             </span>
           </Button>
         </div>
+        {sendError && (
+          <p
+            role="alert"
+            className="mt-2 mb-0 font-mono text-label text-danger"
+          >
+            {sendError}
+          </p>
+        )}
       </div>
     </div>
   )
@@ -543,14 +607,15 @@ function SelectedConversationPanel({
   selectedConversation,
   viewerId,
 }: {
-  tab: 'inbox' | 'requests'
-  selectedConversation: EnrichedConversation
+  tab: InboxTab
+  selectedConversation: InboxConversation
   viewerId: string
 }) {
   const navigate = Route.useNavigate()
   const sendMessage = useSendMessage()
   const [newMessage, setNewMessage] = useState('')
   const [sending, setSending] = useState(false)
+  const [sendError, setSendError] = useState<string | null>(null)
   const messagesScrollRef = useRef<HTMLDivElement | null>(null)
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
@@ -598,6 +663,7 @@ function SelectedConversationPanel({
     if (!newMessage.trim() || sending) return
 
     setSending(true)
+    setSendError(null)
     sentMessagePendingRef.current = true
     shouldStickToBottomRef.current = true
     try {
@@ -608,6 +674,7 @@ function SelectedConversationPanel({
       setNewMessage('')
     } catch (error) {
       console.error('Send failed', error)
+      setSendError(getActionErrorMessage(error))
       sentMessagePendingRef.current = false
     } finally {
       setSending(false)
@@ -630,6 +697,7 @@ function SelectedConversationPanel({
     shouldStickToBottomRef.current = true
     sentMessagePendingRef.current = false
     lastMessageIdRef.current = null
+    setSendError(null)
     requestAnimationFrame(() => textareaRef.current?.focus())
   }, [selectedConversation._id])
 
@@ -681,9 +749,12 @@ function SelectedConversationPanel({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex min-h-14 shrink-0 items-center gap-3 border-b border-line px-[var(--lx-gutter)]">
+      {/* Wraps on phones: the request status takes its own line so the name
+          keeps its width and the composer stays above the tab bar. */}
+      <div className="flex min-h-14 shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line px-[var(--lx-gutter)] py-1">
         <Button
           variant="ghost"
+          size="touch"
           onClick={() =>
             void navigate({
               to: '/inbox',
@@ -708,7 +779,7 @@ function SelectedConversationPanel({
             })
           }}
           disabled={!otherUsername}
-          className="flex min-w-0 items-center gap-3 rounded-[6px] px-1 py-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand disabled:cursor-default"
+          className="flex min-w-0 items-center gap-3 rounded-card px-1 py-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand disabled:cursor-default"
         >
           <LxAvatar
             name={otherDisplayName}
@@ -716,14 +787,21 @@ function SelectedConversationPanel({
             size={32}
           />
           <div className="min-w-0">
-            <div className="font-mono text-[12.5px] font-semibold text-text">
+            <div className="truncate font-mono text-label font-semibold text-text">
               {otherDisplayName}
             </div>
-            <div className="font-mono text-[10.5px] text-text-faint">
+            <div className="truncate font-mono text-meta text-text-faint">
               {selectedConversation.otherUser?.cityName ?? 'location hidden'}
             </div>
           </div>
         </button>
+        {selectedConversation.status !== 'active' && (
+          <p className="m-0 basis-full font-mono text-meta text-text-muted md:ml-auto md:basis-auto">
+            {selectedConversation.status === 'pending'
+              ? 'pending: waiting for a reply'
+              : 'message request: reply to accept'}
+          </p>
+        )}
       </div>
 
       <div
@@ -741,17 +819,12 @@ function SelectedConversationPanel({
           </div>
         )}
         {messagesPage.status === 'CanLoadMore' && (
-          <Button
-            variant="monoOutline"
-            size="meta"
-            onClick={handleLoadOlder}
-            className="mx-auto mb-2 font-mono"
-          >
+          <Button size="meta" onClick={handleLoadOlder} className="self-center">
             load older messages
           </Button>
         )}
         {messagesPage.status === 'LoadingMore' && (
-          <div className="mx-auto mb-2 font-mono text-[11px] text-text-muted">
+          <div className="mx-auto mb-2 font-mono text-meta text-text-muted">
             loading older messages…
           </div>
         )}
@@ -780,10 +853,10 @@ function SelectedConversationPanel({
                     : 'border border-line bg-surface text-text'
                 }`}
               >
-                <div className="whitespace-pre-wrap font-sans text-[13.5px] leading-6">
+                <div className="whitespace-pre-wrap font-sans text-body leading-6">
                   {message.content}
                 </div>
-                <div className="mt-1.5 font-mono text-[10.5px] text-text-faint">
+                <div className="mt-1.5 font-mono text-meta text-text-faint">
                   {relativeTime(message.createdAt)}
                 </div>
               </div>
@@ -800,8 +873,9 @@ function SelectedConversationPanel({
             value={newMessage}
             onChange={(event) => setNewMessage(event.target.value)}
             placeholder="write a message…"
+            aria-label="Message"
             rows={1}
-            className="max-h-28 min-h-11 min-w-0 resize-none border-0 bg-transparent px-3 py-2.5 font-sans text-[16px] leading-6 text-text shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 md:min-h-20 md:border md:border-line md:bg-surface md:px-3 md:py-2 md:text-sm md:focus-visible:ring-2 md:focus-visible:ring-ring md:focus-visible:ring-offset-2"
+            className="max-h-28 min-h-11 min-w-0 border-0 bg-transparent py-2.5 font-sans md:min-h-20 md:border md:bg-surface md:py-2"
             onKeyDown={(event) => {
               if (event.key === 'Enter' && !event.shiftKey) {
                 event.preventDefault()
@@ -813,7 +887,9 @@ function SelectedConversationPanel({
             type="button"
             onClick={() => void handleSend()}
             disabled={!newMessage.trim() || sending}
-            className="h-11 min-h-11 w-11 min-w-11 shrink-0 self-end border-none bg-brand px-0 font-mono text-[12.5px] font-semibold text-brand-foreground transition-transform hover:bg-brand/90 active:scale-95 md:w-auto md:px-4"
+            variant="primary"
+            size="touch"
+            className="w-11 px-0 md:w-auto md:px-4"
             aria-label={sending ? 'Sending message' : 'Send message'}
           >
             <Send size={16} aria-hidden="true" className="md:hidden" />
@@ -822,6 +898,14 @@ function SelectedConversationPanel({
             </span>
           </Button>
         </div>
+        {sendError && (
+          <p
+            role="alert"
+            className="mt-2 mb-0 font-mono text-label text-danger"
+          >
+            {sendError}
+          </p>
+        )}
       </div>
     </div>
   )

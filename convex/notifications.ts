@@ -1,4 +1,5 @@
 import {
+  internalMutation,
   mutation,
   query,
   type MutationCtx,
@@ -7,6 +8,7 @@ import {
 import { v } from 'convex/values'
 import { paginationOptsValidator } from 'convex/server'
 
+import { internal } from './_generated/api'
 import { getViewerOrThrow } from './lib/auth'
 import type { Id } from './_generated/dataModel'
 import { buildConversationKey } from './lib/conversation'
@@ -145,23 +147,38 @@ async function normalizeNotificationTarget(
   }
 }
 
+/**
+ * Highest unread count the badge query reads. The badge shows "99+" above
+ * 99, so reading one past that is enough and keeps the read bounded.
+ */
+const UNREAD_COUNT_CAP = 100
+
+/**
+ * Batch size for the one-off `backfillTargets` migration. Each run reads one
+ * page and schedules the next.
+ */
+const BACKFILL_BATCH_SIZE = 200
+
+/**
+ * The viewer's notifications, newest first: one `.paginate()` per execution.
+ *
+ * Read-only: rows written before `target` existed get their destination
+ * resolved here at read time. Storing it is the job of the one-off
+ * `internal.notifications.backfillTargets` migration, never of a page view.
+ */
 export const list = query({
   args: {
-    paginationOpts: v.optional(paginationOptsValidator),
+    paginationOpts: paginationOptsValidator,
   },
   handler: async (ctx, args) => {
     const viewer = await getViewerOrThrow(ctx)
-    const paginationOpts = args.paginationOpts ?? {
-      cursor: null,
-      numItems: 20,
-    }
     const notificationsPage = await ctx.db
       .query('notifications')
       .withIndex('by_recipient_created', (query) =>
         query.eq('recipientId', viewer._id),
       )
       .order('desc')
-      .paginate(paginationOpts)
+      .paginate(args.paginationOpts)
 
     const page = await Promise.all(
       notificationsPage.page.map(async (notification) => {
@@ -183,20 +200,34 @@ export const list = query({
   },
 })
 
-export const backfillTargets = mutation({
-  args: {},
-  handler: async (ctx) => {
-    const viewer = await getViewerOrThrow(ctx)
-    const notifications = await ctx.db
+/**
+ * One-off migration: stores the resolved `target` (and the inbox tab of
+ * conversation targets) on notifications written before those fields existed.
+ * It walks the whole table one page per run and schedules itself until done.
+ * Humans run it once per deployment:
+ *
+ *   npx convex run notifications:backfillTargets '{}'
+ */
+export const backfillTargets = internalMutation({
+  args: {
+    cursor: v.optional(v.union(v.string(), v.null())),
+  },
+  returns: v.object({ patchedCount: v.number(), isDone: v.boolean() }),
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{ patchedCount: number; isDone: boolean }> => {
+    const notificationsPage = await ctx.db
       .query('notifications')
-      .withIndex('by_recipient_created', (query) =>
-        query.eq('recipientId', viewer._id),
-      )
-      .collect()
+      .withIndex('by_created_at')
+      .paginate({
+        cursor: args.cursor ?? null,
+        numItems: BACKFILL_BATCH_SIZE,
+      })
 
     let patchedCount = 0
 
-    for (const notification of notifications) {
+    for (const notification of notificationsPage.page) {
       if (notification.target && notification.target.inboxTab !== undefined) {
         continue
       }
@@ -212,12 +243,30 @@ export const backfillTargets = mutation({
       patchedCount += 1
     }
 
-    return { patchedCount }
+    if (!notificationsPage.isDone) {
+      await ctx.scheduler.runAfter(0, internal.notifications.backfillTargets, {
+        cursor: notificationsPage.continueCursor,
+      })
+    }
+
+    return { patchedCount, isDone: notificationsPage.isDone }
   },
 })
 
+/**
+ * The notifications badge: the viewer's unread notifications, capped at
+ * `UNREAD_COUNT_CAP`. The sidebar, the mobile tab bar and the notifications
+ * page header all read this one query.
+ *
+ * `dm_received` never counts: a direct message is already counted by the
+ * inbox badge (`users.unreadMessagesCount`), so its notification is created
+ * read (`createNotificationIfEnabled`) and one message is never two tasks.
+ * The type filter only skips unread `dm_received` rows written before that
+ * change; there is a bounded number of them and retention deletes them.
+ */
 export const unreadCount = query({
   args: {},
+  returns: v.number(),
   handler: async (ctx) => {
     const viewer = await getViewerOrThrow(ctx)
     const unread = await ctx.db
@@ -225,16 +274,19 @@ export const unreadCount = query({
       .withIndex('by_recipient_read', (query) =>
         query.eq('recipientId', viewer._id).eq('isRead', false),
       )
-      .collect()
+      .filter((query) => query.neq(query.field('type'), 'dm_received'))
+      .take(UNREAD_COUNT_CAP)
 
     return unread.length
   },
 })
 
+/** Marks one notification read. Called only from an explicit row click. */
 export const markRead = mutation({
   args: {
     notificationId: v.id('notifications'),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const viewer = await getViewerOrThrow(ctx)
     const notification = await ctx.db.get(args.notificationId)
@@ -242,16 +294,20 @@ export const markRead = mutation({
       return null
     }
 
-    await ctx.db.patch(notification._id, {
-      isRead: true,
-    })
+    if (!notification.isRead) {
+      await ctx.db.patch(notification._id, {
+        isRead: true,
+      })
+    }
 
     return null
   },
 })
 
+/** Marks every unread notification read. Called only from "mark all read". */
 export const markAllRead = mutation({
   args: {},
+  returns: v.null(),
   handler: async (ctx) => {
     const viewer = await getViewerOrThrow(ctx)
     const unreadNotifications = await ctx.db

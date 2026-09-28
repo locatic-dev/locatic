@@ -170,6 +170,33 @@ export const actorSnapshotValidator = v.object({
   cityName: optionalStringValidator,
 })
 
+/** Public location disclosure (see `convex/lib/visibility.ts`). */
+export const locationDisclosureValidator = v.union(
+  v.object({
+    kind: v.literal('city'),
+    cityId: v.id('cities'),
+    cityName: v.string(),
+    regionLabel: optionalStringValidator,
+  }),
+  v.object({
+    kind: v.literal('region'),
+    regionLabel: v.string(),
+  }),
+  v.object({
+    kind: v.literal('none'),
+  }),
+)
+
+/** Fields of `toPublicIdentity` in `convex/lib/visibility.ts`. */
+export const publicIdentityFields = {
+  userId: v.id('users'),
+  displayName: v.string(),
+  avatarUrl: optionalStringValidator,
+  githubUsername: v.string(),
+  buildStatus: buildStatusValidator,
+  location: locationDisclosureValidator,
+}
+
 export const commentTargetSnapshotValidator = v.object({
   projectFullName: v.string(),
   projectOwner: v.string(),

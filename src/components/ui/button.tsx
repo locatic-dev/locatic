@@ -4,47 +4,54 @@ import { cva, type VariantProps } from 'class-variance-authority'
 
 import { cn } from '@/lib/utils'
 
+// Product buttons (DESIGN.md §5): mono label text, 4px control radius, no
+// resting shadow. Focus comes from the global `:focus-visible` rule in
+// styles.css, so no ring classes here.
+//   primary   — brand fill; one per surface (post, reply, save).
+//   secondary — the default: control border, muted text (follow, edit, cancel).
+//   ghost     — no border, faint text (mark read, inline actions).
+//   danger    — solid danger fill with the dark danger foreground; reserved for
+//               the confirming step of a destructive action (delete account,
+//               delete post). Entry points that open a confirmation use
+//               secondary, so danger never competes with the page's primary.
 const buttonVariants = cva(
-  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0',
+  'inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-control border text-label transition-colors disabled:pointer-events-none disabled:cursor-default disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0',
   {
     variants: {
       variant: {
-        default: 'bg-primary text-primary-foreground hover:bg-primary/90',
-        brand:
-          'border border-transparent bg-brand text-brand-foreground shadow-card hover:bg-brand/90',
-        destructive:
-          'bg-destructive text-destructive-foreground hover:bg-destructive/90',
-        outline:
-          'border border-input bg-background hover:bg-accent hover:text-accent-foreground',
-        monoOutline:
-          'border border-line bg-surface font-mono text-text hover:border-line-strong hover:bg-surface-alt',
-        monoGhost:
-          'bg-transparent font-mono text-text-muted hover:bg-surface-alt hover:text-text',
+        primary:
+          'border-transparent bg-brand font-semibold text-brand-foreground hover:bg-brand/90',
         secondary:
-          'bg-secondary text-secondary-foreground hover:bg-secondary/80',
-        ghost: 'hover:bg-accent hover:text-accent-foreground',
-        link: 'text-primary underline-offset-4 hover:underline',
+          'border-control bg-transparent text-text-muted hover:border-line-strong hover:text-text',
+        ghost:
+          'border-transparent bg-transparent text-text-faint hover:bg-state-hover hover:text-text',
+        danger:
+          'border-transparent bg-danger font-semibold text-destructive-foreground hover:bg-danger/90',
       },
       size: {
-        default: 'h-10 px-4 py-2',
-        sm: 'h-9 rounded-md px-3',
-        lg: 'h-11 rounded-md px-8',
-        meta: 'h-11 px-4 text-[12px]',
-        compact: 'h-9 px-3 text-[12px]',
-        icon: 'h-10 w-10',
+        sm: 'h-7 px-3',
+        meta: 'h-8 px-3.5',
+        md: 'h-9 px-4',
+        icon: 'size-8 px-0',
+        // Mobile shell and full-width touch actions: a 44px target.
+        touch: 'min-h-11 px-4',
       },
     },
     defaultVariants: {
-      variant: 'default',
-      size: 'default',
+      variant: 'secondary',
+      size: 'md',
     },
   },
 )
+
+type ButtonVariant = NonNullable<VariantProps<typeof buttonVariants>['variant']>
+type ButtonSize = NonNullable<VariantProps<typeof buttonVariants>['size']>
 
 export interface ButtonProps
   extends
     React.ButtonHTMLAttributes<HTMLButtonElement>,
     VariantProps<typeof buttonVariants> {
+  /** Render the single child (e.g. a router `Link`) with button styling. */
   asChild?: boolean
 }
 
@@ -53,7 +60,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     const Comp = asChild ? Slot : 'button'
     return (
       <Comp
-        className={cn(buttonVariants({ variant, size, className }))}
+        className={cn(buttonVariants({ variant, size }), className)}
         ref={ref}
         {...props}
       />
@@ -62,4 +69,5 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
 )
 Button.displayName = 'Button'
 
-export { Button, buttonVariants }
+export { Button }
+export type { ButtonVariant, ButtonSize }

@@ -18,10 +18,10 @@ const cardVariants = cva('rounded-card border border-line bg-surface', {
       flush: 'p-0',
     },
     // A clickable card. Adds the `.lx-card` resting lift + hover treatment and
-    // the press/focus affordances, mirroring the ProjectCard container exactly.
+    // the press affordance; focus comes from the global :focus-visible rule.
     // Static/flush cards stay a clean flat border — no whole-panel hover wash.
     interactive: {
-      true: 'lx-card cursor-pointer transition-transform duration-[140ms] ease-out active:scale-[0.997] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-canvas',
+      true: 'lx-card cursor-pointer transition-transform duration-[140ms] ease-out active:scale-[0.997]',
       false: '',
     },
   },

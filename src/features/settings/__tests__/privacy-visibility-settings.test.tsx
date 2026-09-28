@@ -34,6 +34,28 @@ describe('PrivacyVisibilitySettings', () => {
     expect(screen.queryByText(/contribution graph/i)).toBeNull()
   })
 
+  it('toggles a setting from its row text as well as the switch', async () => {
+    const handleUpdate = vi.fn().mockResolvedValue(null)
+
+    render(
+      <PrivacyVisibilitySettings
+        privacy={basePrivacy}
+        settingsRowClassName="row"
+        onUpdate={handleUpdate}
+      />,
+    )
+
+    fireEvent.click(screen.getByText('show your liked tab on your profile'))
+
+    await waitFor(() => {
+      expect(handleUpdate).toHaveBeenCalledWith({
+        ...basePrivacy,
+        contributionsVisibility: 'public',
+        likedProjectsVisibility: 'private',
+      })
+    })
+  })
+
   it('persists private contribution visibility while preserving the full privacy object', async () => {
     const handleUpdate = vi.fn().mockResolvedValue(null)
 
