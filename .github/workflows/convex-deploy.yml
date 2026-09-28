@@ -49,13 +49,13 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Deploy Convex development
-        run: pnpm run deploy:convex:development
-
-      # Keep the same revision and environment lock through both deployments.
-      # A failed backend deployment must never publish its frontend.
       - name: Build development Worker
         run: pnpm run build:development
+
+      # Validate the deployable Worker before changing either runtime. The
+      # same revision and environment lock then cover both deployments.
+      - name: Deploy Convex development
+        run: pnpm run deploy:convex:development
 
       - name: Deploy development Worker
         run: pnpm exec wrangler deploy --env development
@@ -98,13 +98,13 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Deploy Convex production
-        run: pnpm run deploy:convex:production
-
-      # Keep the same revision and environment lock through both deployments.
-      # A failed backend deployment must never publish its frontend.
       - name: Build production Worker
         run: pnpm run build:production
+
+      # Validate the deployable Worker before changing either runtime. The
+      # same revision and environment lock then cover both deployments.
+      - name: Deploy Convex production
+        run: pnpm run deploy:convex:production
 
       - name: Deploy production Worker
         run: pnpm exec wrangler deploy --env production

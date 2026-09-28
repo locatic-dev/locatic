@@ -1,4 +1,5 @@
 import { convexTest, type TestConvex } from 'convex-test'
+import { makeFunctionReference } from 'convex/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { api } from './_generated/api'
@@ -29,6 +30,16 @@ import { EXPLORE_PAGINATED_PAGE_SIZE } from '../src/features/explore/pagination'
 const modules = import.meta.glob('./**/*.ts')
 
 const PAGE = { numItems: 50, cursor: null }
+const resetDismissedProjectsBatch = makeFunctionReference<
+  'mutation',
+  { userId: Id<'users'>; requestedAt: number },
+  null
+>('explore:resetDismissedProjectsBatch')
+const resetDismissedPostsBatch = makeFunctionReference<
+  'mutation',
+  { userId: Id<'users'>; requestedAt: number },
+  null
+>('explore:resetDismissedPostsBatch')
 
 function as(t: TestConvex<typeof schema>, username: string) {
   return t.withIdentity({ subject: fixtureClerkId(username) })
@@ -346,7 +357,8 @@ describe('explore pagination contract (A3)', () => {
   let t: TestConvex<typeof schema>
 
   beforeEach(() => {
-    vi.useFakeTimers({ now: NOW, toFake: ['Date'] })
+    vi.useFakeTimers()
+    vi.setSystemTime(NOW)
     t = convexTest(schema, modules)
   })
 
@@ -544,6 +556,25 @@ describe('explore pagination contract (A3)', () => {
     expect(cityPages.at(-1)?.isDone).toBe(true)
   })
 
+  it('keeps dismissed projects out of bounded search results', async () => {
+    const fixture = await seedPopulatedCity(t)
+    const projectId = fixture.projects.aliceApp
+    const search = () =>
+      as(t, 'frank').query(api.explore.searchProjects, { q: 'city-notes' })
+
+    expect(
+      (await search()).projects.map((project) => project.projectId),
+    ).toContain(projectId)
+
+    await as(t, 'frank').mutation(api.explore.dismiss, { projectId })
+
+    const result = await search()
+
+    expect(result.projects.map((project) => project.projectId)).not.toContain(
+      projectId,
+    )
+  })
+
   it('pages builders one execution at a time past the viewer and non-members', async () => {
     const fixture = await seedPopulatedCity(t)
     const { bengaluru, hyderabad } = fixture.cities
@@ -581,6 +612,99 @@ describe('explore pagination contract (A3)', () => {
       ),
     ).toEqual([frank, carol, bob])
     expect(multiCityPages.at(-1)?.isDone).toBe(true)
+  })
+})
+
+describe('explore dismissal reset bounds', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ now: NOW, toFake: ['Date'] })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('continues a large project reset in scheduled batches', async () => {
+    const t = convexTest(schema, modules)
+    const viewerId = await seedUser(t, { username: 'viewer' })
+    const ownerId = await seedUser(t, { username: 'owner' })
+    const projectId = await seedProject(t, { ownerId, name: 'project' })
+
+    await t.run(async (ctx) => {
+      for (let index = 0; index < 101; index += 1) {
+        await ctx.db.insert('explore_history', {
+          userId: viewerId,
+          projectId,
+          firstSeenAt: index,
+          lastSeenAt: index,
+          dismissedAt: index + 1,
+          likedAt: null,
+        })
+      }
+    })
+
+    await expect(
+      as(t, 'viewer').mutation(api.explore.resetDismissedProjects, {}),
+    ).resolves.toEqual({ resetCount: 100 })
+    expect(
+      await t.run((ctx) =>
+        ctx.db.system.query('_scheduled_functions').collect(),
+      ),
+    ).toHaveLength(1)
+    await t.mutation(resetDismissedProjectsBatch, {
+      userId: viewerId,
+      requestedAt: NOW,
+    })
+
+    expect(
+      await t.run((ctx) =>
+        ctx.db
+          .query('explore_history')
+          .withIndex('by_user_dismissed', (query) =>
+            query.eq('userId', viewerId).gt('dismissedAt', 0),
+          )
+          .take(1),
+      ),
+    ).toEqual([])
+  })
+
+  it('continues a large post reset in scheduled batches', async () => {
+    const t = convexTest(schema, modules)
+    const viewerId = await seedUser(t, { username: 'viewer' })
+    const ownerId = await seedUser(t, { username: 'owner' })
+    const projectId = await seedProject(t, { ownerId, name: 'project' })
+    const postId = await seedPost(t, projectId, ownerId, NOW)
+
+    await t.run(async (ctx) => {
+      for (let index = 0; index < 101; index += 1) {
+        await ctx.db.insert('explore_post_history', {
+          userId: viewerId,
+          postId,
+          firstSeenAt: index,
+          lastSeenAt: index,
+          dismissedAt: index + 1,
+        })
+      }
+    })
+
+    await expect(
+      as(t, 'viewer').mutation(api.explore.resetDismissedPosts, {}),
+    ).resolves.toEqual({ resetCount: 100 })
+    await t.mutation(resetDismissedPostsBatch, {
+      userId: viewerId,
+      requestedAt: NOW,
+    })
+
+    expect(
+      await t.run((ctx) =>
+        ctx.db
+          .query('explore_post_history')
+          .withIndex('by_user_dismissed', (query) =>
+            query.eq('userId', viewerId).gt('dismissedAt', 0),
+          )
+          .take(1),
+      ),
+    ).toEqual([])
   })
 })
 

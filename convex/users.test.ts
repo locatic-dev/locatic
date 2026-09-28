@@ -69,6 +69,29 @@ async function overview(
   return await client.query(api.users.publicProfileOverview, { username })
 }
 
+describe('users.viewerBootstrap', () => {
+  it('omits internal activity ranking fields from the viewer contract', async () => {
+    const t = convexTest(schema, modules)
+    const userId = await seedUser(t, { username: 'ada' })
+
+    await t.run(async (ctx) => {
+      const user = await ctx.db.get(userId)
+      if (!user) throw new Error('missing fixture user')
+      await ctx.db.patch(userId, {
+        stats: { ...user.stats, lastPublicActivityAt: NOW },
+      })
+    })
+
+    const bootstrap = await t
+      .withIdentity({ subject: fixtureClerkId('ada') })
+      .query(api.users.viewerBootstrap, {})
+
+    expect(bootstrap.status).toBe('ready')
+    expect(sortedKeys(bootstrap.viewer?.stats)).toEqual(STATS_KEYS)
+    expect(bootstrap.viewer?.stats).not.toHaveProperty('lastPublicActivityAt')
+  })
+})
+
 describe('users.publicProfileOverview (C6 profile payload)', () => {
   let t: TestConvex<typeof schema>
   let bengaluru: Id<'cities'>

@@ -88,6 +88,49 @@ describe('project signals', () => {
     vi.useRealTimers()
   })
 
+  it('returns an explicit public project contract without internal fields', async () => {
+    await t.run(async (ctx) => {
+      const project = await ctx.db.get(projectId)
+      if (!project) throw new Error('missing project')
+      await ctx.db.patch(projectId, {
+        locatic: { ...project.locatic, lastPublicActivityAt: NOW },
+      })
+    })
+
+    const detail = await t.query(api.projects.getPublicByRoute, {
+      owner: 'ada',
+      repo: 'engine',
+    })
+
+    expect(Object.keys(detail?.project ?? {}).sort()).toEqual([
+      '_creationTime',
+      '_id',
+      'github',
+      'locatic',
+    ])
+    expect(Object.keys(detail?.project.github ?? {}).sort()).toEqual([
+      'description',
+      'fullName',
+      'languages',
+      'lastCommitAt',
+      'primaryLanguage',
+      'readmeAssetBaseUrl',
+      'readmeAssetRootUrl',
+      'readmeLinkBaseUrl',
+      'readmeLinkRootUrl',
+      'readmePreview',
+      'stargazersCount',
+      'topics',
+    ])
+    expect(detail?.project.locatic).toEqual({
+      commentsCount: 0,
+      postsCount: 0,
+      tags: [],
+    })
+    expect(detail?.project).not.toHaveProperty('exploreOwner')
+    expect(detail?.project.locatic).not.toHaveProperty('lastPublicActivityAt')
+  })
+
   it('reports the most recent of release, post and push as the latest update', async () => {
     await seedRelease(t, projectId, daysAgo(3), { tagName: 'v1.2.0' })
     const onlyRelease = await t.query(api.projects.getProjectSignals, {
