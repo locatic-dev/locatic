@@ -37,4 +37,26 @@ describe('theme CSS contract', () => {
     expect(styles).toContain('--primary:')
     expect(styles).toContain('--lx-accent-2:')
   })
+
+  it('lets alternate themes change only the accent family, so neutrals, place and status colours stay shared', () => {
+    const accentFamily = new Set([
+      '--lx-accent-l',
+      '--lx-accent-c',
+      '--lx-accent-h',
+      '--lx-accent-2',
+      '--lx-accent-2-quiet',
+    ])
+
+    for (const themeId of THEME_IDS) {
+      if (themeId === DEFAULT_THEME_ID) continue
+      const overridden = [
+        ...getThemeDeclarations(themeId).matchAll(/(--[\w-]+):/g),
+      ].map(([, name]) => name)
+
+      expect(
+        overridden.filter((name) => !accentFamily.has(name)),
+        `${themeId} overrides tokens outside the accent family`,
+      ).toEqual([])
+    }
+  })
 })

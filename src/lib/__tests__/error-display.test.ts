@@ -31,7 +31,7 @@ describe('error display helpers', () => {
       ),
     )
 
-    expect(copy.title).toBe('Something interrupted this page')
+    expect(copy.title).toBe("couldn't load this page.")
     expect(copy.detail).toBeNull()
     expect(copy.description).not.toContain('Viewer not found')
     expect(copy.description).not.toContain('ConvexError')
@@ -68,8 +68,8 @@ describe('error display helpers', () => {
       new Error('NoAuthProvider: issuer and audience match failed'),
     )
 
-    expect(copy.title).toBe('Authentication needs one more sync')
-    expect(copy.description).toContain('Retrying after refresh')
+    expect(copy.title).toBe('your session is still syncing.')
+    expect(copy.description).toContain('a refresh usually clears it')
     expect(copy.detail).toBeNull()
   })
 })

@@ -18,6 +18,8 @@ import {
   createNotificationIfEnabled,
 } from './lib/notifications'
 import { enforceRateLimit } from './lib/rate_limits'
+import { buildSnapshotLocation } from './lib/snapshots'
+import { countMetric } from './metrics'
 
 const lastMessageValidator = v.object({
   content: v.string(),
@@ -56,6 +58,37 @@ const conversationOtherUserValidator = v.object({
   cityName: v.union(v.string(), v.null()),
 })
 
+/**
+ * How a conversation reads for the viewer:
+ * - `request`: an incoming message request the viewer has not answered.
+ * - `pending`: an outgoing request the other person has not answered yet.
+ * - `active`: an accepted conversation.
+ *
+ * Rule (C9): `isRequest` stays true only while every message came from the
+ * person who started the conversation, because the first reply from the
+ * recipient clears it (`sendMessage`, `sendFirstMessage`). So while
+ * `isRequest` holds, `lastMessage.senderId` is the requester: equal to the
+ * viewer means outgoing (`pending`), otherwise incoming (`request`).
+ */
+const conversationStatusValidator = v.union(
+  v.literal('active'),
+  v.literal('pending'),
+  v.literal('request'),
+)
+
+function getConversationStatus(
+  conversation: Doc<'conversations'>,
+  viewerId: Id<'users'>,
+) {
+  if (!conversation.isRequest) {
+    return 'active' as const
+  }
+
+  return conversation.lastMessage.senderId === viewerId
+    ? ('pending' as const)
+    : ('request' as const)
+}
+
 const enrichedConversationValidator = v.object({
   _id: v.id('conversations'),
   _creationTime: v.number(),
@@ -67,6 +100,7 @@ const enrichedConversationValidator = v.object({
   isRequest: v.boolean(),
   createdAt: v.number(),
   updatedAt: v.number(),
+  status: conversationStatusValidator,
   otherUser: v.union(conversationOtherUserValidator, v.null()),
 })
 
@@ -98,6 +132,18 @@ function buildRecipientPreview(user: {
     displayName: user.profile.displayName,
     avatarUrl: user.profile.avatarUrl ?? null,
   }
+}
+
+/**
+ * City label a conversation partner may see, per the visibility policy (plan
+ * decision D8): the exact city name for exact-city users, the region label
+ * for region-only users, null for hidden users.
+ */
+async function getDisclosedCityName(
+  ctx: QueryCtx | MutationCtx,
+  user: Doc<'users'>,
+) {
+  return (await buildSnapshotLocation(ctx.db, user)).cityName
 }
 
 async function getConversationForViewerPair(
@@ -265,19 +311,20 @@ export const list = query({
             ? conversation.participantHighId
             : conversation.participantLowId
         const otherUser = await ctx.db.get(otherUserId)
-        const city = otherUser?.profile.cityId
-          ? await ctx.db.get(otherUser.profile.cityId)
+        const cityName = otherUser
+          ? await getDisclosedCityName(ctx, otherUser)
           : null
 
         return {
           ...conversation,
+          status: getConversationStatus(conversation, viewer._id),
           otherUser: otherUser
             ? {
                 userId: otherUser._id,
                 githubUsername: otherUser.github.username,
                 displayName: otherUser.profile.displayName,
                 avatarUrl: otherUser.profile.avatarUrl,
-                cityName: city?.displayName ?? null,
+                cityName,
               }
             : null,
         }
@@ -324,13 +371,9 @@ export const getRecipientPreview = query({
       return null
     }
 
-    const city = otherUser.profile.cityId
-      ? await ctx.db.get(otherUser.profile.cityId)
-      : null
-
     return {
       ...buildRecipientPreview(otherUser),
-      cityName: city?.displayName ?? null,
+      cityName: await getDisclosedCityName(ctx, otherUser),
     }
   },
 })
@@ -366,20 +409,21 @@ export const get = query({
         ? conversation.participantHighId
         : conversation.participantLowId
     const otherUser = await ctx.db.get(otherUserId)
-    const city = otherUser?.profile.cityId
-      ? await ctx.db.get(otherUser.profile.cityId)
+    const cityName = otherUser
+      ? await getDisclosedCityName(ctx, otherUser)
       : null
 
     return {
       conversation: {
         ...conversation,
+        status: getConversationStatus(conversation, viewer._id),
         otherUser: otherUser
           ? {
               userId: otherUser._id,
               githubUsername: otherUser.github.username,
               displayName: otherUser.profile.displayName,
               avatarUrl: otherUser.profile.avatarUrl,
-              cityName: city?.displayName ?? null,
+              cityName,
             }
           : null,
       },
@@ -523,6 +567,7 @@ export const sendFirstMessage = mutation({
         sentAt,
         viewerId: viewer._id,
       })
+      await countMetric(ctx, 'dm_open')
     }
 
     const resultingIsRequest = conversation.lastMessage.content.trim()
@@ -586,12 +631,13 @@ export const markRead = mutation({
         ),
     )
 
+    // Reading does not touch `updatedAt`: the inbox orders by it, so a read
+    // must not move the conversation to the top of the list.
     await ctx.db.patch(conversation._id, {
       unreadCounts: {
         ...conversation.unreadCounts,
         [String(viewer._id)]: 0,
       },
-      updatedAt: readAt,
     })
 
     if (clearedUnreadCount > 0) {

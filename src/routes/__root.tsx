@@ -10,10 +10,11 @@ import { createServerFn } from '@tanstack/react-start'
 import { auth } from '@clerk/tanstack-react-start/server'
 import { LazyMotion, MotionConfig } from 'motion/react'
 import { ThemeProvider } from 'next-themes'
-import { useEffect } from 'react'
+import { Suspense, lazy, useEffect } from 'react'
 import { THEME_IDS, DEFAULT_THEME_ID } from '@/lib/theme'
 import ClerkProvider from '../integrations/clerk/provider'
 import ConvexProvider from '../integrations/convex/provider'
+import { DiscoveryReturnMetric } from '@/integrations/convex/metrics'
 import { Logo } from '@/components/ui/logo'
 import { DotMap } from '@/components/ui/dot-map'
 import { ArrowLeft } from '@/lib/icons'
@@ -35,6 +36,13 @@ interface MyRouterContext {
 
 const loadMotionFeatures = () =>
   import('@/lib/motion-features').then((module) => module.default)
+
+// Sonner is ~10 KiB gzip; load it outside the initial client entry.
+const Toaster = lazy(() =>
+  import('@/components/ui/sonner').then((module) => ({
+    default: module.Toaster,
+  })),
+)
 
 const siteUrl = 'https://locatic.dev'
 const socialImageUrl = `${siteUrl}/og-locatic.png`
@@ -96,7 +104,7 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
         content:
           'Discover what developers are building from locally to globally. Like it, comment on it, follow them.',
       },
-      { name: 'theme-color', content: '#0f141c' },
+      { name: 'theme-color', content: '#06090a' },
       { property: 'og:type', content: 'website' },
       { property: 'og:url', content: siteUrl },
       { property: 'og:site_name', content: 'Locatic' },
@@ -121,6 +129,19 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
       { name: 'twitter:image:alt', content: 'Locatic social preview' },
     ],
     links: [
+      // Self-hosted fonts (@font-face in styles.css): preload the faces the
+      // first paint uses so text swaps in before layout settles.
+      ...[
+        '/fonts/ibm-plex-mono-latin-400.woff2',
+        '/fonts/ibm-plex-mono-latin-600.woff2',
+        '/fonts/ibm-plex-sans-latin-400.woff2',
+      ].map((href) => ({
+        rel: 'preload',
+        href,
+        as: 'font',
+        type: 'font/woff2',
+        crossOrigin: 'anonymous' as const,
+      })),
       { rel: 'stylesheet', href: appCss },
       { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' },
       {
@@ -141,46 +162,53 @@ export function RootErrorPage({ error, reset }: ErrorComponentProps) {
   const errorCopy = getUserFacingErrorCopy(error)
 
   return (
-    <div className="flex min-h-dvh items-center justify-center bg-canvas px-6 text-text">
+    <main
+      id="main-content"
+      tabIndex={-1}
+      className="flex min-h-dvh items-center justify-center bg-canvas px-6 text-text"
+    >
       <div className="flex w-full max-w-140 flex-col gap-4.5 rounded-card border border-line bg-surface p-6 shadow-card">
         <div className="flex items-center gap-2.5">
           <Logo size={18} />
-          <span className="font-mono text-[13px] font-bold">locatic</span>
+          <span className="text-label font-bold">locatic</span>
         </div>
 
         <div className="flex flex-col gap-2">
-          <h1 className="m-0 font-mono text-lg font-bold">{errorCopy.title}</h1>
-          <p className="m-0 text-sm leading-6 text-text-muted">
+          <h1 className="m-0 text-headline">{errorCopy.title}</h1>
+          <p className="m-0 text-body text-text-muted">
             {errorCopy.description}
           </p>
         </div>
 
         {errorCopy.detail ? (
-          <div className="overflow-wrap-anywhere rounded-control border border-line bg-canvas px-3 py-2.5 font-mono text-[11.5px] text-text-faint wrap-anywhere whitespace-pre-wrap">
+          <div className="overflow-wrap-anywhere rounded-control border border-line bg-canvas px-3 py-2.5 text-meta text-text-faint wrap-anywhere whitespace-pre-wrap">
             {errorCopy.detail}
           </div>
         ) : null}
 
         <div className="flex flex-wrap items-center gap-3">
+          {/* Mirror Button primary/touch and secondary/touch. Importing Button
+              here would pull class-variance-authority and Radix Slot into the
+              initial entry. */}
           <button
             onClick={() => {
               reset()
               void router.invalidate()
             }}
-            className="min-h-11 rounded-[5px] bg-brand px-4 py-2.5 font-mono text-[12.5px] font-bold text-canvas"
+            className="inline-flex min-h-11 items-center rounded-control bg-brand px-4 text-label font-semibold text-brand-foreground hover:bg-brand/90"
             type="button"
           >
-            Retry
+            retry
           </button>
           <Link
-            to="/sign-in/$"
-            className="inline-flex min-h-11 items-center rounded-[5px] border border-line bg-surface-alt px-4 py-2.5 font-mono text-[12.5px] font-bold text-text no-underline"
+            to="/"
+            className="inline-flex min-h-11 items-center rounded-control border border-control px-4 text-label text-text-muted no-underline transition-colors hover:border-line-strong hover:text-text"
           >
-            Back to sign in
+            go home
           </Link>
         </div>
       </div>
-    </div>
+    </main>
   )
 }
 
@@ -222,7 +250,7 @@ function NotFoundPage() {
           page not found
         </h1>
 
-        <p className="mb-9 mt-0 font-sans text-[15px] leading-6 text-text-muted">
+        <p className="mb-9 mt-0 text-body text-text-muted">
           this coordinate doesn't exist on the map. the path you followed leads
           nowhere.
         </p>
@@ -230,13 +258,13 @@ function NotFoundPage() {
         <div className="flex flex-col items-center gap-6">
           <Link
             to="/"
-            className="inline-flex items-center gap-2 rounded-[5px] bg-brand px-5 py-2.75 font-mono text-[13px] font-semibold text-canvas no-underline"
+            className="inline-flex min-h-11 items-center gap-2 rounded-control bg-brand px-5 text-label font-semibold text-brand-foreground no-underline"
           >
             <ArrowLeft size={14} />
             go home
           </Link>
 
-          <div className="rounded-control border border-line px-2.5 py-1 font-mono text-[11px] text-text-faint">
+          <div className="rounded-control border border-line px-2.5 py-1 text-meta text-text-faint">
             error:404 · route not matched
           </div>
         </div>
@@ -272,6 +300,10 @@ function RootDocument({ children }: { children: React.ReactNode }) {
                   queryClient={router.options.context.queryClient}
                 >
                   {children}
+                  <DiscoveryReturnMetric />
+                  <Suspense fallback={null}>
+                    <Toaster />
+                  </Suspense>
                 </ConvexProvider>
               </ClerkProvider>
             </MotionConfig>

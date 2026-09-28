@@ -1,12 +1,30 @@
+/**
+ * `hue` is an OKLCH hue; lightness and chroma come from the `--lx-status-l`
+ * and `--lx-status-c` tokens in styles.css, so every status reads at the same
+ * weight in all three themes.
+ */
 export const BUILD_STATUS = {
-  building_solo: { label: 'building solo', hue: 200 },
-  looking_for_cofounder: { label: 'looking for cofounder', hue: 280 },
-  open_to_collab: { label: 'open to collab', hue: 145, accent: true },
-  hiring: { label: 'hiring / building a team', hue: 35 },
+  building_solo: { label: 'building solo', hue: 230 },
+  looking_for_cofounder: { label: 'looking for cofounder', hue: 305 },
+  open_to_collab: { label: 'open to collab', hue: 150, accent: true },
+  hiring: { label: 'hiring / building a team', hue: 65 },
   just_exploring: { label: 'just exploring', hue: 0, muted: true },
 } as const
 
 export type BuildStatus = keyof typeof BUILD_STATUS
+
+/** Statuses that invite someone in; project cards show only these. */
+const COLLABORATION_STATUSES: ReadonlySet<string> = new Set<BuildStatus>([
+  'open_to_collab',
+  'looking_for_cofounder',
+  'hiring',
+])
+
+export function isCollaborationStatus(
+  status: string | null | undefined,
+): status is BuildStatus {
+  return typeof status === 'string' && COLLABORATION_STATUSES.has(status)
+}
 
 interface StatusPillProps {
   status: BuildStatus | (string & {})
@@ -19,31 +37,31 @@ export function StatusPill({
   size = 'sm',
   className,
 }: StatusPillProps) {
-  const s = BUILD_STATUS[status as BuildStatus] ?? { label: status, hue: 200 }
+  const s = BUILD_STATUS[status as BuildStatus] ?? {
+    label: status,
+    hue: BUILD_STATUS.building_solo.hue,
+  }
   const isMuted = 'muted' in s && s.muted
 
-  const dotColor = isMuted ? 'var(--lx-text-2)' : `hsl(${s.hue} 70% 60%)`
-  const textColor = isMuted ? 'var(--lx-text-2)' : `hsl(${s.hue} 60% 70%)`
-  const bg = isMuted
-    ? 'color-mix(in oklch, var(--lx-text-2) 8%, transparent)'
-    : `hsl(${s.hue} 60% 50% / 0.1)`
-  const border = isMuted
-    ? 'color-mix(in oklch, var(--lx-text-2) 20%, transparent)'
-    : `hsl(${s.hue} 60% 50% / 0.25)`
+  const color = isMuted
+    ? 'var(--lx-text-2)'
+    : `oklch(var(--lx-status-l) var(--lx-status-c) ${s.hue})`
+  const bg = `color-mix(in oklch, ${color} ${isMuted ? 8 : 10}%, transparent)`
+  const border = `color-mix(in oklch, ${color} ${isMuted ? 20 : 25}%, transparent)`
 
   return (
     <span
       className={[
-        'inline-flex max-w-full items-center gap-[5px] rounded-[3px] border font-mono leading-none',
+        'inline-flex max-w-full items-center gap-[5px] rounded-control border font-mono leading-none',
         size === 'sm'
-          ? 'min-h-[22px] px-[7px] py-1 text-[10.5px]'
-          : 'min-h-7 px-[9px] py-[5px] text-[11.5px]',
+          ? 'min-h-[22px] px-[7px] py-1 text-meta'
+          : 'min-h-7 px-[9px] py-[5px] text-label',
         className,
       ]
         .filter(Boolean)
         .join(' ')}
       style={{
-        color: textColor,
+        color,
         background: bg,
         borderColor: border,
       }}
@@ -51,7 +69,7 @@ export function StatusPill({
       <span
         className="size-[5px] shrink-0 rounded-full"
         style={{
-          background: dotColor,
+          background: color,
         }}
         aria-hidden
       />

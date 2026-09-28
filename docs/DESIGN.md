@@ -1,322 +1,351 @@
 ---
+# Generated from src/styles.css by scripts/generate-design-tokens.mjs.
+# Do not edit by hand: run `pnpm design:tokens`. `pnpm check` runs
+# `pnpm design:tokens:check`, which fails when this block drifts.
 name: Locatic
 description: 'GitHub with a map — developer discovery platform built around location.'
+# Tailwind colour utilities (bg-*, text-*, border-*), default theme.
 colors:
-  brand: 'oklch(72% 0.17 185)'
-  brand-quiet: 'oklch(72% 0.17 185 / 0.14)'
   canvas: 'oklch(13.5% 0.007 230)'
-  surface: 'oklch(17.5% 0.007 230)'
-  surface-alt: 'oklch(21% 0.007 230)'
-  line: 'oklch(28% 0.007 230)'
-  line-strong: 'oklch(40% 0.007 230)'
+  surface-chrome: 'oklch(16% 0.007 230)'
+  surface: 'oklch(18.5% 0.008 230)'
+  surface-alt: 'oklch(22.5% 0.008 230)'
+  surface-raised: 'oklch(26% 0.01 230)'
+  surface-accent: 'oklch(72% 0.15 195 / 0.06)'
+  line: 'oklch(30% 0.008 230)'
+  line-strong: 'oklch(58% 0.008 230)'
+  control: 'oklch(56% 0.008 230)'
   text: 'oklch(93% 0.005 230)'
-  text-muted: 'oklch(60% 0.005 230)'
-  text-faint: 'oklch(43% 0.005 230)'
-  danger: 'oklch(62% 0.22 25)'
+  text-muted: 'oklch(72% 0.006 230)'
+  text-faint: 'oklch(66% 0.006 230)'
+  brand: 'oklch(72% 0.15 195)'
+  brand-quiet: 'oklch(72% 0.15 195 / 0.14)'
+  brand-foreground: 'oklch(14% 0.005 230)'
+  brand-2: 'oklch(74% 0.11 300)'
+  brand-2-quiet: 'oklch(74% 0.11 300 / 0.12)'
+  selected: 'oklch(72% 0.15 195 / 0.16)'
+  selected-bar: 'oklch(72% 0.15 195)'
+  state-hover: 'oklch(22.5% 0.008 230)'
+  focus: 'oklch(72% 0.15 195)'
+  outgoing: 'oklch(72% 0.15 195 / 0.16)'
+  unread: 'oklch(70% 0.1 195)'
+  liked: 'oklch(69% 0.19 25)'
   success: 'oklch(70% 0.16 145)'
   warning: 'oklch(72% 0.18 75)'
+  danger: 'oklch(69% 0.19 25)'
+  place: 'oklch(78% 0.12 60)'
+  place-quiet: 'oklch(78% 0.12 60 / 0.14)'
+# Stock shadcn utilities: the Locatic colour they share, else their value.
+shadcn-aliases:
+  background: 'canvas'
+  foreground: 'text'
+  card: 'surface'
+  card-foreground: 'oklch(93% 0.005 230)'
+  popover: 'surface'
+  popover-foreground: 'oklch(93% 0.005 230)'
+  primary: 'brand'
+  primary-foreground: 'brand-foreground'
+  secondary: 'surface-alt'
+  secondary-foreground: 'oklch(93% 0.005 230)'
+  muted: 'surface-alt'
+  muted-foreground: 'text-muted'
+  accent: 'surface-alt'
+  accent-foreground: 'oklch(93% 0.005 230)'
+  destructive: 'danger'
+  destructive-foreground: 'oklch(14% 0.005 230)'
+  border: 'line'
+  input: 'control'
+  ring: 'brand'
+  chart-1: 'brand'
+  chart-2: 'oklch(70% 0.16 145)'
+  chart-3: 'oklch(72% 0.18 75)'
+  chart-4: 'oklch(68% 0.17 260)'
+  chart-5: 'danger'
+# Accent family per theme (<html data-theme>); every other token is shared.
+themes:
+  teal:
+    default: true
+    accent: 'oklch(72% 0.15 195)'
+    accent-2: 'oklch(74% 0.11 300)'
+  violet:
+    accent: 'oklch(74% 0.15 292)'
+    accent-2: 'oklch(75% 0.11 195)'
+  amber:
+    accent: 'oklch(76% 0.14 75)'
+    accent-2: 'oklch(72% 0.11 210)'
+fonts:
+  sans: "'IBM Plex Sans', 'IBM Plex Sans Fallback', 'IBM Plex Sans Fallback Roboto', ui-sans-serif, system-ui, sans-serif"
+  mono: "'IBM Plex Mono', 'IBM Plex Mono Fallback', 'IBM Plex Mono Fallback Courier', ui-monospace, 'Cascadia Code', monospace"
+  self-hosted:
+    'IBM Plex Mono': '400, 500, 600, 700'
+    'IBM Plex Sans': '400, 500, 600'
+# Type roles: Tailwind text-<role> utilities.
 typography:
   display:
-    fontFamily: "'IBM Plex Mono', ui-monospace, 'Cascadia Code', monospace"
+    fontFamily: "'IBM Plex Mono', 'IBM Plex Mono Fallback', 'IBM Plex Mono Fallback Courier', ui-monospace, 'Cascadia Code', monospace"
     fontSize: 'clamp(28px, 4vw, 40px)'
     fontWeight: 700
     lineHeight: 1.1
     letterSpacing: '-0.025em'
   headline:
-    fontFamily: "'IBM Plex Mono', ui-monospace, 'Cascadia Code', monospace"
+    fontFamily: "'IBM Plex Mono', 'IBM Plex Mono Fallback', 'IBM Plex Mono Fallback Courier', ui-monospace, 'Cascadia Code', monospace"
     fontSize: '22px'
     fontWeight: 600
     lineHeight: 1.3
     letterSpacing: '-0.02em'
   title:
-    fontFamily: "'IBM Plex Mono', ui-monospace, 'Cascadia Code', monospace"
-    fontSize: '14.5px'
+    fontFamily: "'IBM Plex Mono', 'IBM Plex Mono Fallback', 'IBM Plex Mono Fallback Courier', ui-monospace, 'Cascadia Code', monospace"
+    fontSize: '15px'
     fontWeight: 600
     lineHeight: 1.4
     letterSpacing: '-0.01em'
   body:
-    fontFamily: "'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif"
-    fontSize: '13.5px'
-    fontWeight: 400
+    fontFamily: "'IBM Plex Sans', 'IBM Plex Sans Fallback', 'IBM Plex Sans Fallback Roboto', ui-sans-serif, system-ui, sans-serif"
+    fontSize: '14px'
     lineHeight: 1.6
-    letterSpacing: 'normal'
   label:
-    fontFamily: "'IBM Plex Mono', ui-monospace, 'Cascadia Code', monospace"
-    fontSize: '11px'
-    fontWeight: 400
+    fontFamily: "'IBM Plex Mono', 'IBM Plex Mono Fallback', 'IBM Plex Mono Fallback Courier', ui-monospace, 'Cascadia Code', monospace"
+    fontSize: '12px'
     lineHeight: 1.4
-    letterSpacing: 'normal'
+    fontVariantNumeric: 'tabular-nums'
   meta:
-    fontFamily: "'IBM Plex Mono', ui-monospace, 'Cascadia Code', monospace"
-    fontSize: '9.5px'
-    fontWeight: 400
+    fontFamily: "'IBM Plex Mono', 'IBM Plex Mono Fallback', 'IBM Plex Mono Fallback Courier', ui-monospace, 'Cascadia Code', monospace"
+    fontSize: '11px'
     lineHeight: 1.4
-    letterSpacing: '0.02em'
+    fontVariantNumeric: 'tabular-nums'
 rounded:
-  control: '4px'
-  card: '6px'
+  control: '0.25rem'
+  card: '0.375rem'
   pill: '999px'
-spacing:
+# Stock radius steps and what they render as.
+rounded-aliases:
+  sm: 'control'
+  md: 'control'
+  lg: 'control'
+  xl: 'calc(0.25rem + 4px)'
+shadows:
+  card: '0 1px 0 oklch(100% 0 0 / 0.04), 0 12px 32px oklch(0% 0 0 / 0.18)'
+  floating: '0 1px 0 oklch(100% 0 0 / 0.05), 0 18px 44px oklch(0% 0 0 / 0.28)'
+shadow-aliases:
+  sm: 'floating'
+  md: 'floating'
+  lg: 'floating'
+layout:
   gutter: 'clamp(16px, 4vw, 32px)'
   section-gap: 'clamp(20px, 4vw, 40px)'
   feed-max: '720px'
+  form-max: '720px'
+  app-wide-max: '1180px'
   detail-max: '1040px'
-  sidebar: '220px'
-components:
-  button-brand:
-    backgroundColor: '{colors.brand}'
-    textColor: 'oklch(14% 0.005 230)'
-    rounded: '{rounded.control}'
-    padding: '6px 14px'
-  button-brand-hover:
-    backgroundColor: 'oklch(76% 0.17 185)'
-    textColor: 'oklch(14% 0.005 230)'
-    rounded: '{rounded.control}'
-    padding: '6px 14px'
-  button-outline:
-    backgroundColor: 'transparent'
-    textColor: '{colors.text-muted}'
-    rounded: '{rounded.control}'
-    padding: '6px 14px'
-  button-ghost:
-    backgroundColor: 'transparent'
-    textColor: '{colors.text-faint}'
-    rounded: '{rounded.control}'
-    padding: '6px 14px'
-  card:
-    backgroundColor: '{colors.surface}'
-    textColor: '{colors.text}'
-    rounded: '{rounded.card}'
-    padding: '18px 20px'
-  input:
-    backgroundColor: '{colors.canvas}'
-    textColor: '{colors.text}'
-    rounded: '{rounded.control}'
-    padding: '8px 12px'
-  city-pill:
-    backgroundColor: '{colors.surface-alt}'
-    textColor: '{colors.text-muted}'
-    rounded: '{rounded.pill}'
-    padding: '3px 8px'
-  notification-badge:
-    backgroundColor: '{colors.brand}'
-    textColor: 'oklch(14% 0.005 230)'
-    rounded: '{rounded.pill}'
-    padding: '2px 4px'
+  profile-max: '1280px'
+  public-max: '1184px'
+  sidebar-width: '220px'
+  right-rail-width: '280px'
+  mobile-tab-height: 'calc(72px + env(safe-area-inset-bottom))'
+# One lightness and chroma per categorical palette; hues live in code.
+categorical:
+  lang-l: '72%'
+  lang-c: 0.13
+  status-l: '80%'
+  status-c: 0.1
 ---
 
 # Design System: Locatic
 
+The front matter above is generated from `src/styles.css` by `scripts/generate-design-tokens.mjs` (`pnpm design:tokens`); `pnpm check` fails when it drifts. This prose explains how the tokens are meant to be used. When prose and code disagree, `src/styles.css` and the components in `src/components/ui/` win; fix the prose.
+
 ## 1. Overview
 
-**Creative North Star: "The Terminal Room with a City View"**
+**Creative north star: "the terminal room with a city view."**
 
-Locatic's design system is built for developers who live in the dark, read in monospace, and distrust polish. The interface is dense without being cramped, dark without being theatrical, and technical without being cold. Every screen operates at the density of a good CLI — information first, decoration never.
+Locatic is built for developers who live in the dark, read in monospace and distrust polish. Screens are dense without being cramped: information first, decoration never. Place is the second register: city labels are links, city pages carry real counts, and there is one map surface.
 
-The single-theme dark palette is not a feature toggle. It is the product's identity. The canvas is deep near-black (`oklch(13.5% 0.007 230)`) with a trace of blue-indigo tint — just enough to separate it from neutral black without reading as "dark mode." IBM Plex Mono carries all product UI: nav labels, metadata, buttons, timestamps, counts. IBM Plex Sans enters only when content is human-written — bios, READMEs, comments. This typeface switch is the only register change in the system, and it is meaningful.
+- Dark only. There is no light mode and no `prefers-color-scheme: light` override.
+- Three accent themes (teal, the default, violet and amber) swap only the accent family. Neutrals, place, status colours and text roles are shared, and every theme passes the contrast matrix.
+- IBM Plex Mono carries product UI (navigation, labels, buttons, counts, timestamps). IBM Plex Sans is for human-written content (bios, descriptions, READMEs, comments, posts).
+- Tabular numerals for every count and timestamp.
+- Card-and-feed layout with a sidebar on desktop; bottom tab bar on mobile.
 
-The brand accent — a muted teal at `oklch(72% 0.17 185)` — appears sparingly: active nav states, the like/follow CTA when engaged, badge counts, focus rings. Its restraint is the point. When it appears, it means something happened.
+The design system rejects generic SaaS dark mode (neon accents, gradient cards, glass panels), LinkedIn-style networking UI (endorsements, completion meters) and GitHub's Primer look (green contribution palette, white surfaces).
 
-This system explicitly rejects: generic SaaS dark mode (neon accents, gradient cards, glassmorphism panels), LinkedIn's social-network density (connection badges, completion meters, algorithmic urgency), and GitHub's own Primer aesthetic (the green contribution graph palette, white surfaces, Primer component shapes).
+## 2. Colour
 
-**Key Characteristics:**
+### Surfaces
 
-- Dark-only, single theme — no light mode, no conditional color scheme
-- IBM Plex Mono as the dominant product voice; IBM Plex Sans for human content only
-- Muted teal accent used at ≤10% of any screen surface
-- Card-and-feed layout on desktop; bottom tab bar on mobile
-- Tabular-nums throughout for count stability
-- City identity surfaced in navigation, cards, and filter chips
+Five opaque steps, each at least 4 lightness points above the last so hover and selected states stay visible: `canvas` (page) < `surface-chrome` (sidebar, tab bar) < `surface` (cards, panels) < `surface-alt` (hover, inset) < `surface-raised` (active rows, badges). All neutrals share hue 230 at low chroma; never use a pure grey.
 
-## 2. Colors: The Indigo-Night Palette
+### Text
 
-A near-black canvas, slightly indigo-tinted neutrals, and one muted teal signal — enough to feel intentional without competing with code.
+Three roles, each clearing 4.5:1 on every surface, including the translucent selected and hover washes: `text` (primary), `text-muted` (body and secondary metadata), `text-faint` (tertiary metadata, placeholders, icons at rest). `--lx-text-disabled` is for inactive controls only and has no utility; it is exempt from text contrast.
 
-### Primary
+### Borders
 
-- **Signal Teal** (`oklch(72% 0.17 185)`): the brand accent. Active nav bars, engaged like/follow buttons, focus outlines, badge backgrounds, branch/top indicators. Never decorative — only on interactive state or notification count.
-- **Signal Teal Quiet** (`oklch(72% 0.17 185 / 0.14)`): tinted background for highlighted comment rows and subtle selected states. Never used as a border or foreground color.
+- `line`: decorative dividers and card borders. Never the only sign of a state.
+- `control`: field and switch borders, 3:1 against the canvas.
+- `line-strong`: hover and emphasis borders.
 
-### Neutral
+### Accent
 
-- **Deep Indigo Canvas** (`oklch(13.5% 0.007 230)`): the page background. Not pure black — the faint indigo tint keeps it from reading as terminal-black.
-- **Card Surface** (`oklch(17.5% 0.007 230)`): card and panel backgrounds. 4 lightness points above canvas — enough to separate without a visible shadow.
-- **Alt Surface** (`oklch(21% 0.007 230)`): muted/secondary panel backgrounds, tab highlights, inline code blocks. Third tier.
-- **Border Default** (`oklch(28% 0.007 230)`): all card borders, dividers, input strokes. The workhorse separator.
-- **Border Strong** (`oklch(40% 0.007 230)`): emphasized dividers, scrollbar thumb, hover-active card borders.
-- **Text Primary** (`oklch(93% 0.005 230)`): all primary readable text. Slightly cool-tinted off-white.
-- **Text Muted** (`oklch(60% 0.005 230)`): secondary metadata, descriptions, author handles, timestamps.
-- **Text Faint** (`oklch(43% 0.005 230)`): tertiary labels, placeholder text, hint copy, icon fills at rest.
+`brand` is the theme accent. It marks engaged state: the primary button, the active nav icon and bar, the selected-row bar, focus rings, engaged like and follow. Keep it to a small share of any screen; a container that "needs colour" gets `surface-alt`, not the accent. `brand-quiet` is the accent at 14% for tinted chips. `brand-2` (the secondary accent) is for section signatures only, never primary actions.
+
+### Place
+
+`place` (warm amber, constant across themes) is the location register. `place-quiet` is its tinted fill. Today it colours the Explore header's scope status; city pills stay neutral (`surface-alt` with `text-muted`) and signal place through the pin icon and the link to the city page.
+
+### State layers
+
+- Hover: `state-hover` (the same value as `surface-alt`). Decorative, so it needs no contrast.
+- Selected: a `selected` fill (accent at 16%) plus a 2px `selected-bar`. The bar is the indicator; the fill only supports it. The city combobox's active option uses this pair.
+- Focus: `focus`, the solid accent. The global rule is `:focus-visible { outline: 2px solid var(--lx-focus); outline-offset: 2px }`, never translucent and never offset 0. Rows clipped by a rounded container (feed sheets, notification rows) use an inset 2px ring instead.
+- Unread: `unread`, a small accent-hued dot.
+- Outgoing message bubble: `outgoing`.
 
 ### Semantic
 
-- **Danger** (`oklch(62% 0.22 25)`): destructive action confirmation, error states.
-- **Success** (`oklch(70% 0.16 145)`): positive confirmations, "shipping" build-status hue.
-- **Warning** (`oklch(72% 0.18 75)`): recoverable warnings (GitHub sync failure toast, stale data notices).
+`danger` for destructive confirmations and errors, `success` and `warning` for status. `liked` is the like/heart colour. The categorical palettes (language dots, build-status pills) use one lightness and chroma for every hue (`categorical` in the front matter); the hues live in `lang-dot.tsx` and `status-pill.tsx`.
 
-### Named Rules
+### shadcn names
 
-**The Dark Covenant.** There is no light mode. Never add `prefers-color-scheme: light` overrides, light theme classes, or conditional color sets. The dark palette is the product, not a preference.
+The stock utilities (`bg-background`, `bg-muted`, `text-muted-foreground`, `bg-primary`) still resolve to the same variables (see `shadcn-aliases`). New code uses the Locatic names.
 
-**The Teal Scarcity Rule.** The brand teal appears on ≤10% of any given screen. It marks engaged state, not background decoration. If you find yourself reaching for teal on a container background, use Surface-Alt instead.
+### Contrast gate
 
-**The Tinted Neutral Rule.** All neutrals carry `hue 230` (blue-indigo) at `chroma 0.005–0.007`. Never use pure gray (`chroma 0`). The tint is invisible at first glance and prevents the palette from reading as generic dark mode.
+`scripts/check-contrast.mjs` (part of `pnpm check`) builds its pairs from a role table for all three themes: every text role at 4.5:1 on every surface, every indicator (control border, strong border, focus, selected bar, unread dot) at 3:1, and labels on fills at 4.5:1. It fails when a new `--lx-*` colour token has no declared role.
 
-## 3. Typography
+## 3. Themes
 
-**Display / UI Font:** IBM Plex Mono (with `ui-monospace, 'Cascadia Code', monospace` fallback)
-**Body / Content Font:** IBM Plex Sans (with `ui-sans-serif, system-ui, sans-serif` fallback)
+`<html data-theme="teal|violet|amber">` is set by next-themes (`attribute="data-theme"` in `src/routes/__root.tsx`; ids in `src/lib/theme.ts`). Each `[data-theme]` block in `styles.css` overrides only `--lx-accent-l/c/h` and the secondary accent, so every derived token (quiet washes, selected fill, focus, unread dot, outgoing bubble) follows automatically.
 
-**Character:** IBM Plex Mono lends the UI a confident, authoritative terminal energy without feeling cold. It renders especially well at 11–14px — the density sweet spot for metadata. IBM Plex Sans softens the register exactly when human-authored content arrives: bios, descriptions, comments. The switch between the two is the system's primary hierarchy signal.
+- The theme picker scopes `data-theme` to each swatch, so a swatch shows its own accent rather than the active one.
+- The logo is inline SVG painted with `currentColor` (`text-brand`), so it follows the theme. `public/favicon.svg` and `public/logo.svg` are static teal exports.
+- The browser `theme-color` is a fixed near-black matching the canvas (`#06090a` in `__root.tsx`), not the accent.
+- Toasts use Sonner with `theme="dark"` whatever the accent.
 
-### Hierarchy
+## 4. Typography
 
-- **Display** (700 weight, `clamp(28px, 4vw, 40px)`, line-height 1.1, tracking -0.025em): page titles and project repo names on the detail page. Mono only.
-- **Headline** (600 weight, 22px, line-height 1.3, tracking -0.02em): section headers, explore page title. Mono only.
-- **Title** (600 weight, 14.5px, line-height 1.4, tracking -0.01em): card repo names, nav labels, profile display names. Mono only.
-- **Body** (400 weight, 13.5px, line-height 1.6): project descriptions, bios, README content, comment text. Sans only. Max line length 65–75ch.
-- **Label** (400 weight, 11–12px, line-height 1.4): metadata row text, stat labels, button text, city pills. Mono.
-- **Meta** (400 weight, 9.5–10.5px, line-height 1.4, tracking 0.02–0.06em): mobile tab bar labels, badge counts, section eyebrows (often uppercase + tracked). Mono.
+Fonts are self-hosted (latin subset, upright only) from `public/fonts/`: Plex Mono 400/500/600/700 and Plex Sans 400/500/600. Mono 400/600 and Sans 400 are preloaded in `__root.tsx`. Each family falls back to a metric-matched local font (`IBM Plex Mono Fallback`, `IBM Plex Sans Fallback`) so the swap does not reflow text. There is no italic and no Google Fonts request.
 
-### Named Rules
+Six roles, as Tailwind utilities (`text-display` … `text-meta`), each carrying size, line height and, where set, weight and tracking:
 
-**The Terminal Dominance Rule.** IBM Plex Mono is the default. IBM Plex Sans is the exception. Mono speaks for the product; Sans speaks for the user. Never use Sans in navigation, buttons, labels, counts, or timestamps.
+| Role       | Size                   | Use                                                                                               |
+| ---------- | ---------------------- | ------------------------------------------------------------------------------------------------- |
+| `display`  | clamp(28px, 4vw, 40px) | Identity and project names on profile and project pages. Mono, 700.                               |
+| `headline` | 22px                   | Page titles (`PageHeader`) on Home, Explore, Inbox, Notifications, Settings. Mono, 600.           |
+| `title`    | 15px                   | Card and section titles. Mono, 600.                                                               |
+| `body`     | 14px                   | Human-written text. Sans. Prose (READMEs) at about 72ch.                                          |
+| `label`    | 12px                   | Buttons, metadata rows, primary timestamps and counts. Mono, tabular.                             |
+| `meta`     | 11px                   | Badges, tab-bar labels, secondary metadata. Mono, tabular. The floor: no visible text below 11px. |
 
-**The Tabular Numbers Rule.** All numeric displays — star counts, like counts, comment counts, follower counts, timestamps — use `font-variant-numeric: tabular-nums`. Count changes must not cause layout shift.
+Inputs are 16px on touch viewports (`max-md:text-base` in `Input`) so iOS does not zoom on focus, and 14px from `md` up.
 
-**The Lowercase Default.** Product UI labels, nav items, and button text are lowercase by default. This is intentional brand voice (terminal-influenced), not an oversight. Uppercase is reserved for section eyebrows with letter-spacing ≥ 0.05em (e.g. `// recent updates`, `NEARBY BUILDERS`).
+Rules:
 
-## 4. Elevation
+- **Mono speaks for the product; Sans speaks for the user.** Never Sans in navigation, buttons, labels, counts or timestamps.
+- **Tabular numerals** on every count and timestamp, so updates do not shift layout.
+- **Lowercase by default** for product labels, navigation and buttons. Proper nouns (city and project names) keep their case.
+- New arbitrary font sizes are reported by `pnpm check:arbitrary` (`scripts/check-arbitrary-values.mjs`) against an allowlist.
 
-Locatic is flat by default. Surfaces use tonal layering (canvas → surface → surface-alt) to establish depth without shadows. Cards rest at rest. Shadows appear only in response to state changes or floating elements.
+## 5. Shape and elevation
 
-### Shadow Vocabulary
+Radii: `rounded-control` (4px) for buttons, inputs and status pills; `rounded-card` (6px) for cards, panels and popovers; `rounded-pill` for city pills, badges and indicators. The stock `rounded-sm|md|lg` steps render as `control` (see `rounded-aliases`), and `cn()` (tailwind-merge configured in `src/lib/utils.ts`) resolves conflicts between them.
 
-- **Card shadow** (`0 1px 0 oklch(100% 0 0 / 0.04), 0 12px 32px oklch(0% 0 0 / 0.18)`): applied on card `:hover` only. Accompanied by a border color bump from `line` to `line-strong`. This is the only interactive elevation change on the main feed.
-- **Floating shadow** (`0 1px 0 oklch(100% 0 0 / 0.05), 0 18px 44px oklch(0% 0 0 / 0.28)`): dropdowns, command menus, city search listbox, modals. A stronger lift that separates the element clearly from the page.
+Elevation is earned by state. Surfaces are flat at rest (a clickable card has a 1px inner top highlight and nothing else):
 
-### Named Rules
+- `shadow-card`: on the hover of a clickable card (`.lx-card`), only on pointer devices (`@media (hover: hover)`), with the border stepping to `line-strong` and a faint accent wash.
+- `shadow-floating`: overlays (dialogs, popovers, dropdowns, the city listbox, tooltips). The stock `shadow-sm|md|lg` steps render as `floating`.
 
-**The Flat-By-Default Rule.** Surfaces are flat at rest. Adding a shadow to a non-interactive element or a resting card is prohibited. Elevation is earned through state — hover, focus, or float.
+There are exactly two shadows. Do not add blur glows or intermediate values.
 
-**The Two-Shadow Rule.** The system has exactly two shadow values: `card` (hover state) and `floating` (detached elements). Do not invent intermediate values or add blur-only glows as decorative accents.
+## 6. Motion
 
-## 5. Components
+Overlay enter and exit animations (dialog, popover, tooltip, dropdown) come from `tw-animate-css` and stop under reduced motion (`motion-reduce:animate-none`). Skeletons pulse with `motion-safe:animate-pulse`. The CSS keyframes in `styles.css` (landing hero entrance, reaction pop and burst, fade-up) are all switched off under `prefers-reduced-motion: reduce`, as is the map ping. Nav indicators slide with a spring from `src/lib/motion.ts`; route chunks import motion features through `src/lib/motion-features.ts`.
 
-### Buttons
+## 7. Components
 
-Terse and functional. All button text is mono, lowercase, and minimal. Buttons do not have icons unless the icon carries information the label does not (e.g. the pin icon next to "pin to profile").
+### Buttons (`src/components/ui/button.tsx`)
 
-- **Shape:** 4px radius (`rounded-control`) — slightly rounded, never pill on a standard button.
-- **Brand (primary CTA):** Signal Teal background (`oklch(72% 0.17 185)`) with Deep Indigo Canvas foreground (`oklch(14% 0.005 230)`). Padding: 6px 14px. Used for post, reply, and save actions.
-- **Outline (secondary):** Transparent background, `line` border, `text-muted` foreground. Hover: border shifts to `line-strong`, text to `text`. Used for follow, message, edit profile.
-- **Ghost:** Transparent, no border, `text-faint` foreground. Used for mark-read, cancel, and inline label actions.
-- **Disabled state:** All variants drop opacity to 0.5, cursor changes to `default`. Do not change color values — opacity-only.
-- **Size variants:** `meta` (the dominant size — 6px 14px), `sm` (for compact contexts), `icon` (square, 32px).
+Mono label text, `rounded-control`, no resting shadow, focus from the global rule. Disabled buttons drop to 50% opacity and ignore the pointer.
 
-### Cards
+| Variant               | Look                                          | Use                                                                             |
+| --------------------- | --------------------------------------------- | ------------------------------------------------------------------------------- |
+| `primary`             | brand fill, dark label, semibold              | The one main action on a surface: post, reply, save, finish onboarding.         |
+| `secondary` (default) | `control` border, muted text                  | Follow, message, edit, cancel, and entry points to destructive flows.           |
+| `ghost`               | no border, faint text, `state-hover` on hover | Mark read, inline and toolbar actions.                                          |
+| `danger`              | danger fill, dark label, semibold             | Only the confirming step of a destructive action (delete account, delete post). |
 
-The core unit. Every project card is a contained, clickable surface. Cards are never nested.
+| Size           | Height                                                       |
+| -------------- | ------------------------------------------------------------ |
+| `sm`           | 28px                                                         |
+| `meta`         | 32px                                                         |
+| `md` (default) | 36px                                                         |
+| `icon`         | 32px square                                                  |
+| `touch`        | at least 44px; the mobile shell and full-width touch actions |
 
-- **Corner style:** 6px radius (`rounded-card`).
-- **Background:** `surface` (`oklch(17.5% 0.007 230)`).
-- **Border:** 1px solid `line` (`oklch(28% 0.007 230)`) at rest; shifts to `line-strong` on hover.
-- **Shadow strategy:** none at rest; `card` shadow on hover (see Elevation).
-- **Internal padding:** 18px 20px (cozy default); 14px 16px (compact variant).
-- **Structure:** repo name row → description → meta row (lang · last commit · stars · likes · comments) → author row (avatar · name · city pill). This order is invariant.
+`asChild` renders a single child (for example a router `Link`) with button styling.
 
-### Project Card Variant: Profile Pin
+### Cards (`card.tsx`, `card-sheet.tsx`)
 
-When displayed on the profile page, cards gain a top chrome bar (1px bottom border, 11px mono label, pin button) that sits above the standard card body. The chrome bar uses `surface-alt` background. The pin button uses Brand variant when pinned, Outline variant when unpinned.
+`Card` is the one container: `rounded-card border border-line bg-surface`, densities `cozy`, `compact` (default) and `flush`, and `interactive` for clickable cards (adds `.lx-card`). `CardSheet` is a bordered list whose rows are divided by hairlines with no gaps; rows inside it are frameless and use an inset focus ring. Cards are never nested.
 
-### Inputs / Fields
+### Project card (`project-card.tsx`)
 
-- **Style:** 1px `line` border, `canvas` background (inputs sit in `surface` contexts — canvas recedes appropriately), 4px radius.
-- **Font:** IBM Plex Mono, 13–14px, `text` color. Placeholder in `text-faint`.
-- **Focus:** 2px solid Signal Teal outline, offset 2px. The border color does not change on focus — outline replaces it.
-- **Search inputs:** add a 14px Search icon at left, 36px left padding.
-- **Textarea:** same border system; `resize: none`; minimum 72px height for comment inputs.
+Order: project name (a link stretched over the card: the one tab stop that opens the project), description (clamped), builder with avatar, city pill and collaboration status pill, then the latest meaningful update ("released v1.2 · 3d ago", "posted · 2h ago", "pushed · 5d ago") and a secondary metadata line with the language bar. Zero counts are hidden, except the comment action, which reads "start the conversation" at zero. Visitors see sync freshness ("updated 3d ago", "no README"); a failed refresh and its retry control reach the owner only. Every other control (like, save, comment, dismiss) sits above the stretched link as its own target. In a selected city, Explore lists the viewer's own projects last under a "yours" label (`explore-feed.tsx`).
 
-### City Combobox (Signature Component)
+### Inputs (`input.tsx`, `textarea.tsx`)
 
-The city search in Explore is the product's most complex input. It combines a standard text input with an accessible dropdown listbox.
+`control` border, `canvas` fill, `rounded-control`, mono text, `text-faint` placeholder. Focus uses the global outline; the border does not change. 16px on touch, 14px from `md`. Search inputs carry a 14px search icon on the left.
 
-- **Input:** `role="combobox"`, `aria-expanded`, `aria-controls` pointing to the listbox. Search icon at left.
-- **Listbox:** `role="listbox"`, `max-h-72`, `overflow-y-auto`, `rounded-card`, `border line`, `bg-surface`, `shadow-floating`. Appears directly below the input.
-- **Options:** `role="option"`, `min-h-11` (44px touch target), mono 12px city name at left, `Plus` icon at right (12px), `hover:bg-surface-alt`.
-- **Selected state:** selected cities become removable pills (city name + ×) above the input row, not options inside the dropdown.
-- **Keyboard:** `ArrowDown`/`ArrowUp` moves `aria-activedescendant`, `Enter` selects, `Escape` closes. This is non-negotiable for WCAG compliance.
+### City combobox (`city-combobox.tsx`)
 
-### Navigation: Sidebar (Desktop)
+An editable combobox: `role="combobox"` input, `role="listbox"` popup (`shadow-floating`, at least 320px wide from `md`, scrolls at `max-h-72`), `role="option"` rows at least 44px tall. Focus stays on the input while `aria-activedescendant` names the active option, which shows the selected fill and bar. Arrow keys move, Enter selects, Escape and blur close. With a query and no rows the popup says "searching…" or "no cities match". Ranking rules are in `convex/lib/citySearch.ts` and `docs/explore-home-logic.md`.
 
-- **Width:** 220px (`--lx-sidebar-width`).
-- **Background:** `canvas`.
-- **Active indicator:** 2px solid Signal Teal, `border-radius: 0 2px 2px 0`, positioned `left: 0, top: 6px, bottom: 6px` on the row container. This bar, not background color, is the primary active signal.
-- **Active icon:** tinted to Signal Teal. Inactive icon: `text-faint`.
-- **Label:** mono 13px, `text` when active, `text-muted` when inactive.
-- **Unread badge:** pill `rounded-pill`, Signal Teal bg, dark foreground, mono 10px. Shows numeric count with `99+` cap.
-- **Logo:** 22px square with map-pin SVG inside, Signal Teal background, dark pin path. No text variant.
+### City pill (`city-pill.tsx`)
 
-### Navigation: Mobile Tab Bar
+Renders the server's location disclosure: an exact city is a link to its city page (`/c/{cityId}`, which redirects to the slug), a region-only label is plain text, and a hidden location renders nothing. `rounded-pill`, `line` border, `surface-alt` fill, `text-muted` meta text, a map-pin icon. The removable variant (Explore chips) has a 44px remove target that overhangs the pill.
 
-- **Height:** `calc(72px + env(safe-area-inset-bottom))`.
-- **Background:** `canvas` with 1px top `line` border.
-- **Active indicator:** 2px Signal Teal pill (`w-6 h-0.5 rounded-pill`) centered above the icon, `margin-top: -2px`.
-- **Icon:** 20px, Signal Teal when active, `text-faint` otherwise.
-- **Label:** mono 9.5px, `text` when active, `text-faint` otherwise.
-- **Notification badge:** absolute-positioned `rounded-pill`, Signal Teal bg, mono 9px, `-top-2 -right-3`. Shows count, `99+` cap.
-- **Touch target:** each tab item `min-h-11` (44px).
+### Status pill (`status-pill.tsx`)
 
-### ProfileSocialDialog
+`rounded-control`, a hue per build status at the shared `--lx-status-l/c` lightness and chroma, `color-mix` fill and border. `just exploring` is muted. Project cards and builder rows show only the collaboration statuses (open to collab, looking for cofounder, hiring).
 
-A standard shadcn Dialog (`max-w-xl`) rendered when the user taps a follower or following count.
+### Sidebar (desktop)
 
-- **Header:** 1px bottom `line`, px-5 py-4, mono `text-sm` lowercase title.
-- **Body:** `max-h-[70vh]`, overflow-y-auto. User rows: `min-h-14`, flex gap-3, `border-b line`, `hover:bg-surface-alt`. Avatar 36px, display name mono 12.5px semibold, handle + city mono 11px `text-faint`.
-- **Empty state:** centered mono xs `text-faint`, py-8.
-- **Close behavior:** dialog closes before navigation fires. Do not let the dialog remain open while the route changes.
+220px wide (76px collapsed), `surface-chrome` background, `line` right border. The active item has a 2px accent bar on its left edge and an accent icon; labels are mono `label` size, lowercase. Collapsed items get tooltips.
 
-### Chips and Pills
+### Mobile tab bar
 
-- **City pill:** `rounded-pill`, 1px `line` border, `surface-alt` background, mono 11px `text-muted`, `map-pin` icon (11px) at left. Removable variant adds an ×-button after the city name.
-- **Status pill:** `border-radius: 3px` (intentionally less round than city pill), hue-matched per build status (shipping=145, building=200, exploring=280, hiring=35). Background at 10% opacity, border at 25% opacity of the status hue. 5px dot indicator inside.
-- **Explore ranking:** ranked order is implicit. Do not add recommendation or
-  match badges unless the backend provides explicit, explainable metadata.
+Fixed to the bottom, `surface-chrome` with a `line` top border, height `calc(72px + env(safe-area-inset-bottom))`. Tabs follow the sidebar order (home, explore, inbox, notifications, profile) with short labels that fit ("alerts" for notifications). The active tab has a 24px accent pill above its icon. Every tab is at least 44px tall.
 
-### Notification Rows
+### Unread badges (decision D4)
 
-Interactive `<button>` elements spanning full width in the notification list.
+Readable and quiet: `surface-raised` fill, `text` count at `meta` size, tabular, `rounded-pill`, capped at "99+". Hidden at zero. The badge is `aria-hidden`; the link's accessible name carries the count ("notifications, 3 unread"). Badges never use the accent fill, so they do not compete with primary actions. The inbox badge counts messages; the notifications badge excludes direct messages, so one message is never two tasks. This supersedes the quieted badges of `docs/plans/2026-07-05-ui-consistency-and-pr18-landing-plan.md`.
 
-- **Unread:** subtle Signal Teal tint background (`oklch(72% 0.17 185 / 0.04)`). Read: transparent.
-- **Layout:** `flex items-start gap-3`, 36px avatar with 18px icon badge in the bottom-right corner.
-- **Body:** actor display name in mono semibold, action text in sans 13.5px, timestamp in mono 11px `text-faint` below.
-- **Focus:** 2px Signal Teal ring, no background override on focus.
-- **Click behavior:** marks read optimistically, then navigates. Mark-read and navigate are one action — never two separate interactions.
+### Notification rows
 
-## 6. Do's and Don'ts
+Full-width buttons: 36px avatar with a type icon, actor name in mono semibold, action text in Sans, timestamp in `meta`. Unread rows have primary text, an `unread` dot and a screen-reader "unread:" prefix; read rows use muted text. Hover is `surface-raised`; focus is an inset accent ring. Opening a row marks it read and navigates in one action.
 
-### Do:
+### Toasts
 
-- **Do** use IBM Plex Mono for all product UI text: labels, buttons, nav, timestamps, counts, section headers. Use IBM Plex Sans only for user-authored content (bios, descriptions, comments, README text).
-- **Do** apply `font-variant-numeric: tabular-nums` to every numeric display (star counts, like counts, follower counts, commit counts). Layout must not shift when numbers update.
-- **Do** maintain a minimum 44px touch target on all interactive elements in the mobile shell. Use `min-h-11` (44px) as the floor for tab items, notification rows, and combobox options.
-- **Do** commit UI actions locally first. Optimistic state fires immediately; external sync (GitHub starring) is best-effort and surfaced as a recoverable toast if it fails, never as a blocking error.
-- **Do** keep the Signal Teal accent at ≤10% of any screen surface. Reserve it for engaged interactive state, focus rings, and badge counts.
-- **Do** use `shadow-floating` for all detached floating surfaces: city search dropdown, Dialog/Sheet, command menus. Never use `shadow-card` for floating elements.
-- **Do** use exact semantic Tailwind utilities (`bg-surface`, `text-text-muted`, `rounded-card`, `shadow-card`) instead of direct `var(--lx-*)` calls or inline styles for layout.
-- **Do** close dialogs before navigating. When a dialog row navigates to a new route, call `onOpenChange(false)` before (or immediately with) the `navigate()` call.
-- **Do** sync typed search params with URL via TanStack Router `validateSearch` and `navigate({ search: ... })`. Filter state (builder query, city IDs) must be reload-safe and shareable.
+One Sonner `Toaster` (bottom centre, dark theme), loaded lazily by the root document. Toasts are for brief action failures and undo (unfollow, unpin, unsave) through `src/lib/action-error.ts` and `src/lib/undo-toast.ts`. Form errors stay inline and keep the input; failed sections show a persistent recovery block.
 
-### Don't:
+### Empty states (`empty-state.tsx`)
 
-- **Don't** add a light mode. Never add `prefers-color-scheme: light` overrides, a theme toggle, or conditional color classes for a light variant. The dark palette is the product identity.
-- **Don't** use glassmorphism. No `backdrop-filter: blur(...)` on card panels, sidebar backgrounds, or nav overlays outside of modals. If it looks like frost glass, it's wrong.
-- **Don't** use gradient text (`background-clip: text` + gradient background). Use a single solid color. Emphasis via weight or size.
-- **Don't** put a colored `border-left` greater than 1px as a decorative stripe on cards, list items, or alerts. Use full borders, background tints, or leading icons instead.
-- **Don't** render the same action affordance in two places on one screen. The project detail page has one like button (top action bar), one stats row (metrics only). GitHub external link belongs once — either in the action bar or beside the heading, not both.
-- **Don't** use `as never` type casts on TanStack Router `navigate()` calls. Register the router via `declare module '@tanstack/react-router' { interface Register { router: typeof router } }` so route params and search are type-checked at the call site.
-- **Don't** manage optimistic UI state with `useState` overrides per-action. Use TanStack Query `useMutation` with `onMutate` / `onError` / `onSettled`. Manual `likedOverride`, `followedOverride`, `commentLikeOverrides` state variables are prohibited in new code.
-- **Don't** use `grid-cols-3` for a 4-item tab row. Tab bars must have as many columns as items (`grid-cols-4` for 4 tabs) or use `flex` with equal flex-1 sizing.
-- **Don't** show the city combobox dropdown before the input has received focus. Use `aria-expanded` only when the input is actively focused or a query string is present. The dropdown must close on `Escape` and on click-outside.
-- **Don't** use `style={{}}` for layout properties. All layout uses Tailwind utility classes or CSS custom properties via `var(--lx-*)` when a semantic token is genuinely unavailable. Never inline padding, margin, width, or display properties.
-- **Don't** look like GitHub, LinkedIn, Product Hunt, or generic SaaS dark mode. If the palette or layout could be mistaken for any of these, it is wrong.
+A title that names the situation (the city, the interval), a sentence of explanation, one primary action that changes the outcome and at most one secondary action. Loading, empty, error and "nothing in the last 30 days" are distinct states.
+
+## 8. Do and don't
+
+Do:
+
+- Use the semantic utilities (`bg-surface`, `text-text-muted`, `border-control`, `rounded-card`, `shadow-floating`) rather than `var(--lx-*)` in class strings or inline styles. Inline styles are for genuinely dynamic values.
+- Keep touch targets at least 44px in the mobile shell.
+- Commit actions optimistically and report failures honestly (a toast with the reason, or inline for forms).
+- Put filter state in the URL (`validateSearch`) so it survives reloads and can be shared.
+- Close a dialog before (or together with) navigating from it.
+
+Don't:
+
+- Add a light mode or theme-dependent neutrals.
+- Use glassmorphism, gradient text, or a coloured border-left stripe wider than 1px as decoration.
+- Show numbered ranks, match percentages or "recommended" badges; discovery order is explained in words ("most recent public work first").
+- Render the same action twice on one screen (one like button on the project page).
+- Use `style={{}}` for layout, or arbitrary font sizes, radii, shadows and hex colours in `src/features` and `src/routes`.
+- Use `as never` on router calls; the router is registered for typed params and search.

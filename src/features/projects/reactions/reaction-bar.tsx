@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 
 import { api } from '../../../../convex/_generated/api'
+import { reportActionError } from '@/lib/action-error'
 import { Plus } from '@/lib/icons'
 import { cn } from '@/lib/utils'
 import {
@@ -144,11 +145,17 @@ export function ReactionBar({
   )
   const effectiveViewerReactionTypes = confirmedViewerReactionTypes
   const viewerReactionStateLoading = viewerReactionTypes === undefined
+  // A project's like chip is always shown, so it is the one like affordance
+  // and the picker leaves it out.
+  const pinnedReactionTypes = targetType === 'project' ? ['like'] : []
+  const pickerReactionConfigs = reactionConfigs.filter(
+    (config) => !pinnedReactionTypes.includes(config.key),
+  )
   const visibleReactionTypes = getVisibleReactionTypes(
     reactionConfigs,
     reactionCounts,
     effectiveViewerReactionTypes,
-    targetType === 'project' ? ['like'] : [],
+    pinnedReactionTypes,
   )
 
   useEffect(() => {
@@ -167,7 +174,9 @@ export function ReactionBar({
     [],
   )
 
-  const handleToggleReaction = async (reactionType: string) => {
+  // Takes the intended end state rather than toggling, so a retry re-applies
+  // the same change; both mutations are idempotent on the server.
+  const commitReaction = async (reactionType: string, nextActive: boolean) => {
     if (disabled || pendingReaction) {
       return
     }
@@ -176,8 +185,6 @@ export function ReactionBar({
       window.clearTimeout(timer)
     }
     animationTimersRef.current = []
-    const currentlyActive = effectiveViewerReactionTypes.includes(reactionType)
-    const nextActive = !currentlyActive
     setPendingReaction({ reactionType, nextActive })
     setBurstReaction(reactionType)
     setPopReaction(reactionType)
@@ -187,14 +194,14 @@ export function ReactionBar({
     ]
 
     try {
-      if (currentlyActive) {
-        await unreactFromTarget({
+      if (nextActive) {
+        await reactToTarget({
           reactionType,
           targetId,
           targetType,
         })
       } else {
-        await reactToTarget({
+        await unreactFromTarget({
           reactionType,
           targetId,
           targetType,
@@ -207,16 +214,27 @@ export function ReactionBar({
       )
       setOpen(false)
     } catch (error) {
-      console.error(error)
+      reportActionError(error, {
+        title: nextActive
+          ? "couldn't add your reaction"
+          : "couldn't remove your reaction",
+        retry: () => commitReaction(reactionType, nextActive),
+      })
     } finally {
       setPendingReaction(null)
     }
   }
 
+  const handleToggleReaction = (reactionType: string) =>
+    commitReaction(
+      reactionType,
+      !effectiveViewerReactionTypes.includes(reactionType),
+    )
+
   return (
     <div
       className={cn(
-        'flex min-w-0 flex-wrap items-center gap-1.5 font-mono text-[11.5px]',
+        'flex min-w-0 flex-wrap items-center gap-1.5 font-mono text-label',
         className,
       )}
     >
@@ -258,7 +276,7 @@ export function ReactionBar({
             disabled={actionDisabled}
             aria-label={`${active ? 'Remove' : 'Add'} ${config.label} reaction`}
             aria-pressed={active}
-            className="inline-flex min-h-11 items-center px-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand disabled:opacity-60"
+            className="inline-flex min-h-11 min-w-11 items-center justify-center px-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand disabled:opacity-60"
           >
             <span aria-hidden="true" className="lx-reaction-emoji text-sm">
               {config.emoji}
@@ -295,7 +313,10 @@ export function ReactionBar({
             aria-label={`${active ? 'Remove' : 'Add'} ${config.label} reaction`}
             aria-pressed={active}
             style={reactionChipStyle(accent, active)}
-            className={cn(chipClassName, 'gap-1.5 px-2 py-2')}
+            className={cn(
+              chipClassName,
+              'min-w-11 justify-center gap-1.5 px-2 py-2',
+            )}
           >
             <span aria-hidden="true" className="lx-reaction-emoji text-sm">
               {config.emoji}
@@ -319,7 +340,7 @@ export function ReactionBar({
             disabled={
               disabled ||
               viewerReactionStateLoading ||
-              reactionConfigs.length === 0
+              pickerReactionConfigs.length === 0
             }
             aria-label={`Add ${targetType} reaction`}
             className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md border border-transparent bg-transparent text-text-faint transition-colors hover:border-line hover:text-text disabled:opacity-60"
@@ -331,14 +352,14 @@ export function ReactionBar({
           align="center"
           side="top"
           sideOffset={8}
-          collisionPadding={12}
+          collisionPadding={16}
           className="w-max max-w-[calc(100vw-2rem)] rounded-md border-line bg-surface p-1.5 shadow-floating"
         >
           <div
             data-testid="reaction-picker"
             className="inline-flex items-center gap-1"
           >
-            {reactionConfigs.map((config) => {
+            {pickerReactionConfigs.map((config) => {
               const reactionType = config.key
               const accent = reactionAccent(config)
               const { active } = getOptimisticReactionState({

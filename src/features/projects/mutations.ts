@@ -4,6 +4,9 @@ import { api } from '../../../convex/_generated/api'
 export const useLikeProject = () => useAction(api.github_actions.likeProject)
 export const useUnlikeProject = () =>
   useAction(api.github_actions.unlikeProject)
+/** Owner-only, rate-limited metadata refresh (the retry for a failed sync). */
+export const useRefreshProjectMetadata = () =>
+  useAction(api.projects.refreshMetadata)
 
 export const useAddComment = () => useMutation(api.comments.create)
 export const useDeleteComment = () => useMutation(api.comments.remove)
