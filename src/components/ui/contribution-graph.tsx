@@ -169,6 +169,7 @@ export function ContributionGraph({
         ref={scrollerRef}
         role="region"
         aria-label="GitHub contribution graph"
+        // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- The overflowing graph must remain keyboard-scrollable.
         tabIndex={0}
         className="max-w-full overflow-x-auto overscroll-x-contain"
       >

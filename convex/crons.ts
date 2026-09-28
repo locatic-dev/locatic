@@ -1,6 +1,7 @@
 import { cronJobs } from 'convex/server'
 
 import { internal } from './_generated/api'
+import { emailRefs } from './lib/email_function_refs'
 
 const crons = cronJobs()
 
@@ -33,6 +34,30 @@ crons.interval(
   { hours: 24 },
   internal.cleanup.runDailyCleanup,
   {},
+)
+crons.interval(
+  'prepare due community email draft daily',
+  { hours: 24 },
+  emailRefs.digest.prepareDue,
+  {},
+)
+crons.interval(
+  'recover community email contact synchronization',
+  { minutes: 5 },
+  emailRefs.delivery.reconcileContacts,
+  { limit: 10 },
+)
+crons.interval(
+  'recover community email contact cleanup',
+  { minutes: 5 },
+  emailRefs.delivery.reconcileContactCleanups,
+  { limit: 10 },
+)
+crons.interval(
+  'recover community email deliveries',
+  { minutes: 5 },
+  emailRefs.delivery.recoverDeliveries,
+  { limit: 10 },
 )
 
 export default crons
