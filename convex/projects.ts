@@ -12,7 +12,7 @@ import {
   query,
 } from './_generated/server'
 import type { QueryCtx } from './_generated/server'
-import type { Id } from './_generated/dataModel'
+import type { Doc, Id } from './_generated/dataModel'
 import { internal } from './_generated/api'
 import { enqueueActivityEventFanOut } from './lib/homeFeed'
 import { getPubliclyInteractableProject } from './lib/project_access'
@@ -53,7 +53,12 @@ import {
 } from './lib/activity'
 import { recomputeContributionCountsForUsers } from './lib/project_contributor_sync'
 import { normalizeProjectTopics } from './lib/topics'
-import { buildStatusValidator, socialLinksValidator } from './lib/validators'
+import {
+  buildStatusValidator,
+  optionalStringValidator,
+  optionalTimestampValidator,
+  socialLinksValidator,
+} from './lib/validators'
 import { enforceRateLimit } from './lib/rate_limits'
 import {
   getProjectReactionCounts,
@@ -85,11 +90,51 @@ function getSnapshotOwnerLogin(args: {
   )
 }
 
+const publicProjectDetailValidator = v.object({
+  _id: v.id('projects'),
+  _creationTime: v.number(),
+  github: v.object({
+    fullName: v.string(),
+    description: optionalStringValidator,
+    primaryLanguage: optionalStringValidator,
+    languages: v.array(v.object({ name: v.string(), bytes: v.number() })),
+    topics: v.array(v.string()),
+    stargazersCount: v.number(),
+    lastCommitAt: v.number(),
+    readmePreview: optionalStringValidator,
+    readmeAssetBaseUrl: optionalStringValidator,
+    readmeAssetRootUrl: optionalStringValidator,
+    readmeLinkBaseUrl: optionalStringValidator,
+    readmeLinkRootUrl: optionalStringValidator,
+  }),
+  locatic: v.object({
+    tags: v.array(v.string()),
+    commentsCount: v.number(),
+    postsCount: v.number(),
+  }),
+})
+
+const publicProjectReleaseValidator = v.object({
+  _id: v.id('project_releases'),
+  _creationTime: v.number(),
+  projectId: v.id('projects'),
+  githubReleaseId: v.number(),
+  tagName: v.string(),
+  name: optionalStringValidator,
+  body: optionalStringValidator,
+  htmlUrl: v.string(),
+  isDraft: v.boolean(),
+  isPrerelease: v.boolean(),
+  publishedAt: optionalTimestampValidator,
+  createdAt: v.number(),
+  updatedAt: v.number(),
+  importedAt: v.number(),
+})
+
 const projectDetailValidator = v.union(
   v.object({
-    project: v.any(),
-    releases: v.array(v.any()),
-    comments: v.array(v.any()),
+    project: publicProjectDetailValidator,
+    releases: v.array(publicProjectReleaseValidator),
     viewerHasLiked: v.boolean(),
     reactionCounts: v.record(v.string(), v.number()),
     viewerReactionTypes: v.array(v.string()),
@@ -110,6 +155,51 @@ const projectDetailValidator = v.union(
   }),
   v.null(),
 )
+
+function toPublicProjectDetail(project: Doc<'projects'>) {
+  return {
+    _id: project._id,
+    _creationTime: project._creationTime,
+    github: {
+      fullName: project.github.fullName,
+      description: project.github.description,
+      primaryLanguage: project.github.primaryLanguage,
+      languages: project.github.languages,
+      topics: project.github.topics,
+      stargazersCount: project.github.stargazersCount,
+      lastCommitAt: project.github.lastCommitAt,
+      readmePreview: project.github.readmePreview,
+      readmeAssetBaseUrl: project.github.readmeAssetBaseUrl,
+      readmeAssetRootUrl: project.github.readmeAssetRootUrl,
+      readmeLinkBaseUrl: project.github.readmeLinkBaseUrl,
+      readmeLinkRootUrl: project.github.readmeLinkRootUrl,
+    },
+    locatic: {
+      tags: project.locatic.tags,
+      commentsCount: project.locatic.commentsCount,
+      postsCount: project.locatic.postsCount ?? 0,
+    },
+  }
+}
+
+function toPublicProjectRelease(release: Doc<'project_releases'>) {
+  return {
+    _id: release._id,
+    _creationTime: release._creationTime,
+    projectId: release.projectId,
+    githubReleaseId: release.githubReleaseId,
+    tagName: release.tagName,
+    name: release.name,
+    body: release.body,
+    htmlUrl: release.htmlUrl,
+    isDraft: release.isDraft,
+    isPrerelease: release.isPrerelease,
+    publishedAt: release.publishedAt,
+    createdAt: release.createdAt,
+    updatedAt: release.updatedAt,
+    importedAt: release.importedAt,
+  }
+}
 
 export const listMine = query({
   args: {},
@@ -315,9 +405,8 @@ async function getPublicProjectDetail(
     : null
 
   return {
-    project,
-    releases,
-    comments: [],
+    project: toPublicProjectDetail(project),
+    releases: releases.map(toPublicProjectRelease),
     reactionCounts: getProjectReactionCounts(project),
     viewerHasLiked: viewerReactionTypes.includes('like'),
     viewerReactionTypes,

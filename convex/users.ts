@@ -311,12 +311,30 @@ const publicProfileOverviewValidator = v.object({
 function serializeViewer(
   viewer: NonNullable<Awaited<ReturnType<typeof getViewerFromAuth>>>,
 ) {
+  const {
+    followersCount,
+    followingCount,
+    projectsCount,
+    postsCount,
+    contributionsCount,
+    commentsCount,
+    likedCount,
+  } = viewer.stats
+
   return {
     _id: viewer._id,
     email: viewer.email,
     github: viewer.github,
     profile: viewer.profile,
-    stats: viewer.stats,
+    stats: {
+      followersCount,
+      followingCount,
+      projectsCount,
+      postsCount,
+      contributionsCount,
+      commentsCount,
+      likedCount,
+    },
     exploreConfig: viewer.exploreConfig,
     privacy: viewer.privacy,
     notificationPrefs: viewer.notificationPrefs,

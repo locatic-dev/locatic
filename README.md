@@ -154,9 +154,10 @@ Authenticated browser tests use Clerk's Playwright helpers and Playwright `stora
 
 Prerequisites:
 
-- `.env.local` has `VITE_CLERK_PUBLISHABLE_KEY`, `VITE_CONVEX_URL`, `CLERK_SECRET_KEY`, and `E2E_CLERK_USER_EMAIL`
-- the dedicated Clerk test user exists in the development Clerk instance
-- the Convex dev deployment is running and configured with `CLERK_JWT_ISSUER_DOMAIN`
+- `.env.local` has `VITE_CLERK_PUBLISHABLE_KEY`, `VITE_CONVEX_URL`, `CLERK_SECRET_KEY`, `E2E_CLERK_USER_EMAIL`, `E2E_PUBLIC_PROFILE_USERNAME`, `E2E_CLERK_EMPTY_CITY_USER_EMAIL`, and `E2E_CLERK_ONBOARDING_USER_EMAIL`
+- the populated, empty-city, and unfinished-onboarding Clerk test users exist in the development Clerk instance
+- the Convex dev deployment is running this revision and is configured with `CLERK_JWT_ISSUER_DOMAIN`
+- the deployment has the documented persona data; see [`playwright/fixtures/fixtures.md`](playwright/fixtures/fixtures.md) for the authoritative variables, setup, and strict-versus-smoke behavior
 
 Run the auth setup only:
 
