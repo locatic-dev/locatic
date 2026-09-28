@@ -1,11 +1,13 @@
 import { verifyWebhook } from '@clerk/backend/webhooks'
 import { httpRouter } from 'convex/server'
+import { Webhook } from 'svix'
 
 import { internal } from './_generated/api'
 import { httpAction } from './_generated/server'
 import { parseClerkGithubExternalAccount } from './lib/clerk'
+import { emailRefs } from './lib/email_function_refs'
 
-function getPrimaryEmailAddress(data: Record<string, unknown>) {
+function getPrimaryEmail(data: Record<string, unknown>) {
   const emailAddresses = Array.isArray(data.email_addresses)
     ? data.email_addresses
     : []
@@ -27,16 +29,28 @@ function getPrimaryEmailAddress(data: Record<string, unknown>) {
       )
     }) ?? emailAddresses[0]
 
-  if (
-    primaryEmail &&
-    typeof primaryEmail === 'object' &&
-    'email_address' in primaryEmail &&
-    typeof primaryEmail.email_address === 'string'
-  ) {
-    return primaryEmail.email_address
+  if (!primaryEmail || typeof primaryEmail !== 'object') {
+    return { address: '', verified: false }
   }
 
-  return ''
+  const address =
+    'email_address' in primaryEmail &&
+    typeof primaryEmail.email_address === 'string'
+      ? primaryEmail.email_address
+      : ''
+  const verification =
+    'verification' in primaryEmail &&
+    primaryEmail.verification &&
+    typeof primaryEmail.verification === 'object'
+      ? primaryEmail.verification
+      : null
+  const verified = Boolean(
+    verification &&
+    'status' in verification &&
+    verification.status === 'verified',
+  )
+
+  return { address, verified }
 }
 
 function getGithubAccount(data: Record<string, unknown>) {
@@ -97,6 +111,38 @@ function getDisplayName(data: Record<string, unknown>, email: string) {
 
 const http = httpRouter()
 
+function getResendEventEmail(eventType: string, data: Record<string, unknown>) {
+  if (typeof data.email === 'string') return data.email
+  if (Array.isArray(data.to) && typeof data.to[0] === 'string') {
+    return data.to[0]
+  }
+  if (
+    eventType === 'suppression.added' &&
+    typeof data.email_address === 'string'
+  ) {
+    return data.email_address
+  }
+  return ''
+}
+
+function getResendSuppression(
+  eventType: string,
+  data: Record<string, unknown>,
+) {
+  if (eventType === 'email.complained') return 'complaint' as const
+  if (eventType === 'email.suppressed' || eventType === 'suppression.added') {
+    return 'provider_suppressed' as const
+  }
+  if (eventType === 'email.bounced') {
+    const bounce =
+      data.bounce && typeof data.bounce === 'object' ? data.bounce : null
+    if (bounce && 'type' in bounce && bounce.type === 'Permanent') {
+      return 'hard_bounce' as const
+    }
+  }
+  return undefined
+}
+
 http.route({
   path: '/clerk/webhooks',
   method: 'POST',
@@ -137,7 +183,8 @@ http.route({
       }
 
       if (event.type === 'user.created' || event.type === 'user.updated') {
-        const email = getPrimaryEmailAddress(payload)
+        const primaryEmail = getPrimaryEmail(payload)
+        const email = primaryEmail.address
         const githubAccount = getGithubAccount(payload)
         const clerkId = typeof payload.id === 'string' ? payload.id : ''
         const githubParseResult = parseClerkGithubExternalAccount(
@@ -166,6 +213,7 @@ http.route({
             : 'https://github.com',
           displayName: getDisplayName(payload, email),
           avatarUrl,
+          primaryEmailVerified: primaryEmail.verified,
         })
 
         await ctx.runMutation(internal.users.markClerkWebhookEventProcessed, {
@@ -212,6 +260,73 @@ http.route({
       console.error('Failed to process Clerk webhook', error)
       return new Response('webhook processing failed', { status: 500 })
     }
+  }),
+})
+
+http.route({
+  path: '/resend/webhooks',
+  method: 'POST',
+  handler: httpAction(async (ctx, request) => {
+    const secret = process.env.RESEND_WEBHOOK_SECRET
+    if (!secret) {
+      return new Response('webhook not configured', { status: 503 })
+    }
+
+    const eventId = request.headers.get('svix-id') ?? ''
+    const timestamp = request.headers.get('svix-timestamp') ?? ''
+    const signature = request.headers.get('svix-signature') ?? ''
+    if (!eventId || !timestamp || !signature) {
+      return new Response('missing signature headers', { status: 400 })
+    }
+
+    const payload = await request.text()
+    let verified: unknown
+    try {
+      verified = new Webhook(secret).verify(payload, {
+        'svix-id': eventId,
+        'svix-timestamp': timestamp,
+        'svix-signature': signature,
+      })
+    } catch {
+      return new Response('invalid webhook', { status: 400 })
+    }
+
+    if (!verified || typeof verified !== 'object') {
+      return new Response('invalid payload', { status: 400 })
+    }
+    const event = verified as Record<string, unknown>
+    const eventType = typeof event.type === 'string' ? event.type : ''
+    const data =
+      event.data && typeof event.data === 'object'
+        ? (event.data as Record<string, unknown>)
+        : {}
+    const providerContactId =
+      typeof data.id === 'string' && eventType.startsWith('contact.')
+        ? data.id
+        : null
+    const providerBroadcastId =
+      typeof data.broadcast_id === 'string' ? data.broadcast_id : null
+    const providerEmailId =
+      typeof data.email_id === 'string' ? data.email_id : null
+    const providerUnsubscribed =
+      eventType === 'contact.updated' && typeof data.unsubscribed === 'boolean'
+        ? data.unsubscribed
+        : undefined
+
+    await ctx.runMutation(emailRefs.events.record, {
+      eventId,
+      eventType,
+      email: getResendEventEmail(eventType, data),
+      providerContactId,
+      providerBroadcastId,
+      providerEmailId,
+      ...(providerUnsubscribed === undefined ? {} : { providerUnsubscribed }),
+      ...(getResendSuppression(eventType, data)
+        ? { suppression: getResendSuppression(eventType, data) }
+        : {}),
+    })
+
+    return new Response('ok', { status: 200 })
   }),
 })
 
