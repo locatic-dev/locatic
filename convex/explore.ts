@@ -1,11 +1,18 @@
 import { ConvexError, v } from 'convex/values'
 import {
+  makeFunctionReference,
   paginationOptsValidator,
   paginationResultValidator,
   type PaginationOptions,
 } from 'convex/server'
 
-import { mutation, query, type QueryCtx } from './_generated/server'
+import {
+  internalMutation,
+  mutation,
+  query,
+  type MutationCtx,
+  type QueryCtx,
+} from './_generated/server'
 import type { Doc, Id } from './_generated/dataModel'
 import { getViewerFromAuth, getViewerOrThrow } from './lib/auth'
 import { mergeBuilderSearchCandidates } from './lib/discoverability'
@@ -243,18 +250,48 @@ function getExplorePostLimit(limit: number | undefined) {
   return Math.min(limit ?? 10, 50)
 }
 
+async function getDismissedExploreProjectIds(
+  ctx: QueryCtx,
+  viewerId: Id<'users'>,
+  projectIds: Array<Id<'projects'>>,
+) {
+  const history = await Promise.all(
+    [...new Set(projectIds)].map((projectId) =>
+      ctx.db
+        .query('explore_history')
+        .withIndex('by_user_project', (query) =>
+          query.eq('userId', viewerId).eq('projectId', projectId),
+        )
+        .unique(),
+    ),
+  )
+
+  return new Set(
+    history.flatMap((item) =>
+      item?.dismissedAt ? [String(item.projectId)] : [],
+    ),
+  )
+}
+
 async function getDismissedExplorePostIds(
   ctx: QueryCtx,
   viewerId: Id<'users'>,
+  postIds: Array<Id<'posts'>>,
 ) {
-  const dismissedPosts = await ctx.db
-    .query('explore_post_history')
-    .withIndex('by_user_dismissed', (query) =>
-      query.eq('userId', viewerId).gt('dismissedAt', 0),
-    )
-    .collect()
+  const history = await Promise.all(
+    [...new Set(postIds)].map((postId) =>
+      ctx.db
+        .query('explore_post_history')
+        .withIndex('by_user_post', (query) =>
+          query.eq('userId', viewerId).eq('postId', postId),
+        )
+        .unique(),
+    ),
+  )
 
-  return new Set(dismissedPosts.map((item) => String(item.postId)))
+  return new Set(
+    history.flatMap((item) => (item?.dismissedAt ? [String(item.postId)] : [])),
+  )
 }
 
 function normalizeCityIds(ctx: QueryCtx, cityIds: Array<Id<'cities'>>) {
@@ -281,14 +318,12 @@ function normalizeCityIds(ctx: QueryCtx, cityIds: Array<Id<'cities'>>) {
 async function listExploreProjectPage(
   ctx: QueryCtx,
   {
-    dismissedProjectIds,
     filters,
     paginationOpts,
     selectedCityIds,
     stackPrefs,
     viewerId,
   }: {
-    dismissedProjectIds: Set<string>
     filters: ExploreProjectFilters
     paginationOpts: PaginationOptions
     selectedCityIds: Array<Id<'cities'>>
@@ -316,15 +351,25 @@ async function listExploreProjectPage(
     .paginate(clampExplorePaginationOpts(paginationOpts))
 
   return await filterExplorePage(rawPage, async (projects) => {
-    const candidates = projects.filter(
+    const scopedCandidates = projects.filter(
       (project) =>
         isExploreProjectVisible({
-          dismissedProjectIds,
+          dismissedProjectIds: new Set(),
           project,
           selectedCityCount: selectedCityIds.length,
           selectedCityIdSet: cityIdSet,
           viewerId: viewerId === null ? null : String(viewerId),
         }) && matchesExploreProjectFilters(project, filters, getProjectTopics),
+    )
+    const dismissedProjectIds = viewerId
+      ? await getDismissedExploreProjectIds(
+          ctx,
+          viewerId,
+          scopedCandidates.map((project) => project._id),
+        )
+      : new Set<string>()
+    const candidates = scopedCandidates.filter(
+      (project) => !dismissedProjectIds.has(String(project._id)),
     )
     const ownerById = await getUsersById(
       ctx,
@@ -425,12 +470,12 @@ async function listExplorePostPage(
   ctx: QueryCtx,
   {
     cityIds,
-    dismissedPostIds,
     paginationOpts,
+    viewerId,
   }: {
     cityIds: Array<Id<'cities'>>
-    dismissedPostIds: Set<string>
     paginationOpts: PaginationOptions
+    viewerId: Id<'users'> | null
   },
 ) {
   const cityIdSet = new Set(cityIds.map(String))
@@ -450,20 +495,28 @@ async function listExplorePostPage(
     .order('desc')
     .paginate(clampExplorePaginationOpts(paginationOpts))
 
-  return await filterExplorePage(rawPage, async (posts) =>
-    (
-      await filterDiscoverablePosts(
-        ctx,
-        posts.filter((post) =>
-          isExplorePostInScope({
-            dismissedPostIds,
-            post,
-            selectedCityCount: cityIds.length,
-            selectedCityIdSet: cityIdSet,
-          }),
-        ),
-      )
-    ).filter(
+  return await filterExplorePage(rawPage, async (posts) => {
+    const scopedPosts = posts.filter((post) =>
+      isExplorePostInScope({
+        dismissedPostIds: new Set(),
+        post,
+        selectedCityCount: cityIds.length,
+        selectedCityIdSet: cityIdSet,
+      }),
+    )
+    const dismissedPostIds = viewerId
+      ? await getDismissedExplorePostIds(
+          ctx,
+          viewerId,
+          scopedPosts.map((post) => post._id),
+        )
+      : new Set<string>()
+    const visiblePosts = await filterDiscoverablePosts(
+      ctx,
+      scopedPosts.filter((post) => !dismissedPostIds.has(String(post._id))),
+    )
+
+    return visiblePosts.filter(
       // `filterDiscoverablePosts` keeps posts of discoverable owners only and
       // sets `projectCityId` from the live owner, so a post whose owner left
       // discovery or stopped being a city member leaves every feed even if
@@ -472,8 +525,8 @@ async function listExplorePostPage(
         cityIds.length === 0 ||
         (post.projectCityId !== null &&
           cityIdSet.has(String(post.projectCityId))),
-    ),
-  )
+    )
+  })
 }
 
 type VisibleExplorePost = Awaited<
@@ -604,18 +657,8 @@ export const list = query({
       selectedCityIds: args.selectedCityIds,
       viewer,
     })
-    const dismissedProjects = await ctx.db
-      .query('explore_history')
-      .withIndex('by_user_dismissed', (query) =>
-        query.eq('userId', viewer._id).gt('dismissedAt', 0),
-      )
-      .collect()
-
     const filters = normalizeExploreProjectFilters(args)
     const projectPage = await listExploreProjectPage(ctx, {
-      dismissedProjectIds: new Set(
-        dismissedProjects.map((item) => String(item.projectId)),
-      ),
       filters,
       paginationOpts: args.paginationOpts,
       selectedCityIds,
@@ -665,7 +708,6 @@ export const listPublic = query({
     })
 
     return await listExploreProjectPage(ctx, {
-      dismissedProjectIds: new Set(),
       filters: normalizeExploreProjectFilters(args),
       paginationOpts: args.paginationOpts,
       selectedCityIds,
@@ -695,8 +737,8 @@ export const listPosts = query({
     })
     const visiblePostsPage = await listExplorePostPage(ctx, {
       cityIds: normalizeCityIds(ctx, selectedCityIds),
-      dismissedPostIds: await getDismissedExplorePostIds(ctx, viewer._id),
       paginationOpts: args.paginationOpts,
+      viewerId: viewer._id,
     })
 
     const viewerReactionTypesByTargetId =
@@ -727,8 +769,8 @@ export const listPostsPublic = query({
     })
     const visiblePostsPage = await listExplorePostPage(ctx, {
       cityIds: normalizeCityIds(ctx, selectedCityIds),
-      dismissedPostIds: new Set(),
       paginationOpts: args.paginationOpts,
+      viewerId: null,
     })
 
     return {
@@ -867,16 +909,22 @@ export const searchProjects = query({
     // before the owner-state backfill), so the live owner decides: still
     // discoverable and, for a city filter, still a member of a selected city.
     const selectedCityIds = [...cityIds]
-    const resultProjects = matchingProjects
-      .filter((project) => {
-        const owner = ownerById.get(String(project.ownerId))
-        return (
-          owner !== undefined &&
-          isOwnerDiscoverable(owner) &&
-          (selectedCityIds.length === 0 ||
-            isMemberOfAnyCity(owner, selectedCityIds))
-        )
-      })
+    const discoverableProjects = matchingProjects.filter((project) => {
+      const owner = ownerById.get(String(project.ownerId))
+      return (
+        owner !== undefined &&
+        isOwnerDiscoverable(owner) &&
+        (selectedCityIds.length === 0 ||
+          isMemberOfAnyCity(owner, selectedCityIds))
+      )
+    })
+    const dismissedProjectIds = await getDismissedExploreProjectIds(
+      ctx,
+      viewer._id,
+      discoverableProjects.map((project) => project._id),
+    )
+    const resultProjects = discoverableProjects
+      .filter((project) => !dismissedProjectIds.has(String(project._id)))
       .slice(0, limit)
 
     return {
@@ -914,7 +962,6 @@ export const searchPosts = query({
 
     const limit = getExplorePostLimit(args.limit)
     const candidateTake = Math.min(Math.max((limit + 1) * 4, 40), 200)
-    const dismissedPostIds = await getDismissedExplorePostIds(ctx, viewer._id)
     const cityIdValues = normalizeCityIds(ctx, args.cityIds ?? [])
     const perCityTake =
       cityIdValues.length > 0
@@ -945,7 +992,13 @@ export const searchPosts = query({
             .take(candidateTake)
 
     const cityIdSet = new Set(cityIdValues.map(String))
-    const visiblePosts = (await filterDiscoverablePosts(ctx, posts))
+    const discoverablePosts = await filterDiscoverablePosts(ctx, posts)
+    const dismissedPostIds = await getDismissedExplorePostIds(
+      ctx,
+      viewer._id,
+      discoverablePosts.map((post) => post._id),
+    )
+    const visiblePosts = discoverablePosts
       .filter(
         (post) =>
           !dismissedPostIds.has(String(post._id)) &&
@@ -1040,6 +1093,110 @@ export const dismiss = mutation({
   },
 })
 
+const DISMISSAL_RESET_BATCH_SIZE = 100
+
+async function resetDismissedProjectBatch(
+  ctx: MutationCtx,
+  userId: Id<'users'>,
+  requestedAt: number,
+) {
+  const dismissed = await ctx.db
+    .query('explore_history')
+    .withIndex('by_user_dismissed', (query) =>
+      query
+        .eq('userId', userId)
+        .gt('dismissedAt', 0)
+        .lte('dismissedAt', requestedAt),
+    )
+    .take(DISMISSAL_RESET_BATCH_SIZE)
+
+  await Promise.all(
+    dismissed.map((item) =>
+      ctx.db.patch(item._id, {
+        lastSeenAt: requestedAt,
+        dismissedAt: null,
+      }),
+    ),
+  )
+
+  return dismissed.length
+}
+
+async function resetDismissedPostBatch(
+  ctx: MutationCtx,
+  userId: Id<'users'>,
+  requestedAt: number,
+) {
+  const dismissed = await ctx.db
+    .query('explore_post_history')
+    .withIndex('by_user_dismissed', (query) =>
+      query
+        .eq('userId', userId)
+        .gt('dismissedAt', 0)
+        .lte('dismissedAt', requestedAt),
+    )
+    .take(DISMISSAL_RESET_BATCH_SIZE)
+
+  await Promise.all(
+    dismissed.map((item) =>
+      ctx.db.patch(item._id, {
+        lastSeenAt: requestedAt,
+        dismissedAt: null,
+      }),
+    ),
+  )
+
+  return dismissed.length
+}
+
+const resetDismissedProjectsBatchReference = makeFunctionReference<
+  'mutation',
+  { userId: Id<'users'>; requestedAt: number },
+  null
+>('explore:resetDismissedProjectsBatch')
+
+const resetDismissedPostsBatchReference = makeFunctionReference<
+  'mutation',
+  { userId: Id<'users'>; requestedAt: number },
+  null
+>('explore:resetDismissedPostsBatch')
+
+export const resetDismissedProjectsBatch = internalMutation({
+  args: { userId: v.id('users'), requestedAt: v.number() },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const resetCount = await resetDismissedProjectBatch(
+      ctx,
+      args.userId,
+      args.requestedAt,
+    )
+    if (resetCount === DISMISSAL_RESET_BATCH_SIZE) {
+      await ctx.scheduler.runAfter(
+        0,
+        resetDismissedProjectsBatchReference,
+        args,
+      )
+    }
+    return null
+  },
+})
+
+export const resetDismissedPostsBatch = internalMutation({
+  args: { userId: v.id('users'), requestedAt: v.number() },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const resetCount = await resetDismissedPostBatch(
+      ctx,
+      args.userId,
+      args.requestedAt,
+    )
+    if (resetCount === DISMISSAL_RESET_BATCH_SIZE) {
+      await ctx.scheduler.runAfter(0, resetDismissedPostsBatchReference, args)
+    }
+    return null
+  },
+})
+
 export const resetDismissedProjects = mutation({
   args: {},
   returns: v.object({
@@ -1047,26 +1204,20 @@ export const resetDismissedProjects = mutation({
   }),
   handler: async (ctx) => {
     const viewer = await getViewerOrThrow(ctx)
-    const dismissed = await ctx.db
-      .query('explore_history')
-      .withIndex('by_user_dismissed', (query) =>
-        query.eq('userId', viewer._id).gt('dismissedAt', 0),
-      )
-      .collect()
-    const now = Date.now()
-
-    await Promise.all(
-      dismissed.map((item) =>
-        ctx.db.patch(item._id, {
-          lastSeenAt: now,
-          dismissedAt: null,
-        }),
-      ),
+    const requestedAt = Date.now()
+    const resetCount = await resetDismissedProjectBatch(
+      ctx,
+      viewer._id,
+      requestedAt,
     )
-
-    return {
-      resetCount: dismissed.length,
+    if (resetCount === DISMISSAL_RESET_BATCH_SIZE) {
+      await ctx.scheduler.runAfter(0, resetDismissedProjectsBatchReference, {
+        userId: viewer._id,
+        requestedAt,
+      })
     }
+
+    return { resetCount }
   },
 })
 
@@ -1118,25 +1269,19 @@ export const resetDismissedPosts = mutation({
   }),
   handler: async (ctx) => {
     const viewer = await getViewerOrThrow(ctx)
-    const dismissed = await ctx.db
-      .query('explore_post_history')
-      .withIndex('by_user_dismissed', (query) =>
-        query.eq('userId', viewer._id).gt('dismissedAt', 0),
-      )
-      .collect()
-    const now = Date.now()
-
-    await Promise.all(
-      dismissed.map((item) =>
-        ctx.db.patch(item._id, {
-          lastSeenAt: now,
-          dismissedAt: null,
-        }),
-      ),
+    const requestedAt = Date.now()
+    const resetCount = await resetDismissedPostBatch(
+      ctx,
+      viewer._id,
+      requestedAt,
     )
-
-    return {
-      resetCount: dismissed.length,
+    if (resetCount === DISMISSAL_RESET_BATCH_SIZE) {
+      await ctx.scheduler.runAfter(0, resetDismissedPostsBatchReference, {
+        userId: viewer._id,
+        requestedAt,
+      })
     }
+
+    return { resetCount }
   },
 })

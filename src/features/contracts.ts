@@ -1,4 +1,6 @@
+import type { FunctionReturnType } from 'convex/server'
 import type { Infer } from 'convex/values'
+import type { api } from '../../convex/_generated/api'
 import type { Doc, Id } from '../../convex/_generated/dataModel'
 import type { projectCardSignalsFields } from '../../convex/lib/project_previews'
 import type { PublicProfileOverview } from '@/features/profile/types'
@@ -8,7 +10,16 @@ export type ViewerRecord = {
   appearInExplore: boolean
   github: Doc<'users'>['github']
   profile: Doc<'users'>['profile']
-  stats: Doc<'users'>['stats']
+  stats: Pick<
+    Doc<'users'>['stats'],
+    | 'followersCount'
+    | 'followingCount'
+    | 'projectsCount'
+    | 'postsCount'
+    | 'contributionsCount'
+    | 'commentsCount'
+    | 'likedCount'
+  >
   exploreConfig: Doc<'users'>['exploreConfig']
   privacy: Doc<'users'>['privacy']
   notificationPrefs: Doc<'users'>['notificationPrefs']
@@ -196,25 +207,9 @@ export type ThreadedProjectComment = Doc<'comments'> & {
   replies: ThreadedProjectComment[]
 }
 
-export type ProjectDetailPayload = {
-  project: Doc<'projects'>
-  releases: Array<Doc<'project_releases'>>
-  comments: Array<ThreadedProjectComment>
-  viewerHasLiked: boolean
-  reactionCounts: Record<string, number>
-  viewerReactionTypes: string[]
-  viewerFollowsOwner: boolean
-  canonicalRoute: ProjectRouteParams
-  owner: {
-    userId: Id<'users'>
-    githubUsername: string
-    displayName: string
-    avatarUrl: string
-    socialLinks: Doc<'users'>['profile']['socialLinks']
-    buildStatus: Doc<'users'>['profile']['buildStatus']
-    city: string | null
-  }
-}
+export type ProjectDetailPayload = NonNullable<
+  FunctionReturnType<typeof api.projects.getPublicByRoute>
+>
 
 export type NotificationTarget = {
   kind: 'profile' | 'project' | 'conversation'
@@ -391,7 +386,6 @@ export function mapProjectDetail(
 
   return {
     canonicalRoute: payload.canonicalRoute,
-    comments: payload.comments,
     owner: payload.owner,
     project: payload.project,
     releases: payload.releases,

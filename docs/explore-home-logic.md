@@ -186,6 +186,12 @@ members-only: public Explore keeps its state in the URL and writes nothing to
 session storage, so the shell's resume-Explore link (I5) only ever reflects a
 member's own browsing.
 
+Dismissal reads are bounded to the current candidate page or search window:
+each candidate uses the `(user, project)` or `(user, post)` history index.
+Resetting a large history clears 100 rows per internal mutation and schedules
+continuations with the reset's timestamp as a cutoff, so later dismissals are
+not accidentally cleared.
+
 ### City Chips
 
 City chips are durable URL state, while raw search text is local component
@@ -284,6 +290,9 @@ helpers in `convex/lib/explore.ts`):
 A page can filter down to nothing while `isDone` is false; the client then
 fetches on its own for a bounded number of pages before offering "keep
 looking" (plan item A3).
+
+The dismissal check is one indexed point lookup per candidate in this bounded
+page; it never loads the viewer's lifetime dismissal history.
 
 The feed heading states the order in plain words: "most recent public work
 first; projects matching your stack first" for members, "most recent public
@@ -388,6 +397,9 @@ the same checks as post search. A builder with `appearInExplore: false`
 never appears here, in post search or on city pages, including through a
 stored `projectCityId` written before they opted out. Text search remains separate in `api.explore.searchPosts` and only
 runs when the search input has a non-empty debounced query.
+
+As with projects, post dismissal state is read only for the bounded page or
+bounded search candidate set through `by_user_post`.
 
 ### Nearby Builders
 
