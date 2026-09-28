@@ -163,7 +163,8 @@ export function CityCombobox({
             const regionLabel = getCityRegionLabel(city)
 
             return (
-              <div
+              <button
+                type="button"
                 key={String(city._id)}
                 id={`${listboxId}-${String(city._id)}`}
                 role="option"
@@ -188,7 +189,7 @@ export function CityCombobox({
                   aria-hidden="true"
                   className="text-text-faint"
                 />
-              </div>
+              </button>
             )
           })}
         </div>

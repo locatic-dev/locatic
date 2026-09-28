@@ -56,6 +56,7 @@ import {
   type SettingsAccountFormState,
 } from '@/features/settings/dirty'
 import { useUnsavedChangesGuard } from '@/features/settings/use-unsaved-changes-guard'
+import { emailContactStatusQueryOptions } from '@/features/settings/queries'
 
 export const Route = createFileRoute('/_app/settings')({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -122,6 +123,7 @@ function SettingsPage() {
   const updatePrivacy = useUpdatePrivacy()
   const updateExploreConfig = useUpdateExploreConfig()
   const updateNotifPrefs = useUpdateNotificationPrefs()
+  const emailContactStatus = useQuery(emailContactStatusQueryOptions())
   const viewerAccountState = getSettingsAccountStateFromViewer(profile.viewer)
 
   const [saved, setSaved] = useState(false)
@@ -579,12 +581,17 @@ function SettingsPage() {
                   { key: 'commentReplies', label: 'replies to your comments' },
                   { key: 'newFollowers', label: 'new followers' },
                   { key: 'dms', label: 'direct messages' },
-                  { key: 'weeklyDigest', label: 'weekly digest email' },
+                  {
+                    key: 'weeklyDigest',
+                    label: 'community and product updates',
+                    description:
+                      'roughly every two weeks, plus occasional announcements',
+                  },
                   {
                     key: 'contributorRecognized',
                     label: 'contributor recognition',
                   },
-                ].map(({ key, label }) => (
+                ].map(({ key, label, description }) => (
                   <div key={key} className={settingsRowClassName}>
                     {/* The label toggles the switch too: a 44px+ target. */}
                     <label
@@ -592,7 +599,14 @@ function SettingsPage() {
                       htmlFor={`notification-pref-${key}`}
                       className="flex min-h-11 flex-1 cursor-pointer items-center text-label text-text"
                     >
-                      {label}
+                      <span>
+                        <span className="block">{label}</span>
+                        {description ? (
+                          <span className="mt-1 block max-w-96 font-sans text-body text-text-muted">
+                            {description}
+                          </span>
+                        ) : null}
+                      </span>
                     </label>
                     <Switch
                       id={`notification-pref-${key}`}
@@ -625,6 +639,29 @@ function SettingsPage() {
                     />
                   </div>
                 ))}
+                {profile.viewer.notificationPrefs.weeklyDigest &&
+                emailContactStatus.data ? (
+                  <p
+                    className="mt-4 max-w-120 font-sans text-body text-text-muted"
+                    role={
+                      emailContactStatus.data.syncStatus === 'failed'
+                        ? 'alert'
+                        : 'status'
+                    }
+                  >
+                    {!emailContactStatus.data.emailVerified
+                      ? 'Updates are paused until your primary email is verified.'
+                      : emailContactStatus.data.suppression !== 'none'
+                        ? 'Updates are paused because the email provider has suppressed this address.'
+                        : emailContactStatus.data.syncStatus === 'pending'
+                          ? 'Your subscription change is waiting to sync.'
+                          : emailContactStatus.data.syncStatus === 'syncing'
+                            ? 'Your subscription change is syncing.'
+                            : emailContactStatus.data.syncStatus === 'failed'
+                              ? `Subscription sync failed${emailContactStatus.data.lastError ? `: ${emailContactStatus.data.lastError}` : '.'}`
+                              : null}
+                  </p>
+                ) : null}
               </div>
             )}
 

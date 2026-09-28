@@ -49,6 +49,11 @@ const rateLimiter = new RateLimiter(components.rateLimiter, {
     period: HOUR,
     capacity: 8,
   },
+  emailTestSend: {
+    kind: 'fixed window',
+    rate: 5,
+    period: HOUR,
+  },
   reactionWrite: {
     kind: 'token bucket',
     rate: 80,
@@ -68,6 +73,7 @@ type RateLimitName =
   | 'githubUserIdentityBackfill'
   | 'githubRepoImport'
   | 'githubRepoList'
+  | 'emailTestSend'
   | 'reactionWrite'
 
 export async function enforceRateLimit(
