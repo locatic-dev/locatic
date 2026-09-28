@@ -3,6 +3,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 export function ProfileContentSkeleton() {
   return (
     <div
+      role="status"
       className="flex flex-col gap-3.5"
       aria-label="loading content"
       aria-busy="true"

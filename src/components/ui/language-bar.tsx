@@ -31,9 +31,10 @@ export function LanguageBar({
   return (
     <div
       className={cn(
-        'flex max-w-full flex-col items-start gap-1.5 font-mono text-[10.5px] text-text-faint',
+        'flex max-w-full flex-col items-start gap-1.5 font-mono text-meta text-text-faint',
         className,
       )}
+      role="group"
       aria-label="Project languages"
     >
       <div className="flex max-w-full flex-wrap items-center gap-x-3 gap-y-1">

@@ -9,6 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { getActionErrorMessage } from '@/lib/action-error'
 import { AlertTriangle, Loader2 } from '@/lib/icons'
 import { useDeactivateAccount, useDeleteAccount } from './mutations'
 
@@ -38,7 +39,7 @@ export function AccountDangerZone() {
       setDeactivateOpen(false)
     } catch (error) {
       console.error(error)
-      setDeactivateError('Something went wrong. Please try again.')
+      setDeactivateError(getActionErrorMessage(error))
     } finally {
       setDeactivating(false)
     }
@@ -53,7 +54,7 @@ export function AccountDangerZone() {
       setDeleteOpen(false)
     } catch (error) {
       console.error(error)
-      setDeleteError('Something went wrong. Please try again.')
+      setDeleteError(getActionErrorMessage(error))
     } finally {
       setDeleting(false)
     }
@@ -70,18 +71,14 @@ export function AccountDangerZone() {
   return (
     <div className="flex max-w-140 flex-col gap-5">
       {/* Deactivate */}
-      <div className="rounded-[6px] border border-line bg-surface p-5">
-        <div className="mb-2 font-mono text-[13px] font-semibold text-text">
-          deactivate account
-        </div>
-        <p className="mb-3.5 mt-0 font-sans text-[13px] leading-normal text-text-muted">
+      <div className="rounded-card border border-line bg-surface p-5">
+        <div className="mb-2 text-title text-text">deactivate account</div>
+        <p className="mb-3.5 mt-0 font-sans text-body leading-normal text-text-muted">
           hides your profile from Explore and public surfaces without deleting
           your account data.
         </p>
         <Button
-          variant="monoOutline"
-          size="meta"
-          className="font-mono"
+          size="touch"
           onClick={() => {
             setDeactivateError(null)
             setDeactivateOpen(true)
@@ -92,54 +89,41 @@ export function AccountDangerZone() {
       </div>
 
       {/* Delete — irreversible */}
-      <div className="rounded-[6px] border border-danger/40 bg-danger/4 p-5">
-        <div className="mb-2 font-mono text-[13px] font-semibold text-danger">
-          delete account
-        </div>
-        <p className="mb-3.5 mt-0 font-sans text-[13px] leading-normal text-text-muted">
+      <div className="rounded-card border border-danger/40 bg-danger/4 p-5">
+        <div className="mb-2 text-title text-danger">delete account</div>
+        <p className="mb-3.5 mt-0 font-sans text-body leading-normal text-text-muted">
           permanently removes all your Locatic data. this cannot be undone.
         </p>
-        <Button
-          variant="destructive"
-          size="meta"
-          className="font-mono"
-          onClick={() => resetDelete(true)}
-        >
+        <Button variant="danger" size="touch" onClick={() => resetDelete(true)}>
           delete account permanently
         </Button>
       </div>
 
       {/* Deactivate confirmation */}
       <Dialog open={deactivateOpen} onOpenChange={setDeactivateOpen}>
-        <DialogContent className="border-line bg-surface">
+        <DialogContent>
           <DialogHeader>
-            <DialogTitle className="font-mono text-[15px] text-text">
-              deactivate your account?
-            </DialogTitle>
-            <DialogDescription className="font-sans text-[13px] leading-normal text-text-muted">
+            <DialogTitle>deactivate your account?</DialogTitle>
+            <DialogDescription>
               Your profile disappears from Explore and public surfaces right
               away. This does not delete your account data.
             </DialogDescription>
           </DialogHeader>
           {deactivateError && (
-            <p role="alert" className="m-0 font-mono text-[12px] text-danger">
+            <p role="alert" className="m-0 font-mono text-label text-danger">
               {deactivateError}
             </p>
           )}
-          <DialogFooter className="gap-2">
+          <DialogFooter>
             <Button
-              variant="monoOutline"
-              size="meta"
-              className="font-mono"
+              size="touch"
               disabled={deactivating}
               onClick={() => setDeactivateOpen(false)}
             >
               cancel
             </Button>
             <Button
-              variant="monoOutline"
-              size="meta"
-              className="font-mono"
+              size="touch"
               disabled={deactivating}
               onClick={() => void handleDeactivate()}
             >
@@ -154,17 +138,15 @@ export function AccountDangerZone() {
 
       {/* Delete confirmation — type DELETE */}
       <Dialog open={deleteOpen} onOpenChange={resetDelete}>
-        <DialogContent className="border-danger/40 bg-surface">
+        <DialogContent className="border-danger/40">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 font-mono text-[15px] text-danger">
+            <DialogTitle className="flex items-center gap-2 text-danger">
               <AlertTriangle size={16} aria-hidden />
               delete account permanently
             </DialogTitle>
-            <DialogDescription className="font-sans text-[13px] leading-normal text-text-muted">
+            <DialogDescription>
               This erases all of your Locatic data and cannot be undone. Type{' '}
-              <span className="font-mono font-semibold text-text">
-                DELETE
-              </span>{' '}
+              <span className="font-mono font-semibold text-text">DELETE</span>{' '}
               to confirm.
             </DialogDescription>
           </DialogHeader>
@@ -188,24 +170,21 @@ export function AccountDangerZone() {
             />
           </div>
           {deleteError && (
-            <p role="alert" className="m-0 font-mono text-[12px] text-danger">
+            <p role="alert" className="m-0 font-mono text-label text-danger">
               {deleteError}
             </p>
           )}
-          <DialogFooter className="gap-2">
+          <DialogFooter>
             <Button
-              variant="monoOutline"
-              size="meta"
-              className="font-mono"
+              size="touch"
               disabled={deleting}
               onClick={() => resetDelete(false)}
             >
               cancel
             </Button>
             <Button
-              variant="destructive"
-              size="meta"
-              className="font-mono"
+              variant="danger"
+              size="touch"
               disabled={!canDelete || deleting}
               onClick={() => void handleDelete()}
             >

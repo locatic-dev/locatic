@@ -20,10 +20,15 @@ export function relativeTime(timestamp: number): string {
   return `${years}y ago`
 }
 
+/**
+ * A calendar date ("Sep 26, 2026"), read in UTC so the server render and the
+ * browser agree whatever the viewer's time zone (no hydration mismatch).
+ */
 export function formatDate(timestamp: number): string {
   return new Date(timestamp).toLocaleDateString('en-US', {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
+    timeZone: 'UTC',
   })
 }

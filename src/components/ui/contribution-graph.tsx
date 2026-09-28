@@ -1,4 +1,7 @@
+import { useEffect, useRef } from 'react'
+
 import { Skeleton } from '@/components/ui/skeleton'
+import { cn } from '@/lib/utils'
 
 interface ContributionWeek {
   days: Array<{ date: string; count: number }>
@@ -32,20 +35,32 @@ const CELL_COLORS = [
   'var(--lx-accent)',
 ]
 
-const MONTH_LABEL_HEIGHT = 16
-const WEEKDAY_LABEL_WIDTH = 24
+// Room for label-size (12px) month and weekday labels.
+const MONTH_LABEL_HEIGHT = 18
+const WEEKDAY_LABEL_WIDTH = 30
 const WEEKDAY_LABELS: Record<number, string> = { 1: 'Mon', 3: 'Wed', 5: 'Fri' }
 const MIN_MONTH_LABEL_GAP = 3
 
 export function ContributionGraph({
-  cell = 10,
-  gap = 2,
+  cell = 11,
+  gap = 3,
   className,
   weeks,
   totalContributions,
   loading,
   unavailable,
 }: ContributionGraphProps) {
+  const scrollerRef = useRef<HTMLDivElement>(null)
+
+  // On narrow screens the graph scrolls instead of shrinking; open it on the
+  // most recent weeks, which sit at the right edge. A no-op when it fits.
+  useEffect(() => {
+    const scroller = scrollerRef.current
+    if (scroller) {
+      scroller.scrollLeft = scroller.scrollWidth
+    }
+  }, [weeks])
+
   if (loading) {
     return (
       <Skeleton
@@ -57,7 +72,7 @@ export function ContributionGraph({
 
   if (unavailable) {
     return (
-      <p className="py-3 font-mono text-[11px] text-text-faint">
+      <p className="py-3 font-mono text-meta text-text-faint">
         contribution data is not available yet. If GitHub is already connected,
         check back after the next sync.
       </p>
@@ -145,53 +160,85 @@ export function ContributionGraph({
     return `${contributionLabel} on ${formattedDate}`
   }
 
+  // Rendered at its intrinsic size (cells never shrink below `cell`); the
+  // wrapper scrolls horizontally when the viewport is narrower than the graph.
+  // It is focusable so keyboard users can scroll it too.
   return (
-    <svg
-      width={W}
-      height={H}
-      viewBox={`0 0 ${W} ${H}`}
-      className={
-        className ? `block max-w-full ${className}` : 'block max-w-full'
-      }
-      aria-label={
-        totalContributions != null
-          ? `${totalContributions} GitHub contributions in the last year`
-          : 'GitHub contribution graph'
-      }
-    >
-      {monthLabels.map(({ wi, label }) => (
-        <text
-          key={`month-${wi}`}
-          x={WEEKDAY_LABEL_WIDTH + wi * (cell + gap)}
-          y={MONTH_LABEL_HEIGHT - 5}
-          className="fill-current font-mono text-[11px] text-text-faint"
+    <div className="flex min-w-0 flex-col gap-2">
+      <div
+        ref={scrollerRef}
+        role="region"
+        aria-label="GitHub contribution graph"
+        tabIndex={0}
+        className="max-w-full overflow-x-auto overscroll-x-contain"
+      >
+        <svg
+          width={W}
+          height={H}
+          viewBox={`0 0 ${W} ${H}`}
+          role="img"
+          className={cn('block', className)}
+          aria-label={
+            totalContributions != null
+              ? `${totalContributions} GitHub contributions in the last year`
+              : 'GitHub contribution graph'
+          }
         >
-          {label}
-        </text>
-      ))}
-      {Object.entries(WEEKDAY_LABELS).map(([d, label]) => (
-        <text
-          key={`weekday-${d}`}
-          x={0}
-          y={MONTH_LABEL_HEIGHT + Number(d) * (cell + gap) + cell - 1}
-          className="fill-current font-mono text-[11px] text-text-faint"
-        >
-          {label}
-        </text>
-      ))}
-      {cells.map(({ w, d, level, count, date }, i) => (
-        <rect
-          key={i}
-          x={WEEKDAY_LABEL_WIDTH + w * (cell + gap)}
-          y={MONTH_LABEL_HEIGHT + d * (cell + gap)}
-          width={cell}
-          height={cell}
-          rx={3}
-          fill={CELL_COLORS[level]}
-        >
-          <title>{formatTooltipLabel(count, date)}</title>
-        </rect>
-      ))}
-    </svg>
+          {monthLabels.map(({ wi, label }) => (
+            <text
+              key={`month-${wi}`}
+              x={WEEKDAY_LABEL_WIDTH + wi * (cell + gap)}
+              y={MONTH_LABEL_HEIGHT - 5}
+              className="fill-current font-mono text-label text-text-faint"
+            >
+              {label}
+            </text>
+          ))}
+          {Object.entries(WEEKDAY_LABELS).map(([d, label]) => (
+            <text
+              key={`weekday-${d}`}
+              x={0}
+              y={MONTH_LABEL_HEIGHT + Number(d) * (cell + gap) + cell - 1}
+              className="fill-current font-mono text-label text-text-faint"
+            >
+              {label}
+            </text>
+          ))}
+          {cells.map(({ w, d, level, count, date }, i) => (
+            <rect
+              key={i}
+              x={WEEKDAY_LABEL_WIDTH + w * (cell + gap)}
+              y={MONTH_LABEL_HEIGHT + d * (cell + gap)}
+              width={cell}
+              height={cell}
+              rx={3}
+              fill={CELL_COLORS[level]}
+            >
+              <title>{formatTooltipLabel(count, date)}</title>
+            </rect>
+          ))}
+        </svg>
+      </div>
+      {/* Intensity key; the per-day counts are in each cell's title. */}
+      <div
+        aria-hidden="true"
+        className="flex items-center justify-end gap-1 font-mono text-meta text-text-faint"
+      >
+        <span className="mr-1">less</span>
+        <svg width={CELL_COLORS.length * (cell + gap)} height={cell}>
+          {CELL_COLORS.map((color, level) => (
+            <rect
+              key={color}
+              x={level * (cell + gap)}
+              width={cell}
+              height={cell}
+              rx={3}
+              fill={color}
+            />
+          ))}
+        </svg>
+        <span className="ml-1">more</span>
+      </div>
+    </div>
   )
 }

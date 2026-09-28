@@ -1,10 +1,14 @@
 // @vitest-environment jsdom
 import { render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { ContributionGraph } from '../contribution-graph'
 
 describe('ContributionGraph', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
   it('exposes the contribution count in the accessible label', () => {
     render(
       <ContributionGraph
@@ -31,7 +35,7 @@ describe('ContributionGraph', () => {
   })
 
   it('renders a full 53-week grid even when only one week is provided', () => {
-    const { container } = render(
+    render(
       <ContributionGraph
         weeks={[
           {
@@ -44,7 +48,10 @@ describe('ContributionGraph', () => {
       />,
     )
 
-    expect(container.querySelectorAll('rect')).toHaveLength(53 * 7)
+    const graph = screen.getByRole('img', {
+      name: 'GitHub contribution graph',
+    })
+    expect(graph.querySelectorAll('rect')).toHaveLength(53 * 7)
   })
 
   it('includes per-day tooltip text for contribution cells', () => {
@@ -73,6 +80,40 @@ describe('ContributionGraph', () => {
     expect(titles).toContain('3 contributions on May 1, 2026')
     expect(titles).toContain('No contributions')
     expect(titles).toContain('1 contribution on May 3, 2026')
+  })
+
+  it('wraps the graph in a labelled, keyboard-focusable scroll region', () => {
+    render(<ContributionGraph weeks={[]} />)
+
+    const region = screen.getByRole('region', {
+      name: 'GitHub contribution graph',
+    })
+    expect(region.tabIndex).toBe(0)
+    expect(region.querySelector('svg')).not.toBeNull()
+  })
+
+  it('never draws cells smaller than the requested cell size', () => {
+    render(<ContributionGraph cell={10} weeks={[]} />)
+    const svg = screen.getByRole('img', { name: 'GitHub contribution graph' })
+    const rects = [...svg.querySelectorAll('rect')]
+
+    // The svg keeps its intrinsic width (no viewBox scaling via max-width), so
+    // each cell renders at its attribute size and the region scrolls instead.
+    expect(Number(svg.getAttribute('width'))).toBeGreaterThanOrEqual(53 * 10)
+    expect(
+      rects.every((rect) => Number(rect.getAttribute('width')) >= 10),
+    ).toBe(true)
+  })
+
+  it('opens scrolled to the most recent weeks', () => {
+    vi.spyOn(HTMLElement.prototype, 'scrollWidth', 'get').mockReturnValue(660)
+
+    render(<ContributionGraph weeks={[]} />)
+
+    expect(
+      screen.getByRole('region', { name: 'GitHub contribution graph' })
+        .scrollLeft,
+    ).toBe(660)
   })
 
   it('renders a loading skeleton when contribution data is syncing', () => {

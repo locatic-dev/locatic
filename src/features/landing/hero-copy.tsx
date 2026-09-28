@@ -1,6 +1,7 @@
 import { Link } from '@tanstack/react-router'
 import { BrandIcon } from '@/components/ui/brand-icon'
-import { ArrowRight } from '@/lib/icons'
+import { Button } from '@/components/ui/button'
+import { getFreshExploreSearch } from '@/features/explore/state'
 
 // Hero entrance choreography runs on pure CSS (`lx-hero-up` + `--hero-step`
 // stagger) so the above-the-fold copy animates the moment styles load —
@@ -18,32 +19,32 @@ export function HeroCopy() {
       </h1>
 
       <p className="lx-hero-up mt-7 max-w-115 font-sans text-[17px] leading-[1.55] text-text-muted [--hero-step:2]">
-        Discover what developers in your city are building. Like their projects.
-        Star their repos. Follow the builders.
+        discover what developers in your city are building. follow the builders
+        you like and message them directly.
       </p>
 
       <div className="lx-hero-up mt-9 flex flex-wrap items-center gap-3 [--hero-step:3]">
         <Link
           to="/sign-in/$"
-          className="inline-flex min-h-11 items-center gap-2.5 rounded-[5px] border border-brand/30 bg-brand px-5.5 py-3.5 font-mono text-[13.5px] font-semibold text-brand-foreground no-underline shadow-card transition-all hover:bg-brand/90 hover:shadow-floating active:scale-[0.98]"
+          className="inline-flex min-h-11 items-center gap-2.5 rounded-control border border-brand/30 bg-brand px-5.5 py-3.5 font-mono text-[13.5px] font-semibold text-brand-foreground no-underline shadow-card transition-all hover:bg-brand/90 hover:shadow-floating active:scale-[0.98]"
         >
           <BrandIcon name="github" size={16} />
-          Sign in with GitHub
+          sign in with GitHub
         </Link>
-        <Link
-          to="/sign-in/$"
-          className="inline-flex min-h-11 items-center gap-2 rounded-card border border-line bg-transparent px-4.5 py-3.5 font-mono text-[13.5px] text-text-muted no-underline transition-colors hover:border-line-strong hover:bg-surface hover:text-text active:scale-[0.98]"
-        >
-          browse the feed <ArrowRight size={14} />
-        </Link>
+        {/* Explore is public: visitors can look before they sign in. */}
+        <Button asChild variant="secondary" size="touch">
+          <Link to="/explore" search={getFreshExploreSearch()}>
+            browse explore
+          </Link>
+        </Button>
       </div>
 
-      <div className="lx-hero-up mt-5 font-mono text-[11.5px] text-text-faint [--hero-step:4]">
+      <div className="lx-hero-up mt-5 font-mono text-label text-text-faint [--hero-step:4]">
         free · no spam · only public repo scope required
       </div>
 
       <button
-        className="lx-hero-up mt-1 inline-flex min-h-11 items-center border-0 bg-transparent p-0 font-mono text-[11.5px] text-text-muted transition-colors hover:text-text [--hero-step:5]"
+        className="lx-hero-up mt-1 inline-flex min-h-11 items-center border-0 bg-transparent p-0 font-mono text-label text-text-muted transition-colors hover:text-text [--hero-step:5]"
         onClick={() =>
           document
             .getElementById('features')

@@ -26,6 +26,7 @@ import { buildDiscoverabilitySearchText } from './lib/discoverability'
 import { resolveProjectOwnerLogin } from './lib/project_route'
 import {
   buildProjectCardPreview,
+  projectCardPreviewValidator,
   resolvePublicCityLabel,
 } from './lib/project_previews'
 import { filterVisiblePosts, getVisiblePostProject } from './lib/posts'
@@ -34,11 +35,15 @@ import {
   getAccountDeletionWindow,
   shouldPurgeDeletedAccount,
 } from './lib/account_deletion'
-import { getExploreCityIdsAfterProfileCityChange } from './lib/explore'
+import {
+  getExploreCityIdsAfterProfileCityChange,
+  isNewBuilderAccount,
+} from './lib/explore'
 import {
   buildActorSnapshot,
   buildOwnerSnapshot,
   buildProjectExploreOwner,
+  getPostCityId,
 } from './lib/snapshots'
 import { createDefaultViewerProfile } from './lib/viewer'
 import { resolveStoredGithubId } from './lib/clerk'
@@ -53,12 +58,25 @@ import {
 } from './lib/post_counts'
 import { isContributionsVisibleOnPublicProfile } from './lib/privacy'
 import {
+  getRegionLabel,
+  isCityMember,
+  toPublicIdentity,
+} from './lib/visibility'
+import { createCityStatsChanges, getBuilderCityId } from './lib/cityStats'
+import {
+  computeLastPublicActivityAt,
+  recomputeProjectPublicActivity,
+  withLastPublicActivity,
+} from './lib/activity'
+import {
   buildStatusValidator,
   cityReferenceValidator,
   cityVisibilityValidator,
   optionalStringValidator,
   optionalTimestampValidator,
+  locationDisclosureValidator,
   profileVisibilityValidator,
+  publicIdentityFields,
   socialLinksValidator,
   tabVisibilityValidator,
 } from './lib/validators'
@@ -74,6 +92,24 @@ const viewerBootstrapStatusValidator = v.union(
   v.literal('unauthenticated'),
   v.literal('missingViewer'),
   v.literal('ready'),
+)
+
+const githubContributionsValidator = v.union(
+  v.object({
+    totalContributions: v.number(),
+    weeks: v.array(
+      v.object({
+        days: v.array(
+          v.object({
+            date: v.string(),
+            count: v.number(),
+          }),
+        ),
+      }),
+    ),
+    syncedAt: v.number(),
+  }),
+  v.null(),
 )
 
 const serializedViewerValidator = v.object({
@@ -130,23 +166,7 @@ const serializedViewerValidator = v.object({
   unreadMessagesCount: v.number(),
   onboardingCompletedAt: optionalTimestampValidator,
   appearInExplore: v.boolean(),
-  githubContributions: v.union(
-    v.object({
-      totalContributions: v.number(),
-      weeks: v.array(
-        v.object({
-          days: v.array(
-            v.object({
-              date: v.string(),
-              count: v.number(),
-            }),
-          ),
-        }),
-      ),
-      syncedAt: v.number(),
-    }),
-    v.null(),
-  ),
+  githubContributions: githubContributionsValidator,
   deactivatedAt: optionalTimestampValidator,
   deletedAt: optionalTimestampValidator,
 })
@@ -228,43 +248,64 @@ const profilePostPreviewValidator = v.object({
   viewerReactionTypes: v.array(v.string()),
 })
 
-const projectCardPreviewValidator = v.object({
-  projectId: v.id('projects'),
-  ownerUserId: v.id('users'),
-  fullName: v.string(),
-  owner: v.string(),
-  repo: v.string(),
-  description: v.union(v.string(), v.null()),
-  primaryLanguage: v.union(v.string(), v.null()),
-  languages: v.array(
-    v.object({
-      name: v.string(),
-      bytes: v.number(),
-    }),
-  ),
-  githubStars: v.number(),
-  locaticLikes: v.number(),
-  reactionCounts: v.record(v.string(), v.number()),
-  commentsCount: v.number(),
-  postsCount: v.number(),
-  topics: v.array(v.string()),
-  lastCommitAt: v.number(),
-  updatedAt: v.number(),
-  authorName: v.string(),
-  authorHandle: v.string(),
-  authorAvatarUrl: v.union(v.string(), v.null()),
-  cityLabel: v.union(v.string(), v.null()),
-  cityVisibilityState: v.union(
-    v.literal('exact_city'),
-    v.literal('region_only'),
-    v.literal('hidden'),
-    v.literal('unset'),
-  ),
-})
-
 const profileContributionPreviewValidator = v.object({
   project: projectCardPreviewValidator,
   commitCount: v.number(),
+})
+
+// Pinned projects and recent work on the public profile (plan item C6).
+const PROFILE_RECENT_WORK_LIMIT = 5
+// The pin cap enforced by `projects.pinOwnedProject`.
+const PROFILE_PIN_LIMIT = 3
+
+/** Tab visibility a visitor needs to render the profile; no other settings. */
+const publicProfilePrivacyValidator = v.object({
+  followGraphVisibility: tabVisibilityValidator,
+  commentHistoryVisibility: tabVisibilityValidator,
+  likedProjectsVisibility: tabVisibilityValidator,
+  contributionsVisibility: tabVisibilityValidator,
+})
+
+/**
+ * Profile counters. Followers, following, projects and posts are always
+ * returned; a count behind a private tab (contributions, comments, likes) is
+ * null, not disclosed.
+ */
+const publicProfileStatsValidator = v.object({
+  followersCount: v.number(),
+  followingCount: v.number(),
+  projectsCount: v.number(),
+  postsCount: v.number(),
+  contributionsCount: v.union(v.number(), v.null()),
+  commentsCount: v.union(v.number(), v.null()),
+  likedCount: v.union(v.number(), v.null()),
+})
+
+/**
+ * `publicProfileOverview`: the reviewed field set for a profile page. Identity
+ * comes from `toPublicIdentity`; `profile.city` is the legacy label for the
+ * same disclosure, kept for the repository manager's optimistic previews.
+ * `viewerFollowsProfile` is present only for a signed-in requester.
+ */
+const publicProfileOverviewValidator = v.object({
+  userId: v.id('users'),
+  githubUsername: v.string(),
+  profile: v.object({
+    displayName: v.string(),
+    bio: v.string(),
+    avatarUrl: v.string(),
+    buildStatus: buildStatusValidator,
+    socialLinks: socialLinksValidator,
+    location: locationDisclosureValidator,
+    city: v.union(v.string(), v.null()),
+  }),
+  stats: publicProfileStatsValidator,
+  privacy: publicProfilePrivacyValidator,
+  githubContributions: githubContributionsValidator,
+  pinnedProjects: v.array(projectCardPreviewValidator),
+  recentProjects: v.array(projectCardPreviewValidator),
+  recentPosts: v.array(profilePostPreviewValidator),
+  viewerFollowsProfile: v.optional(v.boolean()),
 })
 
 function serializeViewer(
@@ -302,29 +343,84 @@ async function getViewerCityName(
   return city?.displayName ?? null
 }
 
+/**
+ * Re-derives the user's denormalised owner and actor fields after a change to
+ * their profile, city, city visibility or discovery participation, so the
+ * visibility policy (convex/lib/visibility.ts) holds for maintained data:
+ * `projects.exploreOwner` / `projects.ownerSnapshot` on their projects,
+ * `posts.projectCityId` (`getPostCityId`: member city while discoverable) on
+ * posts about their projects, `actorSnapshot` on
+ * their own live posts, and the city counters (convex/lib/cityStats.ts) for
+ * the user as a builder and for each of their projects. `previous` is the
+ * user document before the change (pass `user` itself when only re-deriving);
+ * project transitions are read from the stored rows. Reads are bounded by the
+ * user's own rows via the owner and actor indexes.
+ */
 async function syncOwnedProjectOwnerState(
   ctx: MutationCtx,
+  previous: Doc<'users'>,
   user: Doc<'users'>,
 ) {
-  const ownedProjects = await ctx.db
-    .query('projects')
-    .withIndex('by_owner', (query) => query.eq('ownerId', user._id))
-    .collect()
+  const cityStats = createCityStatsChanges()
+  cityStats.moveBuilder(getBuilderCityId(previous), getBuilderCityId(user))
 
-  if (ownedProjects.length === 0) {
+  const [ownedProjects, ownedPosts, authoredPosts] = await Promise.all([
+    ctx.db
+      .query('projects')
+      .withIndex('by_owner', (query) => query.eq('ownerId', user._id))
+      .collect(),
+    ctx.db
+      .query('posts')
+      .withIndex('by_owner_deleted_created', (query) =>
+        query.eq('ownerId', user._id),
+      )
+      .collect(),
+    ctx.db
+      .query('posts')
+      .withIndex('by_actor_deleted_created', (query) =>
+        query.eq('actorId', user._id).eq('deletedAt', null),
+      )
+      .collect(),
+  ])
+
+  if (
+    ownedProjects.length === 0 &&
+    ownedPosts.length === 0 &&
+    authoredPosts.length === 0
+  ) {
+    await cityStats.apply(ctx.db)
     return
   }
 
-  const ownerSnapshot = await buildOwnerSnapshot(ctx.db, user)
+  const [ownerSnapshot, actorSnapshot] = await Promise.all([
+    buildOwnerSnapshot(ctx.db, user),
+    buildActorSnapshot(ctx.db, user),
+  ])
+  const projectCityId = getPostCityId(user)
 
-  await Promise.all(
-    ownedProjects.map((project) =>
-      ctx.db.patch(project._id, {
-        ownerSnapshot,
-        exploreOwner: buildProjectExploreOwner(user, project.locatic.isVisible),
-      }),
-    ),
-  )
+  await Promise.all([
+    ...ownedProjects.map(async (project) => {
+      const exploreOwner = buildProjectExploreOwner(
+        user,
+        project.locatic.isVisible,
+      )
+      await cityStats.moveProject(ctx.db, project, project, { exploreOwner })
+      await ctx.db.patch(project._id, { ownerSnapshot, exploreOwner })
+    }),
+    ...ownedPosts
+      .filter((post) => post.projectCityId !== projectCityId)
+      .map((post) => ctx.db.patch(post._id, { projectCityId })),
+    ...authoredPosts
+      .filter(
+        (post) =>
+          post.actorSnapshot.displayName !== actorSnapshot.displayName ||
+          post.actorSnapshot.avatarUrl !== actorSnapshot.avatarUrl ||
+          post.actorSnapshot.cityId !== actorSnapshot.cityId ||
+          post.actorSnapshot.cityName !== actorSnapshot.cityName,
+      )
+      .map((post) => ctx.db.patch(post._id, { actorSnapshot })),
+  ])
+  await cityStats.apply(ctx.db)
 }
 
 async function requestAccountDeletion(ctx: MutationCtx, user: Doc<'users'>) {
@@ -342,7 +438,7 @@ async function requestAccountDeletion(ctx: MutationCtx, user: Doc<'users'>) {
     updatedAt: now,
   })
 
-  await syncOwnedProjectOwnerState(ctx, {
+  await syncOwnedProjectOwnerState(ctx, user, {
     ...user,
     deletedAt,
     deactivatedAt,
@@ -383,7 +479,7 @@ async function mapFollowUserPreview(
     githubUsername: user.github.username,
     displayName: user.profile.displayName,
     avatarUrl: user.profile.avatarUrl,
-    cityName: city?.displayName ?? null,
+    cityName: resolvePublicCityLabel(user, city),
   }
 }
 
@@ -443,6 +539,7 @@ async function listContributedProjects(
   ctx: QueryCtx,
   userId: Doc<'users'>['_id'],
   audience: 'private' | 'public',
+  viewerId: Id<'users'> | null,
   limit = 24,
 ) {
   const itemLimit = Math.min(limit, 50)
@@ -473,6 +570,7 @@ async function listContributedProjects(
       projects.push({
         project: await buildProjectCardPreview(ctx.db, project, {
           audience,
+          signals: { viewerId },
         }),
         commitCount: row.commitCount,
       })
@@ -556,6 +654,7 @@ async function listPrivateProfileProjects(
       buildProjectCardPreview(ctx.db, project, {
         audience: 'private',
         owner: viewer,
+        signals: { viewerId: viewer._id },
       }),
     ),
   )
@@ -564,6 +663,7 @@ async function listPrivateProfileProjects(
 async function listPublicProfileProjects(
   ctx: QueryCtx,
   viewer: NonNullable<Awaited<ReturnType<typeof getViewerByClerkId>>>,
+  requesterId: Id<'users'> | null,
 ) {
   const pinnedProjectIds = new Set(viewer.pinnedProfileProjectIds.map(String))
   const rawProjects = await ctx.db
@@ -587,6 +687,7 @@ async function listPublicProfileProjects(
       buildProjectCardPreview(ctx.db, project, {
         audience: 'public',
         owner: viewer,
+        signals: { viewerId: requesterId },
       }),
     ),
   )
@@ -758,8 +859,11 @@ async function listPrivateLikedProjects(
         reactionId: reaction._id,
         projectId,
         likedAt: reaction.createdAt,
+        // Liked projects belong to other people, so their owners' location
+        // goes through the public disclosure policy.
         project: await buildProjectCardPreview(ctx.db, project, {
-          audience: 'private',
+          audience: 'public',
+          signals: { viewerId: userId },
         }),
       }
     }),
@@ -781,6 +885,7 @@ async function listPrivateLikedProjects(
 async function listPublicLikedProjects(
   ctx: QueryCtx,
   viewer: NonNullable<Awaited<ReturnType<typeof getViewerByClerkId>>>,
+  requesterId: Id<'users'> | null,
 ) {
   if (viewer.privacy.likedProjectsVisibility !== 'public') {
     return []
@@ -810,6 +915,7 @@ async function listPublicLikedProjects(
         likedAt: reaction.createdAt,
         project: await buildProjectCardPreview(ctx.db, project, {
           audience: 'public',
+          signals: { viewerId: requesterId },
         }),
       }
     }),
@@ -833,6 +939,7 @@ async function listProfilePosts(
     audience: 'private' | 'public'
     requester: Doc<'users'> | null
     userId: Doc<'users'>['_id']
+    limit?: number
   },
 ) {
   const posts = await ctx.db
@@ -841,7 +948,7 @@ async function listProfilePosts(
       query.eq('ownerId', args.userId).eq('deletedAt', null),
     )
     .order('desc')
-    .take(PROFILE_POSTS_LIMIT)
+    .take(args.limit ?? PROFILE_POSTS_LIMIT)
   const visiblePosts =
     args.audience === 'public' ? await filterVisiblePosts(ctx, posts) : posts
   const viewerReactionTypesByTargetId = await getViewerReactionTypesByTargetId(
@@ -919,6 +1026,211 @@ async function getAccessiblePublicProfileViewer(
   }
 }
 
+function toPublicProfilePrivacy(privacy: Doc<'users'>['privacy']) {
+  return {
+    followGraphVisibility: privacy.followGraphVisibility,
+    commentHistoryVisibility: privacy.commentHistoryVisibility,
+    likedProjectsVisibility: privacy.likedProjectsVisibility,
+    contributionsVisibility: isContributionsVisibleOnPublicProfile(privacy)
+      ? ('public' as const)
+      : ('private' as const),
+  }
+}
+
+function toPublicProfileStats(user: Doc<'users'>) {
+  const privacy = toPublicProfilePrivacy(user.privacy)
+  return {
+    followersCount: user.stats.followersCount,
+    followingCount: user.stats.followingCount,
+    projectsCount: user.stats.projectsCount,
+    postsCount: user.stats.postsCount ?? 0,
+    contributionsCount:
+      privacy.contributionsVisibility === 'public'
+        ? user.stats.contributionsCount
+        : null,
+    commentsCount:
+      privacy.commentHistoryVisibility === 'public'
+        ? user.stats.commentsCount
+        : null,
+    likedCount:
+      privacy.likedProjectsVisibility === 'public'
+        ? user.stats.likedCount
+        : null,
+  }
+}
+
+/**
+ * Pinned projects in pin order, then the latest visible projects that are not
+ * pinned. Bounded: at most `PROFILE_PIN_LIMIT` gets plus one indexed read of
+ * `PROFILE_RECENT_WORK_LIMIT + PROFILE_PIN_LIMIT` rows.
+ */
+async function listPublicProfileShowcase(
+  ctx: QueryCtx,
+  user: Doc<'users'>,
+  requesterId: Id<'users'> | null,
+) {
+  const pinnedIds = user.pinnedProfileProjectIds.slice(0, PROFILE_PIN_LIMIT)
+  const pinnedIdSet = new Set(pinnedIds.map(String))
+  const [pinnedRows, latestRows] = await Promise.all([
+    Promise.all(pinnedIds.map((projectId) => ctx.db.get(projectId))),
+    ctx.db
+      .query('projects')
+      .withIndex('by_owner_visible', (query) =>
+        query.eq('ownerId', user._id).eq('locatic.isVisible', true),
+      )
+      .order('desc')
+      .take(PROFILE_RECENT_WORK_LIMIT + PROFILE_PIN_LIMIT),
+  ])
+  const pinned = pinnedRows.filter(
+    (project): project is Doc<'projects'> =>
+      project !== null &&
+      project.ownerId === user._id &&
+      project.locatic.isVisible,
+  )
+  const recent = latestRows
+    .filter((project) => !pinnedIdSet.has(String(project._id)))
+    .slice(0, PROFILE_RECENT_WORK_LIMIT)
+  const toPreview = (project: Doc<'projects'>) =>
+    buildProjectCardPreview(ctx.db, project, {
+      audience: 'public',
+      owner: user,
+      signals: { viewerId: requesterId },
+    })
+
+  const [pinnedProjects, recentProjects] = await Promise.all([
+    Promise.all(pinned.map(toPreview)),
+    Promise.all(recent.map(toPreview)),
+  ])
+
+  return { pinnedProjects, recentProjects }
+}
+
+// Shipping log on the profile (plan item D6).
+const SHIPPING_LOG_LIMIT = 10
+/** Visible projects read to find the ones whose releases are listed. */
+const SHIPPING_LOG_PROJECT_SCAN_LIMIT = 24
+/** Most recently committed projects whose releases are read. */
+const SHIPPING_LOG_PROJECT_LIMIT = 8
+const SHIPPING_LOG_RELEASES_PER_PROJECT = 3
+const SHIPPING_LOG_EXCERPT_LENGTH = 140
+
+const shippingLogProjectValidator = v.object({
+  owner: v.string(),
+  repo: v.string(),
+  fullName: v.string(),
+})
+
+const shippingLogEntryValidator = v.union(
+  v.object({
+    kind: v.literal('release'),
+    id: v.string(),
+    at: v.number(),
+    project: shippingLogProjectValidator,
+    title: v.string(),
+    tagName: v.string(),
+    url: v.string(),
+  }),
+  v.object({
+    kind: v.literal('post'),
+    id: v.string(),
+    at: v.number(),
+    project: shippingLogProjectValidator,
+    excerpt: v.string(),
+  }),
+)
+
+function toShippingLogExcerpt(body: string) {
+  const text = body.replace(/\s+/g, ' ').trim()
+  return text.length > SHIPPING_LOG_EXCERPT_LENGTH
+    ? `${text.slice(0, SHIPPING_LOG_EXCERPT_LENGTH - 1).trimEnd()}…`
+    : text
+}
+
+/**
+ * Dated releases and posts across the builder's visible projects, newest
+ * first, at most `SHIPPING_LOG_LIMIT`. Bounded reads: one read of the
+ * `SHIPPING_LOG_PROJECT_SCAN_LIMIT` most recently added visible projects
+ * (`by_owner_visible`, descending; the index is not ordered by commit time),
+ * `take(SHIPPING_LOG_RELEASES_PER_PROJECT)` releases for each of the
+ * `SHIPPING_LOG_PROJECT_LIMIT` most recently committed among them
+ * (`by_project_published`), and one `take(SHIPPING_LOG_LIMIT)` of live posts
+ * (`by_owner_deleted_created`) filtered by the public post visibility check.
+ * Drafts and unpublished releases are never listed.
+ */
+async function listProfileShippingLog(ctx: QueryCtx, user: Doc<'users'>) {
+  const [projects, posts] = await Promise.all([
+    ctx.db
+      .query('projects')
+      .withIndex('by_owner_visible', (query) =>
+        query.eq('ownerId', user._id).eq('locatic.isVisible', true),
+      )
+      .order('desc')
+      .take(SHIPPING_LOG_PROJECT_SCAN_LIMIT),
+    ctx.db
+      .query('posts')
+      .withIndex('by_owner_deleted_created', (query) =>
+        query.eq('ownerId', user._id).eq('deletedAt', null),
+      )
+      .order('desc')
+      .take(SHIPPING_LOG_LIMIT),
+  ])
+  const releaseProjects = [...projects]
+    .sort((left, right) => right.github.lastCommitAt - left.github.lastCommitAt)
+    .slice(0, SHIPPING_LOG_PROJECT_LIMIT)
+  const [releasesByProject, visiblePosts] = await Promise.all([
+    Promise.all(
+      releaseProjects.map((project) =>
+        ctx.db
+          .query('project_releases')
+          .withIndex('by_project_published', (query) =>
+            query.eq('projectId', project._id),
+          )
+          .order('desc')
+          .take(SHIPPING_LOG_RELEASES_PER_PROJECT),
+      ),
+    ),
+    filterVisiblePosts(ctx, posts),
+  ])
+
+  const releaseEntries = releaseProjects.flatMap((project, index) => {
+    const projectRef = {
+      owner: resolveProjectOwnerLogin(project),
+      repo: project.github.name,
+      fullName: project.github.fullName,
+    }
+    return releasesByProject[index].flatMap((release) =>
+      release.isDraft || release.publishedAt === null
+        ? []
+        : [
+            {
+              kind: 'release' as const,
+              id: String(release._id),
+              at: release.publishedAt,
+              project: projectRef,
+              title: release.name?.trim() || release.tagName,
+              tagName: release.tagName,
+              url: release.htmlUrl,
+            },
+          ],
+    )
+  })
+  const postEntries = visiblePosts.map((post) => ({
+    kind: 'post' as const,
+    id: String(post._id),
+    at: post.createdAt,
+    project: {
+      owner: post.projectSnapshot.ownerLogin,
+      repo: post.projectSnapshot.name,
+      fullName: post.projectSnapshot.fullName,
+    },
+    excerpt: toShippingLogExcerpt(post.body),
+  }))
+
+  return [...releaseEntries, ...postEntries]
+    .sort((left, right) => right.at - left.at)
+    .slice(0, SHIPPING_LOG_LIMIT)
+}
+
 async function getPublicProfilePayload(
   ctx: QueryCtx,
   viewer: NonNullable<Awaited<ReturnType<typeof getViewerByClerkId>>>,
@@ -939,16 +1251,21 @@ async function getPublicProfilePayload(
     followers,
     following,
   ] = await Promise.all([
-    listPublicProfileProjects(ctx, viewer),
+    listPublicProfileProjects(ctx, viewer, requester?._id ?? null),
     listProfilePosts(ctx, {
       audience: 'public',
       requester,
       userId: viewer._id,
     }),
     listPublicProfileComments(ctx, viewer, requester),
-    listPublicLikedProjects(ctx, viewer),
+    listPublicLikedProjects(ctx, viewer, requester?._id ?? null),
     contributionsArePublic
-      ? listContributedProjects(ctx, viewer._id, 'public')
+      ? listContributedProjects(
+          ctx,
+          viewer._id,
+          'public',
+          requester?._id ?? null,
+        )
       : [],
     viewer.privacy.followGraphVisibility === 'public'
       ? listFollowPreviewSlice(ctx, {
@@ -974,9 +1291,9 @@ async function getPublicProfilePayload(
       avatarUrl: viewer.profile.avatarUrl,
       buildStatus: viewer.profile.buildStatus,
       socialLinks: viewer.profile.socialLinks,
-      city: resolvePublicCityLabel(viewer, city?.displayName ?? null),
+      city: resolvePublicCityLabel(viewer, city),
     },
-    stats: viewer.stats,
+    stats: toPublicProfileStats(viewer),
     githubContributions: viewer.githubContributions ?? null,
     projects,
     posts,
@@ -985,7 +1302,7 @@ async function getPublicProfilePayload(
     followers,
     likedProjects,
     following,
-    privacy: viewer.privacy,
+    privacy: toPublicProfilePrivacy(viewer.privacy),
   }
 }
 
@@ -1043,7 +1360,7 @@ export const privateProfile = query({
         userId: viewer._id,
       }),
       listPrivateProfileComments(ctx, viewer),
-      listContributedProjects(ctx, viewer._id, 'private'),
+      listContributedProjects(ctx, viewer._id, 'private', viewer._id),
       listFollowPreviewSlice(ctx, {
         userId: viewer._id,
         kind: 'followers',
@@ -1082,6 +1399,8 @@ export const privateProfileOverview = query({
     return {
       viewer: serializeViewer(viewer),
       cityName: city?.displayName ?? null,
+      // What a region-only disclosure shows, for the settings copy (D8).
+      regionLabel: city ? getRegionLabel(city) : null,
     }
   },
 })
@@ -1111,7 +1430,7 @@ export const privateProfileContributions = query({
   args: {},
   handler: async (ctx) => {
     const viewer = await getViewerOrThrow(ctx)
-    return await listContributedProjects(ctx, viewer._id, 'private')
+    return await listContributedProjects(ctx, viewer._id, 'private', viewer._id)
   },
 })
 
@@ -1230,18 +1549,6 @@ export const viewerExplorePrefs = query({
   },
 })
 
-export const viewerInboxSummary = query({
-  args: {},
-  handler: async (ctx) => {
-    const viewer = await getViewerOrThrow(ctx)
-
-    return {
-      viewerId: viewer._id,
-      unreadMessages: viewer.unreadMessagesCount,
-    }
-  },
-})
-
 export const publicProfile = query({
   args: {
     username: v.string(),
@@ -1277,44 +1584,85 @@ export const publicProfileOverview = query({
   args: {
     username: v.string(),
   },
+  returns: v.union(publicProfileOverviewValidator, v.null()),
   handler: async (ctx, args) => {
-    const { requester, viewer } = await getAccessiblePublicProfileViewer(
+    const { requester, viewer: user } = await getAccessiblePublicProfileViewer(
       ctx,
       args.username,
     )
 
-    if (!viewer) {
+    if (!user) {
       return null
     }
 
-    const city = viewer.profile.cityId
-      ? await ctx.db.get(viewer.profile.cityId)
+    const city = user.profile.cityId
+      ? await ctx.db.get(user.profile.cityId)
       : null
-    const followRecord = requester
-      ? await ctx.db
-          .query('follows')
-          .withIndex('by_pair', (query) =>
-            query.eq('followerId', requester._id).eq('followingId', viewer._id),
-          )
-          .unique()
-      : null
+    const identity = toPublicIdentity(
+      user,
+      new Map(city ? [[String(city._id), city]] : []),
+    )
+    const [showcase, recentPosts, followRecord] = await Promise.all([
+      listPublicProfileShowcase(ctx, user, requester?._id ?? null),
+      listProfilePosts(ctx, {
+        audience: 'public',
+        requester,
+        userId: user._id,
+        limit: PROFILE_RECENT_WORK_LIMIT,
+      }),
+      requester
+        ? ctx.db
+            .query('follows')
+            .withIndex('by_pair', (query) =>
+              query.eq('followerId', requester._id).eq('followingId', user._id),
+            )
+            .unique()
+        : null,
+    ])
 
     return {
-      userId: viewer._id,
-      viewerFollowsProfile: Boolean(followRecord),
-      githubUsername: viewer.github.username,
+      userId: identity.userId,
+      githubUsername: identity.githubUsername,
       profile: {
-        displayName: viewer.profile.displayName,
-        bio: viewer.profile.bio,
-        avatarUrl: viewer.profile.avatarUrl,
-        buildStatus: viewer.profile.buildStatus,
-        socialLinks: viewer.profile.socialLinks,
-        city: resolvePublicCityLabel(viewer, city?.displayName ?? null),
+        displayName: identity.displayName,
+        bio: user.profile.bio,
+        avatarUrl: identity.avatarUrl ?? '',
+        buildStatus: identity.buildStatus,
+        socialLinks: user.profile.socialLinks,
+        location: identity.location,
+        city: resolvePublicCityLabel(user, city),
       },
-      stats: viewer.stats,
-      githubContributions: viewer.githubContributions ?? null,
-      privacy: viewer.privacy,
+      stats: toPublicProfileStats(user),
+      privacy: toPublicProfilePrivacy(user.privacy),
+      githubContributions: user.githubContributions ?? null,
+      pinnedProjects: showcase.pinnedProjects,
+      recentProjects: showcase.recentProjects,
+      recentPosts,
+      ...(requester ? { viewerFollowsProfile: Boolean(followRecord) } : {}),
     }
+  },
+})
+
+/**
+ * The profile's shipping log (plan item D6): public releases and posts,
+ * newest first. Same access rule as the overview; null for a profile the
+ * requester cannot see, an empty array when there is nothing to list.
+ */
+export const publicProfileShippingLog = query({
+  args: {
+    username: v.string(),
+  },
+  returns: v.union(v.array(shippingLogEntryValidator), v.null()),
+  handler: async (ctx, args) => {
+    const { viewer: user } = await getAccessiblePublicProfileViewer(
+      ctx,
+      args.username,
+    )
+    if (!user) {
+      return null
+    }
+
+    return await listProfileShippingLog(ctx, user)
   },
 })
 
@@ -1323,7 +1671,7 @@ export const publicProfileProjects = query({
     username: v.string(),
   },
   handler: async (ctx, args) => {
-    const { viewer } = await getAccessiblePublicProfileViewer(
+    const { requester, viewer } = await getAccessiblePublicProfileViewer(
       ctx,
       args.username,
     )
@@ -1331,7 +1679,7 @@ export const publicProfileProjects = query({
       return null
     }
 
-    return await listPublicProfileProjects(ctx, viewer)
+    return await listPublicProfileProjects(ctx, viewer, requester?._id ?? null)
   },
 })
 
@@ -1363,7 +1711,7 @@ export const publicProfileContributions = query({
   },
   returns: v.union(v.array(profileContributionPreviewValidator), v.null()),
   handler: async (ctx, args) => {
-    const { viewer } = await getAccessiblePublicProfileViewer(
+    const { requester, viewer } = await getAccessiblePublicProfileViewer(
       ctx,
       args.username,
     )
@@ -1375,7 +1723,12 @@ export const publicProfileContributions = query({
       return []
     }
 
-    return await listContributedProjects(ctx, viewer._id, 'public')
+    return await listContributedProjects(
+      ctx,
+      viewer._id,
+      'public',
+      requester?._id ?? null,
+    )
   },
 })
 
@@ -1402,7 +1755,7 @@ export const publicProfileLikedProjects = query({
     username: v.string(),
   },
   handler: async (ctx, args) => {
-    const { viewer } = await getAccessiblePublicProfileViewer(
+    const { requester, viewer } = await getAccessiblePublicProfileViewer(
       ctx,
       args.username,
     )
@@ -1410,7 +1763,7 @@ export const publicProfileLikedProjects = query({
       return null
     }
 
-    return await listPublicLikedProjects(ctx, viewer)
+    return await listPublicLikedProjects(ctx, viewer, requester?._id ?? null)
   },
 })
 
@@ -1484,30 +1837,44 @@ export const updateProfile = mutation({
       exploreConfig: nextExploreConfig,
       updatedAt: Date.now(),
     })
-    await syncOwnedProjectOwnerState(ctx, updatedViewer)
+    await syncOwnedProjectOwnerState(ctx, viewer, updatedViewer)
 
     return await ctx.db.get(viewer._id)
   },
 })
 
+/**
+ * Updates the viewer's privacy settings. Every field is optional: the given
+ * fields are merged over the stored settings, so a client can save one
+ * control (for example `{ cityVisibility }`) without resending, and possibly
+ * overwriting, the others. A full object still works. A city visibility
+ * change re-derives the owner state and city counters in the same mutation.
+ */
 export const updatePrivacy = mutation({
   args: {
-    profileVisibility: v.union(v.literal('public'), v.literal('locatic_only')),
-    followGraphVisibility: v.union(v.literal('public'), v.literal('private')),
-    commentHistoryVisibility: v.union(
-      v.literal('public'),
-      v.literal('private'),
+    profileVisibility: v.optional(
+      v.union(v.literal('public'), v.literal('locatic_only')),
     ),
-    likedProjectsVisibility: v.union(v.literal('public'), v.literal('private')),
+    followGraphVisibility: v.optional(
+      v.union(v.literal('public'), v.literal('private')),
+    ),
+    commentHistoryVisibility: v.optional(
+      v.union(v.literal('public'), v.literal('private')),
+    ),
+    likedProjectsVisibility: v.optional(
+      v.union(v.literal('public'), v.literal('private')),
+    ),
     contributionsVisibility: v.optional(
       v.union(v.literal('public'), v.literal('private')),
     ),
-    cityVisibility: v.union(
-      v.literal('exact_city'),
-      v.literal('region_only'),
-      v.literal('hidden'),
+    cityVisibility: v.optional(
+      v.union(
+        v.literal('exact_city'),
+        v.literal('region_only'),
+        v.literal('hidden'),
+      ),
     ),
-    appearInPulse: v.boolean(),
+    appearInPulse: v.optional(v.boolean()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -1516,17 +1883,26 @@ export const updatePrivacy = mutation({
       throw new ConvexError('Viewer not found')
     }
 
+    const changes = Object.fromEntries(
+      Object.entries(args).filter(([, value]) => value !== undefined),
+    ) as Partial<Doc<'users'>['privacy']>
+    const privacy: Doc<'users'>['privacy'] = {
+      ...viewer.privacy,
+      ...changes,
+      contributionsVisibility:
+        changes.contributionsVisibility ??
+        viewer.privacy.contributionsVisibility ??
+        'public',
+    }
+
     await ctx.db.patch(viewer._id, {
-      privacy: {
-        ...viewer.privacy,
-        ...args,
-        contributionsVisibility:
-          args.contributionsVisibility ??
-          viewer.privacy.contributionsVisibility ??
-          'public',
-      },
+      privacy,
       updatedAt: Date.now(),
     })
+
+    if (privacy.cityVisibility !== viewer.privacy.cityVisibility) {
+      await syncOwnedProjectOwnerState(ctx, viewer, { ...viewer, privacy })
+    }
 
     return null
   },
@@ -1579,7 +1955,7 @@ export const updateExploreConfig = mutation({
       updatedAt: Date.now(),
     })
 
-    await syncOwnedProjectOwnerState(ctx, {
+    await syncOwnedProjectOwnerState(ctx, viewer, {
       ...viewer,
       appearInExplore: args.appearInExplore,
     })
@@ -1592,21 +1968,21 @@ export const completeOnboarding = mutation({
   args: {
     displayName: v.string(),
     bio: v.string(),
-    cityId: v.id('cities'),
-    buildStatus: v.union(
-      v.literal('building_solo'),
-      v.literal('looking_for_cofounder'),
-      v.literal('open_to_collab'),
-      v.literal('hiring'),
-      v.literal('just_exploring'),
+    // Null when the user picked "can't find my city" (plan U5); they keep
+    // global discovery and can set a city later in settings.
+    cityId: cityReferenceValidator,
+    // Omitted when the status step was skipped; the sign-up default stays.
+    buildStatus: v.optional(buildStatusValidator),
+    // Omitted by the minimal onboarding flow; existing links stay.
+    socialLinks: v.optional(
+      v.object({
+        github: v.string(),
+        x: v.union(v.string(), v.null()),
+        linkedin: v.union(v.string(), v.null()),
+        bluesky: v.union(v.string(), v.null()),
+        website: v.union(v.string(), v.null()),
+      }),
     ),
-    socialLinks: v.object({
-      github: v.string(),
-      x: v.union(v.string(), v.null()),
-      linkedin: v.union(v.string(), v.null()),
-      bluesky: v.union(v.string(), v.null()),
-      website: v.union(v.string(), v.null()),
-    }),
     onboardingSelectedOwnedProjectIds: v.array(v.id('projects')),
     exploreCityIds: v.array(v.id('cities')),
     stackPrefs: v.array(v.string()),
@@ -1615,6 +1991,10 @@ export const completeOnboarding = mutation({
     const viewer = await getOrCreateViewer(ctx)
     if (!viewer) {
       throw new ConvexError('Viewer not found')
+    }
+
+    if (args.cityId && !(await ctx.db.get(args.cityId))) {
+      throw new ConvexError('City not found')
     }
 
     for (const projectId of args.onboardingSelectedOwnedProjectIds) {
@@ -1626,17 +2006,19 @@ export const completeOnboarding = mutation({
       }
     }
 
+    const profile = {
+      ...viewer.profile,
+      displayName: args.displayName,
+      fullName: args.displayName,
+      bio: args.bio,
+      cityId: args.cityId,
+      buildStatus: args.buildStatus ?? viewer.profile.buildStatus,
+      socialLinks: args.socialLinks ?? viewer.profile.socialLinks,
+    }
+
     const updatedViewer = {
       ...viewer,
-      profile: {
-        ...viewer.profile,
-        displayName: args.displayName,
-        fullName: args.displayName,
-        bio: args.bio,
-        cityId: args.cityId,
-        buildStatus: args.buildStatus,
-        socialLinks: args.socialLinks,
-      },
+      profile,
       onboardingSelectedOwnedProjectIds: args.onboardingSelectedOwnedProjectIds,
       exploreConfig: {
         cityIds: args.exploreCityIds,
@@ -1646,15 +2028,7 @@ export const completeOnboarding = mutation({
     }
 
     await ctx.db.patch(viewer._id, {
-      profile: {
-        ...viewer.profile,
-        displayName: args.displayName,
-        fullName: args.displayName,
-        bio: args.bio,
-        cityId: args.cityId,
-        buildStatus: args.buildStatus,
-        socialLinks: args.socialLinks,
-      },
+      profile,
       discoverability: {
         searchText: buildDiscoverabilitySearchText(
           viewer.github.username,
@@ -1670,9 +2044,88 @@ export const completeOnboarding = mutation({
       onboardingCompletedAt: Date.now(),
       updatedAt: Date.now(),
     })
-    await syncOwnedProjectOwnerState(ctx, updatedViewer)
+    await syncOwnedProjectOwnerState(ctx, viewer, updatedViewer)
 
     return await ctx.db.get(viewer._id)
+  },
+})
+
+/** Most builders the optional onboarding follow step shows (plan D7). */
+const ONBOARDING_SUGGESTION_LIMIT = 5
+// Region-only, hidden, deleted and deactivated users share the index prefix and
+// are dropped after the read, so read a little more than is shown. Bounded
+// either way: one indexed range read plus one follow lookup per shown builder.
+const ONBOARDING_SUGGESTION_SCAN_LIMIT = 25
+
+/**
+ * Builders in the city chosen during onboarding, for the optional follow step
+ * (plan D7) and Home's "builders near you". Exact-city members only (D8),
+ * never the viewer, public identity only. An empty array means the step is
+ * skipped. Builders the viewer already follows stay in the list, marked by
+ * `viewerIsFollowing`, so a row never disappears under the viewer's own click.
+ *
+ * Order (plan item D4), as in Explore's builders mode and city pages: most
+ * recent public work first, from one descending read of
+ * `by_city_public_activity`. Convex sorts a missing field before every number,
+ * so builders without `stats.lastPublicActivityAt` come after every active
+ * builder, newest account first (index ties fall back to insertion order).
+ */
+export const suggestOnboardingBuilders = query({
+  args: {
+    cityId: v.id('cities'),
+  },
+  returns: v.array(
+    v.object({
+      ...publicIdentityFields,
+      projectsCount: v.number(),
+      isNewBuilder: v.boolean(),
+      viewerIsFollowing: v.boolean(),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const viewer = await getViewerOrThrow(ctx)
+    const city = await ctx.db.get(args.cityId)
+    if (!city) {
+      return []
+    }
+
+    const candidates = await ctx.db
+      .query('users')
+      .withIndex('by_city_public_activity', (query) =>
+        query.eq('appearInExplore', true).eq('profile.cityId', city._id),
+      )
+      .order('desc')
+      .take(ONBOARDING_SUGGESTION_SCAN_LIMIT)
+
+    const builders = candidates
+      .filter(
+        (user) =>
+          user._id !== viewer._id &&
+          user.deletedAt === null &&
+          user.deactivatedAt === null &&
+          isCityMember(user, city._id),
+      )
+      .slice(0, ONBOARDING_SUGGESTION_LIMIT)
+    const cityById = new Map([[String(city._id), city]])
+    const now = Date.now()
+
+    return await Promise.all(
+      builders.map(async (user) => {
+        const follow = await ctx.db
+          .query('follows')
+          .withIndex('by_pair', (query) =>
+            query.eq('followerId', viewer._id).eq('followingId', user._id),
+          )
+          .unique()
+
+        return {
+          ...toPublicIdentity(user, cityById),
+          projectsCount: user.stats.projectsCount,
+          isNewBuilder: isNewBuilderAccount(user.createdAt, now),
+          viewerIsFollowing: follow !== null,
+        }
+      }),
+    )
   },
 })
 
@@ -1689,7 +2142,7 @@ export const deactivateAccount = mutation({
       updatedAt: now,
     })
 
-    await syncOwnedProjectOwnerState(ctx, {
+    await syncOwnedProjectOwnerState(ctx, viewer, {
       ...viewer,
       deactivatedAt: now,
       appearInExplore: false,
@@ -1767,6 +2220,188 @@ export const backfillUserPostCounts = internalMutation({
       patchedCount,
       nextAfterCreatedAt,
       scheduledContinuation,
+    }
+  },
+})
+
+// Projects or users per backfill run. A project costs two indexed activity
+// reads; after migration, a user costs one indexed project read.
+const LAST_PUBLIC_ACTIVITY_BACKFILL_BATCH = 5
+const MAX_LAST_PUBLIC_ACTIVITY_BACKFILL_BATCH = 10
+
+/**
+ * Fills exact project activity, then recomputes every user's
+ * `stats.lastPublicActivityAt` from the project activity index (plan item D4).
+ * Both phases page and schedule themselves from one human-run entry point:
+ *
+ *   npx convex run users:backfillLastPublicActivity '{}'
+ *
+ * The final scheduled page logs a structured `complete` record with totals.
+ * Finish this backfill before deploying the frontend that relies on exact
+ * activity ordering.
+ */
+export const backfillLastPublicActivity = internalMutation({
+  args: {
+    cursor: v.optional(v.union(v.string(), v.null())),
+    batchSize: v.optional(v.number()),
+    phase: v.optional(v.union(v.literal('projects'), v.literal('users'))),
+    scannedTotal: v.optional(v.number()),
+    patchedTotal: v.optional(v.number()),
+  },
+  returns: v.object({
+    phase: v.union(v.literal('projects'), v.literal('users')),
+    scanned: v.number(),
+    patched: v.number(),
+    scannedTotal: v.number(),
+    patchedTotal: v.number(),
+    isDone: v.boolean(),
+    continueCursor: v.string(),
+  }),
+  handler: async (ctx, args) => {
+    const batchSize = Math.min(
+      Math.max(
+        Math.floor(args.batchSize ?? LAST_PUBLIC_ACTIVITY_BACKFILL_BATCH),
+        1,
+      ),
+      MAX_LAST_PUBLIC_ACTIVITY_BACKFILL_BATCH,
+    )
+    const phase = args.phase ?? 'projects'
+    if (phase === 'projects') {
+      const page = await ctx.db
+        .query('projects')
+        .paginate({ cursor: args.cursor ?? null, numItems: batchSize })
+      let patched = 0
+      for (const project of page.page) {
+        const before = project.locatic.lastPublicActivityAt
+        const activityAt = await recomputeProjectPublicActivity(
+          ctx.db,
+          project._id,
+        )
+        if (before !== activityAt) patched += 1
+      }
+
+      const scannedTotal = (args.scannedTotal ?? 0) + page.page.length
+      const patchedTotal = (args.patchedTotal ?? 0) + patched
+      await ctx.scheduler.runAfter(
+        0,
+        internal.users.backfillLastPublicActivity,
+        page.isDone
+          ? {
+              cursor: null,
+              batchSize,
+              phase: 'users',
+              scannedTotal,
+              patchedTotal,
+            }
+          : {
+              cursor: page.continueCursor,
+              batchSize,
+              phase,
+              scannedTotal,
+              patchedTotal,
+            },
+      )
+      return {
+        phase,
+        scanned: page.page.length,
+        patched,
+        scannedTotal,
+        patchedTotal,
+        isDone: false,
+        continueCursor: page.continueCursor,
+      }
+    }
+
+    const page = await ctx.db
+      .query('users')
+      .paginate({ cursor: args.cursor ?? null, numItems: batchSize })
+    let patched = 0
+    for (const user of page.page) {
+      const activityAt = await computeLastPublicActivityAt(ctx.db, user._id)
+      if ((user.stats.lastPublicActivityAt ?? null) === activityAt) continue
+      await ctx.db.patch(user._id, {
+        stats: withLastPublicActivity(user.stats, activityAt),
+      })
+      patched += 1
+    }
+    const scannedTotal = (args.scannedTotal ?? 0) + page.page.length
+    const patchedTotal = (args.patchedTotal ?? 0) + patched
+    if (!page.isDone) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.users.backfillLastPublicActivity,
+        {
+          cursor: page.continueCursor,
+          batchSize,
+          phase,
+          scannedTotal,
+          patchedTotal,
+        },
+      )
+    } else {
+      console.info(
+        JSON.stringify({
+          job: 'backfillLastPublicActivity',
+          status: 'complete',
+          scannedTotal,
+          patchedTotal,
+        }),
+      )
+    }
+
+    return {
+      phase,
+      scanned: page.page.length,
+      patched,
+      scannedTotal,
+      patchedTotal,
+      isDone: phase === 'users' && page.isDone,
+      continueCursor: page.continueCursor,
+    }
+  },
+})
+
+/**
+ * One-off re-derivation of every user's owner/actor snapshots, project
+ * `exploreOwner` fields and city counter contributions under the visibility
+ * policy (plan items A2, A4), via `syncOwnedProjectOwnerState`. Not run on
+ * deploy; a person runs it once, before `internal.cities.recountStats`:
+ *
+ *   npx convex run users:backfillOwnerState '{}'            # dev deployment
+ *   npx convex run --prod users:backfillOwnerState '{}'     # production
+ *
+ * It schedules itself page by page over the users table. Idempotent: a user
+ * whose stored fields already match writes nothing new to the counters.
+ */
+export const backfillOwnerState = internalMutation({
+  args: {
+    cursor: v.optional(v.union(v.string(), v.null())),
+    batchSize: v.optional(v.number()),
+  },
+  returns: v.object({
+    processedCount: v.number(),
+    scheduledContinuation: v.boolean(),
+  }),
+  handler: async (ctx, args) => {
+    const batchSize = Math.min(Math.max(args.batchSize ?? 25, 1), 100)
+    const page = await ctx.db
+      .query('users')
+      .paginate({ cursor: args.cursor ?? null, numItems: batchSize })
+
+    for (const user of page.page) {
+      await syncOwnedProjectOwnerState(ctx, user, user)
+    }
+
+    if (!page.isDone) {
+      await ctx.scheduler.runAfter(0, internal.users.backfillOwnerState, {
+        cursor: page.continueCursor,
+        batchSize,
+      })
+    }
+
+    return {
+      processedCount: page.page.length,
+      scheduledContinuation: !page.isDone,
     }
   },
 })
@@ -1862,6 +2497,7 @@ export const scrubDeletedAccount = internalMutation({
       homeFeedItemsAsActor,
       contributorRows,
       reports,
+      savedProjects,
     ] = await Promise.all([
       ctx.db
         .query('projects')
@@ -1947,6 +2583,13 @@ export const scrubDeletedAccount = internalMutation({
         .query('reports')
         .withIndex('by_reporter', (query) =>
           query.eq('reporterId', args.userId),
+        )
+        .collect(),
+      // The user's own saves only: one index range, like the reads above.
+      ctx.db
+        .query('saved_projects')
+        .withIndex('by_user_created', (query) =>
+          query.eq('userId', args.userId),
         )
         .collect(),
     ])
@@ -2086,16 +2729,22 @@ export const scrubDeletedAccount = internalMutation({
       })
     }
 
+    // Deletion already removed these projects from city counts; recording
+    // the transition keeps the counters right if a row was still counted.
+    const cityStats = createCityStatsChanges()
     for (const project of ownedProjects) {
+      const exploreOwner = buildProjectExploreOwner(user, false)
+      await cityStats.moveProject(ctx.db, project, project, { exploreOwner })
       await ctx.db.patch(project._id, {
         locatic: {
           ...project.locatic,
           isVisible: false,
         },
-        exploreOwner: buildProjectExploreOwner(user, false),
+        exploreOwner,
         updatedAt: Date.now(),
       })
     }
+    await cityStats.apply(ctx.db)
 
     for (const post of ownedPosts) {
       const project = await ctx.db.get(post.projectId)
@@ -2164,6 +2813,7 @@ export const scrubDeletedAccount = internalMutation({
       ...contributorRows.map((row) => ctx.db.delete(row._id)),
       ...reports.map((report) => ctx.db.delete(report._id)),
       ...reactions.map((reaction) => ctx.db.delete(reaction._id)),
+      ...savedProjects.map((saved) => ctx.db.delete(saved._id)),
     ])
 
     await ctx.db.patch(user._id, {
@@ -2184,12 +2834,17 @@ export const scrubDeletedAccount = internalMutation({
       discoverability: {
         searchText: '',
       },
-      stats: {
-        ...user.stats,
-        postsCount: 0,
-        commentsCount: 0,
-        likedCount: 0,
-      },
+      // Every project is hidden and every post deleted above, so no public
+      // work is left for the activity signal (plan item D4).
+      stats: withLastPublicActivity(
+        {
+          ...user.stats,
+          postsCount: 0,
+          commentsCount: 0,
+          likedCount: 0,
+        },
+        null,
+      ),
       purgeAfter: null,
       purgedAt: Date.now(),
       updatedAt: Date.now(),
@@ -2268,7 +2923,7 @@ export const upsertFromClerkWebhook = internalMutation({
       updatedAt: now,
     })
 
-    await syncOwnedProjectOwnerState(ctx, {
+    await syncOwnedProjectOwnerState(ctx, existingViewer, {
       ...existingViewer,
       email: args.email,
       github: {

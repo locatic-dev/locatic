@@ -17,16 +17,10 @@ crons.interval(
   {},
 )
 crons.interval(
-  'rebuild pulse snapshots hourly',
-  { hours: 1 },
-  internal.pulse.rebuildSnapshots,
-  {},
-)
-crons.interval(
   'refresh active project metadata hourly',
   { hours: 1 },
   internal.github_actions.refreshActiveProjectMetadata,
-  {},
+  { limit: 25 },
 )
 crons.interval(
   'refresh project contributors every six hours',

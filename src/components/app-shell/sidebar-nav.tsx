@@ -1,6 +1,7 @@
 import { Link, useRouterState } from '@tanstack/react-router'
 import * as m from 'motion/react-m'
 import { indicatorSpring } from '@/lib/motion'
+import { formatUnreadCount, unreadNavLabel } from '@/lib/format'
 import {
   Home,
   Compass,
@@ -38,23 +39,23 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { id: 'home', label: 'Home', href: '/home', icon: <Home size={16} /> },
+  { id: 'home', label: 'home', href: '/home', icon: <Home size={16} /> },
   {
     id: 'explore',
-    label: 'Explore',
+    label: 'explore',
     href: '/explore',
     icon: <Compass size={16} />,
   },
-  { id: 'inbox', label: 'Inbox', href: '/inbox', icon: <Inbox size={16} /> },
+  { id: 'inbox', label: 'inbox', href: '/inbox', icon: <Inbox size={16} /> },
   {
     id: 'notifications',
-    label: 'Notifications',
+    label: 'notifications',
     href: '/notifications',
     icon: <Bell size={16} />,
   },
   {
     id: 'profile',
-    label: 'Profile',
+    label: 'profile',
     href: '/profile',
     icon: <User size={16} />,
   },
@@ -98,7 +99,7 @@ export function SidebarNav({
     <TooltipProvider delayDuration={300}>
       <aside
         className={`flex h-full shrink-0 flex-col overflow-y-auto border-r border-line bg-surface-chrome px-0 pt-5 pb-2 transition-[width] duration-200 ${
-          collapsed ? 'w-[76px]' : 'w-(--lx-sidebar-width)'
+          collapsed ? 'w-19' : 'w-(--lx-sidebar-width)'
         }`}
       >
         {/* Logo / brand header */}
@@ -113,7 +114,7 @@ export function SidebarNav({
                   aria-label="Expand sidebar"
                   aria-expanded={false}
                 >
-                  <Logo size={20} inline className="text-brand" />
+                  <Logo size={20} />
                 </button>
               </TooltipTrigger>
               <TooltipContent side="right" sideOffset={8}>
@@ -124,15 +125,13 @@ export function SidebarNav({
         ) : (
           <div className="flex items-center gap-2.5 px-5 pb-7">
             <div className="flex min-w-0 items-center gap-2.5">
-              <Logo size={22} inline className="shrink-0 text-brand" />
-              <span className="font-mono text-[15px] font-bold tracking-[-0.02em] text-text">
-                locatic
-              </span>
+              <Logo size={22} className="shrink-0" />
+              <span className="text-title font-bold text-text">locatic</span>
             </div>
             <button
               type="button"
               onClick={() => onCollapsedChange?.(true)}
-              className="ml-auto flex size-8 shrink-0 items-center justify-center rounded-md border border-transparent bg-transparent text-text-faint transition-colors hover:border-line hover:bg-surface hover:text-text"
+              className="ml-auto flex size-11 shrink-0 items-center justify-center rounded-md border border-transparent bg-transparent text-text-faint transition-colors hover:border-line hover:bg-surface hover:text-text"
               aria-label="Collapse sidebar"
               aria-expanded={true}
               title="Collapse sidebar"
@@ -160,15 +159,17 @@ export function SidebarNav({
                       ? ({ tab: 'account' } as const)
                       : (true as const)
 
+            const unreadCount = item.badge ?? 0
+
             const navLink = (
               <Link
                 to={item.href}
                 search={linkSearch}
                 preload={false}
                 aria-current={isActive ? 'page' : undefined}
-                aria-label={item.label}
+                aria-label={unreadNavLabel(item.label, unreadCount)}
                 className={[
-                  'relative flex items-center rounded-md font-mono text-[13px] no-underline transition-colors',
+                  'relative flex min-h-11 items-center rounded-md text-label no-underline transition-colors',
                   collapsed ? 'justify-center px-4 py-3' : 'gap-3 px-4 py-2.5',
                   collapsed ? 'mx-2' : 'mx-3',
                   isActive
@@ -186,13 +187,14 @@ export function SidebarNav({
                   {item.icon}
                 </span>
                 {!collapsed && <span>{item.label}</span>}
-                {item.badge != null && item.badge > 0 && (
+                {unreadCount > 0 && (
                   <span
-                    className={`min-w-5 rounded-pill bg-surface-alt px-1.5 py-0.5 text-center font-mono text-[11px] leading-none text-text-muted ${
+                    aria-hidden
+                    className={`min-w-5 rounded-pill bg-surface-raised px-1.5 py-0.5 text-center font-mono text-meta leading-none text-text tabular-nums ${
                       collapsed ? 'absolute top-1 right-1' : 'ml-auto'
                     }`}
                   >
-                    {item.badge > 99 ? '99+' : item.badge}
+                    {formatUnreadCount(unreadCount)}
                   </span>
                 )}
               </Link>
@@ -213,9 +215,7 @@ export function SidebarNav({
                   </div>
                   <TooltipContent side="right" sideOffset={8}>
                     {item.label}
-                    {item.badge != null &&
-                      item.badge > 0 &&
-                      ` (${item.badge > 99 ? '99+' : item.badge})`}
+                    {unreadCount > 0 && ` (${formatUnreadCount(unreadCount)})`}
                   </TooltipContent>
                 </Tooltip>
               )
@@ -255,7 +255,7 @@ export function SidebarNav({
                       search={{ tab: 'projects' }}
                       preload={false}
                       aria-label="View profile"
-                      className="flex justify-center text-inherit no-underline"
+                      className="flex min-h-11 min-w-11 items-center justify-center text-inherit no-underline"
                     >
                       <LxAvatar
                         name={viewer.githubUsername}
@@ -274,7 +274,7 @@ export function SidebarNav({
                   search={{ tab: 'projects' }}
                   preload={false}
                   aria-label="View profile"
-                  className="flex min-w-0 flex-1 items-center gap-2.5 text-inherit no-underline"
+                  className="flex min-h-11 min-w-0 flex-1 items-center gap-2.5 text-inherit no-underline"
                 >
                   <LxAvatar
                     name={viewer.githubUsername}
@@ -282,11 +282,11 @@ export function SidebarNav({
                     size={28}
                   />
                   <div className="min-w-0 flex-1">
-                    <div className="truncate font-mono text-[12px] font-semibold text-text">
+                    <div className="truncate font-mono text-label font-semibold text-text">
                       {viewer.displayName || viewer.githubUsername}
                     </div>
                     {viewer.city && (
-                      <div className="truncate font-mono text-[11px] text-text-faint">
+                      <div className="truncate font-mono text-meta text-text-faint">
                         {viewer.city}
                       </div>
                     )}
