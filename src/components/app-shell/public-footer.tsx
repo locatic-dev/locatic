@@ -10,7 +10,7 @@ const footerLinkClassName =
 export function PublicFooter() {
   return (
     <m.footer
-      className="border-t border-line px-(--lx-gutter) py-7 text-center font-mono text-[11.5px] text-text-faint"
+      className="border-t border-line px-(--lx-gutter) py-7 text-center font-mono text-label text-text-faint"
       variants={fadeUp}
       initial="hidden"
       whileInView="visible"
@@ -30,17 +30,8 @@ export function PublicFooter() {
         <Link to="/terms" className={footerLinkClassName}>
           terms
         </Link>
-        <a
-          href="https://github.com"
-          className={footerLinkClassName}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          github
-        </a>
       </nav>
-      <div className="mt-3">built with ❤️ for developers</div>
-      <div className="mt-2">locatic · {new Date().getFullYear()}</div>
+      <p className="mt-3 mb-0">locatic · GitHub with a map</p>
     </m.footer>
   )
 }

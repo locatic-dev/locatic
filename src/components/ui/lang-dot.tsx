@@ -1,36 +1,43 @@
-export const LANG_COLORS: Record<string, string> = {
-  Rust: '#dea584',
-  TypeScript: '#3178c6',
-  JavaScript: '#f1e05a',
-  Go: '#00ADD8',
-  Python: '#3572A5',
-  Swift: '#F05138',
-  Zig: '#ec915c',
-  C: '#555555',
-  'C++': '#f34b7d',
-  Ruby: '#701516',
-  Elixir: '#6e4a7e',
-  Haskell: '#5e5086',
-  OCaml: '#ef7a08',
-  Lua: '#000080',
-  Kotlin: '#A97BFF',
-  Svelte: '#ff3e00',
-  Solidity: '#AA6746',
-  Nix: '#7e7eff',
-  Shell: '#89e051',
-  Java: '#b07219',
-  'C#': '#178600',
-  PHP: '#4F5D95',
-  Scala: '#c22d40',
-  Dart: '#00B4AB',
+/**
+ * OKLCH hue per language, taken from the GitHub linguist colour. Lightness
+ * and chroma are fixed tokens (`--lx-lang-l`, `--lx-lang-c` in styles.css) so
+ * every language reads at the same weight in all three themes. `null` marks
+ * a language whose GitHub colour is grey; it renders neutral.
+ */
+export const LANG_HUES: Record<string, number | null> = {
+  Rust: 51,
+  TypeScript: 253,
+  JavaScript: 102,
+  Go: 224,
+  Python: 247,
+  Swift: 32,
+  Zig: 50,
+  C: null,
+  'C++': 7,
+  Ruby: 26,
+  Elixir: 315,
+  Haskell: 295,
+  OCaml: 54,
+  Lua: 264,
+  Kotlin: 297,
+  Svelte: 34,
+  Solidity: 46,
+  Nix: 280,
+  Shell: 135,
+  Java: 69,
+  'C#': 141,
+  PHP: 272,
+  Scala: 20,
+  Dart: 188,
 }
 
-const LANG_FALLBACK_COLOR = '#8b949e'
+const LANG_NEUTRAL_COLOR = 'oklch(var(--lx-lang-l) 0 0)'
 
-/** Resolve a stable accent color for a language; used for card language signatures. */
+/** Resolve a stable colour for a language; used for card language signatures. */
 export function langColor(lang?: string | null): string {
-  if (!lang) return LANG_FALLBACK_COLOR
-  return LANG_COLORS[lang] ?? LANG_FALLBACK_COLOR
+  const hue = lang ? LANG_HUES[lang] : undefined
+  if (hue == null) return LANG_NEUTRAL_COLOR
+  return `oklch(var(--lx-lang-l) var(--lx-lang-c) ${hue})`
 }
 
 interface LangDotProps {
@@ -58,7 +65,7 @@ export function LangDot({
   if (variant === 'chip') {
     return (
       <span
-        className={`inline-flex min-h-7 items-center gap-1.5 rounded-pill border px-2.5 py-1 font-mono text-[11px] leading-none text-text ${className ?? ''}`}
+        className={`inline-flex min-h-7 items-center gap-1.5 rounded-pill border px-2.5 py-1 font-mono text-meta leading-none text-text ${className ?? ''}`}
         style={{
           background: `color-mix(in oklch, ${color} 12%, transparent)`,
           borderColor: `color-mix(in oklch, ${color} 50%, transparent)`,
@@ -82,7 +89,7 @@ export function LangDot({
 
   return (
     <span
-      className={`inline-flex items-center gap-1.5 font-mono text-[11.5px] ${className ?? ''}`}
+      className={`inline-flex items-center gap-1.5 font-mono text-label ${className ?? ''}`}
     >
       <span
         style={{

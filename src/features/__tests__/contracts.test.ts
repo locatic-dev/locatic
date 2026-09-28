@@ -7,8 +7,6 @@ import {
   mapPrivateProfileOverview,
   mapProjectDetail,
   mapPublicProfile,
-  mapPublicProfileOverview,
-  mapViewerInboxSummary,
   mapViewerLikedProjectIds,
   mapViewerSummary,
   mapViewer,
@@ -227,7 +225,7 @@ describe('contract mappers', () => {
     expect(publicProfile?.profile.city).toBe('Berlin, Germany')
   })
 
-  it('maps lightweight profile overview payloads', () => {
+  it('maps the lightweight private profile overview payload', () => {
     const privateOverview = mapPrivateProfileOverview({
       cityName: 'Bengaluru, India',
       viewer: {
@@ -283,57 +281,7 @@ describe('contract mappers', () => {
       },
     } as never)
 
-    const publicOverview = mapPublicProfileOverview({
-      githubUsername: 'octocat',
-      githubContributions: {
-        totalContributions: 42,
-        syncedAt: 123,
-        weeks: [
-          {
-            days: [{ count: 7, date: '2026-06-01' }],
-          },
-        ],
-      },
-      privacy: {
-        appearInPulse: true,
-        cityVisibility: 'exact_city',
-        commentHistoryVisibility: 'public',
-        contributionsVisibility: 'private',
-        followGraphVisibility: 'public',
-        likedProjectsVisibility: 'public',
-        profileVisibility: 'public',
-      },
-      profile: {
-        avatarUrl: null,
-        bio: 'hello',
-        buildStatus: 'building_solo',
-        city: 'Berlin, Germany',
-        displayName: 'Octo',
-        socialLinks: {
-          bluesky: null,
-          github: 'octocat',
-          linkedin: null,
-          website: null,
-          x: null,
-        },
-      },
-      stats: {
-        commentsCount: 0,
-        contributionsCount: 0,
-        followersCount: 8,
-        followingCount: 4,
-        likedCount: 0,
-        projectsCount: 2,
-      },
-      userId: 'user_1',
-      viewerFollowsProfile: true,
-    } as never)
-
     expect(privateOverview?.viewer.cityName).toBe('Bengaluru, India')
-    expect(publicOverview?.viewerFollowsProfile).toBe(true)
-    expect(publicOverview?.profile.city).toBe('Berlin, Germany')
-    expect(publicOverview?.githubContributions?.totalContributions).toBe(42)
-    expect(publicOverview?.privacy.contributionsVisibility).toBe('private')
   })
 
   it('maps smaller viewer payloads without collapsing them into private profile', () => {
@@ -344,15 +292,9 @@ describe('contract mappers', () => {
       likedProjectIds: ['project_1', 'project_2'],
       viewerId: 'user_1',
     } as never)
-    const inboxSummary = mapViewerInboxSummary({
-      unreadMessages: 3,
-      viewerId: 'user_1',
-    } as never)
 
     expect(viewerSummary?.id).toBe('user_1')
     expect(likedProjects?.likedProjectIds).toHaveLength(2)
-    expect(inboxSummary?.viewerId).toBe('user_1')
-    expect(inboxSummary?.unreadMessages).toBe(3)
   })
 
   it('returns null when project detail is absent', () => {

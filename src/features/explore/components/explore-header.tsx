@@ -1,16 +1,20 @@
 import * as m from 'motion/react-m'
 import type { Doc } from '../../../../convex/_generated/dataModel'
+import { Button } from '@/components/ui/button'
 import { CityCombobox } from '@/components/ui/city-combobox'
 import { CityPill } from '@/components/ui/city-pill'
 import { Input } from '@/components/ui/input'
 import { Search } from '@/lib/icons'
 import { indicatorSpring, pressScale } from '@/lib/motion'
 import {
+  getExploreEyebrowCopy,
   getExploreScopeStatusCopy,
+  type ExploreFilters,
   type ExploreMode,
   type ExploreScope,
 } from '../state'
 import type { ExploreCityChip } from '../types'
+import { ExploreFilterBar } from './explore-filters'
 
 const EXPLORE_MODE_CONFIG = {
   builders: {
@@ -29,86 +33,100 @@ const EXPLORE_MODE_CONFIG = {
 
 const EXPLORE_MODE_ORDER = ['projects', 'builders', 'posts'] as const
 
+/** The city filter field; other Explore controls return focus here. */
+export const EXPLORE_CITY_INPUT_ID = 'explore-city'
+
+/**
+ * One band: eyebrow, title with the scope status, then mode, search, city and
+ * filter controls (D2, D3) in a single wrapping row (three short rows at
+ * 390px).
+ */
 export function ExploreHeader({
   availableCities,
   cityQuery,
+  citySearchPending,
   currentScope,
+  filters,
   mode,
   onCityQueryChange,
+  onFiltersChange,
   onModeChange,
   onRemoveCity,
   onResetExplore,
   onSelectCity,
   onSearchQueryChange,
-  pendingCityIds,
   resetPending,
   searchQuery,
   searchStatusActive,
   selectedCityChips,
+  showSearch = true,
 }: {
   availableCities: Array<Doc<'cities'>>
   cityQuery: string
+  citySearchPending: boolean
   currentScope: ExploreScope
+  /** URL filters; the bar shows the ones for the current mode. */
+  filters: ExploreFilters
   mode: ExploreMode
   onCityQueryChange: (query: string) => void
+  onFiltersChange: (next: ExploreFilters) => void
   onModeChange: (mode: ExploreMode) => void
   onRemoveCity: (cityId: string) => void
   onResetExplore?: () => void
   onSelectCity: (city: Doc<'cities'>) => void
   onSearchQueryChange: (query: string) => void
-  pendingCityIds: boolean
   resetPending?: boolean
   searchQuery: string
   searchStatusActive?: boolean
   selectedCityChips: ExploreCityChip[]
+  /** Text search needs a signed-in viewer; public Explore browses only. */
+  showSearch?: boolean
 }) {
   const modeConfig = EXPLORE_MODE_CONFIG[mode]
   const canResetExplore = mode === 'projects' || mode === 'posts'
 
   return (
-    <header className="shrink-0 border-b border-line px-(--lx-gutter) py-5">
-      <div className="mb-3 flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <div className="mb-1.5 font-mono text-[11px] lowercase text-text-faint">
-            // discover {mode} nearby
-          </div>
-          <h1 className="font-mono text-[22px] font-semibold tracking-[-0.02em] text-text">
+    <header
+      aria-labelledby="explore-title"
+      className="shrink-0 border-b border-line px-(--lx-gutter) py-3 md:py-4"
+    >
+      <p className="m-0 font-mono text-meta text-text-faint">
+        //{' '}
+        {getExploreEyebrowCopy({
+          cityCount: selectedCityChips.length,
+          mode,
+          scope: currentScope,
+        })}
+      </p>
+      <div className="flex flex-wrap items-center justify-between gap-x-3">
+        <div className="flex min-w-0 flex-wrap items-baseline gap-x-3">
+          <h1 id="explore-title" className="m-0 text-headline text-text">
             explore
           </h1>
-        </div>
-        <div className="flex items-center gap-3 font-mono text-[11.5px]">
-          <span className="inline-flex items-center gap-1.5 text-brand-2">
-            <span
-              aria-hidden="true"
-              className="h-3 w-1.5 shrink-0 bg-brand-2"
-            />
-            <span>
-              {getExploreScopeStatusCopy(currentScope, mode, {
-                isSearchActive: searchStatusActive,
-              })}
-            </span>
+          <span aria-live="polite" className="font-mono text-label text-place">
+            {getExploreScopeStatusCopy({
+              cities: selectedCityChips,
+              isSearchActive: searchStatusActive,
+            })}
           </span>
-          {pendingCityIds && <span className="text-text-muted">saving…</span>}
-          {canResetExplore && onResetExplore && (
-            <m.button
-              type="button"
-              onClick={onResetExplore}
-              disabled={resetPending}
-              whileTap={resetPending ? undefined : pressScale}
-              className="min-h-11 rounded-md border border-line px-3 font-mono text-[11.5px] text-text-muted transition-colors hover:border-line-strong hover:text-text disabled:cursor-default disabled:opacity-60"
-            >
-              {resetPending ? 'resetting…' : 'reset'}
-            </m.button>
-          )}
         </div>
+        {canResetExplore && onResetExplore && (
+          <Button
+            variant="ghost"
+            size="touch"
+            onClick={onResetExplore}
+            disabled={resetPending}
+          >
+            {resetPending ? 'resetting…' : 'reset'}
+          </Button>
+        )}
       </div>
 
-      {/* Command band: mode + search read as one control center */}
-      <div className="mb-4 flex flex-col gap-2.5 lg:flex-row lg:items-center">
+      <div className="mt-2 flex flex-wrap items-center gap-2">
         <div
           role="group"
           aria-label="Explore mode"
-          className="inline-flex shrink-0 self-start rounded-md border border-line bg-surface p-0.5 lg:self-auto"
+          className="inline-flex shrink-0 rounded-control border border-line bg-surface p-0.5"
         >
           {EXPLORE_MODE_ORDER.map((nextMode) => {
             const isActive = mode === nextMode
@@ -120,7 +138,7 @@ export function ExploreHeader({
                 aria-pressed={isActive}
                 onClick={() => onModeChange(nextMode)}
                 whileTap={pressScale}
-                className={`relative min-h-11 rounded-[5px] px-3.5 font-mono text-[12px] transition-colors ${
+                className={`relative min-h-11 rounded-control px-3.5 font-mono text-label transition-colors ${
                   isActive ? 'text-brand' : 'text-text-muted hover:text-text'
                 }`}
               >
@@ -128,7 +146,7 @@ export function ExploreHeader({
                   <m.span
                     layoutId="explore-mode-indicator"
                     transition={indicatorSpring}
-                    className="absolute inset-0 rounded-[5px] bg-selected"
+                    className="absolute inset-0 rounded-control bg-selected"
                   />
                 )}
                 <span className="relative">{nextMode}</span>
@@ -137,52 +155,54 @@ export function ExploreHeader({
           })}
         </div>
 
-        <div className="relative min-w-0 flex-1">
-          <Search
-            size={16}
-            className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-text-faint"
-          />
-          <Input
-            type="text"
-            placeholder={modeConfig.placeholder}
-            value={searchQuery}
-            onChange={(event) => onSearchQueryChange(event.target.value)}
-            className="h-11 border-line bg-canvas pl-9 font-mono text-[16px] text-text placeholder:text-text-faint transition-colors focus-visible:border-brand-2/60 focus-visible:ring-0 md:text-sm"
-            aria-label={modeConfig.ariaLabel}
-          />
-        </div>
-      </div>
+        {showSearch && (
+          <div className="relative min-w-0 grow basis-64">
+            <Search
+              size={16}
+              className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-text-faint"
+            />
+            <Input
+              type="text"
+              placeholder={modeConfig.placeholder}
+              value={searchQuery}
+              onChange={(event) => onSearchQueryChange(event.target.value)}
+              className="h-11 pl-9"
+              aria-label={modeConfig.ariaLabel}
+            />
+          </div>
+        )}
 
-      <div className="grid gap-2 rounded-md border border-brand-2/15 bg-brand-2-quiet px-3 py-2.5 sm:grid-cols-[auto_minmax(0,1fr)] sm:items-start">
-        <span className="pt-2 font-mono text-[11px] lowercase text-text-faint">
-          near
-        </span>
-        <div className="flex min-w-0 flex-wrap items-center gap-2">
-          {selectedCityChips.length > 0 ? (
-            selectedCityChips.map((city) => (
-              <CityPill
-                key={city.id}
-                city={city.name}
-                truncate={false}
-                className="max-w-full shrink"
-                onRemove={() => onRemoveCity(city.id)}
-              />
-            ))
-          ) : (
-            <span className="inline-flex min-h-9 items-center font-mono text-[11.5px] text-text-muted">
-              all cities
-            </span>
-          )}
+        <div className="flex min-w-0 grow flex-wrap items-center gap-2 md:grow-0">
+          {selectedCityChips.map((city) => (
+            <CityPill
+              key={city.id}
+              city={city.name}
+              truncate={false}
+              className="max-w-full shrink"
+              onRemove={() => {
+                onRemoveCity(city.id)
+                // The removed chip's button unmounts; continue at the city
+                // field rather than losing focus to the page.
+                document.getElementById(EXPLORE_CITY_INPUT_ID)?.focus()
+              }}
+            />
+          ))}
           <CityCombobox
-            id="explore-city"
+            id={EXPLORE_CITY_INPUT_ID}
             label="Add a city filter"
             query={cityQuery}
             onQueryChange={onCityQueryChange}
             cities={availableCities}
+            searching={citySearchPending}
             onSelectCity={onSelectCity}
             placeholder="+ add city"
-            className="min-w-0 basis-full sm:basis-56 sm:grow-0"
-            inputClassName="h-9 text-[16px] md:text-[12px]"
+            className="min-w-0 grow basis-40 md:w-80 md:grow-0 md:basis-auto"
+            inputClassName="h-11"
+          />
+          <ExploreFilterBar
+            filters={filters}
+            mode={mode}
+            onFiltersChange={onFiltersChange}
           />
         </div>
       </div>

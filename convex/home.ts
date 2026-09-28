@@ -6,13 +6,16 @@ import { v } from 'convex/values'
 
 import { internalMutation, query, type QueryCtx } from './_generated/server'
 import { internal } from './_generated/api'
+import type { Id } from './_generated/dataModel'
 import { getViewerOrThrow } from './lib/auth'
 import {
   fanOutActivityEventToFollowersPage,
+  getHomeFeedCutoff,
   getHomeFeedLegacyTarget,
 } from './lib/homeFeed'
 import { buildProjectCardPreview } from './lib/project_previews'
-import { buildProjectSnapshot } from './lib/snapshots'
+import { buildProjectSnapshot, buildSnapshotLocation } from './lib/snapshots'
+import type { SnapshotLocation } from './lib/visibility'
 import {
   actorSnapshotValidator,
   eventTypeValidator,
@@ -78,9 +81,18 @@ const enrichedCommentTargetValidator = v.object({
   isOpenable: v.boolean(),
 })
 
+/**
+ * A profile target as served: the stored snapshot with the profile user's
+ * current location under the visibility policy (`cityId` only for
+ * exact-city members, `cityName` the city or region label), or no location
+ * when the user has left.
+ */
 const enrichedProfileTargetValidator = v.object({
   kind: v.literal('profile'),
-  profile: profileTargetSnapshotValidator,
+  profile: v.object({
+    ...profileTargetSnapshotValidator.fields,
+    cityId: v.union(v.id('cities'), v.null()),
+  }),
   isOpenable: v.boolean(),
 })
 
@@ -157,36 +169,103 @@ const homeFeedItemValidator = v.object({
   createdAt: v.number(),
   project: v.union(v.any(), v.null()),
   projectPreview: v.union(v.any(), v.null()),
+  actorGithubUsername: v.union(v.string(), v.null()),
 })
 
 type HomeFeedTarget = NonNullable<Doc<'home_feed_items'>['target']>
 
-async function enrichTarget(ctx: QueryCtx, target: HomeFeedTarget) {
+/**
+ * What a feed row shows about its actor now, rather than when the event was
+ * stored: the GitHub login for the profile link (null once the account is
+ * gone) and the location the actor's current privacy setting discloses.
+ */
+type LiveActor = {
+  githubUsername: string | null
+  location: SnapshotLocation
+}
+
+const UNDISCLOSED_LOCATION: SnapshotLocation = { cityId: null, cityName: null }
+
+/** One user read (and at most one city read) per distinct actor. */
+async function loadLiveActors(
+  ctx: QueryCtx,
+  actorIds: Array<Id<'users'>>,
+): Promise<Map<string, LiveActor>> {
+  const distinctIds = [
+    ...new Map(actorIds.map((actorId) => [String(actorId), actorId])).values(),
+  ]
+  const entries = await Promise.all(
+    distinctIds.map(async (actorId): Promise<[string, LiveActor]> => {
+      const actor = await ctx.db.get(actorId)
+      if (!actor) {
+        return [
+          String(actorId),
+          { githubUsername: null, location: UNDISCLOSED_LOCATION },
+        ]
+      }
+
+      return [
+        String(actorId),
+        {
+          githubUsername:
+            actor.deletedAt || actor.deactivatedAt
+              ? null
+              : actor.github.username,
+          location: await buildSnapshotLocation(ctx.db, actor),
+        },
+      ]
+    }),
+  )
+
+  return new Map(entries)
+}
+
+async function enrichTarget(
+  ctx: QueryCtx,
+  target: HomeFeedTarget,
+  viewerId: Id<'users'>,
+) {
   if (target.kind === 'profile') {
     const profileUser = await ctx.db.get(target.profile.userId)
+    const isOpenable = Boolean(
+      profileUser && !profileUser.deletedAt && !profileUser.deactivatedAt,
+    )
+    // The stored `cityName` was written under the user's settings at the
+    // time; only the live user's current disclosure is served.
     return {
       ...target,
       profile:
-        profileUser && !profileUser.deletedAt && !profileUser.deactivatedAt
+        profileUser && isOpenable
           ? {
               ...target.profile,
               githubUsername: profileUser.github.username,
               displayName: profileUser.profile.displayName,
               avatarUrl: profileUser.profile.avatarUrl,
+              ...(await buildSnapshotLocation(ctx.db, profileUser)),
             }
-          : target.profile,
-      isOpenable: Boolean(
-        profileUser && !profileUser.deletedAt && !profileUser.deactivatedAt,
-      ),
+          : { ...target.profile, ...UNDISCLOSED_LOCATION },
+      isOpenable,
     }
   }
 
   const project = await ctx.db.get(target.projectId)
-  const owner = project ? await ctx.db.get(project.ownerId) : null
-  const projectSnapshot =
-    project && project.locatic.isVisible
+  // A hidden/deleted project still renders its stored label, but a stored
+  // snapshot must never preserve location that its owner no longer shares.
+  // `ownerId` in the snapshot lets legacy rows apply the same rule after the
+  // project itself has been deleted.
+  const owner = await ctx.db.get(
+    project?.ownerId ?? target.projectSnapshot.ownerId,
+  )
+  const ownerLocation =
+    owner && !owner.deletedAt && !owner.deactivatedAt
+      ? await buildSnapshotLocation(ctx.db, owner)
+      : UNDISCLOSED_LOCATION
+  const projectSnapshot = {
+    ...(project && project.locatic.isVisible
       ? buildProjectSnapshot(project)
-      : target.projectSnapshot
+      : target.projectSnapshot),
+    ...ownerLocation,
+  }
 
   return {
     ...target,
@@ -196,6 +275,7 @@ async function enrichTarget(ctx: QueryCtx, target: HomeFeedTarget) {
         ? await buildProjectCardPreview(ctx.db, project, {
             audience: 'public',
             owner: owner ?? undefined,
+            signals: { viewerId },
           })
         : null,
     projectSnapshot,
@@ -211,11 +291,23 @@ export const list = query({
   handler: async (ctx, args) => {
     const viewer = await getViewerOrThrow(ctx)
 
+    // Same boundary as follow backfill and the daily cleanup, so the feed
+    // never shows an item the next cleanup would delete. `Date.now()` is
+    // frozen per execution; an item that ages out while a subscription is
+    // open drops on the next rerun, at the latest when cleanup deletes it.
     const feedPage = await ctx.db
       .query('home_feed_items')
-      .withIndex('by_user_created', (query) => query.eq('userId', viewer._id))
+      .withIndex('by_user_created', (query) =>
+        query
+          .eq('userId', viewer._id)
+          .gte('createdAt', getHomeFeedCutoff(Date.now())),
+      )
       .order('desc')
       .paginate(args.paginationOpts)
+    const liveActors = await loadLiveActors(
+      ctx,
+      feedPage.page.map((item) => item.actorId),
+    )
 
     const page = await Promise.all(
       feedPage.page.map(async (item) => {
@@ -227,10 +319,10 @@ export const list = query({
             : legacyTarget
               ? [legacyTarget]
               : []
-          ).map((target) => enrichTarget(ctx, target)),
+          ).map((target) => enrichTarget(ctx, target, viewer._id)),
         )
         const target = item.target
-          ? await enrichTarget(ctx, item.target)
+          ? await enrichTarget(ctx, item.target, viewer._id)
           : (enrichedTargets[0] ?? null)
         const projectId =
           item.projectId ??
@@ -243,8 +335,15 @@ export const list = query({
             ? target.projectSnapshot
             : item.projectSnapshot
 
+        const liveActor = liveActors.get(String(item.actorId))
+
         return {
           ...item,
+          actorSnapshot: {
+            ...item.actorSnapshot,
+            ...(liveActor?.location ?? UNDISCLOSED_LOCATION),
+          },
+          actorGithubUsername: liveActor?.githubUsername ?? null,
           projectId,
           project,
           projectPreview,

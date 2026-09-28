@@ -36,6 +36,7 @@ import {
   type UserGithubIdBackfillTarget,
 } from './lib/user_github_id_backfill'
 import { enforceRateLimit } from './lib/rate_limits'
+import { DEFAULT_METADATA_REFRESH_LIMIT } from './lib/activity'
 
 class GitHubRequestError extends Error {
   constructor(public status: number) {
@@ -681,6 +682,12 @@ export const refreshProjectMetadata = internalAction({
   },
 })
 
+/**
+ * Hourly metadata refresh. Bounded to `limit` projects per run (default
+ * `DEFAULT_METADATA_REFRESH_LIMIT`, capped at 100), discovery-visible
+ * projects first (`github.listRefreshableProjectIds`). Commits and releases
+ * it finds raise the owner's activity signal (plan item D4).
+ */
 export const refreshActiveProjectMetadata = internalAction({
   args: {
     limit: v.optional(v.number()),
@@ -692,7 +699,7 @@ export const refreshActiveProjectMetadata = internalAction({
     const projectIds = await ctx.runQuery(
       internal.github.listRefreshableProjectIds,
       {
-        limit: args.limit,
+        limit: args.limit ?? DEFAULT_METADATA_REFRESH_LIMIT,
       },
     )
     let failed = 0

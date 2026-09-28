@@ -1,20 +1,6 @@
-export type NearbyBuilderRankCandidate = {
-  github: {
-    username: string
-  }
-  stats: {
-    followersCount: number
-    projectsCount: number
-  }
-}
+import type { PaginationResult } from 'convex/server'
 
-export const EXPLORE_VISIBLE_PAGE_MAX_BATCHES = 5
-
-type ExplorePageBatch<TItem> = {
-  continueCursor: string
-  isDone: boolean
-  page: TItem[]
-}
+import { normalizeProjectTopic } from './topics'
 
 export type ExploreProjectStackCandidate = {
   github: {
@@ -28,6 +14,7 @@ export type ExploreProjectStackCandidate = {
 
 type ExploreProjectVisibilityCandidate<TProjectId, TCityId> = {
   _id: TProjectId
+  ownerId: unknown
   exploreOwner: {
     cityId: TCityId | null
   }
@@ -45,37 +32,18 @@ type NearbyBuilderVisibilityCandidate<TUserId, TCityId> = {
   }
 }
 
-export async function collectVisibleExplorePage<TItem>({
-  cursor,
-  getVisibleItems,
-  loadBatch,
-  maxBatches = EXPLORE_VISIBLE_PAGE_MAX_BATCHES,
-  numItems,
-}: {
-  cursor: string | null
-  getVisibleItems: (items: TItem[]) => TItem[] | Promise<TItem[]>
-  loadBatch: (cursor: string | null) => Promise<ExplorePageBatch<TItem>>
-  maxBatches?: number
-  numItems: number
-}) {
-  const visiblePage: TItem[] = []
-  let nextCursor = cursor
-  let isDone = false
-  let batchesRead = 0
-
-  while (visiblePage.length < numItems && !isDone && batchesRead < maxBatches) {
-    const batch = await loadBatch(nextCursor)
-    visiblePage.push(...(await getVisibleItems(batch.page)))
-    nextCursor = batch.continueCursor
-    isDone = batch.isDone
-    batchesRead += 1
-  }
-
-  return {
-    continueCursor: nextCursor ?? '',
-    isDone,
-    page: visiblePage,
-  }
+/**
+ * Applies viewer-specific filters (ownership, dismissal, visibility) to one
+ * Convex page. Convex allows a single `.paginate()` per function execution,
+ * so a feed query reads exactly one page and returns its continuation
+ * unchanged: a page may filter down to nothing while `isDone` is still false,
+ * and the client decides whether to fetch the next page (plan item A3).
+ */
+export async function filterExplorePage<TItem, TVisible = TItem>(
+  result: PaginationResult<TItem>,
+  getVisibleItems: (items: TItem[]) => TVisible[] | Promise<TVisible[]>,
+): Promise<PaginationResult<TVisible>> {
+  return { ...result, page: await getVisibleItems(result.page) }
 }
 
 export function getExploreCityIdsAfterProfileCityChange<TCityId>({
@@ -105,46 +73,93 @@ export function getExploreCityIdsAfterProfileCityChange<TCityId>({
   return nextProfileCityId === null ? [] : [nextProfileCityId]
 }
 
-export function rankNearbyBuilders<
-  TCandidate extends NearbyBuilderRankCandidate,
->(candidates: TCandidate[], limit = 8): TCandidate[] {
-  return [...candidates]
-    .sort((left, right) => {
-      if (right.stats.followersCount !== left.stats.followersCount) {
-        return right.stats.followersCount - left.stats.followersCount
-      }
-
-      if (right.stats.projectsCount !== left.stats.projectsCount) {
-        return right.stats.projectsCount - left.stats.projectsCount
-      }
-
-      return left.github.username.localeCompare(right.github.username)
-    })
-    .slice(0, limit)
-}
-
+/**
+ * Whether a project from an Explore page belongs in the feed. The viewer's own
+ * projects never appear among the ranked rows (they are appended after them
+ * in an explicitly selected city, see `selectViewerCityProjects`); visitors
+ * pass a null `viewerId` and an empty dismissal set.
+ */
 export function isExploreProjectVisible<TProjectId, TCityId>({
   dismissedProjectIds,
-  ownedProjectIds,
   project,
   selectedCityIdSet,
   selectedCityCount,
+  viewerId,
 }: {
   dismissedProjectIds: Set<string>
-  ownedProjectIds: Set<string>
   project: ExploreProjectVisibilityCandidate<TProjectId, TCityId>
   selectedCityCount: number
   selectedCityIdSet: Set<string>
+  viewerId: string | null
 }) {
-  const projectId = String(project._id)
-  if (ownedProjectIds.has(projectId)) return false
-  if (dismissedProjectIds.has(projectId)) return false
+  if (viewerId !== null && String(project.ownerId) === viewerId) return false
+  if (dismissedProjectIds.has(String(project._id))) return false
 
   return (
     selectedCityCount <= 1 ||
     (project.exploreOwner.cityId !== null &&
       selectedCityIdSet.has(String(project.exploreOwner.cityId)))
   )
+}
+
+/**
+ * Largest page an Explore feed reads per execution. `paginationOptsValidator`
+ * accepts any `numItems`, and these feeds are public, so the helpers clamp
+ * it before `.paginate()` to keep one execution's reads bounded.
+ */
+export const EXPLORE_PAGE_MAX_ITEMS = 50
+
+/** The caller's pagination options with `numItems` clamped to 1..50. */
+export function clampExplorePaginationOpts<TOpts extends { numItems: number }>(
+  paginationOpts: TOpts,
+): TOpts {
+  const numItems = Number.isFinite(paginationOpts.numItems)
+    ? Math.floor(paginationOpts.numItems)
+    : EXPLORE_PAGE_MAX_ITEMS
+  return {
+    ...paginationOpts,
+    numItems: Math.min(Math.max(numItems, 1), EXPLORE_PAGE_MAX_ITEMS),
+  }
+}
+
+/** Most own projects appended to an explicitly selected city's feed. */
+export const VIEWER_CITY_PROJECT_LIMIT = 10
+
+type ViewerCityProjectCandidate<TCityId> = {
+  exploreOwner: { cityId: TCityId | null; isEligible: boolean }
+  github: { lastCommitAt: number }
+}
+
+/**
+ * Own projects shown in an explicitly selected city (plan item C2): only in
+ * `custom` scope, only once the city's ranked rows are exhausted (`isDone`),
+ * so they always come after other builders' projects; only eligible projects
+ * whose Explore city is one of the selected cities; newest commit first.
+ */
+export function selectViewerCityProjects<
+  TProject extends ViewerCityProjectCandidate<TCityId>,
+  TCityId,
+>({
+  isDone,
+  projects,
+  scope,
+  selectedCityIdSet,
+}: {
+  isDone: boolean
+  projects: TProject[]
+  scope: 'default' | 'global' | 'custom'
+  selectedCityIdSet: Set<string>
+}): TProject[] {
+  if (scope !== 'custom' || !isDone || selectedCityIdSet.size === 0) return []
+
+  return projects
+    .filter(
+      (project) =>
+        project.exploreOwner.isEligible &&
+        project.exploreOwner.cityId !== null &&
+        selectedCityIdSet.has(String(project.exploreOwner.cityId)),
+    )
+    .sort((left, right) => right.github.lastCommitAt - left.github.lastCommitAt)
 }
 
 export function isExplorePostInScope<TPostId, TCityId>({
@@ -176,9 +191,10 @@ export function isNearbyBuilderVisible<TUserId, TCityId>({
   selectedCityCount: number
   selectedCityIdSet: Set<string>
   user: NearbyBuilderVisibilityCandidate<TUserId, TCityId>
-  viewerId: TUserId
+  /** Null for signed-out visitors, who have no row to exclude. */
+  viewerId: TUserId | null
 }) {
-  if (String(user._id) === String(viewerId)) return false
+  if (viewerId !== null && String(user._id) === String(viewerId)) return false
 
   return (
     selectedCityCount <= 1 ||
@@ -201,6 +217,93 @@ export function shouldReportPostSearchHasMore({
   return visibleCount > limit || candidateCount >= candidateTake
 }
 
+/**
+ * The comparison key for a language name, shared by stack preferences and the
+ * `language` filter (plan item D2): trimmed and case-insensitive, so
+ * "TypeScript", "typescript" and " TYPESCRIPT " are one language.
+ */
+export function normalizeExploreLanguage(value: string) {
+  return value.trim().toLowerCase()
+}
+
+/**
+ * Explore project filters (plan item D2), normalised; null means "any".
+ * `language` matches `github.primaryLanguage` only; `topic` matches the
+ * canonical topics (`getProjectTopics`: edited Locatic tags when present,
+ * otherwise GitHub topics), so a card's topics are exactly what the filter
+ * tests.
+ */
+export type ExploreProjectFilters = {
+  language: string | null
+  topic: string | null
+}
+
+export function normalizeExploreProjectFilters({
+  language,
+  topic,
+}: {
+  language?: string | null
+  topic?: string | null
+}): ExploreProjectFilters {
+  const normalizedLanguage = language ? normalizeExploreLanguage(language) : ''
+  const normalizedTopic = topic ? normalizeProjectTopic(topic) : ''
+
+  return {
+    language: normalizedLanguage || null,
+    topic: normalizedTopic || null,
+  }
+}
+
+/** Language and topic are ANDed with each other and with the feed scope. */
+export function matchesExploreProjectFilters<
+  TProject extends ExploreProjectStackCandidate,
+>(
+  project: TProject,
+  filters: ExploreProjectFilters,
+  getTopics: (project: TProject) => string[],
+) {
+  if (
+    filters.language !== null &&
+    (project.github.primaryLanguage === null ||
+      normalizeExploreLanguage(project.github.primaryLanguage) !==
+        filters.language)
+  ) {
+    return false
+  }
+
+  return filters.topic === null || getTopics(project).includes(filters.topic)
+}
+
+/**
+ * Accounts younger than this read as new builders (plan item D4). Mirrors
+ * `NEW_BUILDER_WINDOW_MS` in `src/lib/builder-activity.ts`; a test pins the
+ * two together.
+ */
+export const NEW_BUILDER_WINDOW_MS = 30 * 24 * 60 * 60 * 1000
+
+/**
+ * Whether a builder row carries the "new builder" label: a boolean instead
+ * of the account's creation time, so public payloads do not expose it.
+ */
+export function isNewBuilderAccount(createdAt: number, now: number) {
+  return now - createdAt < NEW_BUILDER_WINDOW_MS
+}
+
+/**
+ * Build statuses the builders "open to collab" filter keeps (plan item D3):
+ * the statuses that invite someone in. Mirrors `isCollaborationStatus` in
+ * `src/components/ui/status-pill.tsx`, which decides where the pill shows.
+ */
+export const COLLABORATION_BUILD_STATUSES: ReadonlySet<string> = new Set([
+  'open_to_collab',
+  'looking_for_cofounder',
+  'hiring',
+])
+
+export function isOpenToCollaboration(buildStatus: string) {
+  return COLLABORATION_BUILD_STATUSES.has(buildStatus)
+}
+
 export function matchesExploreProjectStack(
   project: ExploreProjectStackCandidate,
   stackPrefs: Set<string>,
@@ -209,7 +312,7 @@ export function matchesExploreProjectStack(
   if (stackPrefs.size === 0) return false
 
   const normalizedStackPrefs = new Set(
-    [...stackPrefs].map((preference) => preference.toLowerCase()),
+    [...stackPrefs].map(normalizeExploreLanguage),
   )
   const languages = [
     project.github.primaryLanguage,
@@ -217,7 +320,7 @@ export function matchesExploreProjectStack(
   ].filter((language): language is string => Boolean(language))
 
   return [...languages, ...topics].some((value) =>
-    normalizedStackPrefs.has(value.toLowerCase()),
+    normalizedStackPrefs.has(normalizeExploreLanguage(value)),
   )
 }
 

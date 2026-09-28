@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -17,7 +18,12 @@ import { ReactionBar } from '../reaction-bar'
 
 const mocks = vi.hoisted(() => ({
   reactToTarget: vi.fn(),
+  toastError: vi.fn(),
   unreactFromTarget: vi.fn(),
+}))
+
+vi.mock('sonner', () => ({
+  toast: { error: mocks.toastError },
 }))
 
 const reactionConfigs = [
@@ -202,6 +208,26 @@ describe('ReactionBar', () => {
     expect(buttons[0]?.textContent).toContain('0')
   })
 
+  it('keeps the pinned project like out of the picker so there is one like control', () => {
+    renderReactionBar({
+      reactionCounts: {},
+      targetType: 'project',
+      viewerReactionTypes: [],
+    })
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Add project reaction' }),
+    )
+    const picker = screen.getByTestId('reaction-picker')
+
+    expect(
+      within(picker).queryByRole('button', { name: 'Add Like reaction' }),
+    ).toBeNull()
+    expect(
+      screen.getAllByRole('button', { name: 'Add Like reaction' }),
+    ).toHaveLength(1)
+  })
+
   it('disables toggles when a cached payload lacks viewer reaction state', () => {
     renderReactionBar({ viewerReactionTypes: undefined })
 
@@ -312,6 +338,35 @@ describe('ReactionBar', () => {
     )
   })
 
+  it('reports a failed reaction and retries the same change', async () => {
+    mocks.reactToTarget.mockRejectedValueOnce(new Error('offline'))
+    renderReactionBar({ reactionCounts: { like: 2 } })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add Like reaction' }))
+
+    await waitFor(() => expect(mocks.toastError).toHaveBeenCalledTimes(1))
+    const [title, options] = mocks.toastError.mock.calls[0] as [
+      string,
+      { action: { onClick: () => void } },
+    ]
+    expect(title).toBe("couldn't add your reaction")
+
+    await act(async () => {
+      options.action.onClick()
+    })
+
+    await waitFor(() => expect(mocks.reactToTarget).toHaveBeenCalledTimes(2))
+    expect(mocks.reactToTarget).toHaveBeenLastCalledWith({
+      reactionType: 'like',
+      targetId: 'post_1',
+      targetType: 'post',
+    })
+    expect(mocks.unreactFromTarget).not.toHaveBeenCalled()
+    expect(
+      screen.getByRole('button', { name: 'Remove Like reaction' }),
+    ).toBeTruthy()
+  })
+
   it('colors an active reaction with its own color, not generic brand teal', () => {
     renderReactionBar({
       reactionCounts: { rocket: 1 },
@@ -325,7 +380,6 @@ describe('ReactionBar', () => {
     expect(rocket.style.color).not.toBe('var(--lx-accent)')
     expect(rocket.querySelector('svg')).toBeNull()
     expect(rocket.textContent).toContain('🚀')
-    expect(rocket.className).not.toContain('text-brand')
   })
 
   it('gives different reactions different active colors', () => {
@@ -391,40 +445,15 @@ describe('ReactionBar', () => {
     ).toBeTruthy()
   })
 
-  it('renders one content-sized picker button per configured reaction', () => {
+  it('renders one picker button per configured reaction', () => {
     renderReactionBar({ reactionCounts: {} })
 
     fireEvent.click(screen.getByRole('button', { name: 'Add post reaction' }))
 
     const picker = screen.getByTestId('reaction-picker')
-    const popover = picker.parentElement
-    expect(picker.className).toContain('inline-flex')
-    expect(picker.className).not.toContain('grid-cols-6')
-    expect(popover?.className).toContain('w-max')
     expect(within(picker).getAllByRole('button')).toHaveLength(
       reactionConfigs.length,
     )
-  })
-
-  it('keeps pop and burst animation hooks for emoji reactions', async () => {
-    let resolveReaction: () => void = () => {}
-    mocks.reactToTarget.mockReturnValue(
-      new Promise((resolve) => {
-        resolveReaction = () => resolve({})
-      }),
-    )
-    renderReactionBar({ reactionCounts: { rocket: 1 } })
-
-    fireEvent.click(screen.getByRole('button', { name: 'Add Rocket reaction' }))
-
-    const rocket = screen.getByRole('button', {
-      name: 'Remove Rocket reaction',
-    })
-    expect(rocket.className).toContain('lx-reaction-pop')
-    expect(rocket.querySelector('.lx-reaction-burst')).toBeTruthy()
-
-    resolveReaction()
-    await waitFor(() => expect(mocks.reactToTarget).toHaveBeenCalled())
   })
 
   it('disables reaction controls when disabled', () => {

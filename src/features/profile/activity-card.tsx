@@ -42,10 +42,10 @@ export function ProfileActivityCard({
         <div className="mb-3 flex min-w-0 items-center gap-2.5">
           <LxAvatar name={authorName} avatarUrl={authorAvatarUrl} size={34} />
           <div className="min-w-0 flex-1">
-            <div className="truncate font-mono text-[13px] font-semibold text-text">
+            <div className="truncate text-label font-semibold text-text">
               {authorName}
             </div>
-            <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 font-mono text-[11px] text-text-faint">
+            <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 font-mono text-meta text-text-faint">
               <span className="min-w-0 truncate text-text-muted">
                 {context}
               </span>
@@ -55,7 +55,7 @@ export function ProfileActivityCard({
           </div>
         </div>
 
-        <p className="m-0 line-clamp-3 font-sans text-[14px] leading-6 text-text wrap-anywhere">
+        <p className="m-0 line-clamp-3 font-sans text-body leading-6 text-text wrap-anywhere">
           {body}
         </p>
 
@@ -64,7 +64,7 @@ export function ProfileActivityCard({
             {topics.slice(0, 4).map((topic) => (
               <span
                 key={topic}
-                className="rounded-control border border-line px-2 py-0.5 font-mono text-[10.5px] text-text-muted"
+                className="rounded-control border border-line px-2 py-0.5 font-mono text-meta text-text-muted"
               >
                 #{topic}
               </span>

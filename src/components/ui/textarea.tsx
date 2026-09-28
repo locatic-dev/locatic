@@ -12,7 +12,9 @@ const Textarea = React.forwardRef<
     <textarea
       id={id ?? fallbackId}
       className={cn(
-        'flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-base ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm',
+        // Same field recipe as Input: mono, 16px below md so touch browsers do
+        // not zoom, fixed height (resize-none) with a 72px floor.
+        'block min-h-18 w-full resize-none rounded-control border border-control bg-canvas px-3 py-2 font-mono text-body text-text placeholder:text-text-faint disabled:cursor-not-allowed disabled:opacity-50 max-md:text-base',
         className,
       )}
       ref={ref}

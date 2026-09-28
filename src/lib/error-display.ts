@@ -4,12 +4,12 @@ export interface UserFacingErrorCopy {
   detail: string | null
 }
 
-const GENERIC_ERROR_TITLE = 'Something interrupted this page'
+const GENERIC_ERROR_TITLE = "couldn't load this page."
 const GENERIC_ERROR_DESCRIPTION =
-  'Retry the request. If it keeps happening, sign in again or return home.'
-const AUTH_CONFIG_ERROR_TITLE = 'Authentication needs one more sync'
+  'retry, or go home and try again in a moment. if it keeps happening, sign out and back in.'
+const AUTH_CONFIG_ERROR_TITLE = 'your session is still syncing.'
 const AUTH_CONFIG_ERROR_DESCRIPTION =
-  'Locatic reached your session, but the token used for this request was still syncing. Retrying after refresh usually clears it once auth finishes syncing.'
+  'locatic reached your session before its token finished syncing. retry in a moment; a refresh usually clears it.'
 const UNKNOWN_ERROR_MESSAGE = 'Something went wrong while loading this page.'
 
 export function isDiagnosticErrorMode() {
