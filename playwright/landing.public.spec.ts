@@ -65,7 +65,7 @@ test.describe('public landing', () => {
     }
   })
 
-  test('shows real cities and projects, or labels the examples (D7)', async ({
+  test('shows real cities and ping cards, or labels the examples (D7)', async ({
     page,
   }) => {
     await page.goto('/')
@@ -85,28 +85,45 @@ test.describe('public landing', () => {
       await expect(cityLinks.first()).toHaveAttribute('href', /^\/c\/[\w-]+$/)
     }
 
-    // Project column: real public projects linking to their pages, or the
-    // labelled example card when none is eligible.
-    const realProjects = main.getByText(
-      'recently updated public projects on locatic',
-    )
-    const exampleCard = main.getByText(
-      'how your project appears to builders nearby',
-    )
-    await expect(realProjects.or(exampleCard)).toHaveCount(1)
-    if ((await realProjects.count()) === 1) {
-      const showcase = main.locator('figure', { has: realProjects })
-      await expect(showcase.getByText('example', { exact: true })).toHaveCount(
-        0,
-      )
-      const projects = showcase.getByRole('listitem')
-      expect(await projects.count()).toBeGreaterThanOrEqual(1)
-      expect(await projects.count()).toBeLessThanOrEqual(3)
-      await expect(projects.first().getByRole('link').first()).toHaveAttribute(
-        'href',
-        /^\/project\/[^/]+\/[^/]+$/,
-      )
+    // Ping map: the attached card is up on first paint. Its copy is labelled
+    // EXAMPLE exactly when the map is the example.
+    const pingMap = main.getByRole('region', { name: 'builders on the map' })
+    await expect(pingMap).toBeVisible()
+    const card = pingMap.locator('[data-ping-card]')
+    await expect(card).toHaveCount(1)
+    if (await mapCaption.isVisible()) {
+      await expect(card).not.toContainText('EXAMPLE')
+    } else {
+      await expect(card).toContainText('EXAMPLE')
     }
+  })
+
+  test('shows a still frame of three pinged cities under reduced motion', async ({
+    page,
+  }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' })
+    await page.goto('/')
+    const pingMap = page
+      .locator('main#main-content')
+      .getByRole('region', { name: 'builders on the map' })
+    const pinged = pingMap.locator('[data-ping-key][data-active="true"]')
+    const card = pingMap.locator('[data-ping-card]')
+
+    await expect(pinged).toHaveCount(3)
+    const pingedKeys = await pinged.evaluateAll((nodes) =>
+      nodes.map((node) => node.getAttribute('data-ping-key')),
+    )
+    const cardKey = await card.getAttribute('data-ping-card')
+
+    // Longer than one ping interval: nothing moves.
+    await page.waitForTimeout(3_000)
+    await expect(pinged).toHaveCount(3)
+    expect(
+      await pinged.evaluateAll((nodes) =>
+        nodes.map((node) => node.getAttribute('data-ping-key')),
+      ),
+    ).toEqual(pingedKeys)
+    await expect(card).toHaveAttribute('data-ping-card', cardKey ?? '')
   })
 
   test('visitor goes from a landing city to its city page', async ({

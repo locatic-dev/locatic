@@ -25,7 +25,7 @@ function StepDots({ current, total }: { current: number; total: number }) {
           } ${index <= current ? 'bg-brand' : 'bg-line'}`}
         />
       ))}
-      <span className="ml-2 text-[11.5px] text-text-faint">
+      <span className="ml-2 text-[11.5px] text-text-muted">
         step {current + 1} of {total}
       </span>
     </div>
@@ -57,9 +57,7 @@ export function OnboardingShell({
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex items-center gap-2.5">
           <Logo size={20} />
-          <span className="font-mono text-[13px] font-bold text-text">
-            locatic
-          </span>
+          <span className="text-title font-bold text-text">locatic</span>
         </div>
         <StepDots current={stepIndex} total={totalSteps} />
       </div>
@@ -67,7 +65,7 @@ export function OnboardingShell({
         <h1
           ref={headingRef}
           tabIndex={-1}
-          className="m-0 font-mono text-[26px] font-semibold tracking-[-0.02em] text-text focus:outline-none"
+          className="m-0 font-sans text-[26px] font-semibold tracking-[-0.03em] text-text focus:outline-none"
         >
           {title}
         </h1>

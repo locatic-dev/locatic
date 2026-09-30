@@ -59,4 +59,14 @@ describe('theme CSS contract', () => {
       ).toEqual([])
     }
   })
+
+  it('registers two text colour roles and the live indicator', () => {
+    const textColours = [
+      ...styles.matchAll(/(--color-text(?:-[\w-]+)?):/g),
+    ].map(([, name]) => name)
+
+    // Text collapses to two tiers: primary and the one metadata grey.
+    expect(textColours).toEqual(['--color-text', '--color-text-muted'])
+    expect(styles).toContain('--color-live: var(--lx-live);')
+  })
 })

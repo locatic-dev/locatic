@@ -29,10 +29,10 @@ export function LegalPage({
         className="mx-auto w-full max-w-(--lx-form-max) flex-1 px-(--lx-gutter) py-10 md:py-14"
       >
         <header className="mb-8 border-b border-line pb-6">
-          <h1 className="m-0 font-mono text-[28px] font-bold tracking-[-0.025em] text-text md:text-[34px]">
+          <h1 className="m-0 font-sans text-[28px] font-semibold tracking-[-0.03em] text-text md:text-[34px]">
             {title}
           </h1>
-          <p className="mt-3 mb-0 font-mono text-label text-text-faint">
+          <p className="mt-3 mb-0 font-mono text-label text-text-muted">
             Effective {effective} · Last updated {lastUpdated}
           </p>
           <nav className="mt-5 flex flex-wrap gap-x-5 font-mono text-label">

@@ -44,6 +44,17 @@ describe('Button', () => {
     },
   )
 
+  it('touch size is 44px on coarse pointers only', () => {
+    // The class is the contract here: jsdom cannot evaluate the
+    // (pointer: coarse) media query, so assert the variant that carries it.
+    render(<Button size="touch">follow</Button>)
+
+    const button = screen.getByRole('button', { name: 'follow' })
+    expect(button.className).toContain('pointer-coarse:min-h-11')
+    expect(button.className).toContain('h-8')
+    expect(button.className).not.toMatch(/(^|\s)min-h-11(\s|$)/)
+  })
+
   it('renders its child as the control with asChild', () => {
     render(
       <Button asChild variant="secondary">

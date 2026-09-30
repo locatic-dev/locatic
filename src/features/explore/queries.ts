@@ -4,6 +4,7 @@ import type { Id } from '../../../convex/_generated/dataModel'
 
 export {
   builderSearchQueryOptions,
+  nearbyCitiesQueryOptions,
   projectSearchQueryOptions,
   postSearchQueryOptions,
 } from '@/integrations/convex/query-options'

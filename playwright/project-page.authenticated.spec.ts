@@ -121,6 +121,33 @@ test('deleting a comment asks for confirmation and cancel keeps it', async ({
   await expect(page.getByText(commentText).first()).toBeVisible()
 })
 
+test('reaction pills stay compact on a desktop pointer', async ({ page }) => {
+  expect(
+    await page.evaluate(() => matchMedia('(pointer: coarse)').matches),
+  ).toBe(false)
+  const paths = await candidateProjectPaths(page)
+  requireE2EPrerequisite(
+    paths.length > 0,
+    'populated user needs a visible project (playwright/fixtures/fixtures.md)',
+  )
+  await openProject(page, paths[0]!)
+
+  const main = page.locator('main#main-content')
+  const pill = main.locator('[data-reaction-pill]').first()
+  await expect(pill).toBeVisible()
+  const pillBox = await pill.boundingBox()
+  expect(pillBox).not.toBeNull()
+  expect(Math.abs(pillBox!.height - 28)).toBeLessThanOrEqual(1)
+
+  const addBox = await main
+    .getByRole('button', { name: 'Add project reaction' })
+    .first()
+    .boundingBox()
+  expect(addBox).not.toBeNull()
+  expect(addBox!.width).toBeLessThanOrEqual(29)
+  expect(addBox!.height).toBeLessThanOrEqual(29)
+})
+
 test.describe('on a phone', () => {
   test.use({ viewport: PHONE, hasTouch: true, isMobile: true })
 

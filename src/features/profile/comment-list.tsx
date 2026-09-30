@@ -50,7 +50,7 @@ export function ProfileCommentList({
                   targetType="comment"
                   viewerReactionTypes={comment.viewerReactionTypes}
                 />
-                <div className="ml-auto flex min-h-11 items-center gap-3 px-2 font-mono text-meta text-text-faint">
+                <div className="ml-auto flex min-h-7 items-center gap-3 px-2 pointer-coarse:min-h-11 font-mono text-meta text-text-muted">
                   <span className="inline-flex items-center gap-1.5">
                     <MessageSquare size={12} aria-hidden="true" />
                     {comment.replyCount}{' '}

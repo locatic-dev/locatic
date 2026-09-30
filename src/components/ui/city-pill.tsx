@@ -4,6 +4,8 @@ import { cn } from '@/lib/utils'
 
 interface CityPillProps {
   city: string
+  /** Visible text when shorter than `city` ("Hyderabad"); `city` stays the title. */
+  label?: string
   /**
    * Exact-city members only. With an id (and no `onRemove`) the pill links to
    * the city page; without one it is plain text, which is how region-only
@@ -13,6 +15,11 @@ interface CityPillProps {
   onRemove?: () => void
   className?: string
   truncate?: boolean
+  /**
+   * `pill` (default) is the bordered chip with a pin. `inline` is bare mono
+   * eyebrow text in the place colour, for identity lines ("HYDERABAD · 2H").
+   */
+  variant?: 'pill' | 'inline'
 }
 
 /**
@@ -26,25 +33,31 @@ export type CityPillLocation =
   | { kind: 'none' }
 
 const pillClassName =
-  'inline-flex min-h-7 max-w-full items-center gap-1.5 rounded-pill border border-line bg-surface-alt px-2.5 py-1 font-mono text-meta leading-none text-text-muted'
+  'inline-flex min-h-7 max-w-full items-center gap-1.5 rounded-pill border border-line bg-surface-alt px-2.5 py-1 font-mono text-meta leading-none text-place'
+const inlineClassName =
+  'inline-flex max-w-full min-w-0 items-center font-mono text-eyebrow text-place'
 
 export function CityPill({
   city,
+  label = city,
   cityId,
   onRemove,
   className,
   truncate = true,
+  variant = 'pill',
 }: CityPillProps) {
+  const inline = variant === 'inline'
+  const baseClassName = inline ? inlineClassName : pillClassName
   const content = (
     <>
-      <MapPin size={10} className="shrink-0 text-text-faint" />
+      {!inline && <MapPin size={10} className="shrink-0 text-place" />}
       <span
         className={cn(
           'min-w-0',
           truncate ? 'truncate' : 'wrap-anywhere whitespace-normal leading-4',
         )}
       >
-        {city}
+        {label}
       </span>
     </>
   )
@@ -58,8 +71,13 @@ export function CityPill({
         params={{ slug: cityId }}
         title={`${city} city page`}
         className={cn(
-          pillClassName,
-          'no-underline transition-colors hover:border-line-strong hover:text-text',
+          baseClassName,
+          'no-underline transition-colors hover:text-text',
+          // The bare inline text is a ~15px line; as a link it grows to a 24px
+          // target (44px on coarse pointers), its text centred.
+          inline
+            ? 'min-h-6 pointer-coarse:min-h-11'
+            : 'hover:border-line-strong',
           className,
         )}
       >
@@ -69,16 +87,17 @@ export function CityPill({
   }
 
   return (
-    <span className={cn(pillClassName, className)} title={city}>
+    <span className={cn(baseClassName, className)} title={city}>
       {content}
       {onRemove && (
-        // A 44px hit area that overhangs the 28px pill; the pill must not clip
-        // it, so the pill has no overflow-hidden (the label truncates itself).
+        // 24px with a mouse; on coarse pointers a 44px hit area overhangs the
+        // 28px pill. The pill must not clip it, so it has no overflow-hidden
+        // (the label truncates itself).
         <button
           type="button"
           onClick={onRemove}
           aria-label={`Remove ${city}`}
-          className="-my-3 -mr-2 ml-0.5 flex min-h-11 min-w-11 items-center justify-center rounded-md text-text-faint transition-colors hover:text-text"
+          className="-my-1 -mr-1.5 ml-0.5 flex size-6 items-center justify-center rounded-md text-text-muted transition-colors hover:text-text pointer-coarse:-my-3 pointer-coarse:-mr-2 pointer-coarse:size-11"
         >
           <X size={9} strokeWidth={2} />
         </button>

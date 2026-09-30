@@ -141,7 +141,7 @@ export function CommentThread({
           />
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="font-mono text-label font-semibold text-text">
+              <span className="font-sans text-label font-medium text-text">
                 {comment.authorSnapshot.displayName}
               </span>
               {!nested && comment.authorSnapshot.cityName && (
@@ -150,7 +150,7 @@ export function CommentThread({
                   cityId={comment.authorSnapshot.cityId}
                 />
               )}
-              <span className="font-mono text-meta text-text-faint">
+              <span className="font-mono text-meta text-text-muted">
                 {comment.pending ? 'posting…' : relativeTime(comment.createdAt)}
               </span>
             </div>
@@ -276,7 +276,7 @@ export function CommentThread({
                   <button
                     type="button"
                     onClick={() => repliesPage.loadMore(6)}
-                    className="ml-3 inline-flex min-h-11 items-center self-start rounded-md px-2 py-2 font-mono text-meta text-text-muted transition-colors hover:text-text"
+                    className="ml-3 inline-flex h-7 items-center self-start rounded-md px-2 font-mono text-meta text-text-muted transition-colors hover:text-text pointer-coarse:min-h-11"
                   >
                     show more replies
                   </button>

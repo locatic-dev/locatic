@@ -6,12 +6,12 @@
 // The pairs are generated from the role table below, for every theme declared
 // in src/styles.css:
 // - every text role must clear 4.5:1 on every surface, including the
-//   translucent state surfaces (selected, hover wash, outgoing bubble);
+//   translucent state surfaces (selected, outgoing bubble);
 // - every indicator role (control borders, focus ring, selected bar, unread
 //   dot, strong border) must clear 3:1 on every surface;
 // - label-on-fill pairs (brand button, danger button, tinted chips) must clear
 //   4.5:1.
-// There is no metadata tier: faint text is text. The gate also fails when a
+// There is no metadata tier: muted text is text. The gate also fails when a
 // `--lx-*` colour token in styles.css is not covered by the table, so a new
 // token cannot ship without a declared role.
 //
@@ -42,7 +42,6 @@ const SURFACES = {
   alt: { tokens: ['--lx-surface-alt', '--lx-state-hover'] },
   raised: { tokens: ['--lx-surface-raised'] },
   selected: { tokens: ['--lx-state-selected'], over: 'surface' },
-  hover: { tokens: ['--lx-surface-accent'], over: 'surface' },
   outgoing: { tokens: ['--lx-outgoing-surface'], over: 'canvas' },
 }
 
@@ -50,7 +49,6 @@ const SURFACES = {
 const TEXT_ROLES = {
   text: ['--lx-text'],
   muted: ['--lx-text-2'],
-  faint: ['--lx-text-3'],
   danger: ['--lx-danger'],
   success: ['--lx-success'],
   warning: ['--lx-warning'],
@@ -67,6 +65,7 @@ const INDICATOR_ROLES = {
   focus: ['--lx-focus'],
   'selected-bar': ['--lx-selected-bar'],
   unread: ['--lx-unread-dot'],
+  live: ['--lx-live'],
 }
 
 /** Labels on filled or tinted backgrounds: 4.5:1. */

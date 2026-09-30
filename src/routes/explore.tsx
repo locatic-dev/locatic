@@ -1,3 +1,4 @@
+import type { QueryClient } from '@tanstack/react-query'
 import { createFileRoute, redirect } from '@tanstack/react-router'
 import type { Id } from '../../convex/_generated/dataModel'
 import {
@@ -18,6 +19,7 @@ import {
   normalizeExploreSearch,
 } from '@/features/explore/state'
 import { citiesByIdsQueryOptions } from '@/features/cities/queries'
+import { cityStatsQueryOptions } from '@/features/explore/queries'
 import { followingQueryOptions } from '@/features/follows/queries'
 import {
   viewerExplorePrefsQueryOptions,
@@ -26,6 +28,21 @@ import {
 } from '@/features/viewer/queries'
 import { shouldPrefetchPrivateConvexQueries } from '@/lib/auth-routing'
 import { toSafeRelativeUrl } from '@/lib/safe-redirect'
+
+/**
+ * The rail's city card reads one city's stats; prefetch them when exactly one
+ * city is selected. `prefetchQuery` never throws, so a failure only leaves
+ * the card to load on the client.
+ */
+function prefetchRailCityStats(
+  queryClient: QueryClient,
+  selectedCityIds: Array<Id<'cities'>>,
+) {
+  const [onlyCityId] = selectedCityIds
+  return selectedCityIds.length === 1 && onlyCityId
+    ? queryClient.prefetchQuery(cityStatsQueryOptions(onlyCityId))
+    : Promise.resolve()
+}
 
 /**
  * Explore is public. Signed-in members get the app shell and personal feeds;
@@ -61,9 +78,12 @@ export const Route = createFileRoute('/explore')({
         Id<'cities'>
       >
       if (selectedCityIds.length > 0) {
-        await context.queryClient.ensureQueryData(
-          citiesByIdsQueryOptions(selectedCityIds),
-        )
+        await Promise.all([
+          context.queryClient.ensureQueryData(
+            citiesByIdsQueryOptions(selectedCityIds),
+          ),
+          prefetchRailCityStats(context.queryClient, selectedCityIds),
+        ])
       }
       return
     }
@@ -93,6 +113,7 @@ export const Route = createFileRoute('/explore')({
             citiesByIdsQueryOptions(selectedCityIds),
           )
         : Promise.resolve(),
+      prefetchRailCityStats(context.queryClient, selectedCityIds),
     ])
   },
   pendingComponent: FeedRoutePending,

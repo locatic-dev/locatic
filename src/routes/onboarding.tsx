@@ -193,7 +193,7 @@ function OnboardingPage() {
 
   if (!bootstrap) {
     return (
-      <main id="main-content" tabIndex={-1} className="p-8 text-text-faint">
+      <main id="main-content" tabIndex={-1} className="p-8 text-text-muted">
         loading…
       </main>
     )

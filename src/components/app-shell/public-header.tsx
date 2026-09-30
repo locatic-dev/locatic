@@ -6,6 +6,7 @@ import {
 } from '@tanstack/react-router'
 import { Button } from '@/components/ui/button'
 import { Logo } from '@/components/ui/logo'
+import { getFreshExploreSearch } from '@/features/explore/state'
 import { useHydrationSafeHref } from '@/lib/return-href'
 import { toSafeRelativeUrl } from '@/lib/safe-redirect'
 
@@ -34,6 +35,8 @@ export function PublicHeader() {
     location.pathname,
     useHydrationSafeHref(location.href),
   )
+  const onExplore = location.pathname.startsWith('/explore')
+  const onLanding = location.pathname === '/'
 
   return (
     <header className="lx-hero-up relative z-2 flex min-h-16 flex-wrap items-center justify-between gap-4 border-b border-line px-(--lx-gutter) py-4 [--hero-step:0]">
@@ -42,7 +45,7 @@ export function PublicHeader() {
         <span className="text-title font-bold">locatic</span>
       </Link>
       <nav
-        aria-label="Account"
+        aria-label="Site"
         className="flex flex-wrap items-center gap-2 font-mono text-label text-text-muted"
       >
         {isAuthenticated ? (
@@ -51,6 +54,21 @@ export function PublicHeader() {
           </Button>
         ) : (
           <>
+            {/* Explore is public: visitors can look before they sign in. */}
+            {!onExplore && (
+              // On phones the landing keeps one row (its hero links to
+              // Explore); every other public page keeps the link.
+              <Button
+                asChild
+                variant="ghost"
+                size="touch"
+                className={onLanding ? 'max-sm:hidden' : undefined}
+              >
+                <Link to="/explore" search={getFreshExploreSearch()}>
+                  explore
+                </Link>
+              </Button>
+            )}
             <Button asChild variant="secondary" size="touch">
               <Link to="/sign-in/$" search={{ redirect }}>
                 sign in

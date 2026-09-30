@@ -7,6 +7,7 @@ import {
 } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { LangDot } from '@/components/ui/lang-dot'
 import {
   Popover,
   PopoverContent,
@@ -39,12 +40,13 @@ function FilterChip({
   return (
     <span className={cn(chipClassName, appliedChipClassName)}>
       <span className="min-w-0 wrap-anywhere">{children}</span>
-      {/* Overhangs the 28px chip like the city chip's remove target. */}
+      {/* 24px with a mouse; on coarse pointers a 44px target overhangs the
+          28px chip, like the city chip's remove target. */}
       <button
         type="button"
         onClick={onRemove}
         aria-label={removeLabel}
-        className="-my-3 -mr-2 flex min-h-11 min-w-11 items-center justify-center rounded-md text-text-faint transition-colors hover:text-text"
+        className="-my-1 -mr-1.5 flex size-6 items-center justify-center rounded-md text-text-muted transition-colors hover:text-text pointer-coarse:-my-3 pointer-coarse:-mr-2 pointer-coarse:size-11"
       >
         <X size={9} strokeWidth={2} />
       </button>
@@ -165,7 +167,7 @@ export function ExploreFilterBar({
         }
         className={cn(
           chipClassName,
-          'min-h-11 px-3.5 text-label transition-colors',
+          'min-h-8 px-3.5 text-label transition-colors pointer-coarse:min-h-11',
           pressed
             ? appliedChipClassName
             : 'border-line bg-surface text-text-muted hover:border-line-strong hover:text-text',
@@ -202,5 +204,63 @@ export function ExploreFilterBar({
         triggerRef={filterTriggerRef}
       />
     </>
+  )
+}
+
+/** Languages the rail offers as one-click primary-language filters. */
+export const RAIL_LANGUAGES = [
+  'TypeScript',
+  'JavaScript',
+  'Python',
+  'Go',
+  'Rust',
+  'Swift',
+  'Kotlin',
+  'Ruby',
+] as const
+
+/**
+ * One-click primary-language filters for the rail. Each toggle sets the
+ * language in its canonical (URL) form and reports it through
+ * `aria-pressed`; pressing the applied language clears it.
+ */
+export function LanguageQuickPicks({
+  filters,
+  onFiltersChange,
+}: {
+  filters: ExploreFilters
+  onFiltersChange: (next: ExploreFilters) => void
+}) {
+  return (
+    <ul
+      aria-label="languages"
+      className="m-0 flex list-none flex-wrap gap-1.5 p-0"
+    >
+      {RAIL_LANGUAGES.map((name) => {
+        const language = normalizeExploreLanguageFilter(name)
+        const pressed = filters.language === language
+        return (
+          <li key={name}>
+            <button
+              type="button"
+              aria-pressed={pressed}
+              onClick={() =>
+                onFiltersChange({ language: pressed ? undefined : language })
+              }
+              className={cn(
+                chipClassName,
+                'transition-colors pointer-coarse:min-h-11',
+                pressed
+                  ? appliedChipClassName
+                  : 'border-line bg-transparent text-text-muted hover:border-line-strong hover:text-text',
+              )}
+            >
+              <LangDot lang={name} />
+              {name}
+            </button>
+          </li>
+        )
+      })}
+    </ul>
   )
 }

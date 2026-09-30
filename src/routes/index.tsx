@@ -1,17 +1,21 @@
-import { useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { createFileRoute, redirect } from '@tanstack/react-router'
-import { DotMap } from '@/components/ui/dot-map'
 import { PublicHeader } from '@/components/app-shell/public-header'
 import { PublicFooter } from '@/components/app-shell/public-footer'
 import { HeroCopy } from '@/features/landing/hero-copy'
 import { HeroMapCaption } from '@/features/landing/hero-map-caption'
-import { getLandingMap } from '@/features/landing/landing-content'
-import { RepoPreviewCard } from '@/features/landing/repo-preview-card'
+import {
+  getLandingCityDots,
+  getLandingMap,
+  getPingSequence,
+  getShowcaseCityIds,
+} from '@/features/landing/landing-content'
+import { PingMap } from '@/features/landing/ping-map'
 import { FeatureRow } from '@/features/landing/feature-row'
-import { DotMapParallax } from '@/features/landing/dot-map-parallax'
 import { viewerQueryOptions } from '@/features/viewer/queries'
 import type { ViewerBootstrapPayload } from '@/features/contracts'
 import {
+  citiesByIdsQueryOptions,
   landingMapCitiesQueryOptions,
   landingShowcaseQueryOptions,
 } from '@/integrations/convex/query-options'
@@ -28,13 +32,20 @@ export const Route = createFileRoute('/')({
 
     throw redirect({ to: bootstrap.needsOnboarding ? '/onboarding' : '/home' })
   },
-  // Both public queries render on the server. `prefetchQuery` never throws:
-  // if either fails, the landing still renders with its labelled examples.
+  // The public queries render on the server. `prefetchQuery` never throws:
+  // if one fails, the landing still renders with its labelled examples.
   loader: async ({ context }) => {
     await Promise.all([
       context.queryClient.prefetchQuery(landingMapCitiesQueryOptions()),
       context.queryClient.prefetchQuery(landingShowcaseQueryOptions()),
     ])
+    // The ping cards place showcase projects on their owners' cities.
+    const cityIds = getShowcaseCityIds(
+      context.queryClient.getQueryData(landingShowcaseQueryOptions().queryKey),
+    )
+    if (cityIds.length > 0) {
+      await context.queryClient.prefetchQuery(citiesByIdsQueryOptions(cityIds))
+    }
   },
   component: LandingPage,
 })
@@ -42,39 +53,38 @@ export const Route = createFileRoute('/')({
 function LandingPage() {
   const { data: mapCities } = useQuery(landingMapCitiesQueryOptions())
   const { data: showcase } = useQuery(landingShowcaseQueryOptions())
+  // A live showcase update changes the id list, and so the query key: keep the
+  // previous cities until the new list loads so the pings do not drop to the
+  // city top-ups and back. Extra cities are harmless; pings only use the ones
+  // a current showcase owner names.
+  const { data: showcaseCities } = useQuery({
+    ...citiesByIdsQueryOptions(getShowcaseCityIds(showcase)),
+    placeholderData: keepPreviousData,
+  })
   const map = getLandingMap(mapCities)
+  const pingItems = getPingSequence({
+    map,
+    showcase: showcase ?? [],
+    cities: showcaseCities ?? [],
+  })
 
   return (
-    <div className="relative min-h-dvh overflow-x-clip bg-canvas text-text">
+    <div className="min-h-dvh overflow-x-clip bg-canvas text-text">
       <PublicHeader />
 
-      {/* Dot map background: cities with builders, or the example pins */}
-      <DotMapParallax className="pointer-events-none absolute top-16 inset-x-0 flex h-130 justify-center opacity-60">
-        <div
-          style={{
-            maskImage:
-              'radial-gradient(ellipse at center, black 40%, transparent 75%)',
-            WebkitMaskImage:
-              'radial-gradient(ellipse at center, black 40%, transparent 75%)',
-          }}
-        >
-          <DotMap
-            width={1200}
-            height={520}
-            points={map.kind === 'cities' ? map.points : undefined}
-          />
-        </div>
-      </DotMapParallax>
-
       <main id="main-content" tabIndex={-1}>
-        {/* Hero */}
-        <section className="relative z-1 mx-auto grid max-w-(--lx-public-max) grid-cols-1 items-center gap-8 px-(--lx-gutter) pt-12 md:grid-cols-[1fr_420px] md:gap-12 md:pt-20">
-          <div>
-            <HeroCopy />
+        <section className="mx-auto max-w-(--lx-public-max) px-(--lx-gutter) pt-16 md:pt-24">
+          <HeroCopy />
+        </section>
+
+        <section
+          aria-label="builders on the map"
+          className="relative mt-10 md:mt-14"
+        >
+          <PingMap items={pingItems} cityDots={getLandingCityDots(map)} />
+          <div className="mx-auto max-w-(--lx-public-max) px-(--lx-gutter)">
             <HeroMapCaption map={map} />
           </div>
-
-          <RepoPreviewCard projects={showcase ?? []} />
         </section>
 
         <FeatureRow />

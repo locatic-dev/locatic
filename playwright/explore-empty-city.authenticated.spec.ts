@@ -24,14 +24,15 @@ function exploreScope(page: Page) {
   }
 }
 
-async function openExploreHeader(page: Page) {
+/** The city controls in the Explore rail (the tests run at 1440px). */
+async function openExploreRail(page: Page) {
   const heading = page.getByRole('heading', { level: 1, name: 'explore' })
   await expectSettled(page, heading)
-  const header = page.locator('header', { has: heading })
-  const cityInput = header.getByRole('combobox', { name: 'Add a city filter' })
+  const rail = page.getByRole('complementary', { name: 'explore filters' })
+  const cityInput = rail.getByRole('combobox', { name: 'Add a city filter' })
   const pickCity = async (name: string) => {
     await cityInput.fill(name)
-    await header
+    await rail
       .getByRole('listbox', { name: 'Add a city filter' })
       .getByRole('option', { name: new RegExp(`^${name}\\b`, 'i') })
       .first()
@@ -48,6 +49,8 @@ test.describe('empty selected city', () => {
       Boolean(personas.emptyCityEmail),
       'needs the empty-city persona (set E2E_CLERK_EMPTY_CITY_USER_EMAIL)',
     )
+    // The rail (and its city field) shows from xl; 1280px sits exactly on it.
+    await page.setViewportSize({ width: 1440, height: 900 })
     await page.goto('/')
     await signIn(page, personas.emptyCityEmail!)
     await gotoRetryingAbort(page, '/explore?scope=global')
@@ -57,7 +60,7 @@ test.describe('empty selected city', () => {
   test('names the city, counts its builders and changes scope only on click', async ({
     page,
   }) => {
-    const { cityInput, pickCity } = await openExploreHeader(page)
+    const { cityInput, pickCity } = await openExploreRail(page)
     await pickCity(personas.emptyCityName)
 
     await expectSettled(
@@ -85,7 +88,7 @@ test.describe('empty selected city', () => {
   test('choose another city adds it and leaves the empty-city state', async ({
     page,
   }) => {
-    const { cityInput, pickCity } = await openExploreHeader(page)
+    const { cityInput, pickCity } = await openExploreRail(page)
     await pickCity(personas.emptyCityName)
     const emptyHeading = page.getByRole('heading', {
       name: `no projects in ${personas.emptyCityName} yet.`,
@@ -103,9 +106,11 @@ test.describe('empty selected city', () => {
     expect(exploreScope(page).scope).toBe('custom')
     await expect(emptyHeading).toHaveCount(0)
     await expect(
-      page.getByRole('button', {
-        name: new RegExp(`^Remove ${personas.otherCityName}\\b`, 'i'),
-      }),
+      page
+        .getByRole('complementary', { name: 'explore filters' })
+        .getByRole('button', {
+          name: new RegExp(`^Remove ${personas.otherCityName}\\b`, 'i'),
+        }),
     ).toBeVisible()
   })
 })

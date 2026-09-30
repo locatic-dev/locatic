@@ -40,18 +40,18 @@ export function EmptyState({
       } ${className ?? ''}`}
     >
       {icon && (
-        <div className={`text-text-faint ${compact ? 'mb-3' : 'mb-5'}`}>
+        <div className={`text-text-muted ${compact ? 'mb-3' : 'mb-5'}`}>
           {icon}
         </div>
       )}
       {!compact && (
-        <div className="mb-5 flex items-center gap-2 font-mono text-meta text-text-faint">
+        <div className="mb-5 flex items-center gap-2 font-mono text-meta text-text-muted">
           <span className="inline-block h-3.5 w-2 bg-brand" aria-hidden />
           <span>~/empty</span>
         </div>
       )}
       <Heading
-        className={`m-0 max-w-100 font-mono font-semibold tracking-[-0.02em] text-text ${
+        className={`m-0 max-w-100 text-text ${
           compact ? 'text-title' : 'text-headline'
         }`}
       >

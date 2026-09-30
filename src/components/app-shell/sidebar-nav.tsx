@@ -131,7 +131,7 @@ export function SidebarNav({
             <button
               type="button"
               onClick={() => onCollapsedChange?.(true)}
-              className="ml-auto flex size-11 shrink-0 items-center justify-center rounded-md border border-transparent bg-transparent text-text-faint transition-colors hover:border-line hover:bg-surface hover:text-text"
+              className="ml-auto flex size-11 shrink-0 items-center justify-center rounded-md border border-transparent bg-transparent text-text-muted transition-colors hover:border-line hover:bg-surface hover:text-text"
               aria-label="Collapse sidebar"
               aria-expanded={true}
               title="Collapse sidebar"
@@ -282,11 +282,11 @@ export function SidebarNav({
                     size={28}
                   />
                   <div className="min-w-0 flex-1">
-                    <div className="truncate font-mono text-label font-semibold text-text">
+                    <div className="truncate font-sans text-label font-medium text-text">
                       {viewer.displayName || viewer.githubUsername}
                     </div>
                     {viewer.city && (
-                      <div className="truncate font-mono text-meta text-text-faint">
+                      <div className="truncate font-mono text-meta text-text-muted">
                         {viewer.city}
                       </div>
                     )}

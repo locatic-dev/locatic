@@ -49,7 +49,7 @@ export function RepoStepFields({
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex items-center justify-between font-mono text-[11.5px] text-text-faint">
+      <div className="flex items-center justify-between font-mono text-[11.5px] text-text-muted">
         <span aria-live="polite">{selectedFullNames.length} selected</span>
         <span>imports from GitHub</span>
       </div>
@@ -59,7 +59,7 @@ export function RepoStepFields({
           <Search
             size={13}
             strokeWidth={1.4}
-            className="shrink-0 text-text-faint"
+            className="shrink-0 text-text-muted"
           />
           <label htmlFor="repo-filter" className="sr-only">
             filter repositories
@@ -72,7 +72,7 @@ export function RepoStepFields({
             placeholder="filter repos…"
             className="h-9 flex-1 border-0 bg-transparent px-1"
           />
-          <span className="shrink-0 font-mono text-[11px] text-text-faint">
+          <span className="shrink-0 font-mono text-[11px] text-text-muted">
             {loading ? 'loading…' : `${repositories.length} public`}
           </span>
         </div>
@@ -85,7 +85,7 @@ export function RepoStepFields({
           )}
 
           {!error && loading && (
-            <p className="m-0 px-4 py-4.5 font-mono text-xs text-text-faint">
+            <p className="m-0 px-4 py-4.5 font-mono text-xs text-text-muted">
               loading repositories…
             </p>
           )}
@@ -131,7 +131,7 @@ export function RepoStepFields({
 
                       <span className="block min-w-0 flex-1">
                         <span className="mb-0.75 flex flex-wrap items-center gap-2.5">
-                          <span className="font-mono text-[13px] font-semibold text-text">
+                          <span className="font-sans text-label font-semibold text-text">
                             {repository.fullName}
                           </span>
                           {repository.primaryLanguage && (
@@ -143,7 +143,7 @@ export function RepoStepFields({
                               {repository.primaryLanguage}
                             </span>
                           )}
-                          <span className="inline-flex items-center gap-0.75 font-mono text-[11px] text-text-faint">
+                          <span className="inline-flex items-center gap-0.75 font-mono text-[11px] text-text-muted">
                             <Star size={10} strokeWidth={1.4} />
                             {repository.stargazersCount.toLocaleString()}
                           </span>
