@@ -72,7 +72,7 @@ export function ThemePicker() {
                 {themeOption.id === DEFAULT_THEME_ID ? (
                   <>
                     {' '}
-                    <span className="text-text-faint">(default)</span>
+                    <span className="text-text-muted">(default)</span>
                   </>
                 ) : null}
               </label>

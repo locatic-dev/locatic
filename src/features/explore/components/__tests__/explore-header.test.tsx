@@ -2,28 +2,20 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
-import type { Doc, Id } from '../../../../../convex/_generated/dataModel'
-import type { ExploreFilters } from '../../state'
+import type { Id } from '../../../../../convex/_generated/dataModel'
 import { ExploreHeader } from '../explore-header'
 
 function renderHeader(
   overrides: Partial<Parameters<typeof ExploreHeader>[0]> = {},
 ) {
   const props = {
-    availableCities: [] as Array<Doc<'cities'>>,
-    cityQuery: '',
-    citySearchPending: false,
+    activeFilterCount: 0,
     currentScope: 'custom' as const,
-    filters: {} as ExploreFilters,
+    filtersOpen: false,
     mode: 'projects' as const,
-    onCityQueryChange: vi.fn(),
-    onFiltersChange: vi.fn(),
     onModeChange: vi.fn(),
-    onRemoveCity: vi.fn(),
-    onResetExplore: vi.fn(),
-    onSelectCity: vi.fn(),
+    onOpenFilters: vi.fn(),
     onSearchQueryChange: vi.fn(),
-    resetPending: false,
     searchQuery: '',
     selectedCityChips: [
       {
@@ -32,6 +24,7 @@ function renderHeader(
         shortName: 'Bengaluru',
       },
     ],
+    strip: { place: 'bengaluru', builderCount: 142 },
     ...overrides,
   } satisfies Parameters<typeof ExploreHeader>[0]
 
@@ -47,48 +40,37 @@ describe('ExploreHeader', () => {
     )
   })
 
-  it('leaves out text search and reset on public Explore', () => {
-    renderHeader({ onResetExplore: undefined, showSearch: false })
+  it('leaves out text search on public Explore', () => {
+    renderHeader({ showSearch: false })
 
     expect(screen.queryByLabelText('Search projects')).toBeNull()
-    expect(screen.queryByRole('button', { name: 'reset' })).toBeNull()
-    expect(screen.getByLabelText('Add a city filter')).toBeTruthy()
+    expect(screen.queryByRole('textbox')).toBeNull()
   })
 
-  it('routes content typing to the search handler, not the city filter', () => {
+  it('routes content typing to the search handler', () => {
     const { props } = renderHeader()
     fireEvent.change(screen.getByLabelText('Search projects'), {
       target: { value: 'convex' },
     })
     expect(props.onSearchQueryChange).toHaveBeenCalledWith('convex')
-    expect(props.onCityQueryChange).not.toHaveBeenCalled()
   })
 
-  it('exposes the city filter as a compact add affordance with chips', () => {
+  it('switches mode on tab click and reports the active mode', () => {
     const { props } = renderHeader()
-    expect(screen.getByText('Bengaluru, Karnataka, India')).toBeTruthy()
 
-    const cityInput = screen.getByLabelText('Add a city filter')
-    expect(cityInput.getAttribute('placeholder')).toBe('+ add city')
+    const group = screen.getByRole('group', { name: 'Explore mode' })
+    expect(group).toBeTruthy()
+    expect(
+      screen
+        .getByRole('button', { name: 'projects' })
+        .getAttribute('aria-pressed'),
+    ).toBe('true')
+    expect(
+      screen
+        .getByRole('button', { name: 'builders' })
+        .getAttribute('aria-pressed'),
+    ).toBe('false')
 
-    fireEvent.click(screen.getByLabelText('Remove Bengaluru, Karnataka, India'))
-    expect(props.onRemoveCity).toHaveBeenCalledWith('city_1')
-  })
-
-  it('says while the city search runs and when nothing matches', () => {
-    const { props, rerender } = renderHeader({
-      cityQuery: 'zzz',
-      citySearchPending: true,
-    })
-    fireEvent.focus(screen.getByLabelText('Add a city filter'))
-    expect(screen.getByRole('status').textContent).toBe('searching…')
-
-    rerender(<ExploreHeader {...props} citySearchPending={false} />)
-    expect(screen.getByRole('status').textContent).toBe('no cities match')
-  })
-
-  it('switches mode on tab click', () => {
-    const { props } = renderHeader()
     fireEvent.click(screen.getByRole('button', { name: 'builders' }))
     expect(props.onModeChange).toHaveBeenCalledWith('builders')
   })
@@ -104,6 +86,7 @@ describe('ExploreHeader', () => {
       currentScope: 'global',
       mode: 'builders',
       selectedCityChips: [],
+      strip: { place: 'everywhere', builderCount: null },
     })
     expect(screen.getByText('showing everywhere')).toBeTruthy()
     expect(screen.getByText('// builders from everywhere')).toBeTruthy()
@@ -112,91 +95,33 @@ describe('ExploreHeader', () => {
     ).toBeTruthy()
   })
 
-  it('shows reset only for resettable modes', () => {
-    const { props, rerender } = renderHeader({ mode: 'posts' })
-
-    fireEvent.click(screen.getByRole('button', { name: 'reset' }))
-    expect(props.onResetExplore).toHaveBeenCalledTimes(1)
-
-    rerender(<ExploreHeader {...props} mode="builders" />)
-    expect(screen.queryByRole('button', { name: 'reset' })).toBeNull()
-  })
-
-  it('applies primary language and topic in their canonical form', () => {
-    const { props } = renderHeader()
-
-    fireEvent.click(screen.getByRole('button', { name: 'filter' }))
-    fireEvent.change(screen.getByLabelText('primary language'), {
-      target: { value: '  TypeScript ' },
-    })
-    fireEvent.change(screen.getByLabelText('topic'), {
-      target: { value: 'AI/Agents' },
-    })
-    fireEvent.click(screen.getByRole('button', { name: 'apply' }))
-
-    expect(props.onFiltersChange).toHaveBeenCalledWith({
-      language: 'typescript',
-      topic: 'ai-agents',
-    })
-    // The popover closes once applied.
-    expect(screen.queryByLabelText('primary language')).toBeNull()
-  })
-
-  it('clears a filter emptied in the form and ignores input that normalises to nothing', () => {
-    const { props } = renderHeader({ filters: { language: 'rust' } })
-
-    fireEvent.click(screen.getByRole('button', { name: 'filter' }))
-    const language = screen.getByLabelText('primary language')
-    expect((language as HTMLInputElement).value).toBe('rust')
-    fireEvent.change(language, { target: { value: '' } })
-    fireEvent.change(screen.getByLabelText('topic'), {
-      target: { value: '!!!' },
-    })
-    fireEvent.click(screen.getByRole('button', { name: 'apply' }))
-
-    expect(props.onFiltersChange).toHaveBeenCalledWith({
-      language: undefined,
-      topic: undefined,
-    })
-  })
-
-  it('shows applied filters as removable chips', () => {
-    const { props } = renderHeader({
-      filters: { language: 'rust', topic: 'webgpu' },
-    })
-
-    expect(screen.getByText('primary language: rust')).toBeTruthy()
-    expect(screen.getByText('topic: #webgpu')).toBeTruthy()
-
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Remove topic filter webgpu' }),
-    )
-    expect(props.onFiltersChange).toHaveBeenCalledWith({ topic: undefined })
-  })
-
-  it('offers the open-to-collab chip in builders mode only', () => {
-    const { props, rerender } = renderHeader({ mode: 'builders' })
-    const chip = screen.getByRole('button', { name: 'open to collab' })
-
-    expect(chip.getAttribute('aria-pressed')).toBe('false')
-    expect(screen.queryByRole('button', { name: 'filter' })).toBeNull()
-    fireEvent.click(chip)
-    expect(props.onFiltersChange).toHaveBeenCalledWith({ openToCollab: true })
+  it('summarises the place on the compact strip', () => {
+    const { container, props, rerender } = renderHeader()
+    expect(container.textContent).toContain('bengaluru · 142 builders')
 
     rerender(
       <ExploreHeader
         {...props}
-        mode="builders"
-        filters={{ openToCollab: true }}
+        strip={{ place: 'bengaluru', builderCount: 1 }}
       />,
     )
-    fireEvent.click(screen.getByRole('button', { name: 'open to collab' }))
-    expect(props.onFiltersChange).toHaveBeenLastCalledWith({
-      openToCollab: undefined,
-    })
+    expect(container.textContent).toContain('bengaluru · 1 builder')
+    expect(container.textContent).not.toContain('1 builders')
+  })
 
-    rerender(<ExploreHeader {...props} mode="posts" />)
-    expect(screen.queryByRole('button', { name: 'open to collab' })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'filter' })).toBeNull()
+  it('opens the filter sheet from a filters button that reports the applied count', () => {
+    const { props, rerender } = renderHeader()
+
+    const button = screen.getByRole('button', { name: 'filters' })
+    expect(button.getAttribute('aria-haspopup')).toBe('dialog')
+    expect(button.getAttribute('aria-expanded')).toBe('false')
+    fireEvent.click(button)
+    expect(props.onOpenFilters).toHaveBeenCalledTimes(1)
+
+    rerender(
+      <ExploreHeader {...props} activeFilterCount={2} filtersOpen={true} />,
+    )
+    const counted = screen.getByRole('button', { name: 'filters (2)' })
+    expect(counted.getAttribute('aria-expanded')).toBe('true')
   })
 })

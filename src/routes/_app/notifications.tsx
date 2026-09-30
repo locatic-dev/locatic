@@ -39,13 +39,20 @@ import {
   projectDetailQueryOptions,
   publicProfileOverviewQueryOptions,
 } from '@/integrations/convex/query-options'
+import { shouldPrefetchPrivateConvexQueries } from '@/lib/auth-routing'
 
 /** Matches the page `notificationsQueryOptions()` renders on the server. */
 const NOTIFICATIONS_PAGE_SIZE = 20
 
 export const Route = createFileRoute('/_app/notifications')({
-  loader: ({ context }) =>
-    context.queryClient.ensureQueryData(notificationsQueryOptions()),
+  loader: async ({ context }) => {
+    // Client navigations fetch in the page, once Convex auth is ready.
+    if (!shouldPrefetchPrivateConvexQueries()) {
+      return
+    }
+
+    await context.queryClient.ensureQueryData(notificationsQueryOptions())
+  },
   pendingComponent: NotificationsRoutePending,
   pendingMs: ROUTE_PENDING_MS,
   pendingMinMs: ROUTE_PENDING_MIN_MS,

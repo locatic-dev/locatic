@@ -191,6 +191,23 @@ describe('project route', () => {
     expect(screen.queryByRole('main')).toBeNull()
   })
 
+  it('leaves no empty rows in the header column for a visitor without topics or languages', async () => {
+    mocks.detail = projectDetail
+    await renderProjectRoute()
+
+    // The column spaces its rows with a flex gap, so an empty child would
+    // still add a gap.
+    // The h1 shares a title block with the owner eyebrow.
+    const column = screen.getByRole('heading', {
+      level: 1,
+      name: 'engine',
+    }).parentElement!.parentElement!
+    expect(screen.queryByRole('textbox', { name: 'New topic' })).toBeNull()
+    expect(
+      [...column.children].filter((child) => child.childNodes.length === 0),
+    ).toEqual([])
+  })
+
   describe('header and owner panel', () => {
     const DAY = 24 * 60 * 60 * 1000
     const projectId = 'project_1' as Id<'projects'>
@@ -227,6 +244,23 @@ describe('project route', () => {
         }
       }
     }
+
+    it('titles the page with the repo under an owner eyebrow, next to the builder card', async () => {
+      mocks.detail = projectDetail
+      await renderProjectRoute()
+
+      const heading = screen.getByRole('heading', { level: 1, name: 'engine' })
+      expect(heading.previousElementSibling?.textContent).toBe('// ada')
+      expect(screen.getByText('builder')).toBeTruthy()
+      expect(
+        screen
+          .getByRole('link', { name: 'github profile' })
+          .getAttribute('href'),
+      ).toBe('https://github.com/ada')
+      expect(
+        screen.getByRole('link', { name: 'View project on GitHub' }),
+      ).toBeTruthy()
+    })
 
     it('shows visitors the latest update and sync freshness, without owner controls', async () => {
       mocks.detail = projectDetail
@@ -307,7 +341,7 @@ describe('project route', () => {
       expect(
         screen.getByRole('heading', { level: 2, name: 'more from Bengaluru' }),
       ).toBeTruthy()
-      expect(screen.getByText('cli')).toBeTruthy()
+      expect(screen.getByText('bob/cli')).toBeTruthy()
     })
   })
 })

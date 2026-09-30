@@ -37,7 +37,7 @@ export function ProfileShippingLog({
           >
             <time
               dateTime={new Date(entry.at).toISOString()}
-              className="shrink-0 font-mono text-meta text-text-faint tabular-nums sm:w-28 sm:pt-0.5"
+              className="shrink-0 font-mono text-meta text-text-muted tabular-nums sm:w-28 sm:pt-0.5"
             >
               {formatDate(entry.at)}
             </time>

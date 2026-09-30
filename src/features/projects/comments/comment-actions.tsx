@@ -48,7 +48,7 @@ export function CommentActions({
         type="button"
         onClick={onReply}
         aria-label="Reply to comment"
-        className="inline-flex min-h-11 items-center gap-1.5 rounded-md px-2 py-2 text-inherit transition-colors hover:text-text"
+        className="inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-inherit transition-colors hover:text-text pointer-coarse:min-h-11"
       >
         <CornerUpLeft size={13} strokeWidth={1.6} />
         <span>reply</span>
@@ -59,7 +59,7 @@ export function CommentActions({
           onClick={onToggleReplies}
           aria-controls={repliesRegionId}
           aria-expanded={repliesOpen}
-          className="inline-flex min-h-11 items-center gap-1.5 rounded-md px-2 py-2 text-inherit transition-colors hover:text-text"
+          className="inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-inherit transition-colors hover:text-text pointer-coarse:min-h-11"
         >
           {repliesOpen ? (
             <ChevronDown size={13} strokeWidth={1.6} />
@@ -79,7 +79,7 @@ export function CommentActions({
             onClick={() => setConfirmOpen(true)}
             disabled={pendingDelete}
             aria-label="Delete comment"
-            className="inline-flex min-h-11 items-center gap-1.5 rounded-md px-2 py-2 text-inherit transition-colors hover:text-text disabled:opacity-60"
+            className="inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-inherit transition-colors hover:text-text disabled:opacity-60 pointer-coarse:min-h-11"
           >
             <Trash2 size={13} strokeWidth={1.6} />
             <span>{pendingDelete ? 'deleting…' : 'delete'}</span>

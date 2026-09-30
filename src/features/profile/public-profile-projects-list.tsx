@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { ProjectCard } from '@/components/ui/project-card'
 import { EmptyState } from '@/components/ui/empty-state'
+import { cardSheetClass } from '@/components/ui/card-sheet'
 import type { ProjectCardPreview } from '@/features/contracts'
 import {
   getProjectCardDbId,
@@ -37,7 +38,7 @@ export function PublicProfileProjectsList<TProject extends ProjectCardPreview>({
   }
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className={cardSheetClass}>
       {projects.map((project) => {
         const owner = getProjectCardOwner(project)
         const repo = getProjectCardRepo(project)
@@ -45,6 +46,9 @@ export function PublicProfileProjectsList<TProject extends ProjectCardPreview>({
         return (
           <ProjectCard
             key={getProjectCardId(project)}
+            variant="row"
+            // Every card on a profile has the same author.
+            authorPlacement="none"
             project={toProjectCardData(project)}
             topLeftSlot={renderTopLeftSlot?.(project)}
             onRetrySync={

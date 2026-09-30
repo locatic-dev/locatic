@@ -268,7 +268,7 @@ convex/
 
 playwright/      End-to-end specs (*.public.spec.ts, *.authenticated.spec.ts)
 scripts/         Guardrail, generator and data scripts
-public/fonts/    Self-hosted IBM Plex
+public/fonts/    Self-hosted Geist and Geist Mono
 docs/            Product, design and logic docs; plans/ holds plans and investigations
 ```
 

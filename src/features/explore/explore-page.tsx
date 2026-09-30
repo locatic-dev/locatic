@@ -11,7 +11,6 @@ import { api } from '../../../convex/_generated/api'
 import type { Doc, Id } from '../../../convex/_generated/dataModel'
 import {
   builderSearchQueryOptions,
-  cityStatsQueryOptions,
   projectSearchQueryOptions,
   postSearchQueryOptions,
 } from '@/features/explore/queries'
@@ -55,16 +54,20 @@ import {
   getExploreOrderingCopy,
   getExploreProjectCityIds,
   getExploreResultSetKey,
+  getExploreScopeLabel,
   getNearbyBuilderCityIds,
   isExploreProjectFeedGlobal,
   removeExploreCityId,
   writeStoredExploreSearch,
   type ExploreFilters,
 } from '@/features/explore/state'
+import { ExploreHeader } from '@/features/explore/components/explore-header'
+import { ExploreFilterSheet } from '@/features/explore/components/explore-filter-sheet'
 import {
-  EXPLORE_CITY_INPUT_ID,
-  ExploreHeader,
-} from '@/features/explore/components/explore-header'
+  ExploreRail,
+  focusExploreCityInput,
+  type ExploreRailProps,
+} from '@/features/explore/components/explore-rail'
 import {
   ExploreFeed,
   type ExploreEmptyCity,
@@ -80,20 +83,21 @@ import {
 import { EXPLORE_PAGINATED_PAGE_SIZE } from '@/features/explore/pagination'
 import { useDebouncedRouteSearch } from '@/features/explore/use-debounced-route-search'
 import { useExploreFeedPagination } from '@/features/explore/use-explore-feed-pagination'
+import { useExploreRail } from '@/features/explore/use-explore-rail'
+import {
+  RAIL_MEDIA_QUERY,
+  useExploreFilterSheet,
+} from '@/features/explore/use-explore-filter-sheet'
 import {
   getExploreSearchPhase,
   type ExploreFeedState,
 } from '@/features/explore/feed-state'
 import type {
-  BuilderPreview,
   ExplorePostPreview,
   ExploreProjectPreview,
 } from '@/features/explore/types'
 
 const exploreRouteApi = getRouteApi('/explore')
-
-/** Rows a local-builders list under an empty city shows (one bounded page). */
-const EMPTY_CITY_BUILDER_LIMIT = 5
 
 export function ExplorePage() {
   const { auth } = exploreRouteApi.useRouteContext()
@@ -211,6 +215,7 @@ function ExploreView({ viewer }: { viewer: ExploreViewer | null }) {
     Record<string, string>
   >({})
   const [cityQuery, setCityQuery] = useState('')
+  const filterSheet = useExploreFilterSheet()
   const [postSearchLimit, setPostSearchLimit] = useState(
     POST_SEARCH_DEFAULT_LIMIT,
   )
@@ -300,6 +305,14 @@ function ExploreView({ viewer }: { viewer: ExploreViewer | null }) {
     scope: currentScope,
     selectedCityIds: canonicalSelectedCityIds,
   }) as Array<Id<'cities'>>
+  const railCityId =
+    queryCityIds.length === 1 ? (queryCityIds[0] ?? null) : null
+  const rail = useExploreRail({
+    isVisitor,
+    mode: currentMode,
+    railCityId,
+    builderCityIds: nearbyBuilderCityIds,
+  })
 
   // Members read their personal feeds, visitors the public ones (C1); the
   // unused query of each pair is skipped.
@@ -785,9 +798,10 @@ function ExploreView({ viewer }: { viewer: ExploreViewer | null }) {
     }
   }
 
-  const getFeedUserHandle = (userKey: string) => {
-    if (!('items' in feedState)) return null
-    for (const item of feedState.items) {
+  // The feed and the rail's builders both offer follow.
+  const getFollowUserHandle = (userKey: string) => {
+    const feedItems = 'items' in feedState ? feedState.items : []
+    for (const item of feedItems) {
       if ('ownerUserId' in item && String(item.ownerUserId) === userKey) {
         return item.authorHandle
       }
@@ -795,7 +809,10 @@ function ExploreView({ viewer }: { viewer: ExploreViewer | null }) {
         return item.githubUsername
       }
     }
-    return null
+    return (
+      rail.nearbyBuilders.find((builder) => String(builder.userId) === userKey)
+        ?.githubUsername ?? null
+    )
   }
 
   const handleFollow = async (
@@ -804,7 +821,7 @@ function ExploreView({ viewer }: { viewer: ExploreViewer | null }) {
     currentlyFollowed: boolean,
   ) => {
     if (pendingFollows.has(userKey)) return
-    const handle = getFeedUserHandle(userKey)
+    const handle = getFollowUserHandle(userKey)
 
     try {
       await setUserFollowed(userId, userKey, currentlyFollowed)
@@ -853,32 +870,9 @@ function ExploreView({ viewer }: { viewer: ExploreViewer | null }) {
 
   // An explicitly chosen single city whose browse feed turned out empty
   // (C2): name it, count its builders, list a few, and offer two actions.
-  // Nothing here changes the scope without a click.
-  const explicitCityId =
-    currentScope === 'custom' && queryCityIds.length === 1
-      ? (queryCityIds[0] ?? null)
-      : null
-  const isEmptyExplicitCity =
-    explicitCityId !== null &&
-    feedState.source === 'browse' &&
-    feedState.status === 'exhausted'
-  const cityStatsQuery = useQuery(
-    cityStatsQueryOptions(isEmptyExplicitCity ? explicitCityId : null),
-  )
-  const localBuilderArgs =
-    isEmptyExplicitCity && explicitCityId && currentMode !== 'builders'
-      ? { cityIds: [explicitCityId] }
-      : 'skip'
-  const viewerLocalBuilders = usePaginatedQuery(
-    api.explore.listNearbyBuilders,
-    isVisitor ? 'skip' : localBuilderArgs,
-    { initialNumItems: EMPTY_CITY_BUILDER_LIMIT },
-  )
-  const publicLocalBuilders = usePaginatedQuery(
-    api.explore.listNearbyBuildersPublic,
-    isVisitor ? localBuilderArgs : 'skip',
-    { initialNumItems: EMPTY_CITY_BUILDER_LIMIT },
-  )
+  // Nothing here changes the scope without a click. The counts and builders
+  // come from the rail's reads for the same city.
+  const explicitCityId = currentScope === 'custom' ? railCityId : null
   const explicitCityChip = selectedCityChips.find(
     (chip) => chip.id === String(explicitCityId),
   )
@@ -886,84 +880,132 @@ function ExploreView({ viewer }: { viewer: ExploreViewer | null }) {
     explicitCityId && explicitCityChip
       ? {
           cityName: explicitCityChip.shortName ?? explicitCityChip.name,
-          builderCount:
-            (cityStatsQuery.data as { builderCount: number } | null | undefined)
-              ?.builderCount ?? null,
-          localBuilders: (
-            (isVisitor ? publicLocalBuilders : viewerLocalBuilders)
-              .results as BuilderPreview[]
-          ).slice(0, EMPTY_CITY_BUILDER_LIMIT),
+          builderCount: rail.cityStats?.builderCount ?? null,
+          // The rail skips builders in builders mode, as this list did.
+          localBuilders: rail.nearbyBuilders,
           onBrowseEverywhere: handleClearCityFilters,
           onChooseAnotherCity: () => {
-            document.getElementById(EXPLORE_CITY_INPUT_ID)?.focus()
+            if (window.matchMedia(RAIL_MEDIA_QUERY).matches) {
+              focusExploreCityInput('rail')
+              return
+            }
+            filterSheet.openSheet('city')
           },
         }
       : undefined
   const visitor = isVisitor ? { signInRedirect } : undefined
+  const activeFilterCount =
+    Object.keys(modeFilters).length +
+    (canonicalSelectedCityIds.length > 0 ? 1 : 0)
+  const railProps: ExploreRailProps = {
+    mode: currentMode,
+    railCityId,
+    cityStats: rail.cityStats,
+    nearbyCities: rail.nearbyCities,
+    nearbyBuilders: rail.nearbyBuilders,
+    selectedCityChips,
+    availableCities,
+    cityQuery,
+    citySearchPending: citySearchResultsQuery.isLoading,
+    onCityQueryChange: setCityQuery,
+    onAddCity: (city) =>
+      applyCityIds([...queryCityIds, city._id], [...selectedCities, city]),
+    onRemoveCity: removeCityById,
+    onSwitchCity: (city) => {
+      // Name the city until its record loads, not "loading city…".
+      setSelectedCityLabels((current) => ({
+        ...current,
+        [String(city.cityId)]: city.name,
+      }))
+      applyCityIds([city.cityId])
+    },
+    filters: search,
+    onFiltersChange: handleFiltersChange,
+    onResetExplore: isVisitor ? undefined : handleResetExplore,
+    resetPending,
+    followOverrides,
+    followedUserIds,
+    pendingFollows,
+    onFollowUser: (userId, userKey, currentlyFollowed) =>
+      void handleFollow(userId, userKey, currentlyFollowed),
+    viewerId,
+    visitor,
+  }
 
   return (
     <div className="lx-page-shell">
       <ExploreHeader
-        availableCities={availableCities}
-        cityQuery={cityQuery}
-        citySearchPending={citySearchResultsQuery.isLoading}
+        activeFilterCount={activeFilterCount}
         currentScope={currentScope}
-        filters={search}
+        filtersOpen={filterSheet.open}
         mode={currentMode}
-        onCityQueryChange={setCityQuery}
-        onFiltersChange={handleFiltersChange}
         onModeChange={updateExploreMode}
-        onRemoveCity={removeCityById}
-        onResetExplore={isVisitor ? undefined : handleResetExplore}
-        onSelectCity={(city) =>
-          applyCityIds([...queryCityIds, city._id], [...selectedCities, city])
-        }
+        onOpenFilters={() => filterSheet.openSheet('default')}
         onSearchQueryChange={setLocalSearchQuery}
-        resetPending={resetPending}
         searchQuery={localSearchQuery}
         searchStatusActive={debouncedSearchQuery.length > 0}
         selectedCityChips={selectedCityChips}
         showSearch={!isVisitor}
+        strip={{
+          place: getExploreScopeLabel(selectedCityChips),
+          builderCount: rail.cityStats?.builderCount ?? null,
+        }}
       />
 
       <div className="lx-page-scroll" data-scroll-restoration-id="explore-feed">
-        <div className="lx-page-width-wide min-w-0">
-          <ExploreFeed
-            activeFilters={activeFilters}
-            emptyCity={emptyCity}
-            entranceKey={entranceKey}
-            followOverrides={followOverrides}
-            followedUserIds={followedUserIds}
-            likedProjectIds={likedProjectIds}
-            onClearCityFilters={handleClearCityFilters}
-            onDismissPost={handleDismissPost}
-            onDismissProject={handleDismiss}
-            onFollowUser={handleFollow}
-            onLoadMore={handleLoadMore}
-            onMessageUser={(userId) => void openConversation(userId)}
-            onOpenBuilderProfile={(builder) =>
-              void navigate({
-                to: '/u/$username',
-                params: {
-                  username: builder.githubUsername,
-                },
-                search: { tab: 'projects' },
-              })
-            }
-            onResetExplore={isVisitor ? undefined : handleResetExplore}
-            orderingCopy={getExploreOrderingCopy({
-              isVisitor,
-              mode: currentMode,
-            })}
-            pendingFollows={pendingFollows}
-            pendingUserId={pendingUserId}
-            resetPending={resetPending}
-            state={feedState}
-            viewerId={viewerId}
-            visitor={visitor}
-          />
+        {/* On xl the feed fills what the 300px rail leaves of the 1180px
+            width, so no dead band opens between them. */}
+        <div className="lx-page-width-wide grid min-w-0 gap-8 xl:grid-cols-[minmax(0,1fr)_var(--lx-right-rail-width)] xl:gap-12">
+          <div className="mx-auto w-full max-w-(--lx-feed-max) min-w-0 xl:mx-0 xl:max-w-none">
+            <ExploreFeed
+              activeFilters={activeFilters}
+              emptyCity={emptyCity}
+              entranceKey={entranceKey}
+              followOverrides={followOverrides}
+              followedUserIds={followedUserIds}
+              likedProjectIds={likedProjectIds}
+              onClearCityFilters={handleClearCityFilters}
+              onDismissPost={handleDismissPost}
+              onDismissProject={handleDismiss}
+              onFollowUser={handleFollow}
+              onLoadMore={handleLoadMore}
+              onMessageUser={(userId) => void openConversation(userId)}
+              onOpenBuilderProfile={(builder) =>
+                void navigate({
+                  to: '/u/$username',
+                  params: {
+                    username: builder.githubUsername,
+                  },
+                  search: { tab: 'projects' },
+                })
+              }
+              onResetExplore={isVisitor ? undefined : handleResetExplore}
+              orderingCopy={getExploreOrderingCopy({
+                isVisitor,
+                mode: currentMode,
+              })}
+              pendingFollows={pendingFollows}
+              pendingUserId={pendingUserId}
+              resetPending={resetPending}
+              state={feedState}
+              viewerId={viewerId}
+              visitor={visitor}
+            />
+          </div>
+          <div className="hidden xl:block">
+            {/* Sticky, and scrollable on its own when taller than the
+                viewport. The padding (matched by negative margins) keeps
+                the rows that bleed past the rail (-mx-2, -ml-3) and their
+                focus rings (4px) inside the scroll box, which clips. */}
+            <div className="sticky top-6 -mt-1 -mr-6 -ml-4 max-h-[calc(100dvh-3rem)] overflow-y-auto pt-1 pr-6 pb-1 pl-4 [scrollbar-width:thin]">
+              <ExploreRail placement="rail" {...railProps} />
+            </div>
+          </div>
         </div>
       </div>
+      <ExploreFilterSheet {...filterSheet.sheetProps}>
+        <ExploreRail placement="sheet" {...railProps} />
+      </ExploreFilterSheet>
     </div>
   )
 }

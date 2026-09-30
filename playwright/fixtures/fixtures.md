@@ -28,7 +28,7 @@ Functions and shapes the branch adds or changes, from the implementation follow-
 - `explore.listPublic*`, `explore.listNearbyBuildersPublic`, the `language`, `topic` and `openToCollab` arguments of `explore.list`
 - `projects.getProjectSignals`, `projects.listMoreFromOwnerCity`, `projects.listLandingShowcase`, `projects.save` and the saves queries
 - `users.publicProfileOverview` (pinned projects, shipping log), `home.list` (`actorGithubUsername`)
-- `cities.listActiveForMap` and the city page queries, `metrics.record`
+- `cities.listActiveForMap`, `cities.listNearby` (Explore rail) and the city page queries, `metrics.record`
 - the notifications internal backfill; `viewerInboxSummary` removed
 
 Some stale contracts have no distinctive error. For example, an older `home.list` returns items without `actorGithubUsername`, so Home renders no builder link and the discovery journey fails on its last step. Deploy the branch before interpreting a failure; do not waive the failure based on its text.
@@ -60,6 +60,7 @@ No cookies and no Clerk session. Needs no data of its own, but the public specs 
 
 - At least one exact-city builder, visible in Explore, with a public profile and a project eligible for Explore (`discovery`, `city.public`, `axe.public`, `visual.public`). The populated user's city covers this.
 - At least one other such builder besides the populated user, with public activity from the last 30 days, for the full discovery journey (discover, profile, sign in, return, follow, Home shows their activity).
+- At least one project in global Explore with a reaction (count above zero), so the visitor check that reaction counts keep full contrast has a counted pill (`discovery.public`).
 - For the landing checks (`landing.public`, D7): at least five active cities with `builderCount > 0` and at least one eligible project. With fewer, the landing labels its examples and strict validation fails the "landing city to city page" prerequisite.
 
 ### Populated user (`E2E_CLERK_USER_EMAIL`)

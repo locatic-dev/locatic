@@ -37,7 +37,7 @@ export function ProfileStepFields({
       <div>
         <label htmlFor="onboarding-bio" className={fieldLabelClass}>
           one-line bio{' '}
-          <span className="text-text-faint">
+          <span className="text-text-muted">
             ({bio.length}/{BIO_MAX_LENGTH})
           </span>
         </label>

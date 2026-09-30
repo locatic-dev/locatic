@@ -263,8 +263,8 @@ function ProjectTargetRow({
   const liked = likedProjectIds.has(projectKey)
   const content = (
     <div className="min-w-0 flex-1">
-      <p className="font-mono text-[13px] leading-5 text-text wrap-anywhere">
-        <span className="text-text-faint">{project.owner}/</span>
+      <p className="font-sans text-label font-semibold leading-5 text-text wrap-anywhere">
+        <span className="text-text-muted">{project.owner}/</span>
         {project.repo}
       </p>
       {project.description && (
@@ -330,7 +330,7 @@ function PostTargetRow({
           preload="intent"
           className="min-w-0 flex-1 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
         >
-          <p className="font-mono text-label text-text-faint">
+          <p className="font-mono text-label text-text-muted">
             {project.fullName}
           </p>
           <p className="mt-1 line-clamp-2 text-body leading-5 text-text">
@@ -339,7 +339,7 @@ function PostTargetRow({
         </Link>
       ) : (
         <div className="min-w-0 flex-1">
-          <p className="font-mono text-label text-text-faint">
+          <p className="font-mono text-label text-text-muted">
             {project.fullName}
           </p>
           <p className="mt-1 line-clamp-2 text-body leading-5 text-text">
@@ -369,7 +369,7 @@ function CommentTargetRow({
           preload="intent"
           className="min-w-0 flex-1 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
         >
-          <p className="font-mono text-label text-text-faint">
+          <p className="font-mono text-label text-text-muted">
             {target.targetType === 'post' ? 'update on ' : ''}
             {project.fullName}
           </p>
@@ -379,7 +379,7 @@ function CommentTargetRow({
         </Link>
       ) : (
         <div className="min-w-0 flex-1">
-          <p className="font-mono text-label text-text-faint">
+          <p className="font-mono text-label text-text-muted">
             {project.fullName}
           </p>
           <p className="mt-1 line-clamp-2 text-body leading-5 text-text">
@@ -410,7 +410,7 @@ function ProfileTargetRow({
         <p className="truncate text-[13px] font-semibold text-text">
           {profile.displayName}
         </p>
-        <p className="truncate font-mono text-label text-text-faint">
+        <p className="truncate font-mono text-label text-text-muted">
           @{profile.githubUsername}
           {profile.cityName ? ` · ${profile.cityName}` : ''}
         </p>
@@ -455,7 +455,7 @@ function PullRequestTargetRow({
           rel="noreferrer"
           className="min-w-0 flex-1 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
         >
-          <p className="font-mono text-label text-text-faint">
+          <p className="font-mono text-label text-text-muted">
             {project.fullName} #{target.number}
           </p>
           <p className="mt-1 line-clamp-2 text-body leading-5 text-text">
@@ -464,7 +464,7 @@ function PullRequestTargetRow({
         </a>
       ) : (
         <div className="min-w-0 flex-1">
-          <p className="font-mono text-label text-text-faint">
+          <p className="font-mono text-label text-text-muted">
             {project.fullName} #{target.number}
           </p>
           <p className="mt-1 line-clamp-2 text-body leading-5 text-text">
@@ -504,7 +504,7 @@ function TargetRow({
           }
           className={cn(
             'flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-line bg-canvas',
-            target.isOpenable === false && 'border-dashed text-text-faint',
+            target.isOpenable === false && 'border-dashed text-text-muted',
           )}
         >
           <Icon size={15} strokeWidth={1.6} />
@@ -634,7 +634,7 @@ export function HomeFeedCard({
             {getHomeFeedSummary(item)}
           </p>
           <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-            <p className="m-0 font-mono text-meta text-text-faint">
+            <p className="m-0 font-mono text-meta text-text-muted">
               {getHomeFeedTimeCopy(item)}
             </p>
             <LocationPill
@@ -663,7 +663,7 @@ export function HomeFeedCard({
             <Link
               {...commentMoreRoute}
               preload="intent"
-              className="inline-flex min-h-11 items-center gap-2 rounded-md px-2 font-mono text-label text-text-muted transition-colors hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+              className="inline-flex h-8 items-center gap-2 rounded-md px-2 font-mono text-label text-text-muted transition-colors hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand pointer-coarse:min-h-11"
             >
               +{remainingCount} more
               <ArrowRight size={13} />

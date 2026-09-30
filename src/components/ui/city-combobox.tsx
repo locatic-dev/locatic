@@ -121,7 +121,7 @@ export function CityCombobox({
       <div className="relative">
         <Search
           size={14}
-          className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-text-faint"
+          className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-text-muted"
         />
         <Input
           id={inputId}
@@ -178,7 +178,7 @@ export function CityCombobox({
                     {city.name}
                   </span>
                   {regionLabel && (
-                    <span className="font-mono text-meta wrap-anywhere text-text-faint">
+                    <span className="font-mono text-meta wrap-anywhere text-text-muted">
                       {regionLabel}
                     </span>
                   )}
@@ -186,7 +186,7 @@ export function CityCombobox({
                 <Plus
                   size={12}
                   aria-hidden="true"
-                  className="text-text-faint"
+                  className="text-text-muted"
                 />
               </div>
             )

@@ -44,10 +44,13 @@ export function ProfileNetworkSection({
     >
       <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
         <div>
-          <h2 id="profile-network-heading" className="m-0 text-title text-text">
+          <h2
+            id="profile-network-heading"
+            className="m-0 text-eyebrow text-text-muted"
+          >
             network
           </h2>
-          <p className="m-0 mt-0.5 text-meta text-text-faint">
+          <p className="m-0 mt-0.5 text-meta text-text-muted">
             followers and people this builder follows
           </p>
         </div>
@@ -62,7 +65,7 @@ export function ProfileNetworkSection({
                 key={tab}
                 type="button"
                 onClick={() => onChangeTab(tab)}
-                className={`relative min-h-11 rounded-pill px-3.5 font-mono text-label transition-colors ${
+                className={`relative h-8 rounded-pill px-3.5 font-mono pointer-coarse:min-h-11 text-label transition-colors ${
                   isActive ? 'text-text' : 'text-text-muted hover:text-text'
                 }`}
               >

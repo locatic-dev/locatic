@@ -4,14 +4,13 @@ import userEvent from '@testing-library/user-event'
 import type { PropsWithChildren } from 'react'
 import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
-import type { Doc, Id } from '../../../../../convex/_generated/dataModel'
+import type { Id } from '../../../../../convex/_generated/dataModel'
 
 import type { ProjectCardPreview } from '@/features/contracts'
 import { describeExploreResults, type ExploreFeedState } from '../../feed-state'
 import type { ExploreFilters } from '../../state'
 import { ExploreFeed } from '../explore-feed'
 import { ExploreFilterBar } from '../explore-filters'
-import { ExploreHeader } from '../explore-header'
 
 vi.mock('@/components/ui/project-card', () => ({
   ProjectCard: ({ project }: { project: { fullName: string } }) => (
@@ -37,10 +36,6 @@ vi.mock('@tanstack/react-router', () => ({
 
 vi.mock('motion/react-m', () => ({
   div: ({ children }: PropsWithChildren) => <div>{children}</div>,
-  button: ({ children, ...props }: PropsWithChildren<object>) => (
-    <button {...props}>{children}</button>
-  ),
-  span: () => null,
 }))
 
 vi.mock('@/integrations/convex/metrics', () => ({
@@ -170,46 +165,6 @@ describe('Explore filter chips', () => {
     ).toBeNull()
     expect(document.activeElement).toBe(
       screen.getByRole('button', { name: 'filter' }),
-    )
-  })
-
-  it('moves focus to the city field when a city chip is removed', async () => {
-    const user = userEvent.setup()
-    function Header() {
-      const [chips, setChips] = useState([
-        { id: 'city_1', name: 'Bengaluru, Karnataka, India', shortName: null },
-      ])
-      return (
-        <ExploreHeader
-          availableCities={[] as Array<Doc<'cities'>>}
-          cityQuery=""
-          citySearchPending={false}
-          currentScope="custom"
-          filters={{}}
-          mode="projects"
-          onCityQueryChange={vi.fn()}
-          onFiltersChange={vi.fn()}
-          onModeChange={vi.fn()}
-          onRemoveCity={(cityId) =>
-            setChips((current) => current.filter((chip) => chip.id !== cityId))
-          }
-          onSelectCity={vi.fn()}
-          onSearchQueryChange={vi.fn()}
-          searchQuery=""
-          selectedCityChips={chips}
-        />
-      )
-    }
-    render(<Header />)
-
-    await user.click(
-      screen.getByRole('button', {
-        name: 'Remove Bengaluru, Karnataka, India',
-      }),
-    )
-
-    expect(document.activeElement).toBe(
-      screen.getByLabelText('Add a city filter'),
     )
   })
 })

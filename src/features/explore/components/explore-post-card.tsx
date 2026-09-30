@@ -45,10 +45,10 @@ export function ExplorePostCard({
               size={34}
             />
             <div className="min-w-0 flex-1">
-              <div className="truncate font-mono text-label font-semibold text-text">
+              <div className="truncate font-sans text-label font-medium text-text">
                 {post.actorSnapshot.displayName}
               </div>
-              <div className="truncate font-mono text-meta text-text-faint">
+              <div className="truncate font-mono text-meta text-text-muted">
                 <span className="text-text-muted">
                   {post.projectSnapshot.fullName}
                 </span>{' '}
@@ -80,7 +80,10 @@ export function ExplorePostCard({
             type="button"
             onClick={onDismiss}
             aria-label="Dismiss post"
-            className="mt-3 mr-2 flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-md border-none bg-transparent text-text-muted transition-colors hover:text-text"
+            // 28px beside the 34px avatar (as the project card's dismiss),
+            // 44px on coarse pointers; the margins keep it centred on the
+            // avatar either way.
+            className="mt-5 mr-3 flex size-7 shrink-0 items-center justify-center rounded-control border-none bg-transparent text-text-muted transition-colors hover:bg-state-hover hover:text-text pointer-coarse:mt-3 pointer-coarse:mr-2 pointer-coarse:size-11"
           >
             <X size={12} aria-hidden="true" />
           </button>

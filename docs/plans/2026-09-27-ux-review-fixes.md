@@ -82,3 +82,23 @@ The combined deployment job enforces backend-before-frontend ordering. It does n
 The larger-owner regression verifies privacy propagation across 56 projects. It does not certify production database limits: owner-state synchronization still reads the owner's rows, and city recount reads the city's members/projects. These operational bounds and actual Pulse cost savings remain measurement tasks, not claimed improvements.
 
 Strict E2E preflight currently requires the missing `E2E_PUBLIC_PROFILE_USERNAME`, `E2E_CLERK_EMPTY_CITY_USER_EMAIL` and `E2E_CLERK_ONBOARDING_USER_EMAIL` fixtures. Existing populated-route screenshots must be reviewed against prepared fixtures after deployment; the visual tests now reject empty populated-persona pages and application error states before comparing images.
+
+## UI refresh follow-up
+
+Scope: fix the remaining reported UI defects and sharpen the visual system without changing the approved product direction (dark, lowercase, mono-led; teal, violet and amber themes).
+
+- **Reported defects.** Reaction chips and inline controls used 44px targets on every pointer, which inflated reaction chips, spread out owner-card links and pushed the reaction row into the topic editor. 44px targets now apply only on coarse pointers, and desktop controls are 24–32px. Reactions are compact pills; only the disabled action fades, so the still-usable reactor count keeps full contrast. Owner-card and profile social links share one component, which adds Bluesky and restricts LinkedIn links to LinkedIn hosts.
+- **Authentication races.** The notifications, inbox and settings loaders now skip private queries until Convex authentication is ready, as Home, Profile and Explore already did. `Unauthorized` shows a session-ended state with both sign-in and retry. Retry clears React Query's error boundary before invalidating the router. Error details are shown only in development (`import.meta.env.DEV`), not in deployed development-mode builds.
+- **Visual system.** Self-hosted Geist and Geist Mono replace IBM Plex. Surfaces use a neutral near-black with hairline separation, text uses two tiers, the accent is more saturated, and there are new `live` and eyebrow roles. Contrast gates cover all three themes.
+- **Explore.** Project cards are people-first rows. Filters, city stats, active builders and nearby cities sit in a rail at `xl` and in a sheet below it. The builder list keeps fetching past sparse filtered pages up to the existing auto-fetch limit. `cities.listNearby` reuses the bounded nearby-cities reader. Relative times and live indicators render after hydration from one shared clock.
+- **Landing.** A dot-map hero pings cities with real public activity. It pauses when hidden or off-screen, has a pause control, respects reduced-motion changes at runtime, and uses a labelled example map below the city threshold. The parallax and the separate showcase card are removed.
+
+### Additional rollout requirements
+
+- Deploy the backend before the frontend so `cities.listNearby` exists. Until it does, the rail omits nearby cities rather than showing an error.
+- The motion chunk budget is now 27 KiB. Removing the parallax folded a separate motion helper chunk into it. The current 26.89 KiB leaves little headroom.
+- Visual baselines were refreshed only where they already existed, and against local development data. The missing Explore, city, saved, own-profile and own-project baselines still need prepared fixtures.
+
+### Verification
+
+`pnpm ci:quality` (1,190 tests) and `pnpm ci:build` pass. Playwright ran in smoke mode against local development: 113 passed, and the persona-dependent specs were skipped. The only functional failure is the `javascript:` sign-in destination spec, where Clerk's firewall blocks the development handshake before the app's redirect sanitisation, which behaves correctly when requested directly. The strict E2E personas listed above are still required for a release run.
