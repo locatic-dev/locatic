@@ -52,10 +52,16 @@ test.describe('public landing', () => {
   test('has no horizontal overflow at supported public breakpoints', async ({
     page,
   }) => {
+    // The hero globe may bleed past its column; it must never scroll the page.
     for (const viewport of [
+      { width: 320, height: 640 },
       { width: 375, height: 667 },
+      { width: 390, height: 844 },
       { width: 768, height: 1024 },
+      { width: 1024, height: 768 },
+      { width: 1280, height: 900 },
       { width: 1440, height: 1000 },
+      { width: 1920, height: 1080 },
     ]) {
       await page.setViewportSize(viewport)
       await page.goto('/')
@@ -71,7 +77,7 @@ test.describe('public landing', () => {
     await page.goto('/')
     const main = page.locator('main#main-content')
 
-    // Hero map: real cities with builders as links to their pages, or the
+    // Hero globe: real cities with builders as links to their pages, or the
     // example label while fewer than five cities have builders.
     const mapCaption = main.getByText(/^on the map: builders in /)
     const exampleMap = main.getByText(
@@ -85,11 +91,12 @@ test.describe('public landing', () => {
       await expect(cityLinks.first()).toHaveAttribute('href', /^\/c\/[\w-]+$/)
     }
 
-    // Ping map: the attached card is up on first paint. Its copy is labelled
-    // EXAMPLE exactly when the map is the example.
-    const pingMap = main.getByRole('region', { name: 'builders on the map' })
-    await expect(pingMap).toBeVisible()
-    const card = pingMap.locator('[data-ping-card]')
+    // Ping globe: the attached card is up on first paint. Its copy is
+    // labelled EXAMPLE exactly when the map is the example.
+    const pingGlobe = main.getByRole('region', { name: 'builders on the map' })
+    await expect(pingGlobe).toBeVisible()
+    await expect(pingGlobe.locator('canvas')).toBeVisible()
+    const card = pingGlobe.locator('[data-ping-card]')
     await expect(card).toHaveCount(1)
     if (await mapCaption.isVisible()) {
       await expect(card).not.toContainText('EXAMPLE')
@@ -103,11 +110,11 @@ test.describe('public landing', () => {
   }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' })
     await page.goto('/')
-    const pingMap = page
+    const pingGlobe = page
       .locator('main#main-content')
       .getByRole('region', { name: 'builders on the map' })
-    const pinged = pingMap.locator('[data-ping-key][data-active="true"]')
-    const card = pingMap.locator('[data-ping-card]')
+    const pinged = pingGlobe.locator('[data-ping-key][data-active="true"]')
+    const card = pingGlobe.locator('[data-ping-card]')
 
     await expect(pinged).toHaveCount(3)
     const pingedKeys = await pinged.evaluateAll((nodes) =>

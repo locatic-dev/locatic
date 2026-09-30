@@ -163,6 +163,10 @@ export function CityCombobox({
             const regionLabel = getCityRegionLabel(city)
 
             return (
+              // ARIA combobox pattern: keyboard selection happens on the input
+              // (arrows, Enter, Escape) through aria-activedescendant, which
+              // keeps focus there; options only take pointer clicks.
+              // oxlint-disable-next-line jsx-a11y/click-events-have-key-events
               <div
                 key={String(city._id)}
                 id={`${listboxId}-${String(city._id)}`}

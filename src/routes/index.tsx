@@ -10,7 +10,7 @@ import {
   getPingSequence,
   getShowcaseCityIds,
 } from '@/features/landing/landing-content'
-import { PingMap } from '@/features/landing/ping-map'
+import { PingGlobe } from '@/features/landing/ping-globe'
 import { FeatureRow } from '@/features/landing/feature-row'
 import { viewerQueryOptions } from '@/features/viewer/queries'
 import type { ViewerBootstrapPayload } from '@/features/contracts'
@@ -50,6 +50,9 @@ export const Route = createFileRoute('/')({
   component: LandingPage,
 })
 
+/** The caption describes the decorative globe's region. */
+const HERO_MAP_CAPTION_ID = 'hero-map-caption'
+
 function LandingPage() {
   const { data: mapCities } = useQuery(landingMapCitiesQueryOptions())
   const { data: showcase } = useQuery(landingShowcaseQueryOptions())
@@ -73,19 +76,21 @@ function LandingPage() {
       <PublicHeader />
 
       <main id="main-content" tabIndex={-1}>
-        <section className="mx-auto max-w-(--lx-public-max) px-(--lx-gutter) pt-16 md:pt-24">
+        {/* Two columns from lg: the copy beside the globe. Below lg the globe
+            sits under the calls to action. */}
+        <div className="mx-auto grid max-w-(--lx-public-max) items-center gap-x-10 px-(--lx-gutter) pt-16 md:pt-24 lg:grid-cols-2 lg:pt-12">
           <HeroCopy />
-        </section>
-
-        <section
-          aria-label="builders on the map"
-          className="relative mt-10 md:mt-14"
-        >
-          <PingMap items={pingItems} cityDots={getLandingCityDots(map)} />
-          <div className="mx-auto max-w-(--lx-public-max) px-(--lx-gutter)">
-            <HeroMapCaption map={map} />
-          </div>
-        </section>
+          <section
+            aria-label="builders on the map"
+            aria-describedby={HERO_MAP_CAPTION_ID}
+            className="mx-auto mt-10 w-full max-w-105 md:mt-14 lg:mt-0 lg:max-w-none"
+          >
+            <PingGlobe items={pingItems} cityDots={getLandingCityDots(map)} />
+          </section>
+        </div>
+        <div className="mx-auto max-w-(--lx-public-max) px-(--lx-gutter)">
+          <HeroMapCaption id={HERO_MAP_CAPTION_ID} map={map} />
+        </div>
 
         <FeatureRow />
       </main>

@@ -45,9 +45,6 @@
     "jsx-a11y/scope": "error",
     "jsx-a11y/tabindex-no-positive": "error"
   },
-  // jsx-a11y allowlist: hits that existed when the rules landed. They stay
-  // visible as warnings (report-only); any new hit is an error and fails
-  // `pnpm check`. Remove an entry once its file is fixed.
   "overrides": [
     {
       // Client code may import runtime helpers from convex/lib only when the
@@ -105,22 +102,6 @@
       "rules": {
         "jsx-a11y/anchor-is-valid": "off",
         "no-restricted-imports": "off"
-      }
-    },
-    {
-      // ARIA combobox pattern: keyboard selection is handled on the input via
-      // aria-activedescendant; options only take pointer clicks.
-      "files": ["src/components/ui/city-combobox.tsx"],
-      "rules": {
-        "jsx-a11y/click-events-have-key-events": "warn"
-      }
-    },
-    {
-      // Horizontally scrollable region must be focusable for keyboard
-      // scrolling (WCAG 2.1.1).
-      "files": ["src/components/ui/contribution-graph.tsx"],
-      "rules": {
-        "jsx-a11y/no-noninteractive-tabindex": "warn"
       }
     }
   ]
