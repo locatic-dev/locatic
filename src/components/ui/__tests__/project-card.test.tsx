@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { PropsWithChildren } from 'react'
+import { hydrateRoot } from 'react-dom/client'
+import { renderToString } from 'react-dom/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ProjectCard, type ProjectCardData } from '../project-card'
@@ -48,7 +50,6 @@ const project = {
   description: 'Developer activity platform',
   lang: 'TypeScript',
   githubStars: 12,
-  locaticLikes: 4,
   commentsCount: 2,
   authorName: 'Avi',
   authorHandle: 'avinash',
@@ -209,15 +210,41 @@ describe('ProjectCard', () => {
       'posted · 2h ago',
     ],
     ['a push', { kind: 'repo' as const, at: NOW - 5 * DAY }, 'pushed · 5d ago'],
-    [
-      'an old push by date, not months',
-      { kind: 'repo' as const, at: Date.UTC(2026, 2, 3, 12) },
-      'pushed · Mar 3, 2026',
-    ],
   ])('names the latest update for %s', (_name, latestUpdate, copy) => {
-    render(<ProjectCard project={{ ...project, latestUpdate }} />)
+    const { rerender } = render(
+      <ProjectCard project={{ ...project, latestUpdate }} />,
+    )
 
+    // In the identity line: the age on screen, the kind for screen readers.
+    expect(screen.getByTitle(copy).textContent).toBe(copy)
+
+    rerender(
+      <ProjectCard
+        project={{ ...project, latestUpdate }}
+        authorPlacement="none"
+      />,
+    )
     expect(screen.getByText(copy)).toBeTruthy()
+  })
+
+  it('keeps an old push relative in the identity line and dated elsewhere', () => {
+    const latestUpdate = { kind: 'repo' as const, at: Date.UTC(2026, 2, 3, 12) }
+    const { rerender } = render(
+      <ProjectCard project={{ ...project, latestUpdate }} />,
+    )
+
+    // On screen "6mo ago", like the rest of the feed; the title keeps the date.
+    expect(screen.getByTitle('pushed · Mar 3, 2026').textContent).toBe(
+      'pushed · 6mo ago',
+    )
+
+    rerender(
+      <ProjectCard
+        project={{ ...project, latestUpdate }}
+        authorPlacement="none"
+      />,
+    )
+    expect(screen.getByText('pushed · Mar 3, 2026')).toBeTruthy()
   })
 
   it.each([
@@ -248,6 +275,20 @@ describe('ProjectCard', () => {
     expect(screen.queryByText(/refresh failed/)).toBeNull()
   })
 
+  it('leaves sync freshness to the project page in the row variant', () => {
+    render(
+      <ProjectCard
+        variant="row"
+        project={{
+          ...project,
+          syncStatus: { kind: 'fresh', at: NOW - DAY, hasReadme: false },
+        }}
+      />,
+    )
+
+    expect(screen.queryByText('updated 1d ago · no README')).toBeNull()
+  })
+
   it('shows the owner a failed refresh with its reason and a retry control', () => {
     const onRetrySync = vi.fn()
     render(
@@ -275,7 +316,11 @@ describe('ProjectCard', () => {
   it('links an exact-city owner to the city page and leaves a region label as text', () => {
     const { rerender } = render(
       <ProjectCard
-        project={{ ...project, city: 'Bengaluru', cityId: 'city_blr' }}
+        project={{
+          ...project,
+          city: 'Bengaluru, Karnataka, India',
+          cityId: 'city_blr',
+        }}
       />,
     )
 
@@ -289,8 +334,45 @@ describe('ProjectCard', () => {
       />,
     )
 
-    expect(screen.getByText('Karnataka, India')).toBeTruthy()
-    expect(screen.queryByRole('link', { name: 'Karnataka, India' })).toBeNull()
+    // The identity line shows the first part; the full label is the title.
+    expect(screen.getByTitle('Karnataka, India').textContent).toBe('Karnataka')
+    expect(screen.queryByRole('link')).toBeNull()
+  })
+
+  it('keeps place and age together so no wrapped line starts on a separator', () => {
+    render(
+      <ProjectCard
+        project={{
+          ...project,
+          city: 'Bengaluru, Karnataka, India',
+          cityId: 'city_blr',
+          latestUpdate: { kind: 'repo', at: NOW - 5 * DAY },
+        }}
+      />,
+    )
+
+    const group = screen.getByTitle('pushed · 5d ago').parentElement!
+    expect(
+      group.contains(screen.getByRole('link', { name: 'Bengaluru' })),
+    ).toBe(true)
+    // The class is the contract: the group's leading dot hides once a narrow
+    // card puts the group on its own line.
+    const [leadingDot] = group.children
+    expect(leadingDot?.textContent).toBe('·')
+    expect(leadingDot?.getAttribute('class')).toContain('@max-xl:hidden')
+  })
+
+  it('renders trailing actions from the action slot', () => {
+    render(
+      <ProjectCard
+        project={project}
+        actionSlot={<a href="/sign-in">sign in to react, follow or save</a>}
+      />,
+    )
+
+    expect(
+      screen.getByRole('link', { name: 'sign in to react, follow or save' }),
+    ).toBeTruthy()
   })
 
   it('shows collaboration statuses and leaves the others out', () => {
@@ -305,47 +387,7 @@ describe('ProjectCard', () => {
     expect(screen.queryByText('building solo')).toBeNull()
   })
 
-  it('renders exactly one like affordance (no duplicate heart)', () => {
-    render(<ProjectCard project={project} onLike={vi.fn()} />)
-
-    expect(screen.getAllByRole('button', { name: /^like\b/ })).toHaveLength(1)
-  })
-
-  it('names comment and like controls with the counts they show', () => {
-    render(
-      <ProjectCard
-        project={{ ...project, commentsCount: 1, locaticLikes: 1 }}
-        onComment={vi.fn()}
-        onLike={vi.fn()}
-      />,
-    )
-
-    expect(screen.getByRole('button', { name: '1 comment' })).toBeTruthy()
-    const like = screen.getByRole('button', { name: 'like, 1 like' })
-    expect(like.getAttribute('aria-pressed')).toBe('false')
-  })
-
-  it('keeps the like name stable and reports liked state through aria-pressed', () => {
-    render(
-      <ProjectCard project={{ ...project, liked: true }} onLike={vi.fn()} />,
-    )
-
-    const like = screen.getByRole('button', { name: 'like, 4 likes' })
-    expect(like.getAttribute('aria-pressed')).toBe('true')
-  })
-
-  it('names an unliked project with no likes as plain "like"', () => {
-    render(
-      <ProjectCard
-        project={{ ...project, locaticLikes: 0 }}
-        onLike={vi.fn()}
-      />,
-    )
-
-    expect(screen.getByRole('button', { name: 'like' })).toBeTruthy()
-  })
-
-  it('renders a language proportion bar', () => {
+  it('shows the primary language by name instead of a proportion bar', () => {
     render(
       <ProjectCard
         project={{
@@ -360,20 +402,19 @@ describe('ProjectCard', () => {
     )
 
     expect(screen.getByText('TypeScript')).toBeTruthy()
-    expect(screen.getByText('80%')).toBeTruthy()
-    expect(screen.getByText('CSS')).toBeTruthy()
-    expect(screen.getByText('20%')).toBeTruthy()
+    expect(screen.queryByText('CSS')).toBeNull()
+    expect(screen.queryByText(/%$/)).toBeNull()
   })
 
-  it('renders a single full language segment when only one language', () => {
+  it('names the primary language from `lang`', () => {
     render(<ProjectCard project={project} />)
 
     expect(screen.getByText('TypeScript')).toBeTruthy()
-    expect(screen.getByText('100%')).toBeTruthy()
+    expect(screen.queryByText('100%')).toBeNull()
   })
 
   it('leads with the author when the author is in the header', () => {
-    const { container } = render(
+    render(
       <ProjectCard
         project={{ ...project, city: 'Bengaluru, Karnataka, India' }}
         authorPlacement="header"
@@ -383,18 +424,125 @@ describe('ProjectCard', () => {
       />,
     )
 
-    expect(container.textContent?.indexOf('Avi')).toBeLessThan(
-      container.textContent?.indexOf('locatic/app') ?? 0,
-    )
+    const profile = screen.getByRole('link', { name: "Open Avi's profile" })
+    const title = screen.getByText('locatic/app')
+    expect(
+      profile.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
     expect(screen.getByText('Bengaluru, Karnataka, India')).toBeTruthy()
   })
 
-  it('places project reactions in the card and suppresses the legacy heart', () => {
+  it('renders no author with authorPlacement="none"', () => {
+    render(
+      <ProjectCard
+        project={project}
+        authorPlacement="none"
+        authorLink={{ username: 'avinash' }}
+        showActions={false}
+      />,
+    )
+
+    expect(
+      screen.queryByRole('link', { name: "Open Avi's profile" }),
+    ).toBeNull()
+    expect(screen.queryByText('Avi')).toBeNull()
+  })
+
+  it.each([
+    ['23h ago', NOW - 23 * 3_600_000, true],
+    ['25h ago', NOW - 25 * 3_600_000, false],
+  ])('marks a builder active in the last 24h (%s)', (_name, at, expected) => {
+    render(
+      <ProjectCard
+        project={{ ...project, latestUpdate: { kind: 'repo', at } }}
+        authorLink={{ username: 'avinash' }}
+      />,
+    )
+
+    expect(Boolean(screen.queryByTitle('active in the last 24h'))).toBe(
+      expected,
+    )
+  })
+
+  it('renders ages and the live ring only after hydration, without a mismatch', async () => {
+    const card = (
+      <ProjectCard
+        project={{
+          ...project,
+          latestUpdate: { kind: 'repo', at: NOW - 3_600_000 },
+          syncStatus: { kind: 'fresh', at: NOW - DAY, hasReadme: true },
+        }}
+        authorLink={{ username: 'avinash' }}
+      />
+    )
+    const container = document.createElement('div')
+    container.innerHTML = renderToString(card)
+    document.body.append(container)
+
+    // The server's clock knows nothing the client can match.
+    expect(container.textContent).not.toContain('1h ago')
+    expect(container.textContent).not.toContain('updated 1d ago')
+    expect(
+      container.querySelector('[title="active in the last 24h"]'),
+    ).toBeNull()
+
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const recoverable = vi.fn()
+    // A client clock a tick later than the server's.
+    vi.setSystemTime(NOW + 5_000)
+    const root = await act(async () =>
+      hydrateRoot(container, card, { onRecoverableError: recoverable }),
+    )
+
+    expect(recoverable).not.toHaveBeenCalled()
+    expect(consoleError).not.toHaveBeenCalled()
+    expect(container.textContent).toContain('1h ago')
+    expect(container.textContent).toContain('updated 1d ago')
+    expect(
+      container.querySelector('[title="active in the last 24h"]'),
+    ).not.toBeNull()
+
+    act(() => root.unmount())
+    container.remove()
+    consoleError.mockRestore()
+  })
+
+  it('does not offer message on a card', () => {
+    render(
+      <ProjectCard
+        project={project}
+        onFollow={vi.fn()}
+        onToggleSave={vi.fn()}
+      />,
+    )
+
+    expect(screen.queryByRole('button', { name: /message/i })).toBeNull()
+  })
+
+  it('shows follow as the primary action until followed', () => {
+    const onFollow = vi.fn()
+    const { rerender } = render(
+      <ProjectCard project={project} onFollow={onFollow} />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'follow' }))
+    expect(onFollow).toHaveBeenCalledTimes(1)
+
+    rerender(
+      <ProjectCard
+        project={{ ...project, followed: true }}
+        onFollow={onFollow}
+      />,
+    )
+    expect(screen.queryByRole('button', { name: 'follow' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'following' })).toBeTruthy()
+  })
+
+  it('places project reactions in the card with no separate like control', () => {
     render(
       <ProjectCard
         project={project}
         reactionSlot={<div>project reactions</div>}
-        onLike={vi.fn()}
       />,
     )
 

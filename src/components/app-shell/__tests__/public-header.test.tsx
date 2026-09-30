@@ -68,6 +68,42 @@ describe('PublicHeader', () => {
     expect(screen.queryByRole('link', { name: 'home' })).toBeNull()
   })
 
+  it('links visitors to public Explore, except on Explore itself', () => {
+    const { unmount } = render(<PublicHeader />)
+    expect(hrefOf('explore')).toBe('/explore')
+    unmount()
+
+    location.pathname = '/explore'
+    location.href = '/explore'
+    render(<PublicHeader />)
+    expect(screen.queryByRole('link', { name: 'explore' })).toBeNull()
+  })
+
+  it('labels its landmark as site navigation, not account', () => {
+    render(<PublicHeader />)
+
+    expect(screen.getByRole('navigation', { name: 'Site' })).toBeTruthy()
+    expect(screen.queryByRole('navigation', { name: 'Account' })).toBeNull()
+  })
+
+  it('hides explore on phones only on the landing page, whose hero links to it', () => {
+    const { unmount } = render(<PublicHeader />)
+    expect(screen.getByRole('link', { name: 'explore' }).className).toContain(
+      'max-sm:hidden',
+    )
+    unmount()
+
+    for (const path of ['/privacy', '/u/ada', '/c/bengaluru']) {
+      location.pathname = path
+      location.href = path
+      const { unmount: unmountPage } = render(<PublicHeader />)
+      expect(
+        screen.getByRole('link', { name: 'explore' }).className,
+      ).not.toContain('max-sm:hidden')
+      unmountPage()
+    }
+  })
+
   it('returns visitors to the public page they signed in from', () => {
     location.pathname = '/explore'
     location.href = '/explore?mode=builders&scope=global'
@@ -89,6 +125,7 @@ describe('PublicHeader', () => {
     expect(hrefOf('home')).toBe('/home')
     expect(screen.queryByRole('link', { name: 'sign in' })).toBeNull()
     expect(screen.queryByRole('link', { name: 'sign up' })).toBeNull()
+    expect(screen.queryByRole('link', { name: 'explore' })).toBeNull()
   })
 })
 

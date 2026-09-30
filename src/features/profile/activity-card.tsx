@@ -45,7 +45,7 @@ export function ProfileActivityCard({
             <div className="truncate text-label font-semibold text-text">
               {authorName}
             </div>
-            <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 font-mono text-meta text-text-faint">
+            <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 font-mono text-meta text-text-muted">
               <span className="min-w-0 truncate text-text-muted">
                 {context}
               </span>

@@ -120,9 +120,7 @@ function ProjectNotFound() {
       tabIndex={rendersInAppShell ? undefined : -1}
       className="flex flex-col items-start gap-3 bg-canvas px-(--lx-gutter) py-10"
     >
-      <h1 className="m-0 font-mono text-xl font-semibold tracking-[-0.02em] text-text">
-        project not found
-      </h1>
+      <h1 className="m-0 text-headline text-text">project not found</h1>
       <p className="m-0 font-sans text-sm leading-6 text-text-muted">
         this project doesn&apos;t exist or isn&apos;t public.
       </p>

@@ -121,31 +121,40 @@ for (const width of [320, 360]) {
     await expectAboveMobileNav(page, tabList)
   })
 
-  test(`explore card actions remain tappable at ${width}px`, async ({
-    page,
-  }) => {
-    await page.setViewportSize({ width, height: 800 })
-    await page.goto('/explore?scope=global')
-    requireOnboardedPersona(page)
+  test.describe(`explore card actions on a touch device at ${width}px`, () => {
+    // 44px targets apply only on coarse pointers, so this needs touch
+    // emulation rather than a narrow viewport alone.
+    test.use({ hasTouch: true, isMobile: true })
 
-    const firstProjectLink = (await settledProjectFeed(page)).first()
-    requireE2EPrerequisite(
-      (await firstProjectLink.count()) > 0,
-      NO_EXPLORE_PROJECTS,
-    )
+    test(`explore card actions remain tappable at ${width}px`, async ({
+      page,
+    }) => {
+      expect(
+        await page.evaluate(() => matchMedia('(pointer: coarse)').matches),
+      ).toBe(true)
+      await page.setViewportSize({ width, height: 800 })
+      await page.goto('/explore?scope=global')
+      requireOnboardedPersona(page)
 
-    const card = firstProjectLink.locator(
-      'xpath=ancestor::div[contains(@class, "lx-card")][1]',
-    )
+      const firstProjectLink = (await settledProjectFeed(page)).first()
+      requireE2EPrerequisite(
+        (await firstProjectLink.count()) > 0,
+        NO_EXPLORE_PROJECTS,
+      )
 
-    await expectTouchTarget(
-      card.getByRole('button', { name: /dismiss/i }).first(),
-    )
-    await expectTouchTarget(
-      card.getByRole('link', { name: /comment|conversation/i }).first(),
-    )
+      const card = firstProjectLink.locator(
+        'xpath=ancestor::div[contains(@class, "lx-card")][1]',
+      )
 
-    await card.click({ position: { x: 10, y: 10 } })
-    await expect(page).toHaveURL(/\/project\//)
+      await expectTouchTarget(
+        card.getByRole('button', { name: /dismiss/i }).first(),
+      )
+      await expectTouchTarget(
+        card.getByRole('link', { name: /comment|conversation/i }).first(),
+      )
+
+      await card.click({ position: { x: 10, y: 10 } })
+      await expect(page).toHaveURL(/\/project\//)
+    })
   })
 }

@@ -23,11 +23,15 @@ test.describe('profiles for a signed-in builder (C6, C8)', () => {
             ?.textContent?.trim() ?? '',
       ),
     )
-    expect(titles.slice(0, 3)).toEqual([
+    // The shipping log (D6) sits with recent work above the graph, and only
+    // renders when the builder has releases or posts.
+    const leading = [
       'pinned',
       'recent work',
+      ...(titles.includes('shipping log') ? ['shipping log'] : []),
       'github contributions',
-    ])
+    ]
+    expect(titles.slice(0, leading.length)).toEqual(leading)
     expect(titles.at(-2)).toBe('network')
     expect(titles.at(-1)).toBe('all activity')
   })

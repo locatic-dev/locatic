@@ -104,7 +104,7 @@ export function RepositoryManagerDialog({
             <div className="relative">
               <Search
                 size={14}
-                className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-text-faint"
+                className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-text-muted"
               />
               <Input
                 value={query}
@@ -114,7 +114,7 @@ export function RepositoryManagerDialog({
                 aria-label="Search repositories"
               />
             </div>
-            <div className="mt-3 flex flex-wrap items-center gap-3 font-mono text-meta text-text-faint">
+            <div className="mt-3 flex flex-wrap items-center gap-3 font-mono text-meta text-text-muted">
               <span>{items.length} repositories</span>
               <span>{selectedRepoFullNames.length} selected to add</span>
               {githubLoading && (
@@ -151,7 +151,7 @@ export function RepositoryManagerDialog({
 
             {filteredItems.length === 0 ? (
               <div className="rounded-card border border-dashed border-line bg-canvas px-5 py-8 text-center">
-                <div className="font-mono text-label text-text-faint">
+                <div className="font-mono text-label text-text-muted">
                   {items.length === 0
                     ? emptyStateCopy
                     : 'No repositories match your search.'}
@@ -171,30 +171,30 @@ export function RepositoryManagerDialog({
                       <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
                         <div className="min-w-0 flex-1">
                           <div className="mb-1.5 flex flex-wrap items-center gap-2">
-                            <div className="font-mono text-[13px] font-semibold text-text wrap-anywhere">
+                            <div className="font-sans text-label font-semibold text-text wrap-anywhere">
                               {item.fullName}
                             </div>
                             <span
                               className={cn(
                                 'rounded-pill border px-2 py-1 font-mono text-meta uppercase tracking-[0.04em]',
                                 item.status === 'on_profile' &&
-                                  'border-brand/30 bg-brand-quiet text-brand',
+                                  'border-brand text-brand',
                                 item.status === 'hidden' &&
-                                  'border-line bg-surface text-text-faint',
+                                  'border-line bg-surface text-text-muted',
                                 item.status === 'available' &&
-                                  'border-line bg-surface-alt text-text-faint',
+                                  'border-line bg-surface-alt text-text-muted',
                               )}
                             >
                               {statusCopy[item.status]}
                             </span>
                             {item.isPinned && (
-                              <span className="inline-flex items-center gap-1 font-mono text-meta text-text-faint">
+                              <span className="inline-flex items-center gap-1 font-mono text-meta text-text-muted">
                                 <Pin size={11} />
                                 pinned
                               </span>
                             )}
                             {item.isMissingFromGithub && (
-                              <span className="font-mono text-meta text-text-faint">
+                              <span className="font-mono text-meta text-text-muted">
                                 not currently visible from GitHub
                               </span>
                             )}
@@ -204,7 +204,7 @@ export function RepositoryManagerDialog({
                             {item.description || 'No description provided.'}
                           </p>
 
-                          <div className="mt-2 flex flex-wrap items-center gap-3 font-mono text-meta text-text-faint">
+                          <div className="mt-2 flex flex-wrap items-center gap-3 font-mono text-meta text-text-muted">
                             {item.primaryLanguage && (
                               <span className="inline-flex items-center gap-1.5">
                                 <LangDot lang={item.primaryLanguage} />

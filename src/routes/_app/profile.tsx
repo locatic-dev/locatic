@@ -735,7 +735,7 @@ function ProfilePage() {
                                 key={getProjectCardId(entry.project)}
                                 className="overflow-hidden rounded-card border border-line bg-surface"
                               >
-                                <div className="border-b border-line px-4 py-3 font-mono text-meta text-text-faint">
+                                <div className="border-b border-line px-4 py-3 text-eyebrow text-text-muted">
                                   contributor ·{' '}
                                   {compactNumber(entry.commitCount)} commits
                                   matched
@@ -804,10 +804,9 @@ function ProfilePage() {
                             return (
                               <ProjectCard
                                 key={String(likedProject.projectId)}
-                                project={{
-                                  ...toProjectCardData(likedProject.project),
-                                  liked: true,
-                                }}
+                                project={toProjectCardData(
+                                  likedProject.project,
+                                )}
                                 showActions={false}
                                 reactionSlot={
                                   <ProjectReactionBar

@@ -42,7 +42,10 @@ export function profileHeader(page: Page) {
  */
 export async function settledProjectFeed(page: Page) {
   const main = page.locator('main#main-content')
-  const projects = main.locator('a[href^="/project/"]')
+  // Scoped to the results region, so rail links never count as feed rows.
+  const projects = main
+    .getByRole('region', { name: 'projects results' })
+    .locator('a[href^="/project/"]')
   const empty = main.getByRole('heading', {
     name: /^(no projects|nothing to explore)/,
   })

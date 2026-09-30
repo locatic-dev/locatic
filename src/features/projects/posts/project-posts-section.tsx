@@ -113,9 +113,7 @@ export function ProjectPostsSection({
     <div className="flex flex-col gap-4">
       {isOwnProject && (
         <div className="rounded-card border border-line bg-surface px-4 py-4">
-          <div className="mb-3 font-mono text-meta uppercase tracking-[0.06em] text-text-faint">
-            repo post
-          </div>
+          <div className="mb-3 text-eyebrow text-text-muted">repo post</div>
           <Textarea
             value={postBody}
             onChange={(event) => setPostBody(event.target.value)}

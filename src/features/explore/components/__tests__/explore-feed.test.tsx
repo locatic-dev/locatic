@@ -10,14 +10,16 @@ import type { ProjectCardPreview } from '@/features/contracts'
 
 vi.mock('@/components/ui/project-card', () => ({
   ProjectCard: ({
+    actionSlot,
     authorPlacement,
     onToggleSave,
     project,
     reactionSlot,
     savePending,
     saved,
-    showFullCity,
+    variant,
   }: {
+    actionSlot?: ReactNode
     authorPlacement?: string
     onToggleSave?: () => void
     project: {
@@ -30,12 +32,12 @@ vi.mock('@/components/ui/project-card', () => ({
     reactionSlot?: ReactNode
     savePending?: boolean
     saved?: boolean
-    showFullCity?: boolean
+    variant?: string
   }) => (
     <article
       data-testid={`project-${project.id ?? project.projectId}`}
       data-author-placement={authorPlacement}
-      data-show-full-city={showFullCity ? 'true' : 'false'}
+      data-variant={variant}
       data-city={project.city ?? undefined}
       data-city-id={project.cityId ?? undefined}
     >
@@ -46,6 +48,7 @@ vi.mock('@/components/ui/project-card', () => ({
         </button>
       )}
       {reactionSlot}
+      {actionSlot}
     </article>
   ),
 }))
@@ -319,7 +322,7 @@ describe('ExploreFeed', () => {
     )
   })
 
-  it('renders project rows with the header author placement', () => {
+  it('renders frameless project rows with the header author placement', () => {
     renderFeed(
       projectsBrowse({ status: 'ready', items: [project], more: 'none' }),
     )
@@ -332,10 +335,8 @@ describe('ExploreFeed', () => {
         .getAttribute('data-author-placement'),
     ).toBe('header')
     expect(
-      screen
-        .getByTestId('project-project_1')
-        .getAttribute('data-show-full-city'),
-    ).toBe('true')
+      screen.getByTestId('project-project_1').getAttribute('data-variant'),
+    ).toBe('row')
   })
 
   it('passes the exact-city owner city id to the card so its pill links', () => {
@@ -1024,9 +1025,9 @@ describe('ExploreFeed', () => {
 
       expect(
         screen.getByRole('link', {
-          name: 'Sign in to like, save or follow locatic/app',
+          name: 'Sign in to react, follow or save locatic/app',
         }).textContent,
-      ).toBe('sign in to like, save or follow')
+      ).toBe('sign in to react, follow or save')
       expect(screen.queryByRole('button', { name: /^save/ })).toBeNull()
       // The saved-state query never runs for a visitor.
       expect(saveMocks.savedStateEnabled.every((enabled) => !enabled)).toBe(
