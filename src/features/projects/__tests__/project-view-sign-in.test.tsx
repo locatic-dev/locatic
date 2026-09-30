@@ -9,6 +9,7 @@ import type { ProjectDetailPayload } from '@/features/contracts'
 import { buildProjectReturnHref } from '@/features/projects/deep-link'
 
 const mocks = vi.hoisted(() => ({
+  isSignedIn: false as boolean | undefined,
   search: {} as Record<string, string>,
 }))
 
@@ -42,7 +43,7 @@ vi.mock('@tanstack/react-router', () => ({
 }))
 
 vi.mock('@clerk/tanstack-react-start', () => ({
-  useAuth: () => ({ isSignedIn: false }),
+  useAuth: () => ({ isSignedIn: mocks.isSignedIn }),
 }))
 
 vi.mock('convex/react', () => ({
@@ -108,6 +109,7 @@ function signInDestination(name: string) {
 describe('project view sign-in links', () => {
   afterEach(() => {
     window.history.replaceState(null, '', '/')
+    mocks.isSignedIn = false
     mocks.search = {}
   })
 
@@ -139,6 +141,50 @@ describe('project view sign-in links', () => {
     expect(signInDestination('sign in to save')).toBe(
       '/project/ada/engine#readme',
     )
+  })
+
+  it('offer a visitor sign-in to follow the owner instead of dead controls', () => {
+    window.history.replaceState(null, '', '/project/ada/engine?post=p1')
+    mocks.search = { post: 'p1' }
+
+    renderView()
+
+    expect(signInDestination('sign in to follow')).toBe(
+      '/project/ada/engine?post=p1',
+    )
+    expect(screen.queryByRole('button', { name: 'follow' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'message' })).toBeNull()
+  })
+
+  it('hold a quiet disabled follow while Clerk is still loading', () => {
+    mocks.isSignedIn = undefined
+
+    renderView()
+
+    const follow = screen.getByRole<HTMLButtonElement>('button', {
+      name: 'follow',
+    })
+    expect(follow.disabled).toBe(true)
+    // Secondary, not the solid brand fill the live follow control uses.
+    expect(follow.className).not.toContain('bg-brand')
+    expect(screen.queryByRole('link', { name: 'sign in to follow' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'message' })).toBeNull()
+  })
+
+  it('let a signed-in viewer follow and message the owner', () => {
+    mocks.isSignedIn = true
+
+    renderView()
+
+    expect(
+      screen.getByRole<HTMLButtonElement>('button', { name: 'follow' })
+        .disabled,
+    ).toBe(false)
+    expect(
+      screen.getByRole<HTMLButtonElement>('button', { name: 'message' })
+        .disabled,
+    ).toBe(false)
+    expect(screen.queryByRole('link', { name: 'sign in to follow' })).toBeNull()
   })
 })
 

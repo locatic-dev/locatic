@@ -3,14 +3,14 @@ import * as m from 'motion/react-m'
 import { fadeUp, viewportOnce } from '@/lib/motion'
 
 const footerLinkClassName =
-  'inline-flex min-h-11 items-center text-text-faint no-underline transition-colors hover:text-text'
+  'inline-flex min-h-11 items-center text-text-muted no-underline transition-colors hover:text-text'
 
 // Footer shared by the public landing page and the legal pages. Surfaces the
 // legal links so they are reachable from every public surface.
 export function PublicFooter() {
   return (
     <m.footer
-      className="border-t border-line px-(--lx-gutter) py-7 text-center font-mono text-label text-text-faint"
+      className="border-t border-line px-(--lx-gutter) py-7 text-center font-mono text-label text-text-muted"
       variants={fadeUp}
       initial="hidden"
       whileInView="visible"

@@ -5,8 +5,10 @@ import {
   createRootRouteWithContext,
   type ErrorComponentProps,
   useRouter,
+  useRouterState,
 } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
+import { useQueryErrorResetBoundary } from '@tanstack/react-query'
 import { auth } from '@clerk/tanstack-react-start/server'
 import { LazyMotion, MotionConfig } from 'motion/react'
 import { ThemeProvider } from 'next-themes'
@@ -20,6 +22,7 @@ import { DotMap } from '@/components/ui/dot-map'
 import { ArrowLeft } from '@/lib/icons'
 import { createClientRouteAuthStateGetter } from '@/lib/auth-routing'
 import { getUserFacingErrorCopy } from '@/lib/error-display'
+import { toSafeRelativeUrl } from '@/lib/safe-redirect'
 import {
   enableSkipLinkKeyboardMode,
   isSkipLinkKeyboardTrigger,
@@ -104,7 +107,7 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
         content:
           'Discover what developers are building from locally to globally. Like it, comment on it, follow them.',
       },
-      { name: 'theme-color', content: '#06090a' },
+      { name: 'theme-color', content: '#090a0b' },
       { property: 'og:type', content: 'website' },
       { property: 'og:url', content: siteUrl },
       { property: 'og:site_name', content: 'Locatic' },
@@ -129,12 +132,12 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
       { name: 'twitter:image:alt', content: 'Locatic social preview' },
     ],
     links: [
-      // Self-hosted fonts (@font-face in styles.css): preload the faces the
-      // first paint uses so text swaps in before layout settles.
+      // Self-hosted fonts (@font-face in styles.css): one variable file per
+      // family, both used by the first paint, so preload them before layout
+      // settles.
       ...[
-        '/fonts/ibm-plex-mono-latin-400.woff2',
-        '/fonts/ibm-plex-mono-latin-600.woff2',
-        '/fonts/ibm-plex-sans-latin-400.woff2',
+        '/fonts/geist-latin-wght.woff2',
+        '/fonts/geist-mono-latin-wght.woff2',
       ].map((href) => ({
         rel: 'preload',
         href,
@@ -157,9 +160,19 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
   shellComponent: RootDocument,
 })
 
+// Mirror Button primary/touch and secondary/touch. Importing Button here
+// would pull class-variance-authority and Radix Slot into the initial entry.
+const primaryActionClass =
+  'inline-flex h-8 items-center rounded-control border border-transparent bg-brand px-3.5 pointer-coarse:h-auto pointer-coarse:min-h-11 pointer-coarse:px-4 text-label font-semibold text-brand-foreground no-underline hover:bg-brand/90'
+const secondaryActionClass =
+  'inline-flex h-8 items-center rounded-control border border-control bg-transparent px-3.5 pointer-coarse:h-auto pointer-coarse:min-h-11 pointer-coarse:px-4 text-label text-text-muted no-underline transition-colors hover:border-line-strong hover:text-text'
+
 export function RootErrorPage({ error, reset }: ErrorComponentProps) {
   const router = useRouter()
+  const queryErrorResetBoundary = useQueryErrorResetBoundary()
+  const href = useRouterState({ select: (state) => state.location.href })
   const errorCopy = getUserFacingErrorCopy(error)
+  const redirect = toSafeRelativeUrl(href) ?? undefined
 
   return (
     <main
@@ -181,29 +194,43 @@ export function RootErrorPage({ error, reset }: ErrorComponentProps) {
         </div>
 
         {errorCopy.detail ? (
-          <div className="overflow-wrap-anywhere rounded-control border border-line bg-canvas px-3 py-2.5 text-meta text-text-faint wrap-anywhere whitespace-pre-wrap">
+          <div className="overflow-wrap-anywhere rounded-control border border-line bg-canvas px-3 py-2.5 text-meta text-text-muted wrap-anywhere whitespace-pre-wrap">
             {errorCopy.detail}
           </div>
         ) : null}
 
         <div className="flex flex-wrap items-center gap-3">
-          {/* Mirror Button primary/touch and secondary/touch. Importing Button
-              here would pull class-variance-authority and Radix Slot into the
-              initial entry. */}
+          {errorCopy.action === 'sign-in' && (
+            <Link
+              to="/sign-in/$"
+              search={{ redirect }}
+              className={primaryActionClass}
+            >
+              sign in again
+            </Link>
+          )}
+          {/* Retry stays on the sign-in path too: when Clerk is still signed
+              in but Convex rejected the token, /sign-in redirects straight
+              back here, and retry is the way out of that loop. */}
           <button
             onClick={() => {
+              // Clear React Query's error first: a private route's suspense
+              // query (not prefetched by its loader on the client) would
+              // otherwise rethrow its cached error on remount.
+              queryErrorResetBoundary.reset()
               reset()
               void router.invalidate()
             }}
-            className="inline-flex min-h-11 items-center rounded-control bg-brand px-4 text-label font-semibold text-brand-foreground hover:bg-brand/90"
+            className={
+              errorCopy.action === 'sign-in'
+                ? secondaryActionClass
+                : primaryActionClass
+            }
             type="button"
           >
             retry
           </button>
-          <Link
-            to="/"
-            className="inline-flex min-h-11 items-center rounded-control border border-control px-4 text-label text-text-muted no-underline transition-colors hover:border-line-strong hover:text-text"
-          >
+          <Link to="/" className={secondaryActionClass}>
             go home
           </Link>
         </div>
@@ -236,9 +263,7 @@ function NotFoundPage() {
         {/* Wordmark */}
         <div className="mb-12 flex items-center justify-center gap-2.5">
           <Logo size={20} />
-          <span className="font-mono text-sm font-bold tracking-[-0.02em]">
-            locatic
-          </span>
+          <span className="text-title font-bold">locatic</span>
         </div>
 
         {/* 404 */}
@@ -246,9 +271,7 @@ function NotFoundPage() {
           404
         </div>
 
-        <h1 className="mb-3 mt-0 font-mono text-xl font-semibold tracking-[-0.02em] text-text">
-          page not found
-        </h1>
+        <h1 className="mb-3 mt-0 text-headline text-text">page not found</h1>
 
         <p className="mb-9 mt-0 text-body text-text-muted">
           this coordinate doesn't exist on the map. the path you followed leads
@@ -264,7 +287,7 @@ function NotFoundPage() {
             go home
           </Link>
 
-          <div className="rounded-control border border-line px-2.5 py-1 text-meta text-text-faint">
+          <div className="rounded-control border border-line px-2.5 py-1 text-meta text-text-muted">
             error:404 · route not matched
           </div>
         </div>

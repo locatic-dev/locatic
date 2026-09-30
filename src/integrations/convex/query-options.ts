@@ -169,6 +169,13 @@ export const popularCitiesQueryOptions = () =>
 export const citiesByIdsQueryOptions = (cityIds: Array<any>) =>
   convexQuery(api.cities.listByIds, cityIds.length > 0 ? { cityIds } : 'skip')
 
+/**
+ * Nearby active cities for the Explore rail; a public query. Skipped (no
+ * subscription) without a single city.
+ */
+export const nearbyCitiesQueryOptions = (cityId: Id<'cities'> | null) =>
+  convexQuery(api.cities.listNearby, cityId ? { cityId } : 'skip')
+
 /** Landing map (plan item D7): active cities with builders, public. */
 export const landingMapCitiesQueryOptions = () =>
   convexQuery(api.cities.listActiveForMap, {})

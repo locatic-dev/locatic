@@ -1,14 +1,16 @@
 import { Link, useRouter } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
-import { Bookmark, Star, Heart, MessageSquare, X, GitFork } from '@/lib/icons'
+import { Bookmark, Star, MessageSquare, X, GitFork } from '@/lib/icons'
 import { formatDate, relativeTime } from '@/lib/time'
 import { LxAvatar } from './lx-avatar'
-import { LanguageBar } from './language-bar'
+import { LangDot } from './lang-dot'
 import { CityPill } from './city-pill'
 import { StatusPill, isCollaborationStatus } from './status-pill'
 import { Button } from './button'
 import { cardVariants } from './card'
 import { cn } from '@/lib/utils'
+import { isLive } from '@/lib/builder-activity'
+import { useHydratedNow } from '@/lib/use-hydrated-now'
 
 /** Most recent public activity (`latestUpdate` on project previews). */
 export type ProjectLatestUpdate = {
@@ -41,7 +43,6 @@ export interface ProjectCardData {
   latestUpdate?: ProjectLatestUpdate
   syncStatus?: ProjectSyncStatus
   githubStars: number
-  locaticLikes: number
   reactionCounts?: Record<string, number>
   viewerReactionTypes?: string[]
   commentsCount: number
@@ -55,7 +56,6 @@ export interface ProjectCardData {
   /** Set only for exact-city owners; the city pill then links to the city page. */
   cityId?: string | null
   buildStatus?: string | null
-  liked?: boolean
   followed?: boolean
   isPinned?: boolean
 }
@@ -79,25 +79,32 @@ type ProjectCardAuthorLink = {
 
 interface ProjectCardProps {
   project: ProjectCardData
+  /**
+   * `card` (default) is a framed card; `row` is frameless, for a list inside
+   * `cardSheetClass`, whose hairlines separate the rows.
+   */
+  variant?: 'card' | 'row'
   density?: 'cozy' | 'compact'
-  authorPlacement?: 'header' | 'footer'
+  /** `none` for lists where every card has the same author (profiles). */
+  authorPlacement?: 'header' | 'footer' | 'none'
   projectLink?: ProjectCardProjectLink
   authorLink?: ProjectCardAuthorLink
-  onLike?: () => void
   onComment?: () => void
-  onDM?: () => void
   onFollow?: () => void
   onDismiss?: () => void
   /** Owner-only: re-runs a failed metadata refresh. */
   onRetrySync?: () => void
   /** Signed-in viewers only; visitors get a sign-in link from the caller. */
   onToggleSave?: () => void
+  /**
+   * Trailing actions before follow and save (a visitor's sign-in link, where
+   * the caller passes no follow or save handler).
+   */
+  actionSlot?: ReactNode
   /** Whether the viewer has saved this project (plan item D1). */
   saved?: boolean
   savePending?: boolean
-  likePending?: boolean
   followPending?: boolean
-  dmPending?: boolean
   retrySyncPending?: boolean
   className?: string
   showActions?: boolean
@@ -129,6 +136,33 @@ export function describeLatestUpdate(update: NonNullable<ProjectLatestUpdate>) {
     default:
       return `pushed · ${age}`
   }
+}
+
+/**
+ * The latest update split for the identity line: the kind ("released v1.2 · ")
+ * for screen readers, the full label (with the date once it is older than
+ * four weeks) for the title, and a relative age ("3mo ago") on screen.
+ */
+function splitLatestUpdate(
+  update: ProjectLatestUpdate | undefined,
+  lastCommitLabel: string | undefined,
+) {
+  if (update) {
+    const label = describeLatestUpdate(update)
+    const kind = label.slice(
+      0,
+      label.length - formatActivityAge(update.at).length,
+    )
+    return { age: relativeTime(update.at), kind, label }
+  }
+  if (update === undefined && lastCommitLabel) {
+    return {
+      age: lastCommitLabel,
+      kind: 'pushed · ',
+      label: `pushed · ${lastCommitLabel}`,
+    }
+  }
+  return null
 }
 
 /**
@@ -165,22 +199,20 @@ const aboveCover = 'relative z-10'
 
 export function ProjectCard({
   project,
+  variant = 'card',
   density = 'cozy',
   authorPlacement = 'header',
   projectLink,
   authorLink,
-  onLike,
   onComment,
-  onDM,
   onFollow,
   onDismiss,
   onRetrySync,
   onToggleSave,
+  actionSlot,
   saved = false,
   savePending,
-  likePending,
   followPending,
-  dmPending,
   retrySyncPending,
   className,
   showActions = true,
@@ -190,13 +222,9 @@ export function ProjectCard({
 }: ProjectCardProps) {
   const router = useRouter()
   const compact = density === 'compact'
+  const isRow = variant === 'row'
   const authorLabel = project.authorName || project.authorHandle
-  const languages =
-    project.languages && project.languages.length > 0
-      ? project.languages
-      : project.lang
-        ? [{ name: project.lang, bytes: 0 }]
-        : []
+  const primaryLanguage = project.lang ?? project.languages?.[0]?.name ?? null
   const projectNavigateOptions = projectLink
     ? {
         to: '/project/$owner/$repo' as const,
@@ -206,23 +234,29 @@ export function ProjectCard({
       }
     : null
   const projectLabel = project.fullName ?? `${project.owner}/${project.repo}`
-  const latestUpdateLabel = project.latestUpdate
-    ? describeLatestUpdate(project.latestUpdate)
-    : project.latestUpdate === undefined && project.lastCommitLabel
-      ? `pushed · ${project.lastCommitLabel}`
-      : null
+  const latestUpdate = splitLatestUpdate(
+    project.latestUpdate,
+    project.lastCommitLabel,
+  )
+  // Ages and the live ring depend on the clock, so they render once hydrated
+  // (the server's clock differs); their slots keep their height meanwhile.
+  const now = useHydratedNow()
+  const hasClock = now !== null
+  const live = hasClock && isLive(project.latestUpdate?.at, now)
   const syncFailed = project.syncStatus?.kind === 'failed'
+  // The row keeps its relative time in the identity line and leaves sync
+  // freshness to the project page.
   const freshnessLabel =
-    project.syncStatus && !syncFailed
+    !isRow && project.syncStatus && !syncFailed
       ? describeSyncFreshness(project.syncStatus)
       : null
   const collaborationStatus = isCollaborationStatus(project.buildStatus)
     ? project.buildStatus
     : null
   const commentLabel = commentActionLabel(project.commentsCount)
-  const showLike = showActions && !reactionSlot && Boolean(onLike)
   const hasActions =
-    showActions && Boolean(onFollow || onDM || onToggleSave || showLike)
+    showActions && Boolean(onFollow || onToggleSave || actionSlot)
+  const showAuthorHeader = authorPlacement === 'header'
 
   const preloadProjectRoute = () => {
     if (!projectNavigateOptions) return
@@ -230,11 +264,19 @@ export function ProjectCard({
   }
 
   const avatar = (
-    <LxAvatar
-      name={project.authorHandle}
-      avatarUrl={project.authorAvatarUrl}
-      size={22}
-    />
+    <span
+      title={live ? 'active in the last 24h' : undefined}
+      className={cn(
+        'inline-flex shrink-0 rounded-full',
+        live && 'ring-2 ring-live ring-offset-2 ring-offset-surface',
+      )}
+    >
+      <LxAvatar
+        name={project.authorHandle}
+        avatarUrl={project.authorAvatarUrl}
+        size={32}
+      />
+    </span>
   )
   const authorName = (
     <span className="min-w-0 font-sans text-label font-medium text-text wrap-anywhere">
@@ -250,42 +292,78 @@ export function ProjectCard({
       aria-label={`Open ${authorLabel}'s profile`}
       className={cn(
         aboveCover,
-        'flex min-h-11 min-w-0 items-center gap-2 rounded-control py-2 text-left transition-colors hover:text-text',
+        'flex min-w-0 items-center gap-2.5 rounded-control text-left transition-colors hover:text-text pointer-coarse:min-h-11',
       )}
     >
       {avatar}
       {authorName}
     </Link>
   ) : (
-    <div className="flex min-h-11 min-w-0 items-center gap-2 py-2">
+    <div className="flex min-w-0 items-center gap-2.5">
       {avatar}
       {authorName}
     </div>
   )
-  const cityPill = project.city ? (
-    <CityPill
-      city={project.city}
-      cityId={project.cityId ?? null}
-      truncate={!showFullCity}
-      className={cn(aboveCover, 'max-w-full')}
-    />
-  ) : null
+  const separator = (
+    <span aria-hidden="true" className="shrink-0 text-meta text-text-muted">
+      ·
+    </span>
+  )
+  const showAge = showAuthorHeader && Boolean(latestUpdate)
+  // Place and age form one unit that never wraps inside. On a narrow card it
+  // takes its own line under the name and drops its leading dot, so no line
+  // starts or ends on a dangling separator. Its -mt-1 cancels the row gap
+  // but no more, so the city link's target stays clear of the author link.
+  const identityMeta = (Boolean(project.city) || showAge) && (
+    <span className="flex min-w-0 max-w-full items-center gap-2 @max-xl:-mt-1 @max-xl:basis-full @max-xl:pl-10.5">
+      <span
+        aria-hidden="true"
+        className="shrink-0 text-meta text-text-muted @max-xl:hidden"
+      >
+        ·
+      </span>
+      {project.city && (
+        <CityPill
+          variant="inline"
+          city={project.city}
+          // The city name alone ("HYDERABAD"); the full label is the title.
+          label={
+            showFullCity ? project.city : project.city.split(',')[0]?.trim()
+          }
+          cityId={project.cityId ?? null}
+          truncate={!showFullCity}
+          className={cn(aboveCover, 'min-w-0 max-w-full')}
+        />
+      )}
+      {project.city && showAge && separator}
+      {showAge && latestUpdate && (
+        <span
+          title={hasClock ? latestUpdate.label : undefined}
+          className="min-h-lh shrink-0 text-eyebrow whitespace-nowrap text-text-muted"
+        >
+          <span className="sr-only">{latestUpdate.kind}</span>
+          {hasClock && latestUpdate.age}
+        </span>
+      )}
+    </span>
+  )
   const identityRow = (
     <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
       {authorIdentity}
-      {cityPill}
       {collaborationStatus && <StatusPill status={collaborationStatus} />}
+      {identityMeta}
     </div>
   )
 
+  const commentActionClassName = cn(
+    aboveCover,
+    'inline-flex h-7 items-center justify-center gap-1.5 rounded-control px-2 font-mono text-label text-text-muted no-underline transition-colors hover:bg-state-hover hover:text-text pointer-coarse:min-h-11 pointer-coarse:min-w-11',
+  )
   const commentAction = onComment ? (
     <button
       type="button"
       onClick={onComment}
-      className={cn(
-        aboveCover,
-        'inline-flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-control px-2 font-mono text-label text-text-muted transition-colors hover:text-text',
-      )}
+      className={commentActionClassName}
     >
       <MessageSquare size={13} strokeWidth={1.5} aria-hidden="true" />
       {commentLabel}
@@ -295,20 +373,30 @@ export function ProjectCard({
       to="/project/$owner/$repo"
       params={{ owner: projectLink.owner, repo: projectLink.repo }}
       hash="comments"
-      className={cn(
-        aboveCover,
-        'inline-flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-control px-2 font-mono text-label text-text-muted no-underline transition-colors hover:text-text',
-      )}
+      className={commentActionClassName}
     >
       <MessageSquare size={13} strokeWidth={1.5} aria-hidden="true" />
       {commentLabel}
     </Link>
   ) : project.commentsCount > 0 ? (
-    <span className="inline-flex items-center gap-1.5 font-mono text-label text-text-faint">
+    <span className="inline-flex items-center gap-1.5 font-mono text-label text-text-muted">
       <MessageSquare size={13} strokeWidth={1.5} aria-hidden="true" />
       {commentLabel}
     </span>
   ) : null
+
+  const title = (
+    <>
+      {project.owner}/{project.repo}
+    </>
+  )
+  const topics = project.topics?.slice(0, 3) ?? []
+  const hasMeta =
+    Boolean(primaryLanguage) ||
+    project.githubStars > 0 ||
+    (project.forksCount ?? 0) > 0 ||
+    topics.length > 0 ||
+    (project.postsCount ?? 0) > 0
 
   return (
     <div
@@ -316,7 +404,9 @@ export function ProjectCard({
       onPointerEnter={preloadProjectRoute}
       onTouchStart={preloadProjectRoute}
       className={cn(
-        cardVariants({ density: compact ? 'compact' : 'cozy' }),
+        isRow
+          ? 'bg-surface px-5 py-4'
+          : cardVariants({ density: compact ? 'compact' : 'cozy' }),
         '@container relative flex flex-col',
         compact ? 'gap-2' : 'gap-3',
         projectNavigateOptions && ['lx-card', coverFocusClassName],
@@ -330,8 +420,8 @@ export function ProjectCard({
       )}
 
       <div className="flex items-start gap-2.5">
-        <div className="flex min-w-0 flex-1 flex-col gap-1">
-          {authorPlacement === 'header' && identityRow}
+        <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+          {showAuthorHeader && <div className="mb-1">{identityRow}</div>}
           {projectLink ? (
             <Link
               to="/project/$owner/$repo"
@@ -342,20 +432,14 @@ export function ProjectCard({
               data-card-cover=""
               className={cn(
                 coverLinkClassName,
-                'max-w-full text-left text-title leading-snug text-text no-underline wrap-anywhere',
+                'max-w-full text-left text-title text-text no-underline wrap-anywhere',
               )}
             >
-              <span className="font-normal text-text-faint">
-                {project.owner}/
-              </span>
-              {project.repo}
+              {title}
             </Link>
           ) : (
-            <p className="m-0 max-w-full text-title leading-snug text-text wrap-anywhere">
-              <span className="font-normal text-text-faint">
-                {project.owner}/
-              </span>
-              {project.repo}
+            <p className="m-0 max-w-full text-title text-text wrap-anywhere">
+              {title}
             </p>
           )}
 
@@ -377,7 +461,7 @@ export function ProjectCard({
             aria-label={`Dismiss ${projectLabel}`}
             className={cn(
               aboveCover,
-              '-mt-2 -mr-3 -mb-2 flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-control text-text-faint transition-colors hover:text-text',
+              '-mt-1 -mr-2 flex size-7 shrink-0 items-center justify-center rounded-control text-text-muted transition-colors hover:bg-state-hover hover:text-text pointer-coarse:size-11',
             )}
             type="button"
           >
@@ -386,13 +470,13 @@ export function ProjectCard({
         )}
       </div>
 
-      {(latestUpdateLabel || freshnessLabel) && (
-        <p className="m-0 flex flex-wrap gap-x-3 gap-y-1 text-meta">
-          {latestUpdateLabel && (
-            <span className="text-text-muted">{latestUpdateLabel}</span>
+      {((!showAuthorHeader && latestUpdate) || freshnessLabel) && (
+        <p className="m-0 flex flex-wrap gap-x-3 gap-y-1 text-meta text-text-muted">
+          {!showAuthorHeader && latestUpdate && (
+            <span className="min-h-lh">{hasClock && latestUpdate.label}</span>
           )}
           {freshnessLabel && (
-            <span className="text-text-faint">{freshnessLabel}</span>
+            <span className="min-h-lh">{hasClock && freshnessLabel}</span>
           )}
         </p>
       )}
@@ -417,16 +501,9 @@ export function ProjectCard({
         </div>
       )}
 
-      <div className="flex flex-col gap-2">
-        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5 text-label text-text-faint">
-          {project.topics?.slice(0, 3).map((topic) => (
-            <span
-              key={topic}
-              className="rounded-control border border-line px-1.5 py-0.5 text-meta text-text-muted"
-            >
-              #{topic}
-            </span>
-          ))}
+      {hasMeta && (
+        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 font-mono text-label text-text-muted">
+          {primaryLanguage && <LangDot lang={primaryLanguage} showLabel />}
           {project.githubStars > 0 && (
             <span className="inline-flex items-center gap-1">
               <Star size={11} strokeWidth={1.4} aria-hidden="true" />
@@ -441,6 +518,11 @@ export function ProjectCard({
               {project.forksCount.toLocaleString()}
             </span>
           )}
+          {topics.map((topic) => (
+            <span key={topic} className="text-meta">
+              #{topic}
+            </span>
+          ))}
           {project.postsCount !== undefined && project.postsCount > 0 && (
             <span>
               {project.postsCount.toLocaleString()}{' '}
@@ -448,11 +530,7 @@ export function ProjectCard({
             </span>
           )}
         </div>
-
-        {!compact && languages.length > 0 && (
-          <LanguageBar languages={languages} />
-        )}
-      </div>
+      )}
 
       {(authorPlacement === 'footer' ||
         reactionSlot ||
@@ -460,15 +538,18 @@ export function ProjectCard({
         hasActions) && (
         <div
           className={cn(
-            'flex flex-wrap items-center justify-between gap-2 border-t border-line',
-            compact ? 'pt-2' : 'pt-3',
+            'flex flex-wrap items-center justify-between gap-2',
+            !isRow && ['border-t border-line', compact ? 'pt-2' : 'pt-3'],
           )}
         >
           {authorPlacement === 'footer' && (
             <div className="flex min-w-0 basis-full">{identityRow}</div>
           )}
 
-          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
+          {/* Sized to its content, so on a narrow card the trailing actions
+              drop to their own line (right-aligned) instead of squeezing the
+              reactions and the comment link apart. */}
+          <div className="flex min-w-0 flex-auto flex-wrap items-center gap-1.5">
             {reactionSlot && <div className={aboveCover}>{reactionSlot}</div>}
             {commentAction}
           </div>
@@ -480,29 +561,24 @@ export function ProjectCard({
                 'ml-auto flex shrink-0 flex-wrap items-center gap-1.5',
               )}
             >
+              {actionSlot}
               {onFollow && (
+                // Solid accent until followed, then a quiet "following".
                 <Button
-                  size="touch"
+                  size="sm"
+                  variant={project.followed ? 'ghost' : 'primary'}
+                  className="pointer-coarse:min-h-11"
                   onClick={onFollow}
                   disabled={followPending}
                 >
                   {project.followed ? 'following' : 'follow'}
                 </Button>
               )}
-              {onDM && (
-                <Button
-                  size="touch"
-                  variant="ghost"
-                  onClick={onDM}
-                  disabled={dmPending}
-                >
-                  {dmPending ? 'opening…' : 'message'}
-                </Button>
-              )}
               {onToggleSave && (
                 <Button
-                  size="touch"
+                  size="sm"
                   variant="ghost"
+                  className="pointer-coarse:min-h-11"
                   onClick={onToggleSave}
                   disabled={savePending}
                 >
@@ -514,35 +590,6 @@ export function ProjectCard({
                   />
                   {saved ? 'saved' : 'save'}
                 </Button>
-              )}
-              {showLike && (
-                <button
-                  onClick={onLike}
-                  disabled={likePending}
-                  aria-label={
-                    project.locaticLikes > 0
-                      ? `like, ${project.locaticLikes} ${project.locaticLikes === 1 ? 'like' : 'likes'}`
-                      : 'like'
-                  }
-                  aria-pressed={Boolean(project.liked)}
-                  className={cn(
-                    'flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-control px-2.5 font-mono text-label transition-colors',
-                    project.liked ? 'text-liked' : 'text-text-faint',
-                    likePending
-                      ? 'cursor-default opacity-60'
-                      : 'cursor-pointer hover:text-liked',
-                  )}
-                  type="button"
-                >
-                  <Heart
-                    size={16}
-                    strokeWidth={1.6}
-                    fill={project.liked ? 'currentColor' : 'none'}
-                    aria-hidden="true"
-                  />
-                  {project.locaticLikes > 0 &&
-                    project.locaticLikes.toLocaleString()}
-                </button>
               )}
             </div>
           )}

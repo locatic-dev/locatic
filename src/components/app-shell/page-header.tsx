@@ -24,7 +24,7 @@ export function PageHeader({
     >
       <div>
         {subtitle && (
-          <div className="mb-1.5 text-meta lowercase text-text-faint">
+          <div className="mb-1.5 text-meta lowercase text-text-muted">
             {subtitle}
           </div>
         )}

@@ -55,9 +55,7 @@ function SignInPage() {
       <div className="flex flex-col items-center gap-4 text-center">
         <div className="flex items-center gap-2.5">
           <Logo size={28} />
-          <span className="font-mono text-xl font-bold tracking-[-0.02em] text-text">
-            locatic
-          </span>
+          <span className="text-headline text-text">locatic</span>
         </div>
         <p className="m-0 text-title text-text">
           GitHub with a <span className="text-brand">map.</span>

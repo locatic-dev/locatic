@@ -81,7 +81,7 @@ export function HomeNearbyBuilders({
 
   return (
     <>
-      <p className="m-0 mb-2 font-mono text-meta text-text-faint">
+      <p className="m-0 mb-2 font-mono text-meta text-text-muted">
         most recent public work first
       </p>
       <CardSheet>

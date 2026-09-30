@@ -378,6 +378,10 @@ describe('ReactionBar', () => {
     })
     expect(rocket.style.color).not.toBe('')
     expect(rocket.style.color).not.toBe('var(--lx-accent)')
+    // Solid over tint: the own reaction is a coloured border and text, with
+    // no translucent fill.
+    expect(rocket.style.borderColor).toBe(rocket.style.color)
+    expect(rocket.style.backgroundColor).toBe('')
     expect(rocket.querySelector('svg')).toBeNull()
     expect(rocket.textContent).toContain('🚀')
   })
@@ -425,6 +429,7 @@ describe('ReactionBar', () => {
     })
 
     expect(badColor.style.color).toBe('var(--lx-accent)')
+    expect(badColor.style.borderColor).toBe('var(--lx-accent)')
     expect(badColor.style.backgroundColor).toBe('')
     expect(badColor.querySelector('svg')).toBeNull()
     expect(badColor.textContent).toContain('🎉')
@@ -453,6 +458,95 @@ describe('ReactionBar', () => {
     const picker = screen.getByTestId('reaction-picker')
     expect(within(picker).getAllByRole('button')).toHaveLength(
       reactionConfigs.length,
+    )
+  })
+
+  it('fades the action of counted and zero-count pills only when reacting is unavailable', async () => {
+    const { rerender } = renderReactionBar({
+      disabled: true,
+      reactionCounts: { like: 2 },
+      viewerReactionTypes: ['rocket'],
+    })
+
+    // The mocked inspector folds the pill wrapper's classes onto its action.
+    expect(
+      screen.getByRole('button', { name: 'Add Like reaction' }).className,
+    ).toContain('opacity-60')
+    expect(
+      screen.getByRole('button', { name: 'Remove Rocket reaction' }).className,
+    ).toContain('opacity-60')
+
+    let resolveReaction: () => void = () => {}
+    mocks.reactToTarget.mockReturnValue(
+      new Promise((resolve) => {
+        resolveReaction = () => resolve({})
+      }),
+    )
+    rerender(
+      <ReactionBar
+        disabled={false}
+        reactionCounts={{ like: 2 }}
+        targetId="post_1"
+        targetType="post"
+        viewerReactionTypes={['rocket']}
+      />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Add Like reaction' }))
+
+    // Pending disables the toggles but does not flash the bar faded.
+    const rocket = screen.getByRole('button', {
+      name: 'Remove Rocket reaction',
+    })
+    expect(rocket).toHaveProperty('disabled', true)
+    expect(rocket.className).not.toContain('opacity-60')
+
+    resolveReaction()
+    await waitFor(() => expect(rocket).toHaveProperty('disabled', false))
+  })
+
+  it('keeps keyboard focus on the reaction when its count leaves zero', async () => {
+    let resolveReaction: () => void = () => {}
+    mocks.reactToTarget.mockReturnValue(
+      new Promise((resolve) => {
+        resolveReaction = () => resolve({})
+      }),
+    )
+    const props = {
+      disabled: false,
+      targetId: 'project_1',
+      targetType: 'project' as const,
+    }
+    const { rerender } = render(
+      <ReactionBar {...props} reactionCounts={{}} viewerReactionTypes={[]} />,
+    )
+    const zeroPill = screen.getByRole('button', { name: 'Add Like reaction' })
+    expect(zeroPill.hasAttribute('data-reaction-pill')).toBe(true)
+    zeroPill.focus()
+
+    fireEvent.click(zeroPill)
+    // The single pill is swapped for the counted inspector pair.
+    expect(
+      screen.getByRole('button', { name: 'View 1 Like reactions' }),
+    ).toBeTruthy()
+
+    rerender(
+      <ReactionBar
+        {...props}
+        reactionCounts={{ like: 1 }}
+        viewerReactionTypes={['like']}
+      />,
+    )
+    await act(async () => {
+      resolveReaction()
+    })
+
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole('button', { name: 'Remove Like reaction' }),
+      ),
+    )
+    expect(document.activeElement?.hasAttribute('data-reaction-pill')).toBe(
+      false,
     )
   })
 

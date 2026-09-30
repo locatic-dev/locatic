@@ -22,15 +22,30 @@ vi.mock('@tanstack/react-router', () => ({
 }))
 
 describe('HeroCopy', () => {
-  it('lets visitors browse public Explore without signing in', () => {
+  it('states the product in one line under the eyebrow', () => {
+    render(<HeroCopy />)
+
+    expect(screen.getByText('// for builders who ship')).toBeTruthy()
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'github, with a map.' }),
+    ).toBeTruthy()
+    expect(
+      screen.getByText('find the people shipping in your city.'),
+    ).toBeTruthy()
+  })
+
+  it('leads to public Explore and offers GitHub sign-in', () => {
     render(<HeroCopy />)
 
     expect(
-      screen.getByRole('link', { name: 'browse explore' }).getAttribute('href'),
+      screen
+        .getByRole('link', { name: 'explore your city →' })
+        .getAttribute('href'),
     ).toBe('/explore')
+    // The prompt glyph is decorative; the link reads "sign in with github".
     expect(
       screen
-        .getByRole('link', { name: /sign in with GitHub/ })
+        .getByRole('link', { name: 'sign in with github' })
         .getAttribute('href'),
     ).toBe('/sign-in/$')
   })

@@ -50,7 +50,7 @@ Emotional goals: feel like an IRC room that knew your city, not a SaaS growth fu
 ## Design Principles
 
 1. **Data before chrome.** Metrics, names, repo slugs, and timestamps are the interface. Decoration is always subtractive. If a visual element carries no information, remove it.
-2. **Terminal confidence.** IBM Plex Mono is the dominant product voice. Sans is reserved for human-authored text (bios, READMEs, comments). Switching fonts signals a register shift from product to content.
+2. **Terminal confidence.** Geist Mono carries metadata, labels and code: the product's own voice. Geist sans sets names, titles, headings and human-authored text (bios, READMEs, comments). Switching fonts signals a register shift from product chrome to people and their content.
 3. **City-first social.** Location shapes discovery scope, label copy, and navigation defaults. City is the product's core discriminator, and every surface that shows content should make geographic context legible: disclosed cities are links to their city page. A person who cannot find their city still gets global discovery; they are just not on a city's list until they set one.
 4. **Honest empty states.** Empty means empty. A following feed with no follows is intentionally empty — the nudge is the experience, not injected trending content. Never fill a gap with algorithmic override.
 5. **Local commits first.** All user-facing actions complete locally before any external sync, and a failure is reported plainly — never blocking, never opaque.

@@ -3,6 +3,7 @@ import { usePaginatedQuery } from 'convex/react'
 import { api } from '../../../convex/_generated/api'
 import { PageHeader } from '@/components/app-shell/page-header'
 import { Button } from '@/components/ui/button'
+import { cardSheetClass } from '@/components/ui/card-sheet'
 import { EmptyState } from '@/components/ui/empty-state'
 import { ProjectCard } from '@/components/ui/project-card'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -60,26 +61,31 @@ function SavedPage() {
             />
           )}
 
-          {entries.map((entry) => {
-            const { project } = entry
-            return (
-              <ProjectCard
-                key={String(project.projectId)}
-                project={toProjectCardData(project)}
-                authorLink={{ username: project.authorHandle }}
-                projectLink={{ owner: project.owner, repo: project.repo }}
-                saved
-                savePending={saveToggle.isPending(project.projectId)}
-                onToggleSave={() =>
-                  void saveToggle.toggle({
-                    projectId: project.projectId,
-                    projectName: project.fullName,
-                    saved: true,
-                  })
-                }
-              />
-            )
-          })}
+          {entries.length > 0 && (
+            <div className={cardSheetClass}>
+              {entries.map((entry) => {
+                const { project } = entry
+                return (
+                  <ProjectCard
+                    key={String(project.projectId)}
+                    variant="row"
+                    project={toProjectCardData(project)}
+                    authorLink={{ username: project.authorHandle }}
+                    projectLink={{ owner: project.owner, repo: project.repo }}
+                    saved
+                    savePending={saveToggle.isPending(project.projectId)}
+                    onToggleSave={() =>
+                      void saveToggle.toggle({
+                        projectId: project.projectId,
+                        projectName: project.fullName,
+                        saved: true,
+                      })
+                    }
+                  />
+                )
+              })}
+            </div>
+          )}
 
           {(saved.status === 'CanLoadMore' ||
             saved.status === 'LoadingMore') && (

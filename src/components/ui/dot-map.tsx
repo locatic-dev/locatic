@@ -87,9 +87,30 @@ export function isMaskLandCell(cell: { row: number; col: number }): boolean {
 }
 
 /** Centre of the mask cell a location falls in, as fractions of the map. */
-function toMaskFraction(location: LatLng) {
+export function toMaskFraction(location: LatLng): { x: number; y: number } {
   const { row, col } = projectToMaskCell(location)
   return { x: (col + 0.5) / MASK_COLUMNS, y: (row + 0.5) / MASK_ROWS }
+}
+
+/**
+ * Centres of the land-mask dots for a map of `width` x `height`, row by row:
+ * one dot per land cell.
+ */
+export function getLandDots(
+  width: number,
+  height: number,
+): Array<{ x: number; y: number }> {
+  const cx = width / MASK_COLUMNS
+  const cy = height / MASK_ROWS
+  const dots: Array<{ x: number; y: number }> = []
+  for (let r = 0; r < MASK_ROWS; r++) {
+    for (let c = 0; c < MASK_COLUMNS; c++) {
+      if (LAND_MASK[r][c] === '1') {
+        dots.push({ x: c * cx + cx / 2, y: r * cy + cy / 2 })
+      }
+    }
+  }
+  return dots
 }
 
 type Pin = { x: number; y: number; key: string; ping: boolean }
@@ -148,18 +169,8 @@ export function DotMap({
   label,
 }: DotMapProps) {
   const reducedMotion = useReducedMotion()
-  const dots: Array<{ x: number; y: number }> = []
-  const cx = width / MASK_COLUMNS
-  const cy = height / MASK_ROWS
+  const dots = getLandDots(width, height)
   const pins = getPins(points, focus)
-
-  for (let r = 0; r < LAND_MASK.length; r++) {
-    for (let c = 0; c < LAND_MASK[r].length; c++) {
-      if (LAND_MASK[r][c] === '1') {
-        dots.push({ x: c * cx + cx / 2, y: r * cy + cy / 2 })
-      }
-    }
-  }
 
   const pulseIndices = new Set(pickPulseDotIndices(dots.length, 8))
 
@@ -182,7 +193,7 @@ export function DotMap({
               cx={d.x}
               cy={d.y}
               r={1.4}
-              fill="var(--lx-text-3)"
+              fill="var(--lx-text-2)"
               opacity={0.35}
             />
           )
@@ -194,7 +205,7 @@ export function DotMap({
             cx={d.x}
             cy={d.y}
             r={1.4}
-            fill="var(--lx-text-3)"
+            fill="var(--lx-text-2)"
             initial={{ opacity: 0.35, scale: 1 }}
             animate={
               reducedMotion

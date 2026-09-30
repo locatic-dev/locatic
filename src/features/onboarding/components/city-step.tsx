@@ -52,7 +52,7 @@ export function CityStepFields({
           inputClassName="h-11 text-base md:text-sm"
         />
         {selectedCityName && !noCity && (
-          <p className="mt-2 mb-0 font-mono text-[11px] text-text-faint">
+          <p className="mt-2 mb-0 font-mono text-[11px] text-text-muted">
             selected: {selectedCityName}
           </p>
         )}

@@ -1,4 +1,5 @@
 import type { Locator, Page } from '@playwright/test'
+import { settledProjectFeed } from './fixtures/explore'
 import { requireOnboardedPersona } from './fixtures/personas'
 import {
   expect,
@@ -6,6 +7,7 @@ import {
   expectSettled,
   requireE2EPrerequisite,
   test,
+  waitForFiniteAnimations,
 } from './fixtures/test'
 
 // B11 touch-target audit: at a 390px phone viewport every visible interactive
@@ -121,8 +123,14 @@ test('page header actions are touch sized', async ({ page }) => {
 
 test('explore city pills keep a 44px remove target', async ({ page }) => {
   await gotoShellPage(page, '/explore')
+  // Below xl the city pills live in the filter sheet.
+  await page.getByRole('button', { name: /^filters/ }).click()
+  const sheet = page.getByRole('dialog', { name: 'filters' })
+  await expect(sheet).toBeVisible()
+  // The sheet slides up; hit-test only once it has stopped moving.
+  await waitForFiniteAnimations(page)
 
-  const removeButtons = page.getByRole('button', { name: /^Remove / })
+  const removeButtons = sheet.getByRole('button', { name: /^Remove / })
   requireE2EPrerequisite(
     (await removeButtons.count()) > 0,
     'Explore shows the populated user no selected city (playwright/fixtures/fixtures.md)',
@@ -142,6 +150,73 @@ test('explore city pills keep a 44px remove target', async ({ page }) => {
       { x: box.x + box.width / 2, y: box.y + box.height - 2 },
     )
     expect(hitName).toBe(await button.getAttribute('aria-label'))
+  }
+})
+
+test('explore reaction pills keep 44px parts on a touch device', async ({
+  page,
+}) => {
+  expect(
+    await page.evaluate(() => matchMedia('(pointer: coarse)').matches),
+  ).toBe(true)
+  await page.goto('/explore?scope=global')
+  requireOnboardedPersona(page)
+  const projects = await settledProjectFeed(page)
+  requireE2EPrerequisite(
+    (await projects.count()) > 0,
+    'Explore shows no project in any city (playwright/fixtures/fixtures.md)',
+  )
+
+  const pill = page.locator('main#main-content [data-reaction-pill]').first()
+  await expect(pill).toBeVisible()
+
+  // A zero-count pill is itself the button; a counted pill holds two.
+  const isButton = await pill.evaluate(
+    (element) => element.tagName === 'BUTTON',
+  )
+  const parts = isButton ? [pill] : await pill.getByRole('button').all()
+  expect(parts.length).toBeGreaterThan(0)
+  for (const part of parts) {
+    await expectMinBox(part)
+  }
+})
+
+test('explore project cards keep a 44px city link clear of the author link', async ({
+  page,
+}) => {
+  await page.goto('/explore?scope=global')
+  requireOnboardedPersona(page)
+  const projects = await settledProjectFeed(page)
+  requireE2EPrerequisite(
+    (await projects.count()) > 0,
+    'Explore shows no project in any city (playwright/fixtures/fixtures.md)',
+  )
+
+  const cityLink = page
+    .getByRole('region', { name: 'projects results' })
+    .locator('a[href^="/c/"]')
+    .first()
+  requireE2EPrerequisite(
+    (await cityLink.count()) > 0,
+    'Explore shows no project by an exact-city builder (playwright/fixtures/fixtures.md)',
+  )
+  await expect(cityLink).toBeVisible()
+  await cityLink.scrollIntoViewIfNeeded()
+  await expectMinBox(cityLink)
+
+  // The narrow card puts the city under the author's name: a tap on the
+  // link's centre, or just inside its top edge, opens the city page, not the
+  // author's profile above it or the project link stretched under the card.
+  const box = (await cityLink.boundingBox())!
+  const href = await cityLink.getAttribute('href')
+  for (const y of [box.y + box.height / 2, box.y + 2]) {
+    const hitHref = await page.evaluate(
+      ({ x, y }) =>
+        document.elementFromPoint(x, y)?.closest('a')?.getAttribute('href') ??
+        null,
+      { x: box.x + box.width / 2, y },
+    )
+    expect(hitHref).toBe(href)
   }
 })
 

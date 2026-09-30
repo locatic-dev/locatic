@@ -45,7 +45,7 @@ export function NearbyCities({
                   </span>
                 )}
               </span>
-              <span className="font-mono text-meta text-text-faint">
+              <span className="font-mono text-meta text-text-muted">
                 {formatCityCounts(nearbyCity)} · {nearbyCity.distanceKm} km away
               </span>
             </Link>

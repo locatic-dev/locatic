@@ -69,16 +69,16 @@ export function PersonRow({
         decorative
       />
       <div className="min-w-0 flex-1">
-        <div className="truncate font-mono text-[13px] font-semibold text-text">
+        <div className="truncate font-sans text-label font-medium text-text">
           {title}
         </div>
         {meta != null && (
-          <div className="truncate font-mono text-meta text-text-faint">
+          <div className="truncate font-mono text-meta text-text-muted">
             {meta}
           </div>
         )}
         {subtitle != null && (
-          <div className="mt-0.5 truncate font-mono text-meta text-text-faint">
+          <div className="mt-0.5 truncate font-mono text-meta text-text-muted">
             {subtitle}
           </div>
         )}

@@ -11,10 +11,11 @@ const BUNDLE_BUDGETS = [
   },
   {
     label: 'Motion feature chunk',
-    // 26 KiB: the landing repo preview no longer shares motion-dom's spring
-    // helpers, so ~9 KB raw moved from a shared chunk into this one. Total
-    // motion-dom outside the entry went down.
-    maxGzipBytes: 26 * 1024,
+    // 27 KiB: with the landing's scroll parallax gone, nothing outside this
+    // chunk uses motion-dom's mix, interpolate and resize helpers, so the
+    // shared chunk that held them (2.2 KiB gzip) folded into this one. The
+    // motion code every page loads went down by ~0.5 KiB and one request.
+    maxGzipBytes: 27 * 1024,
     pattern: /^motion-features-[\w-]+\.js$/,
   },
 ]

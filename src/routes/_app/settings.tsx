@@ -56,6 +56,7 @@ import {
   type SettingsAccountFormState,
 } from '@/features/settings/dirty'
 import { useUnsavedChangesGuard } from '@/features/settings/use-unsaved-changes-guard'
+import { shouldPrefetchPrivateConvexQueries } from '@/lib/auth-routing'
 
 export const Route = createFileRoute('/_app/settings')({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -74,8 +75,16 @@ export const Route = createFileRoute('/_app/settings')({
       | 'connected'
       | 'danger',
   }),
-  loader: ({ context }) =>
-    context.queryClient.ensureQueryData(privateProfileOverviewQueryOptions()),
+  loader: async ({ context }) => {
+    // Client navigations fetch in the page, once Convex auth is ready.
+    if (!shouldPrefetchPrivateConvexQueries()) {
+      return
+    }
+
+    await context.queryClient.ensureQueryData(
+      privateProfileOverviewQueryOptions(),
+    )
+  },
   pendingComponent: FormRoutePending,
   pendingMs: ROUTE_PENDING_MS,
   pendingMinMs: ROUTE_PENDING_MIN_MS,
@@ -95,8 +104,7 @@ type SettingsTab = (typeof TABS)[number]['id']
 // mono type; only the bio reads as prose.
 const fieldClassName = 'bg-surface text-text'
 const labelClassName = 'mb-1.5 block font-mono text-label text-text-muted'
-const sectionTitleClassName =
-  'mb-4 font-mono text-meta font-semibold uppercase tracking-[0.06em] text-text-muted'
+const sectionTitleClassName = 'mb-4 text-eyebrow text-text-muted'
 const settingsRowClassName =
   'flex items-center justify-between gap-4 border-b border-line py-3.5'
 
@@ -338,7 +346,7 @@ function SettingsPage() {
                     <div>
                       <label htmlFor="settings-bio" className={labelClassName}>
                         bio{' '}
-                        <span className="text-text-faint">
+                        <span className="text-text-muted">
                           ({bio.length}/140)
                         </span>
                       </label>
@@ -419,7 +427,7 @@ function SettingsPage() {
                         maxResults={6}
                       />
                       {selectedCityName && (
-                        <div className="mt-2 font-mono text-meta text-text-faint">
+                        <div className="mt-2 font-mono text-meta text-text-muted">
                           selected: {selectedCityName}
                         </div>
                       )}
@@ -638,7 +646,7 @@ function SettingsPage() {
                       <div className="text-label font-semibold text-text">
                         GitHub
                       </div>
-                      <div className="font-mono text-meta text-text-faint">
+                      <div className="font-mono text-meta text-text-muted">
                         @{profile.viewer.githubUsername}
                       </div>
                     </div>
@@ -652,7 +660,7 @@ function SettingsPage() {
                     <div className="mb-0.5 text-label text-text">
                       manage repositories
                     </div>
-                    <div className="font-sans text-xs leading-5 text-text-faint">
+                    <div className="font-sans text-xs leading-5 text-text-muted">
                       Add, hide, restore, or pin public GitHub repos after
                       onboarding. Locatic likes stay separate from GitHub stars.
                     </div>

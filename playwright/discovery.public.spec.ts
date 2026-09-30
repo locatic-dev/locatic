@@ -1,5 +1,9 @@
 import type { Page } from '@playwright/test'
-import { profileHeader, settledBuilderRows } from './fixtures/explore'
+import {
+  profileHeader,
+  settledBuilderRows,
+  settledProjectFeed,
+} from './fixtures/explore'
 import {
   currentPathname,
   personas,
@@ -95,7 +99,7 @@ test.describe('public explore', () => {
     expect(visited.some((path) => path.startsWith('/sign-in'))).toBe(false)
     await expect(page.locator('main#main-content')).toBeVisible()
 
-    const header = page.getByRole('navigation', { name: 'Account' })
+    const header = page.getByRole('navigation', { name: 'Site' })
     await expect(header.getByRole('link', { name: 'sign up' })).toBeVisible()
     const signInLink = header.getByRole('link', { name: 'sign in' })
     const signInUrl = new URL(
@@ -128,6 +132,57 @@ test.describe('public explore', () => {
       ).searchParams.get('redirect'),
     ).toMatch(/^\/explore/)
     await expect(page.getByRole('button', { name: 'follow' })).toHaveCount(0)
+  })
+
+  test('keeps reaction counts at full contrast while reacting is signed-in only', async ({
+    page,
+  }) => {
+    await openPublicExplore(page, '?scope=global')
+    const projects = await settledProjectFeed(page)
+    requireE2EPrerequisite(
+      (await projects.count()) > 0,
+      'needs a project eligible for Explore (populated persona, playwright/fixtures/fixtures.md)',
+    )
+    const main = page.locator('main#main-content')
+    const counts = main.getByRole('button', {
+      name: /^View \d+ .+ reactions?$/,
+    })
+    requireE2EPrerequisite(
+      (await counts.count()) > 0,
+      'needs an Explore project with at least one reaction (playwright/fixtures/fixtures.md)',
+    )
+
+    // A visitor cannot react, so each pill's action half is disabled and
+    // faded, but its count still opens the reactor list: it must not inherit
+    // the fade (opacity multiplies down the tree).
+    await expect(
+      main.getByRole('button', { name: /^(Add|Remove) .+ reaction$/ }).first(),
+    ).toBeDisabled()
+    await expect
+      .poll(() =>
+        counts.evaluateAll((buttons) =>
+          buttons.map((button) => {
+            let opacity = 1
+            for (
+              let element: Element | null = button;
+              element;
+              element = element.parentElement
+            ) {
+              opacity *= Number(getComputedStyle(element).opacity)
+            }
+            return {
+              enabled: !(button as HTMLButtonElement).disabled,
+              opacity,
+            }
+          }),
+        ),
+      )
+      .toEqual(
+        Array.from({ length: await counts.count() }, () => ({
+          enabled: true,
+          opacity: 1,
+        })),
+      )
   })
 
   test('visitor discovers a builder, signs in, follows them and sees their work on Home', async ({
@@ -167,7 +222,15 @@ test.describe('public explore', () => {
     requireOnboardedPersona(page)
     expect(currentPathname(page)).toBe(profilePath)
 
-    // Follow.
+    // Follow. Until the viewer bootstrap loads, the profile renders in the
+    // public frame and cannot yet tell that it is the viewer's own, so it
+    // offers follow; the app shell appears with the viewer. Checking for "your
+    // profile" before then races it: without E2E_PUBLIC_PROFILE_USERNAME the
+    // first Explore builder can be the populated user, and the test would
+    // click follow on their own profile before it turns into "your profile".
+    await expect(
+      page.getByRole('button', { name: 'Account menu' }),
+    ).toBeVisible()
     const header = profileHeader(page)
     await expectSettled(page, header)
     requireE2EPrerequisite(
