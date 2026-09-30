@@ -295,11 +295,13 @@ function SettingsPage() {
     <div className="lx-page-shell">
       <div className="shrink-0 border-b border-line px-(--lx-gutter) pt-5">
         <h1 className="mb-4 text-headline text-text">settings</h1>
-        {/* One scrollable row on phones; the current tab is kept in view. */}
+        {/* One scrollable row on phones; the current tab is kept in view.
+            Pulled left by the tab padding so the first label lines up with
+            the title. */}
         <nav
           ref={tabRowRef}
           aria-label="settings sections"
-          className="lx-settings-tabs relative"
+          className="lx-settings-tabs relative -ml-2"
         >
           {TABS.map((tabItem) => (
             <button

@@ -26,6 +26,9 @@ const STATIC_ROUTES: Array<{
     name: 'landing',
     path: '/',
     ready: (page) => page.getByRole('heading', { level: 1 }),
+    // The globe turns every frame and pings live activity; on phones the
+    // activity card docks below the globe, outside its box.
+    mask: ['[data-ping-globe]', '[data-ping-card]'],
   },
   {
     name: 'privacy',

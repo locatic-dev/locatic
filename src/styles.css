@@ -693,9 +693,11 @@ html[data-skip-link-modality='keyboard'] .lx-skip-link:focus-visible {
   width: min(100%, var(--lx-profile-max));
 }
 
+/* Centred so a text label next to a taller button sits level with its label. */
 .lx-stack-actions {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 10px;
 }
 
