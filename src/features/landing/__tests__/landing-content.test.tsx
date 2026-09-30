@@ -5,11 +5,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import type { Id } from '../../../../convex/_generated/dataModel'
 import type { ProjectCardPreview } from '@/features/contracts'
-import {
-  getLandDots,
-  projectToMaskCell,
-  toMaskFraction,
-} from '@/components/ui/dot-map'
+import { decodeLandDots } from '../globe'
 
 vi.mock('@tanstack/react-router', () => ({
   Link: ({
@@ -43,6 +39,7 @@ import {
   LANDING_MAP_MIN_CITIES,
   getLandingCityDots,
   getLandingMap,
+  getLatLngCell,
   getPingSequence,
   getShowcaseCityIds,
   type ActiveMapCity,
@@ -145,21 +142,33 @@ describe('getLandingMap', () => {
     })
   })
 
-  it('keeps the busiest city when several land on the same map dot', () => {
-    const mysuru = city('mysuru', 12.3, 76.64, 1)
-    expect(projectToMaskCell(mysuru)).toEqual(projectToMaskCell(FIVE_CITIES[0]))
+  it('puts both sides of the antimeridian in one cell', () => {
+    expect(getLatLngCell({ lat: 0, lng: 179.9 })).toBe(
+      getLatLngCell({ lat: 0, lng: -179.9 }),
+    )
+    expect(getLatLngCell({ lat: 0, lng: 180 })).toBe(
+      getLatLngCell({ lat: 0, lng: -180 }),
+    )
+    expect(getLatLngCell({ lat: 0, lng: 179.4 })).not.toBe(
+      getLatLngCell({ lat: 0, lng: -179.4 }),
+    )
+  })
 
-    const map = getLandingMap([...FIVE_CITIES, mysuru])
+  it('keeps the busiest city when several fall in the same ~1° cell', () => {
+    const whitefield = city('whitefield', 12.97, 77.75, 1)
+    expect(getLatLngCell(whitefield)).toBe(getLatLngCell(FIVE_CITIES[0]))
+
+    const map = getLandingMap([...FIVE_CITIES, whitefield])
 
     expect(map.kind === 'cities' && map.cityCount).toBe(6)
     expect(
       map.kind === 'cities' && map.points.map((point) => point.id),
-    ).not.toContain('mysuru')
+    ).not.toContain('whitefield')
     expect(map.kind === 'cities' && map.points[0]?.id).toBe('bengaluru')
   })
 
   it('caps the pins while still counting every city', () => {
-    // One city per distinct map dot, well past the cap.
+    // One city per distinct cell, well past the cap.
     const cities = Array.from({ length: 12 }, (_, row) =>
       Array.from({ length: 12 }, (_, col) =>
         city(`c-${row}-${col}`, 70 - row * 10, -175 + col * 25),
@@ -228,14 +237,14 @@ describe('getPingSequence', () => {
     expect(items.every((item) => item.example)).toBe(true)
     // Example copy never names a person or a real repository.
     expect(items.some((item) => /alice|real/.test(item.headline))).toBe(false)
-    // Every example pings a land dot.
-    const land = getLandDots(430, 150)
-    for (const { x, y } of items) {
+    // Every example is a different place, on a land dot of the globe.
+    expect(new Set(items.map(getLatLngCell)).size).toBe(items.length)
+    const land = decodeLandDots()
+    for (const { lat, lng } of items) {
       expect(
-        land.some(
-          (dot) =>
-            Math.abs(dot.x - x * 430) < 0.01 &&
-            Math.abs(dot.y - y * 150) < 0.01,
+        land.lat.some(
+          (dotLat, index) =>
+            Math.abs(dotLat - lat) <= 2 && Math.abs(land.lng[index] - lng) <= 2,
         ),
       ).toBe(true)
     }
@@ -292,12 +301,12 @@ describe('getPingSequence', () => {
         example: false,
       },
     ])
-    // Two showcase dots: a busy city on a third dot tops the cycle up.
+    // Two showcase cells: a busy city in a third cell tops the cycle up.
     expect(items.slice(3).map((item) => item.place)).toEqual(['new-york'])
     expect(items[0]?.avatarUrl).toBe('https://avatars.example/saroj.png')
-    // Mask coordinates are the city's dot.
-    expect({ x: items[0]?.x, y: items[0]?.y }).toEqual(
-      toMaskFraction(CITY_DOCS[1].location),
+    // The ping sits on the city's own coordinates.
+    expect({ lat: items[0]?.lat, lng: items[0]?.lng }).toEqual(
+      CITY_DOCS[1].location,
     )
   })
 
@@ -339,11 +348,14 @@ describe('getPingSequence', () => {
       { place: 'berlin', headline: '6 builders', at: null },
       { place: 'new-york', headline: '4 builders', at: null },
     ])
-    expect(items[0]).toMatchObject(toMaskFraction(FIVE_CITIES[0]))
+    expect(items[0]).toMatchObject({
+      lat: FIVE_CITIES[0].lat,
+      lng: FIVE_CITIES[0].lng,
+    })
     expect(items.every((item) => !item.example)).toBe(true)
   })
 
-  it('tops up with busy cities on dots that are not already pinged', () => {
+  it('tops up with busy cities in cells that are not already pinged', () => {
     const items = getPingSequence({
       map: getLandingMap(FIVE_CITIES),
       showcase: [preview('shipit', 'bob', inCity(BENGALURU_ID, 'Bengaluru'))],
@@ -358,8 +370,8 @@ describe('getPingSequence', () => {
     ])
   })
 
-  it('tops up past the featured cities when the busiest ones share one dot', () => {
-    // Three Bengaluru-area cities lead by builders and land on one mask dot.
+  it('tops up past the featured cities when the busiest ones share one cell', () => {
+    // Three Bengaluru-area cities lead by builders and share one ~1° cell.
     const cities = [
       city('blr-central', 12.97, 77.59, 9),
       city('blr-north', 12.98, 77.6, 8),
@@ -367,9 +379,9 @@ describe('getPingSequence', () => {
       city('berlin', 52.52, 13.4, 6),
       city('new-york', 40.71, -74.0, 4),
     ]
-    const cell = projectToMaskCell(cities[0])
-    expect(projectToMaskCell(cities[1])).toEqual(cell)
-    expect(projectToMaskCell(cities[2])).toEqual(cell)
+    const cell = getLatLngCell(cities[0])
+    expect(getLatLngCell(cities[1])).toBe(cell)
+    expect(getLatLngCell(cities[2])).toBe(cell)
 
     const items = getPingSequence({
       map: getLandingMap(cities),
@@ -384,7 +396,7 @@ describe('getPingSequence', () => {
     ])
   })
 
-  it('tops up with busy cities when every showcase owner shares one dot', () => {
+  it('tops up with busy cities when every showcase owner shares one cell', () => {
     const items = getPingSequence({
       map: getLandingMap(FIVE_CITIES),
       showcase: ['a', 'b', 'c', 'd'].map((repo) =>
@@ -409,7 +421,7 @@ describe('getLandingCityDots', () => {
     const map = getLandingMap(FIVE_CITIES)
 
     expect(getLandingCityDots(map)).toEqual(
-      FIVE_CITIES.map((city) => ({ key: city.slug, ...toMaskFraction(city) })),
+      FIVE_CITIES.map(({ slug, lat, lng }) => ({ key: slug, lat, lng })),
     )
     expect(getLandingCityDots({ kind: 'example' })).toEqual([])
   })

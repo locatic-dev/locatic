@@ -72,7 +72,8 @@ export function ExploreHeader({
       aria-labelledby="explore-title"
       className="shrink-0 border-b border-line px-(--lx-gutter) pt-4 xl:pb-3"
     >
-      <div className="lx-page-width-wide flex flex-col gap-3">
+      {/* Below xl the feed is one 720px column, so the header narrows with it. */}
+      <div className="lx-page-width-wide flex flex-col gap-3 max-xl:max-w-(--lx-feed-max)">
         <p className="m-0 text-eyebrow text-text-muted">
           //{' '}
           {getExploreEyebrowCopy({
@@ -93,7 +94,13 @@ export function ExploreHeader({
           </span>
         </div>
         <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
-          <div role="group" aria-label="Explore mode" className="inline-flex">
+          {/* Pulled left by the tab padding: the first label lines up with the
+              title. */}
+          <div
+            role="group"
+            aria-label="Explore mode"
+            className="-ml-3 inline-flex"
+          >
             {EXPLORE_MODE_ORDER.map((nextMode) => {
               const isActive = mode === nextMode
 

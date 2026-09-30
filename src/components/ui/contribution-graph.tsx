@@ -169,6 +169,9 @@ export function ContributionGraph({
         ref={scrollerRef}
         role="region"
         aria-label="GitHub contribution graph"
+        // A scrollable region must be focusable so keyboard users can scroll
+        // it (WCAG 2.1.1, axe scrollable-region-focusable).
+        // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex
         tabIndex={0}
         className="max-w-full overflow-x-auto overscroll-x-contain"
       >
