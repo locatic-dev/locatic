@@ -68,4 +68,4 @@ WCAG 2.1 AA minimum. Specific commitments:
 - No visible text below 11px; inputs are 16px on touch screens so mobile browsers do not zoom.
 - Color is never the sole indicator of state (active nav items have both color and an accent bar/pill marker).
 - `font-variant-numeric: tabular-nums` on all numeric UI to prevent layout shift during count updates.
-- Reduced-motion: skeleton pulses, entrance and reaction animations and the map ping are suppressed via `prefers-reduced-motion: reduce`.
+- Reduced-motion: skeleton pulses, entrance and reaction animations, the map ping and the landing globe's rotation are suppressed via `prefers-reduced-motion: reduce`.

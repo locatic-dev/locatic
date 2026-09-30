@@ -6,7 +6,7 @@ Developers sign in with GitHub, choose which repositories to showcase, set their
 
 ## What Exists Today
 
-- Public landing page with a map of cities that have builders and up to three real public projects (labelled examples while there is too little data)
+- Public landing page with a rotating globe of the cities that have builders and up to three real public projects (labelled examples while there is too little data)
 - GitHub sign-in with Clerk; a sign-in started from a page returns to it (validated same-site `redirect`)
 - Short onboarding: city (or "can't find my city"), then optional build status, name and bio, repository import, and an optional list of builders in your city to follow; it ends on the preserved destination, else Explore
 - Home: activity from people you follow, last 30 days

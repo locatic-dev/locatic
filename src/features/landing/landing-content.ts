@@ -1,10 +1,6 @@
 import type { FunctionReturnType } from 'convex/server'
 import type { api } from '../../../convex/_generated/api'
-import {
-  projectToMaskCell,
-  toMaskFraction,
-  type DotMapPoint,
-} from '@/components/ui/dot-map'
+import type { DotMapPoint } from '@/components/ui/dot-map'
 import type { ProjectCardPreview } from '@/features/contracts'
 import type { LatLng } from '@/lib/geo'
 
@@ -23,8 +19,18 @@ export const LANDING_MAP_MIN_CITIES = 5
 /** Cities the caption names; the rest are counted. */
 const FEATURED_CITY_COUNT = 3
 
-/** Most pins the hero draws; each pin is a node with its own entrance. */
+/** Most city dots the hero globe draws. */
 export const LANDING_MAP_MAX_PINS = 40
+
+/**
+ * The ~1° cell a place falls in (about 110 km). Places in one cell would draw
+ * on top of each other on the globe, so the map keeps one per cell.
+ */
+export function getLatLngCell(location: LatLng): string {
+  // -180 and 180 are one meridian, so both sides of it share a cell.
+  const lng = Math.round(location.lng)
+  return `${Math.round(location.lat)}:${lng === -180 ? 180 : lng}`
+}
 
 export type LandingMap =
   | { kind: 'example' }
@@ -32,13 +38,13 @@ export type LandingMap =
       kind: 'cities'
       /** Cities with builders, all of them, not only the plotted ones. */
       cityCount: number
-      /** One pin per land-mask dot, most builders first. */
+      /** One pin per ~1° cell (`getLatLngCell`), most builders first. */
       points: DotMapPoint[]
       /** The cities the caption names, most builders first. */
       featured: ActiveMapCity[]
       /**
        * Every city with builders, most builders first: the ping top-up walks
-       * these, since the featured few can share one map dot.
+       * these, since the featured few can share one cell.
        */
       cities: ActiveMapCity[]
     }
@@ -46,8 +52,8 @@ export type LandingMap =
 /**
  * What the hero map shows: real cities with builders once there are at
  * least `LANDING_MAP_MIN_CITIES`, else the example. `cities` come most
- * builders first (the query's order); cities that land on the same mask dot
- * share one pin, the busiest one's.
+ * builders first (the query's order); cities in the same ~1° cell share one
+ * pin, the busiest one's.
  */
 export function getLandingMap(
   cities: ReadonlyArray<ActiveMapCity> | undefined,
@@ -60,8 +66,7 @@ export function getLandingMap(
   const plottedCells = new Set<string>()
   const points: DotMapPoint[] = []
   for (const city of withBuilders) {
-    const { row, col } = projectToMaskCell(city)
-    const cell = `${row}:${col}`
+    const cell = getLatLngCell(city)
     if (plottedCells.has(cell)) {
       continue
     }
@@ -81,12 +86,12 @@ export function getLandingMap(
   }
 }
 
-/** One beat of the landing `PingMap`: a city dot, and the card beside it. */
+/** One beat of the landing `PingGlobe`: a city, and the card beside it. */
 export type PingItem = {
   key: string
-  /** Mask fractions of the city's dot (`toMaskFraction`). */
-  x: number
-  y: number
+  /** The city's coordinates. */
+  lat: number
+  lng: number
   /** "Saroj pushed portfolio", "12 builders", or example copy. */
   headline: string
   /** City name; rendered as an uppercase eyebrow. */
@@ -108,7 +113,8 @@ const MIN_PING_ITEMS = 3
 
 /**
  * Example pings (plan item D7): real places, neutral copy, no names, and the
- * `EXAMPLE` label on every card. Shown only with the example map.
+ * `EXAMPLE` label on every card. Shown only with the example map. The order
+ * tours westward, the way the globe drifts, so each turn is short.
  */
 const EXAMPLE_PING_SOURCES: ReadonlyArray<{
   key: string
@@ -129,6 +135,24 @@ const EXAMPLE_PING_SOURCES: ReadonlyArray<{
     headline: 'a builder released v0.3',
   },
   {
+    key: 'example-ldn',
+    place: 'London',
+    location: { lat: 51.51, lng: -0.13 },
+    headline: 'a builder posted an update',
+  },
+  {
+    key: 'example-sao',
+    place: 'São Paulo',
+    location: { lat: -23.55, lng: -46.63 },
+    headline: 'a builder pushed a repo',
+  },
+  {
+    key: 'example-nyc',
+    place: 'New York',
+    location: { lat: 40.71, lng: -74.01 },
+    headline: 'a builder released v1.0',
+  },
+  {
     key: 'example-sf',
     place: 'San Francisco',
     location: { lat: 37.77, lng: -122.42 },
@@ -145,7 +169,8 @@ const EXAMPLE_PING_SOURCES: ReadonlyArray<{
 export const EXAMPLE_PINGS: ReadonlyArray<PingItem> = EXAMPLE_PING_SOURCES.map(
   ({ key, place, location, headline }) => ({
     key,
-    ...toMaskFraction(location),
+    lat: location.lat,
+    lng: location.lng,
     headline,
     place,
     at: null,
@@ -198,9 +223,10 @@ function describeUpdate(project: ProjectCardPreview): string {
  *    have coordinates for, in showcase order ("Saroj pushed portfolio").
  *    Region-only and hidden owners never appear.
  * 3. Then the busiest cities ("12 builders"), from every city with builders,
- *    on dots not already pinged, until there are `MIN_PING_ITEMS` items on as
- *    many dots, so the cycle and the reduced-motion frame show several places
- *    even when the showcase owners, or the busiest cities, share one dot.
+ *    in ~1° cells not already pinged (`getLatLngCell`), until there are
+ *    `MIN_PING_ITEMS` items in as many cells, so the cycle and the
+ *    reduced-motion frame show several places even when the showcase owners,
+ *    or the busiest cities, share one cell.
  */
 export function getPingSequence(input: {
   map: LandingMap
@@ -223,12 +249,12 @@ export function getPingSequence(input: {
     if (!city) {
       continue
     }
-    const { row, col } = projectToMaskCell(city.location)
-    pingedCells.add(`${row}:${col}`)
+    pingedCells.add(getLatLngCell(city.location))
     const name = firstWord(project.authorName) || project.authorHandle
     items.push({
       key: `project:${project.projectId}`,
-      ...toMaskFraction(city.location),
+      lat: city.location.lat,
+      lng: city.location.lng,
       headline: `${name} ${describeUpdate(project)}`,
       place: city.name,
       at: project.latestUpdate?.at ?? null,
@@ -241,15 +267,15 @@ export function getPingSequence(input: {
     if (items.length >= MIN_PING_ITEMS && pingedCells.size >= MIN_PING_ITEMS) {
       break
     }
-    const { row, col } = projectToMaskCell(city)
-    const cell = `${row}:${col}`
+    const cell = getLatLngCell(city)
     if (pingedCells.has(cell)) {
       continue
     }
     pingedCells.add(cell)
     items.push({
       key: `city:${city.slug}`,
-      ...toMaskFraction(city),
+      lat: city.lat,
+      lng: city.lng,
       headline: `${city.builderCount} ${city.builderCount === 1 ? 'builder' : 'builders'}`,
       place: city.name,
       at: null,
@@ -261,15 +287,16 @@ export function getPingSequence(input: {
   return items
 }
 
-/** Every city with builders, as mask fractions: the map's quiet city dots. */
+/** Every plotted city with builders: the globe's quiet city dots. */
 export function getLandingCityDots(
   map: LandingMap,
-): Array<{ key: string; x: number; y: number }> {
+): Array<{ key: string; lat: number; lng: number }> {
   if (map.kind === 'example') {
     return []
   }
   return map.points.map((point) => ({
     key: point.id,
-    ...toMaskFraction(point),
+    lat: point.lat,
+    lng: point.lng,
   }))
 }

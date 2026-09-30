@@ -196,7 +196,9 @@ function InboxPage() {
             </span>
           )}
         </div>
-        <div className="lx-inline-tabs gap-0 px-[var(--lx-gutter)]">
+        {/* Pulled left by the tab padding: the first label lines up with the
+            title. */}
+        <div className="lx-inline-tabs -ml-3 gap-0 px-[var(--lx-gutter)]">
           {tabItems.map((tabItem) => (
             <button
               key={tabItem.id}
@@ -211,7 +213,7 @@ function InboxPage() {
                 })
               }
               aria-current={activeTab === tabItem.id ? 'page' : undefined}
-              className={`relative inline-flex items-center gap-[7px] rounded-md px-4 py-2.5 font-mono text-label transition-colors active:scale-[0.98] ${
+              className={`relative inline-flex items-center gap-[7px] rounded-md px-3 py-2.5 font-mono text-label transition-colors active:scale-[0.98] ${
                 activeTab === tabItem.id
                   ? 'font-semibold text-text'
                   : 'text-text-muted hover:text-text'
@@ -225,7 +227,7 @@ function InboxPage() {
                 </span>
               )}
               {activeTab === tabItem.id && (
-                <div className="absolute right-2 -bottom-px left-2 h-0.5 bg-brand" />
+                <div className="absolute inset-x-3 -bottom-px h-0.5 bg-brand" />
               )}
             </button>
           ))}

@@ -578,21 +578,26 @@ export function ProjectView({
       tabIndex={rendersInAppShell ? undefined : -1}
       className="lx-page-shell flex flex-col bg-canvas"
     >
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-line bg-canvas px-(--lx-gutter) py-3">
-        <Button
-          variant="ghost"
-          size="touch"
-          onClick={() => {
-            if (canGoBack) {
-              router.history.back()
-            } else {
-              void router.navigate({ to: isSignedIn ? '/home' : '/' })
-            }
-          }}
-          type="button"
-        >
-          <ArrowLeft size={14} /> back
-        </Button>
+      <div className="shrink-0 border-b border-line bg-canvas px-(--lx-gutter) py-3">
+        {/* In the detail column, the arrow pulled out by the button's
+            padding so it lines up with the title below. */}
+        <div className="lx-page-width-detail flex items-center">
+          <Button
+            variant="ghost"
+            size="touch"
+            className="-ml-3.5 pointer-coarse:-ml-4"
+            onClick={() => {
+              if (canGoBack) {
+                router.history.back()
+              } else {
+                void router.navigate({ to: isSignedIn ? '/home' : '/' })
+              }
+            }}
+            type="button"
+          >
+            <ArrowLeft size={14} /> back
+          </Button>
+        </div>
       </div>
 
       <div
@@ -693,10 +698,15 @@ export function ProjectView({
               )}
 
               {(latestUpdate || showSyncFreshness) && (
-                <p className="m-0 flex flex-wrap gap-x-3 gap-y-1 text-meta">
+                <p className="m-0 flex flex-wrap gap-x-2 gap-y-1 text-meta">
                   {latestUpdate && (
                     <span className="text-text-muted">
                       {describeLatestUpdate(latestUpdate)}
+                    </span>
+                  )}
+                  {latestUpdate && showSyncFreshness && (
+                    <span aria-hidden="true" className="text-text-muted">
+                      ·
                     </span>
                   )}
                   {showSyncFreshness && (
