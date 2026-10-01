@@ -7,10 +7,17 @@ import {
   ROUTE_PENDING_MIN_MS,
   ROUTE_PENDING_MS,
 } from '@/components/app-shell/route-pending'
+import { shouldPrefetchPrivateConvexQueries } from '@/lib/auth-routing'
 
 export const Route = createFileRoute('/_app/admin/emails')({
-  loader: ({ context }) =>
-    context.queryClient.ensureQueryData(emailCampaignListQueryOptions()),
+  loader: async ({ context }) => {
+    // Client navigations fetch in the page, once Convex auth is ready.
+    if (!shouldPrefetchPrivateConvexQueries()) {
+      return
+    }
+
+    await context.queryClient.ensureQueryData(emailCampaignListQueryOptions())
+  },
   pendingComponent: FormRoutePending,
   pendingMs: ROUTE_PENDING_MS,
   pendingMinMs: ROUTE_PENDING_MIN_MS,

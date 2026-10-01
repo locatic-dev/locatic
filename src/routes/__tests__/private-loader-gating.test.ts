@@ -30,6 +30,7 @@ const routes: Array<[string, () => Promise<{ Route: unknown }>, number]> = [
   ['notifications', () => import('../_app/notifications'), 1],
   ['settings', () => import('../_app/settings'), 1],
   ['inbox', () => import('../_app/inbox'), 2],
+  ['admin emails', () => import('../_app/admin/emails'), 1],
 ]
 
 async function runLoader(load: () => Promise<{ Route: unknown }>) {

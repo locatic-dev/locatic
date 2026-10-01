@@ -5,18 +5,22 @@ interface PageHeaderProps {
   title: string
   subtitle?: string
   actions?: ReactNode
+  /** The body column the header lines up with. */
+  width?: 'feed' | 'wide'
   className?: string
 }
 
 /**
  * The band above a feed page. Its content sits in the feed column
- * (`lx-page-width-feed`), so the title and actions line up with the body
- * below instead of the viewport edges.
+ * (`lx-page-width-feed`, or `lx-page-width-wide` for wide pages), so the
+ * title and actions line up with the body below instead of the viewport
+ * edges.
  */
 export function PageHeader({
   title,
   subtitle,
   actions,
+  width = 'feed',
   className,
 }: PageHeaderProps) {
   return (
@@ -26,7 +30,12 @@ export function PageHeader({
         className,
       )}
     >
-      <div className="lx-page-width-feed flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div
+        className={cn(
+          width === 'wide' ? 'lx-page-width-wide' : 'lx-page-width-feed',
+          'flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between',
+        )}
+      >
         <div>
           {subtitle && (
             <div className="mb-1.5 text-meta lowercase text-text-muted">
