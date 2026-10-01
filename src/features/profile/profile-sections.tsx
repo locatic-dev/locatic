@@ -1,13 +1,13 @@
 import { Link } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
 import type { Doc } from '../../../convex/_generated/dataModel'
-import { BrandIcon } from '@/components/ui/brand-icon'
 import { Button } from '@/components/ui/button'
 import { LocationPill } from '@/components/ui/city-pill'
 import { ContributionGraph } from '@/components/ui/contribution-graph'
 import { EmptyState } from '@/components/ui/empty-state'
 import { LanguageBar } from '@/components/ui/language-bar'
 import { LxAvatar } from '@/components/ui/lx-avatar'
+import { SocialLinks } from '@/components/ui/social-links'
 import { StatusPill } from '@/components/ui/status-pill'
 import type { ProfilePostPreview } from '@/features/contracts'
 import { ProfileContentSkeleton } from '@/features/profile/content-skeleton'
@@ -25,7 +25,6 @@ import type {
   ProfileShowcaseProject,
 } from '@/features/profile/types'
 import { compactNumber } from '@/lib/format'
-import { socialLinkHref } from '@/lib/social-links'
 
 // Shared sections of the public profile (/u/$username) and the own profile
 // (/profile). Both routes render them in the order set by plan item C6:
@@ -33,11 +32,7 @@ import { socialLinkHref } from '@/lib/social-links'
 // and languages, then network and the full activity tabs.
 
 type GithubContributions = Doc<'users'>['githubContributions'] | null
-type SocialLinks = Doc<'users'>['profile']['socialLinks']
-
-// 44px hit area around small profile icons and link labels.
-const profileLinkClassName =
-  'inline-flex min-h-11 min-w-11 items-center justify-center text-inherit no-underline transition-colors hover:text-text'
+type ProfileSocialLinks = Doc<'users'>['profile']['socialLinks']
 
 function pluralize(count: number, singular: string, plural: string) {
   return `${compactNumber(count)} ${count === 1 ? singular : plural}`
@@ -55,35 +50,8 @@ export function ProfileMeta({
   githubUsername: string
   /** Present when the follow graph is visible: counts jump to the list. */
   onSelectNetwork?: (tab: ProfileNetworkTab) => void
-  socialLinks: SocialLinks
+  socialLinks: ProfileSocialLinks
 }) {
-  const links = [
-    {
-      href: socialLinkHref('github', githubUsername),
-      label: 'github profile',
-      content: <BrandIcon name="github" size={16} />,
-    },
-    {
-      href: socialLinkHref('x', socialLinks.x),
-      label: 'x profile',
-      content: <BrandIcon name="twitter" size={16} />,
-    },
-    {
-      href: socialLinkHref('linkedin', socialLinks.linkedin),
-      label: 'linkedin profile',
-      content: <BrandIcon name="linkedin" size={16} />,
-    },
-    {
-      href: socialLinkHref('bluesky', socialLinks.bluesky),
-      label: undefined,
-      content: 'bsky',
-    },
-    {
-      href: socialLinkHref('website', socialLinks.website),
-      label: undefined,
-      content: 'website',
-    },
-  ].filter((link) => Boolean(link.href))
   const counts = [
     {
       tab: 'followers' as const,
@@ -103,32 +71,20 @@ export function ProfileMeta({
             key={count.tab}
             type="button"
             onClick={() => onSelectNetwork(count.tab)}
-            className="min-h-11 bg-transparent text-left text-label text-text-muted transition-colors hover:text-text"
+            className="h-8 bg-transparent text-left text-label text-text-muted transition-colors hover:text-text pointer-coarse:min-h-11"
           >
             {count.text}
           </button>
         ) : (
-          <span key={count.tab} className="inline-flex min-h-11 items-center">
+          <span
+            key={count.tab}
+            className="inline-flex h-8 items-center pointer-coarse:min-h-11"
+          >
             {count.text}
           </span>
         ),
       )}
-      {links.length > 0 && (
-        <span className="inline-flex flex-wrap items-center text-text-faint">
-          {links.map((link) => (
-            <a
-              key={link.href}
-              href={link.href ?? undefined}
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label={link.label}
-              className={profileLinkClassName}
-            >
-              {link.content}
-            </a>
-          ))}
-        </span>
-      )}
+      <SocialLinks githubUsername={githubUsername} links={socialLinks} />
     </div>
   )
 }
@@ -159,7 +115,7 @@ export function ProfileHeader({
   const trimmedBio = bio.trim()
 
   return (
-    <header className="flex flex-col gap-4 border-b border-line pb-6">
+    <header className="flex flex-col gap-4">
       <div className="flex min-w-0 items-start gap-4">
         <LxAvatar
           name={displayName}
@@ -171,7 +127,7 @@ export function ProfileHeader({
           <h1 className="m-0 text-display text-text wrap-anywhere">
             {displayName}
           </h1>
-          <p className="m-0 mt-1 text-label text-text-faint">
+          <p className="m-0 mt-1 font-mono text-meta text-text-muted">
             @{githubUsername}
           </p>
           <div className="mt-2 flex min-w-0 flex-wrap items-center gap-2">
@@ -205,13 +161,17 @@ export function ProfileSection({
   const headingId = `${id}-heading`
 
   return (
-    <section id={id} aria-labelledby={headingId} className="min-w-0">
+    <section
+      id={id}
+      aria-labelledby={headingId}
+      className="min-w-0 border-t border-line pt-5"
+    >
       <div className="mb-3 min-w-0">
-        <h2 id={headingId} className="m-0 text-title text-text">
+        <h2 id={headingId} className="m-0 text-eyebrow text-text-muted">
           {title}
         </h2>
         {description && (
-          <p className="m-0 mt-0.5 text-meta text-text-faint">{description}</p>
+          <p className="m-0 mt-0.5 text-meta text-text-muted">{description}</p>
         )}
       </div>
       {children}
@@ -295,7 +255,9 @@ export function ProfileRecentWorkSection({
         <div className="grid min-w-0 gap-6 lg:grid-cols-2">
           {projects.length > 0 && (
             <div className="min-w-0">
-              <h3 className="m-0 mb-2 text-label text-text-muted">projects</h3>
+              <h3 className="m-0 mb-2 text-eyebrow text-text-muted">
+                projects
+              </h3>
               <PublicProfileProjectsList
                 projects={projects}
                 renderTopLeftSlot={renderProjectAction}
@@ -305,7 +267,7 @@ export function ProfileRecentWorkSection({
           )}
           {posts.length > 0 && (
             <div className="min-w-0">
-              <h3 className="m-0 mb-2 text-label text-text-muted">posts</h3>
+              <h3 className="m-0 mb-2 text-eyebrow text-text-muted">posts</h3>
               <ProfilePostList
                 posts={posts}
                 emptyLabel="no public posts yet."
@@ -395,7 +357,7 @@ export function ProfileSignUpCta({
           sign up to follow
         </Link>
       </Button>
-      <p className="m-0 self-center text-label text-text-faint">
+      <p className="m-0 self-center text-label text-text-muted">
         join locatic to follow {displayName} or send a message.
       </p>
     </>
@@ -446,14 +408,14 @@ export function ProfileNetworkAndActivity({
   network: ReactNode
 }) {
   return (
-    <div className="grid min-w-0 gap-8 lg:grid-cols-[minmax(0,1.75fr)_minmax(280px,0.95fr)]">
+    <div className="grid min-w-0 gap-8 border-t border-line pt-5 lg:grid-cols-[minmax(0,1.75fr)_minmax(280px,0.95fr)]">
       <aside className="min-w-0 lg:order-last">
         <div className="lg:sticky lg:top-6">{network}</div>
       </aside>
       <section aria-labelledby="profile-activity-heading" className="min-w-0">
         <h2
           id="profile-activity-heading"
-          className="m-0 mb-2 text-title text-text"
+          className="m-0 mb-2 text-eyebrow text-text-muted"
         >
           all activity
         </h2>

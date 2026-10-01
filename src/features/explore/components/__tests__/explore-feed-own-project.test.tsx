@@ -8,7 +8,8 @@ import type { ProjectCardPreview } from '@/features/contracts'
 import type { ExploreFeedState } from '../../feed-state'
 import { ExploreFeed } from '../explore-feed'
 
-// Lists which personal actions the card was given.
+// Lists which personal actions the card was given. `onDM` is read to prove
+// that message never reaches a card.
 vi.mock('@/components/ui/project-card', () => ({
   ProjectCard: ({
     onDismiss,
@@ -113,7 +114,7 @@ function renderSearch(items: Array<ProjectCardPreview>) {
 }
 
 describe('ExploreFeed own projects in search results', () => {
-  it('offers no follow, hide, save or message on the viewer’s own project and labels it', () => {
+  it('offers no follow, hide or save on the viewer’s own project, message on no card, and labels it', () => {
     // Search rows do not set `isViewerProject`.
     renderSearch([
       projectBy(viewerId, 'me/engine'),
@@ -126,6 +127,6 @@ describe('ExploreFeed own projects in search results', () => {
     expect(screen.getByText('yours')).toBeTruthy()
     expect(
       screen.getByRole('article', { name: 'ada/engine' }).textContent,
-    ).toBe('follow,hide,save,message')
+    ).toBe('follow,hide,save')
   })
 })

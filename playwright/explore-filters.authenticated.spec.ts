@@ -8,12 +8,17 @@ import { expect, expectSettled, test } from './fixtures/test'
 // Backend behaviour (AND, continuation, read budget) is proved in
 // convex/explore.test.ts; this spec checks the journey and rendering.
 
+/**
+ * Opens Explore at 1440px, where the filters sit in the rail (Desktop
+ * Chrome's 1280px is exactly `xl`), and returns the rail.
+ */
 async function openExplore(page: Page, search: string) {
+  await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto(`/explore?${search}`)
   requireOnboardedPersona(page)
   const heading = page.getByRole('heading', { level: 1, name: 'explore' })
   await expectSettled(page, heading)
-  return page.locator('header', { has: heading })
+  return page.getByRole('complementary', { name: 'explore filters' })
 }
 
 /**
@@ -40,14 +45,14 @@ async function settledFeed(page: Page) {
 test('language and topic filters are URL chips that survive a reload', async ({
   page,
 }) => {
-  const header = await openExplore(
+  const rail = await openExplore(
     page,
     'mode=projects&scope=global&language=TypeScript&topic=AI',
   )
 
   // Normalised the way the server compares them.
-  await expect(header.getByText('primary language: typescript')).toBeVisible()
-  await expect(header.getByText('topic: #ai')).toBeVisible()
+  await expect(rail.getByText('primary language: typescript')).toBeVisible()
+  await expect(rail.getByText('topic: #ai')).toBeVisible()
   await expect(page).toHaveURL(/language=typescript/)
   await expect(page).toHaveURL(/topic=ai/)
 
@@ -61,37 +66,55 @@ test('language and topic filters are URL chips that survive a reload', async ({
   }
 
   await page.reload()
-  await expect(header.getByText('primary language: typescript')).toBeVisible()
-  await expect(header.getByText('topic: #ai')).toBeVisible()
+  await expect(rail.getByText('primary language: typescript')).toBeVisible()
+  await expect(rail.getByText('topic: #ai')).toBeVisible()
   expect(await settledFeed(page)).toBe(before)
 })
 
-test('adds and removes a primary language filter from the header', async ({
+test('adds and removes a primary language filter from the rail', async ({
   page,
 }) => {
-  const header = await openExplore(page, 'mode=projects&scope=global')
+  const rail = await openExplore(page, 'mode=projects&scope=global')
 
-  await header.getByRole('button', { name: 'filter' }).click()
+  await rail.getByRole('button', { name: 'filter' }).click()
   const input = page.getByRole('textbox', { name: 'primary language' })
   await input.fill('  Rust ')
   await input.press('Enter')
   await expect(page).toHaveURL(/language=rust/)
   // The filtered query runs as soon as the URL changes.
-  await expectSettled(page, header.getByText('primary language: rust'))
+  await expectSettled(page, rail.getByText('primary language: rust'))
 
-  await header
+  await rail
     .getByRole('button', { name: 'Remove primary language filter rust' })
     .click()
   await expect(page).not.toHaveURL(/language=/)
-  await expect(header.getByText('primary language: rust')).toHaveCount(0)
+  await expect(rail.getByText('primary language: rust')).toHaveCount(0)
+})
+
+test('a language quick-pick applies the canonical primary language', async ({
+  page,
+}) => {
+  const rail = await openExplore(page, 'mode=projects&scope=global')
+
+  // Exact: once applied, the chip's "Remove primary language filter
+  // typescript" button also contains the name.
+  const typescript = rail.getByRole('button', {
+    name: 'TypeScript',
+    exact: true,
+  })
+  await expect(typescript).toHaveAttribute('aria-pressed', 'false')
+  await typescript.click()
+  await expect(page).toHaveURL(/language=typescript/)
+  await expect(typescript).toHaveAttribute('aria-pressed', 'true')
+  await expect(rail.getByText('primary language: typescript')).toBeVisible()
 })
 
 test('open to collab chip filters builders and survives a reload', async ({
   page,
 }) => {
-  const header = await openExplore(page, 'mode=builders&scope=global')
+  const rail = await openExplore(page, 'mode=builders&scope=global')
 
-  const chip = header.getByRole('button', { name: 'open to collab' })
+  const chip = rail.getByRole('button', { name: 'open to collab' })
   await expect(chip).toHaveAttribute('aria-pressed', 'false')
   await chip.click()
   await expect(page).toHaveURL(/openToCollab=true/)
@@ -100,7 +123,7 @@ test('open to collab chip filters builders and survives a reload', async ({
 
   await page.reload()
   await expect(
-    header.getByRole('button', { name: 'open to collab' }),
+    rail.getByRole('button', { name: 'open to collab' }),
   ).toHaveAttribute('aria-pressed', 'true')
 
   // Every listed builder shows a collaboration status, which is also the

@@ -2,153 +2,132 @@
 @import 'tw-animate-css';
 
 /* ── Fonts ─────────────────────────────────────────────────────────────── */
-/* Self-hosted IBM Plex, latin subset, upright only (public/fonts, OFL).
-   Mono 400/600 and Sans 400 are preloaded in src/routes/__root.tsx; the other
-   weights download only when a page renders them. */
+/* Self-hosted Geist and Geist Mono (OFL, public/fonts/OFL.txt), latin subset,
+   one variable file per family, upright only. Both are preloaded in
+   src/routes/__root.tsx. The files carry the full weight axis; the declared
+   ranges cap what the UI uses (sans 400–600, mono 400–600) so a stray
+   font-bold resolves to 600 instead of a synthesised bold. */
 @font-face {
-  font-family: 'IBM Plex Mono';
+  font-family: 'Geist';
   font-style: normal;
-  font-weight: 400;
+  font-weight: 400 600;
   font-display: swap;
-  src: url('/fonts/ibm-plex-mono-latin-400.woff2') format('woff2');
+  src: url('/fonts/geist-latin-wght.woff2') format('woff2');
 }
 
 @font-face {
-  font-family: 'IBM Plex Mono';
+  font-family: 'Geist Mono';
   font-style: normal;
-  font-weight: 500;
+  font-weight: 400 600;
   font-display: swap;
-  src: url('/fonts/ibm-plex-mono-latin-500.woff2') format('woff2');
+  src: url('/fonts/geist-mono-latin-wght.woff2') format('woff2');
+}
+
+/* Metric-matched fallbacks: a local font resized to Geist's average glyph
+   width, with Geist's vertical metrics (ascent 1005, descent 295, no line
+   gap, 1000 upm; the same for Geist Mono), so the swap does not reflow text.
+   size-adjust = Geist average width / local average width; each override =
+   Geist metric / size-adjust. Average widths (latin): Geist 467, Geist Mono
+   600 per 1000 (@capsizecss/unpack); Arial 913, Roboto 911, Courier New 1229
+   and Menlo 1233 per 2048 (@capsizecss/metrics and the local font files). */
+@font-face {
+  font-family: 'Geist Fallback';
+  src: local('Arial'), local('ArialMT');
+  size-adjust: 104.76%;
+  ascent-override: 95.94%;
+  descent-override: 28.16%;
+  line-gap-override: 0%;
 }
 
 @font-face {
-  font-family: 'IBM Plex Mono';
-  font-style: normal;
-  font-weight: 600;
-  font-display: swap;
-  src: url('/fonts/ibm-plex-mono-latin-600.woff2') format('woff2');
+  font-family: 'Geist Fallback Roboto';
+  src: local('Roboto'), local('Roboto-Regular');
+  size-adjust: 104.99%;
+  ascent-override: 95.73%;
+  descent-override: 28.1%;
+  line-gap-override: 0%;
 }
 
 @font-face {
-  font-family: 'IBM Plex Mono';
-  font-style: normal;
-  font-weight: 700;
-  font-display: swap;
-  src: url('/fonts/ibm-plex-mono-latin-700.woff2') format('woff2');
-}
-
-@font-face {
-  font-family: 'IBM Plex Sans';
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url('/fonts/ibm-plex-sans-latin-400.woff2') format('woff2');
-}
-
-@font-face {
-  font-family: 'IBM Plex Sans';
-  font-style: normal;
-  font-weight: 500;
-  font-display: swap;
-  src: url('/fonts/ibm-plex-sans-latin-500.woff2') format('woff2');
-}
-
-@font-face {
-  font-family: 'IBM Plex Sans';
-  font-style: normal;
-  font-weight: 600;
-  font-display: swap;
-  src: url('/fonts/ibm-plex-sans-latin-600.woff2') format('woff2');
-}
-
-/* Metric-matched fallbacks: a local font resized to Plex's average glyph
-   width, with Plex's vertical metrics (ascent 1025, descent 275, no line gap,
-   1000 upm), so the swap does not reflow text. size-adjust = Plex average
-   width / local average width; each override = Plex metric / size-adjust.
-   Widths from @capsizecss/metrics and the local font files. */
-@font-face {
-  font-family: 'IBM Plex Mono Fallback';
+  font-family: 'Geist Mono Fallback';
   src: local('Menlo'), local('Menlo-Regular');
   size-adjust: 99.66%;
-  ascent-override: 102.85%;
-  descent-override: 27.59%;
+  ascent-override: 100.84%;
+  descent-override: 29.6%;
   line-gap-override: 0%;
 }
 
 @font-face {
-  font-family: 'IBM Plex Mono Fallback Courier';
+  font-family: 'Geist Mono Fallback Courier';
   src: local('Courier New'), local('CourierNewPSMT');
   size-adjust: 99.98%;
-  ascent-override: 102.52%;
-  descent-override: 27.5%;
-  line-gap-override: 0%;
-}
-
-@font-face {
-  font-family: 'IBM Plex Sans Fallback';
-  src: local('Arial'), local('ArialMT');
-  size-adjust: 101.17%;
-  ascent-override: 101.32%;
-  descent-override: 27.18%;
-  line-gap-override: 0%;
-}
-
-@font-face {
-  font-family: 'IBM Plex Sans Fallback Roboto';
-  src: local('Roboto'), local('Roboto-Regular');
-  size-adjust: 101.39%;
-  ascent-override: 101.1%;
-  descent-override: 27.12%;
+  ascent-override: 100.52%;
+  descent-override: 29.5%;
   line-gap-override: 0%;
 }
 
 @theme {
   --font-sans:
-    'IBM Plex Sans', 'IBM Plex Sans Fallback', 'IBM Plex Sans Fallback Roboto',
-    ui-sans-serif, system-ui, sans-serif;
+    'Geist', 'Geist Fallback', 'Geist Fallback Roboto', ui-sans-serif,
+    system-ui, sans-serif;
   --font-mono:
-    'IBM Plex Mono', 'IBM Plex Mono Fallback', 'IBM Plex Mono Fallback Courier',
+    'Geist Mono', 'Geist Mono Fallback', 'Geist Mono Fallback Courier',
     ui-monospace, 'Cascadia Code', monospace;
 
-  /* ── Type roles (text-display … text-meta) ──────────────────────────────
+  /* ── Type roles (text-hero … text-meta) ─────────────────────────────────
      Size, line height, weight and tracking ride on --text-*; the matching
      @utility blocks below add the family (and tabular numerals for label and
-     meta). leading-*, font-* weights and tracking-* still override a role. */
+     meta). leading-*, font-* weights and tracking-* still override a role.
+     Names, titles, headings and user content are sans; metadata, counts,
+     timestamps, code and eyebrows are mono. */
+  --text-hero: clamp(44px, 8vw, 72px); /* landing display role */
+  --text-hero--line-height: 1;
+  --text-hero--font-weight: 600;
+  --text-hero--letter-spacing: -0.04em;
   --text-display: clamp(28px, 4vw, 40px);
   --text-display--line-height: 1.1;
-  --text-display--font-weight: 700;
-  --text-display--letter-spacing: -0.025em;
+  --text-display--font-weight: 600;
+  --text-display--letter-spacing: -0.03em;
   --text-headline: 22px;
   --text-headline--line-height: 1.3;
   --text-headline--font-weight: 600;
   --text-headline--letter-spacing: -0.02em;
-  --text-title: 15px;
+  --text-title: 16px;
   --text-title--line-height: 1.4;
   --text-title--font-weight: 600;
   --text-title--letter-spacing: -0.01em;
-  --text-body: 14px;
+  --text-body: 15px;
   --text-body--line-height: 1.6;
   --text-label: 12px;
   --text-label--line-height: 1.4;
   --text-meta: 11px;
   --text-meta--line-height: 1.4;
+  --text-eyebrow: 11px;
+  --text-eyebrow--line-height: 1.4;
+  --text-eyebrow--font-weight: 500;
+  --text-eyebrow--letter-spacing: 0.06em;
 }
 
-/* Role families. Each block has two declarations so Tailwind sorts it before
-   the single-declaration font-sans / font-mono utilities, which therefore
-   still win when an element sets both. */
+/* Role families. Each block has at least two declarations so Tailwind sorts
+   it before the single-declaration font-sans / font-mono (and normal-case)
+   utilities, which therefore still win when an element sets both. */
+@utility text-hero {
+  font-family: var(--font-sans);
+  font-size: var(--text-hero);
+}
+
 @utility text-display {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--text-display);
 }
 
 @utility text-headline {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--text-headline);
 }
 
 @utility text-title {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--text-title);
 }
 
@@ -167,38 +146,45 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* Section headers and metadata micro-labels: mono, uppercase, tracked. */
+@utility text-eyebrow {
+  font-family: var(--font-mono);
+  font-size: var(--text-eyebrow);
+  text-transform: uppercase;
+}
+
 /* ── Raw theme values (dark-first — themeable accent family) ─────────────── */
 /* Accent family is driven by three components so a theme swap is a single
    data-theme override. Neutral surfaces are shared across themes. */
 :root,
 [data-theme='teal'] {
-  --lx-accent-l: 72%;
-  --lx-accent-c: 0.15;
+  --lx-accent-l: 76%;
+  --lx-accent-c: 0.17;
   --lx-accent-h: 195;
   /* Secondary accent: section-signature tints only (never primary CTAs). */
   --lx-accent-2: oklch(74% 0.11 300);
   --lx-accent-2-quiet: oklch(74% 0.11 300 / 0.12);
 
-  --background: oklch(13.5% 0.007 230);
-  --foreground: oklch(93% 0.005 230);
-  --card: oklch(18.5% 0.008 230);
-  --card-foreground: oklch(93% 0.005 230);
+  --background: oklch(14.5% 0.003 250);
+  --foreground: oklch(94% 0.003 250);
+  --card: oklch(19% 0.004 250);
+  --card-foreground: oklch(94% 0.003 250);
   --popover: var(--card);
-  --popover-foreground: oklch(93% 0.005 230);
+  --popover-foreground: oklch(94% 0.003 250);
   --primary: oklch(var(--lx-accent-l) var(--lx-accent-c) var(--lx-accent-h));
-  --primary-foreground: oklch(14% 0.005 230);
+  --primary-foreground: oklch(14% 0.003 250);
   --secondary: var(--muted);
-  --secondary-foreground: oklch(93% 0.005 230);
-  --muted: oklch(22.5% 0.008 230);
-  --muted-foreground: oklch(72% 0.006 230);
+  --secondary-foreground: oklch(94% 0.003 250);
+  --muted: oklch(23% 0.004 250);
+  --muted-foreground: oklch(72% 0.004 250);
   --accent: var(--muted);
-  --accent-foreground: oklch(93% 0.005 230);
+  --accent-foreground: oklch(94% 0.003 250);
   --destructive: oklch(69% 0.19 25);
   /* Dark label on the danger fill, like brand-foreground on brand. */
-  --destructive-foreground: oklch(14% 0.005 230);
+  --destructive-foreground: oklch(14% 0.003 250);
   /* Decorative dividers; control borders use --input. */
-  --border: oklch(30% 0.008 230);
-  --input: oklch(56% 0.008 230);
+  --border: oklch(29% 0.004 250);
+  --input: oklch(57% 0.004 250);
   --ring: var(--primary);
   --radius: 0.25rem;
   --chart-1: var(--primary);
@@ -208,45 +194,46 @@
   --chart-5: var(--destructive);
 
   /* ── Locatic semantic tokens ────────────────────────────────────────────── */
-  /* Surface roles: canvas (page) < chrome (frame) < surface (content) < alt
-     (hover, inset) < raised (active, badges). Steps of at least 4 lightness
-     points so hover and selected states stay visible. */
+  /* Surface roles on neutral near-black (hue 250, near-zero chroma): canvas
+     (page) < chrome (frame) < surface (content) < alt (hover, inset) < raised
+     (active, badges). Cards separate from the page by the hairline --border,
+     not by fill. surface -> alt -> raised are 4 lightness points apart so
+     hover and selected states stay visible. */
   --lx-bg: var(--background);
-  --lx-surface-chrome: oklch(16% 0.007 230);
+  --lx-surface-chrome: oklch(16.5% 0.003 250);
   --lx-surface: var(--card);
   --lx-surface-alt: var(--muted);
-  --lx-surface-raised: oklch(26% 0.01 230);
+  --lx-surface-raised: oklch(27% 0.005 250);
   /* Border roles: divider (decorative) < control (fields, switches: 3:1) <
      strong (hover, emphasis). */
   --lx-border: var(--border);
   --lx-border-control: var(--input);
-  --lx-border-strong: oklch(58% 0.008 230);
-  /* Text roles: primary (body emphasis) > secondary (body) > tertiary (metadata) > disabled.
-     Every role except disabled clears 4.5:1 on every surface, including selected. */
+  --lx-border-strong: oklch(58% 0.004 250);
+  /* Text roles: two tiers. text (names, titles, descriptions) > text-2
+     (metadata, the one grey) > disabled. Every role except disabled clears
+     4.5:1 on every surface, including selected. */
   --lx-text: var(--foreground);
   --lx-text-2: var(--muted-foreground);
-  --lx-text-3: oklch(66% 0.006 230);
-  --lx-text-disabled: oklch(43% 0.005 230);
+  --lx-text-disabled: oklch(43% 0.004 250);
   --lx-accent: var(--primary);
   --lx-accent-quiet: oklch(
     var(--lx-accent-l) var(--lx-accent-c) var(--lx-accent-h) / 0.14
   );
-  /* Brand wash for INTERACTION states only (hover/focus/selected) — never resting cards */
-  --lx-surface-accent: oklch(
-    var(--lx-accent-l) var(--lx-accent-c) var(--lx-accent-h) / 0.06
-  );
   --lx-danger: var(--destructive);
   --lx-success: oklch(70% 0.16 145);
   --lx-warning: oklch(72% 0.18 75);
+  /* Live role: "active in the last 24h" (avatar ring and dot). Indicator,
+     not text; constant across themes. */
+  --lx-live: oklch(76% 0.17 150);
   /* Place role: city labels and location cues. Constant across themes. */
-  --lx-place: oklch(78% 0.12 60);
-  --lx-place-quiet: oklch(78% 0.12 60 / 0.14);
+  --lx-place: oklch(78% 0.14 65);
+  --lx-place-quiet: oklch(78% 0.14 65 / 0.14);
   /* Categorical palettes (language dots, build-status pills): one lightness
      and chroma for every hue so no category outweighs another, constant
      across themes. Hues live with their data in lang-dot.tsx and
      status-pill.tsx. Status text at this lightness clears 6.5:1 on raised. */
   --lx-lang-l: 72%;
-  --lx-lang-c: 0.13;
+  --lx-lang-c: 0.15;
   --lx-status-l: 80%;
   --lx-status-c: 0.1;
 
@@ -280,7 +267,7 @@
   --lx-profile-max: 1280px;
   --lx-public-max: 1184px;
   --lx-sidebar-width: 220px;
-  --lx-right-rail-width: 280px;
+  --lx-right-rail-width: 300px;
   --lx-mobile-tab-height: calc(72px + env(safe-area-inset-bottom));
 
   /* ── Radius and elevation tokens ───────────────────────────────────────── */
@@ -299,16 +286,16 @@
    outgoing surface, unread dot, focus ring) follows automatically.
    Set via next-themes: <html data-theme="violet">. */
 [data-theme='violet'] {
-  --lx-accent-l: 74%;
-  --lx-accent-c: 0.15;
+  --lx-accent-l: 76%;
+  --lx-accent-c: 0.17;
   --lx-accent-h: 292;
   --lx-accent-2: oklch(75% 0.11 195);
   --lx-accent-2-quiet: oklch(75% 0.11 195 / 0.12);
 }
 
 [data-theme='amber'] {
-  --lx-accent-l: 76%;
-  --lx-accent-c: 0.14;
+  --lx-accent-l: 78%;
+  --lx-accent-c: 0.16;
   --lx-accent-h: 75;
   --lx-accent-2: oklch(72% 0.11 210);
   --lx-accent-2-quiet: oklch(72% 0.11 210 / 0.12);
@@ -353,13 +340,11 @@
   --color-surface: var(--lx-surface);
   --color-surface-alt: var(--lx-surface-alt);
   --color-surface-raised: var(--lx-surface-raised);
-  --color-surface-accent: var(--lx-surface-accent);
   --color-line: var(--lx-border);
   --color-line-strong: var(--lx-border-strong);
   --color-control: var(--lx-border-control);
   --color-text: var(--lx-text);
   --color-text-muted: var(--lx-text-2);
-  --color-text-faint: var(--lx-text-3);
   --color-brand: var(--lx-accent);
   --color-brand-quiet: var(--lx-accent-quiet);
   --color-brand-foreground: var(--primary-foreground);
@@ -374,6 +359,7 @@
   --color-unread: var(--lx-unread-dot);
   --color-liked: var(--lx-liked);
   --color-success: var(--lx-success);
+  --color-live: var(--lx-live);
   --color-warning: var(--lx-warning);
   --color-danger: var(--lx-danger);
   --color-place: var(--lx-place);
@@ -399,6 +385,8 @@ body,
 html {
   color-scheme: dark;
   background: var(--lx-bg);
+  /* Both families ship up to 600; never fake a heavier weight. */
+  font-synthesis-weight: none;
 }
 
 body {
@@ -477,7 +465,7 @@ body {
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--lx-text-3);
+  background: var(--lx-text-2);
 }
 
 /* ── Animations ──────────────────────────────────────────────────────────── */
@@ -514,22 +502,6 @@ body {
 .lx-hero-up {
   animation: lx-hero-up 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
   animation-delay: calc(var(--hero-step, 0) * 80ms + 40ms);
-}
-
-/* Ambient scroll cue: slow vertical nudge on the "see how it works ↓" arrow. */
-@keyframes lx-nudge-down {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(3px);
-  }
-}
-
-.lx-nudge-down {
-  display: inline-block;
-  animation: lx-nudge-down 1.8s ease-in-out infinite;
 }
 
 @keyframes lx-reaction-pop {
@@ -604,7 +576,6 @@ body {
 
   .lx-fade-up,
   .lx-hero-up,
-  .lx-nudge-down,
   .lx-reaction-pop,
   .lx-reaction-burst span {
     animation: none;
@@ -615,30 +586,21 @@ body {
   }
 }
 
-/* ── Card hover: lift + brand wash (interaction state only) ──────────────── */
-/* The teal wash layers over the opaque surface so the base stays opaque for the
-   contrast gate; resting cards rely on border + luminance, never the wash. */
+/* ── Card hover: lighter surface + 2px accent edge ──────────────────────── */
+/* Resting cards separate from the page by their hairline border alone. On
+   hover the fill steps up one surface and a 2px inset accent edge marks the
+   card under the pointer: an interaction state, not decoration. */
 .lx-card {
-  /* Resting elevation: a hairline top light reads as a lift on dark surfaces
-     (luminance + border do the rest). No brand wash at rest. */
-  box-shadow: inset 0 1px 0 oklch(100% 0 0 / 0.04);
   transition:
-    border-color 0.14s ease,
-    box-shadow 0.14s ease,
-    background-color 0.14s ease;
+    background-color 0.14s ease,
+    box-shadow 0.14s ease;
 }
 
 /* Touch devices keep :hover after a tap; only pointer devices get the lift. */
 @media (hover: hover) {
   .lx-card:hover {
-    border-color: var(--lx-border-strong);
-    box-shadow:
-      inset 0 1px 0 oklch(100% 0 0 / 0.05),
-      var(--lx-shadow-card);
-    background-image: linear-gradient(
-      var(--lx-surface-accent),
-      var(--lx-surface-accent)
-    );
+    background-color: var(--lx-surface-alt);
+    box-shadow: inset 2px 0 0 var(--lx-accent);
   }
 }
 
@@ -731,9 +693,11 @@ html[data-skip-link-modality='keyboard'] .lx-skip-link:focus-visible {
   width: min(100%, var(--lx-profile-max));
 }
 
+/* Centred so a text label next to a taller button sits level with its label. */
 .lx-stack-actions {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 10px;
 }
 

@@ -72,7 +72,7 @@ export function ContributionGraph({
 
   if (unavailable) {
     return (
-      <p className="py-3 font-mono text-meta text-text-faint">
+      <p className="py-3 font-mono text-meta text-text-muted">
         contribution data is not available yet. If GitHub is already connected,
         check back after the next sync.
       </p>
@@ -169,7 +169,9 @@ export function ContributionGraph({
         ref={scrollerRef}
         role="region"
         aria-label="GitHub contribution graph"
-        // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- The overflowing graph must remain keyboard-scrollable.
+        // A scrollable region must be focusable so keyboard users can scroll
+        // it (WCAG 2.1.1, axe scrollable-region-focusable).
+        // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex
         tabIndex={0}
         className="max-w-full overflow-x-auto overscroll-x-contain"
       >
@@ -190,7 +192,7 @@ export function ContributionGraph({
               key={`month-${wi}`}
               x={WEEKDAY_LABEL_WIDTH + wi * (cell + gap)}
               y={MONTH_LABEL_HEIGHT - 5}
-              className="fill-current font-mono text-label text-text-faint"
+              className="fill-current font-mono text-label text-text-muted"
             >
               {label}
             </text>
@@ -200,7 +202,7 @@ export function ContributionGraph({
               key={`weekday-${d}`}
               x={0}
               y={MONTH_LABEL_HEIGHT + Number(d) * (cell + gap) + cell - 1}
-              className="fill-current font-mono text-label text-text-faint"
+              className="fill-current font-mono text-label text-text-muted"
             >
               {label}
             </text>
@@ -223,7 +225,7 @@ export function ContributionGraph({
       {/* Intensity key; the per-day counts are in each cell's title. */}
       <div
         aria-hidden="true"
-        className="flex items-center justify-end gap-1 font-mono text-meta text-text-faint"
+        className="flex items-center justify-end gap-1 font-mono text-meta text-text-muted"
       >
         <span className="mr-1">less</span>
         <svg width={CELL_COLORS.length * (cell + gap)} height={cell}>

@@ -332,10 +332,10 @@ export function ProjectPostCard({
             size={30}
           />
           <div className="min-w-0">
-            <div className="font-mono text-label font-semibold text-text">
+            <div className="font-sans text-label font-medium text-text">
               {post.actorSnapshot.displayName}
             </div>
-            <div className="font-mono text-meta text-text-faint">
+            <div className="font-mono text-meta text-text-muted">
               {relativeTime(post.createdAt)}
               {post.updatedAt > post.createdAt ? ' · edited' : ''}
             </div>
@@ -430,7 +430,7 @@ export function ProjectPostCard({
           type="button"
           onClick={() => setCommentComposerOpen((current) => !current)}
           disabled={!isSignedIn}
-          className="inline-flex min-h-11 items-center gap-1.5 rounded-md bg-transparent px-2 py-2 font-mono text-label text-text-muted transition-colors hover:text-text"
+          className="inline-flex h-7 items-center gap-1.5 rounded-md bg-transparent px-2 font-mono text-label text-text-muted transition-colors hover:text-text pointer-coarse:min-h-11"
         >
           <MessageSquare size={14} strokeWidth={1.6} />
           {post.commentsCount} comments

@@ -31,7 +31,7 @@ export function LanguageBar({
   return (
     <div
       className={cn(
-        'flex max-w-full flex-col items-start gap-1.5 font-mono text-meta text-text-faint',
+        'flex max-w-full flex-col items-start gap-1.5 font-mono text-meta text-text-muted',
         className,
       )}
       role="group"

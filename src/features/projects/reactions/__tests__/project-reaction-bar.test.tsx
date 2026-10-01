@@ -25,15 +25,18 @@ vi.mock('../../../../../convex/_generated/api', () => ({
 
 vi.mock('../reaction-bar', () => ({
   ReactionBar: ({
+    className,
     disabled,
     targetId,
     viewerReactionTypes,
   }: {
+    className?: string
     disabled: boolean
     targetId: string
     viewerReactionTypes: string[]
   }) => (
     <div
+      className={className}
       data-testid="reaction-bar"
       data-disabled={String(disabled)}
       data-target-id={targetId}
@@ -114,5 +117,17 @@ describe('ProjectReactionBar', () => {
     expect(
       screen.getByTestId('reaction-bar').dataset.viewerReactions?.split(','),
     ).toEqual(['rocket', 'like'])
+  })
+
+  it('forwards its className to the reaction bar root', () => {
+    render(
+      <ProjectReactionBar
+        className="order-first"
+        projectId={projectId}
+        viewerReactionTypes={[]}
+      />,
+    )
+
+    expect(screen.getByTestId('reaction-bar').className).toBe('order-first')
   })
 })

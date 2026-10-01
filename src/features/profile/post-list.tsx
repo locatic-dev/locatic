@@ -55,7 +55,7 @@ export function ProfilePostList({
                 <button
                   type="button"
                   onClick={() => void router.navigate(navigateOptions)}
-                  className="ml-auto inline-flex min-h-11 items-center gap-1.5 rounded-md px-2 font-mono text-meta text-text-faint transition-colors hover:text-text"
+                  className="ml-auto inline-flex h-7 items-center gap-1.5 rounded-md px-2 font-mono text-meta text-text-muted transition-colors hover:text-text pointer-coarse:min-h-11"
                 >
                   <MessageSquare size={12} aria-hidden="true" />
                   {post.commentsCount}{' '}

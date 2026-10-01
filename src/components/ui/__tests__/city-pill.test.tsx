@@ -85,4 +85,37 @@ describe('CityPill', () => {
     expect(screen.queryByRole('link')).toBeNull()
     expect(screen.getByTitle('Karnataka, India')).toBeTruthy()
   })
+
+  it('keeps link and text semantics in the inline variant', () => {
+    const { rerender } = render(
+      <CityPill variant="inline" city="Hyderabad" cityId="city_hyd" />,
+    )
+
+    expect(
+      screen.getByRole('link', { name: 'Hyderabad' }).getAttribute('href'),
+    ).toBe('/c/city_hyd')
+
+    rerender(<CityPill variant="inline" city="Telangana, India" />)
+    expect(screen.queryByRole('link')).toBeNull()
+    expect(screen.getByTitle('Telangana, India').textContent).toBe(
+      'Telangana, India',
+    )
+  })
+
+  it('sizes only the linked inline variant as a pointer target', () => {
+    const { rerender } = render(
+      <CityPill variant="inline" city="Hyderabad" cityId="city_hyd" />,
+    )
+
+    // 24px (WCAG 2.2 target size) with a mouse, 44px on coarse pointers.
+    const link = screen.getByRole('link', { name: 'Hyderabad' })
+    expect(link.className).toContain('min-h-6')
+    expect(link.className).toContain('pointer-coarse:min-h-11')
+    expect(link.className).toContain('items-center')
+
+    rerender(<CityPill variant="inline" city="Telangana, India" />)
+    const text = screen.getByTitle('Telangana, India')
+    expect(text.className).not.toContain('min-h-6')
+    expect(text.className).not.toContain('pointer-coarse:min-h-11')
+  })
 })

@@ -93,7 +93,7 @@ export function FormRoutePending() {
         <Skeleton className="h-4 w-24" />
       </div>
       <div className="lx-page-scroll flex-1">
-        <div className="lx-page-width-form py-5">
+        <div className="lx-page-width-form-left py-5">
           <div className="flex flex-col gap-4">
             <Skeleton className="h-10 w-2/5" />
             <Skeleton className="h-28 w-full" />

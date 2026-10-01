@@ -1,6 +1,7 @@
 import { Link } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
+import { cardSheetClass } from '@/components/ui/card-sheet'
 import { PersonRow } from '@/components/ui/person-row'
 import { ProjectCard } from '@/components/ui/project-card'
 import { StatusPill, isCollaborationStatus } from '@/components/ui/status-pill'
@@ -64,7 +65,7 @@ function CityHeader({ page }: { page: CityPagePayload }) {
       {page.city.regionLabel && (
         <p className="m-0 text-body text-text-muted">{page.city.regionLabel}</p>
       )}
-      <p className="m-0 font-mono text-meta text-text-faint">
+      <p className="m-0 font-mono text-meta text-text-muted">
         {formatCityCounts(page.stats)}
       </p>
     </header>
@@ -78,10 +79,11 @@ function RecentWork({ page }: { page: CityPagePayload }) {
       {projects.length === 0 ? (
         <SectionEmpty>no public projects here yet.</SectionEmpty>
       ) : (
-        <div className="flex flex-col gap-2">
+        <div className={cardSheetClass}>
           {projects.map((project) => (
             <ProjectCard
               key={String(project.projectId)}
+              variant="row"
               project={toProjectCardData(project)}
               authorLink={{
                 username: project.authorHandle,
@@ -141,7 +143,7 @@ function BuilderRow({ builder }: { builder: CityPageBuilder }) {
 function Builders({ page }: { page: CityPagePayload }) {
   return (
     <CitySection id="city-builders" title="builders">
-      <p className="m-0 font-mono text-meta text-text-faint">
+      <p className="m-0 font-mono text-meta text-text-muted">
         most recent public work first
       </p>
       {page.builders.length === 0 ? (
@@ -173,7 +175,7 @@ function PostRow({ post }: { post: CityPagePost }) {
         size={32}
       />
       <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <p className="m-0 font-mono text-meta text-text-faint">
+        <p className="m-0 font-mono text-meta text-text-muted">
           <Link
             to="/u/$username"
             params={{ username: post.author.githubUsername }}

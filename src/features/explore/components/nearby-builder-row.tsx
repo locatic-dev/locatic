@@ -6,9 +6,9 @@ import type { BuilderPreview } from '@/features/explore/types'
 import { SignInLink } from './sign-in-link'
 
 const followButtonClass =
-  'min-h-11 shrink-0 rounded-md border px-3 font-mono text-label transition-colors'
+  'h-8 shrink-0 rounded-md border px-3 pointer-coarse:h-auto pointer-coarse:min-h-11 font-mono text-label transition-colors'
 const messageIconButtonClass =
-  'inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-md border border-line text-text-muted transition-colors hover:border-text-muted hover:text-text disabled:cursor-default disabled:opacity-60'
+  'inline-flex size-8 shrink-0 items-center justify-center rounded-md border border-line text-text-muted transition-colors hover:border-text-muted hover:text-text disabled:cursor-default disabled:opacity-60 pointer-coarse:size-11'
 
 export function NearbyBuilderRow({
   builder,

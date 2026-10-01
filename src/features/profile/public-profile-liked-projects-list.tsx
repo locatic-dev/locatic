@@ -61,7 +61,7 @@ export function PublicProfileLikedProjectsList({
             <div className="mb-1 text-title text-text">
               {getProjectCardFullName(project.project)}
             </div>
-            <div className="font-mono text-meta text-text-faint">
+            <div className="font-mono text-meta text-text-muted">
               liked {relativeTime(project.likedAt)}
             </div>
           </Link>

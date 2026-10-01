@@ -1,29 +1,25 @@
 import * as m from 'motion/react-m'
 import type { Variants } from 'motion/react'
-import { cn } from '@/lib/utils'
-import { MapPin, MessageSquare, UserPlus } from '@/lib/icons'
 import { durations, easeOutExpo, viewportOnce } from '@/lib/motion'
 
-// Asymmetric feature composition: one lead statement carries the section, two
-// supporting rows sit beside it. Deliberately not three equal columns — the
-// varied widths and inline icons keep the block from reading as a template.
-// Copy describes only what ships today; keep it that way when features change.
-const LEAD = {
-  title: 'discover',
-  desc: 'pick your city in explore and see the projects, posts and builders there, or look at every city at once.',
-  Icon: MapPin,
-}
-
-const SUPPORTING = [
+// Three features on a hairline grid: a mono eyebrow names each one, a sans
+// title says what it gives you. Copy describes only what ships today; keep it
+// that way when features change.
+const FEATURES = [
   {
-    title: 'follow',
-    desc: 'follow builders whose work you admire. their new projects and posts show up in your home feed.',
-    Icon: UserPlus,
+    eyebrow: '01 · discover',
+    title: 'see who is building near you',
+    desc: 'pick your city in explore and see the projects, posts and builders there, or look at every city at once.',
   },
   {
-    title: 'message',
+    eyebrow: '02 · follow',
+    title: 'keep up with builders you admire',
+    desc: 'follow builders whose work you admire. their new projects and posts show up in your home feed.',
+  },
+  {
+    eyebrow: '03 · message',
+    title: 'talk to them directly',
     desc: 'send a builder a direct message from their profile or project page.',
-    Icon: MessageSquare,
   },
 ]
 
@@ -46,54 +42,32 @@ export function FeatureRow() {
   return (
     <m.section
       id="features"
-      className="mx-auto mt-16 max-w-296 border-y border-line px-(--lx-gutter) py-10 md:px-8"
+      aria-label="what locatic does"
+      className="mx-auto mt-16 max-w-(--lx-public-max) px-(--lx-gutter) md:mt-24"
       variants={container}
       initial="hidden"
       whileInView="visible"
       viewport={viewportOnce}
     >
-      <div className="grid grid-cols-1 gap-x-10 gap-y-8 md:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
-        {/* Lead feature — larger, carries the section */}
-        <m.div variants={item} className="min-w-0">
-          <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-control border border-line-strong text-brand">
-            <LEAD.Icon size={20} strokeWidth={1.4} />
-          </div>
-          <h2 className="mt-0 mb-2.5 font-mono text-2xl font-semibold tracking-[-0.015em] wrap-anywhere text-text">
-            {LEAD.title}
-          </h2>
-          <p className="m-0 max-w-90 font-sans text-[15px] leading-[1.6] text-text-muted">
-            {LEAD.desc}
-          </p>
-        </m.div>
-
-        {/* Supporting features — stacked rows, hairline-divided */}
-        <div className="flex flex-col">
-          {SUPPORTING.map((f, i) => (
-            <m.div
-              key={f.title}
-              variants={item}
-              className={cn(
-                'min-w-0 py-4 first:pt-0 last:pb-0',
-                i > 0 && 'border-t border-line',
-              )}
-            >
-              <div className="mb-1.5 flex items-center gap-2.5">
-                <f.Icon
-                  size={16}
-                  strokeWidth={1.5}
-                  className="shrink-0 text-brand"
-                />
-                <h2 className="m-0 font-mono text-base font-semibold tracking-[-0.01em] wrap-anywhere text-text">
-                  {f.title}
-                </h2>
-              </div>
-              <p className="m-0 font-sans text-sm leading-[1.55] text-text-muted">
-                {f.desc}
+      <ul className="m-0 grid list-none grid-cols-1 divide-y divide-line border-y border-line p-0 md:grid-cols-3 md:divide-x md:divide-y-0">
+        {FEATURES.map((feature) => (
+          // The hairlines stay put; only the content rises into place.
+          <li
+            key={feature.eyebrow}
+            className="min-w-0 py-8 md:px-8 md:first:pl-0 md:last:pr-0"
+          >
+            <m.div variants={item}>
+              <p className="m-0 text-eyebrow text-text-muted">
+                {feature.eyebrow}
               </p>
+              <h2 className="mt-3 mb-2 text-title wrap-anywhere text-text">
+                {feature.title}
+              </h2>
+              <p className="m-0 text-body text-text-muted">{feature.desc}</p>
             </m.div>
-          ))}
-        </div>
-      </div>
+          </li>
+        ))}
+      </ul>
     </m.section>
   )
 }

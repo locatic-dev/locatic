@@ -121,7 +121,7 @@ export function CityCombobox({
       <div className="relative">
         <Search
           size={14}
-          className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-text-faint"
+          className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-text-muted"
         />
         <Input
           id={inputId}
@@ -163,8 +163,11 @@ export function CityCombobox({
             const regionLabel = getCityRegionLabel(city)
 
             return (
-              <button
-                type="button"
+              // ARIA combobox pattern: keyboard selection happens on the input
+              // (arrows, Enter, Escape) through aria-activedescendant, which
+              // keeps focus there; options only take pointer clicks.
+              // oxlint-disable-next-line jsx-a11y/click-events-have-key-events
+              <div
                 key={String(city._id)}
                 id={`${listboxId}-${String(city._id)}`}
                 role="option"
@@ -179,7 +182,7 @@ export function CityCombobox({
                     {city.name}
                   </span>
                   {regionLabel && (
-                    <span className="font-mono text-meta wrap-anywhere text-text-faint">
+                    <span className="font-mono text-meta wrap-anywhere text-text-muted">
                       {regionLabel}
                     </span>
                   )}
@@ -187,9 +190,9 @@ export function CityCombobox({
                 <Plus
                   size={12}
                   aria-hidden="true"
-                  className="text-text-faint"
+                  className="text-text-muted"
                 />
-              </button>
+              </div>
             )
           })}
         </div>
