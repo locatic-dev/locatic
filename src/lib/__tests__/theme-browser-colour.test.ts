@@ -1,9 +1,11 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
+import { emailPalette } from '../../../convex/lib/emails/community_update'
 
 // Browser chrome (theme-color meta, PWA manifest, favicon and touch icon
-// backgrounds) cannot read CSS variables, so it carries the sRGB hex of the
-// canvas token. This keeps those copies from drifting into different blacks.
+// backgrounds) and the community email cannot read CSS variables, so they
+// carry the sRGB hex of the teal theme tokens. This keeps those copies from
+// drifting away from src/styles.css.
 
 function read(path: string) {
   return readFileSync(new URL(`../../../${path}`, import.meta.url), 'utf8')
@@ -35,18 +37,47 @@ function oklchToHex(lightness: number, chroma: number, hue: number) {
     .join('')}`
 }
 
-function canvasHex() {
-  const match = read('src/styles.css').match(
-    /--background:\s*oklch\(([\d.]+)%\s+([\d.]+)\s+([\d.]+)\)/,
-  )
-  if (!match) throw new Error('--background oklch() token not found')
+const css = read('src/styles.css')
+
+/** Every value declared for a custom property, in stylesheet order. */
+function declarations(source: string, name: string) {
+  return [
+    ...source.matchAll(new RegExp(`(?:^|[\\s;{])${name}:\\s*([^;]+);`, 'gm')),
+  ].map((match) => match[1].trim())
+}
+
+/**
+ * A neutral token as hex. It must be declared once, so a later override or a
+ * per-theme copy cannot change the colour without failing here.
+ */
+function tokenHex(name: string) {
+  const values = declarations(css, name)
+  expect(values, `${name} declarations`).toHaveLength(1)
+  const match = values[0].match(/^oklch\(([\d.]+)%\s+([\d.]+)\s+([\d.]+)\)$/)
+  if (!match) throw new Error(`${name} is not a literal oklch() colour`)
   const [, lightness, chroma, hue] = match
   return oklchToHex(Number(lightness) / 100, Number(chroma), Number(hue))
 }
 
+/** `--primary` built from the teal (default) theme's accent components. */
+function accentHex() {
+  expect(declarations(css, '--primary')).toEqual([
+    'oklch(var(--lx-accent-l) var(--lx-accent-c) var(--lx-accent-h))',
+  ])
+  const start = css.indexOf("[data-theme='teal'] {")
+  if (start === -1) throw new Error('teal theme block not found')
+  const teal = css.slice(start, css.indexOf('\n}', start))
+  const component = (name: string) => {
+    const values = declarations(teal, `--lx-accent-${name}`)
+    expect(values, `teal --lx-accent-${name} declarations`).toHaveLength(1)
+    return Number.parseFloat(values[0])
+  }
+  return oklchToHex(component('l') / 100, component('c'), component('h'))
+}
+
 describe('browser chrome colour', () => {
   it('uses the canvas token colour for theme-color, manifest and favicon', () => {
-    const canvas = canvasHex()
+    const canvas = tokenHex('--background')
 
     const manifest = JSON.parse(read('public/manifest.json')) as {
       theme_color: string
@@ -64,5 +95,17 @@ describe('browser chrome colour', () => {
       /<rect[^>]*fill="(#[0-9a-fA-F]{6})"/,
     )
     expect(faviconBackground?.[1].toLowerCase()).toBe(canvas)
+  })
+})
+
+describe('community email palette', () => {
+  it('uses the teal theme token colours', () => {
+    expect(emailPalette).toEqual({
+      background: tokenHex('--background'),
+      line: tokenHex('--border'),
+      text: tokenHex('--foreground'),
+      muted: tokenHex('--muted-foreground'),
+      accent: accentHex(),
+    })
   })
 })
