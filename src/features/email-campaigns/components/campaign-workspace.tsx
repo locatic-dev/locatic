@@ -1,7 +1,9 @@
 import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
+import { ArrowDown, ArrowUp } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import type { Id } from '../../../../convex/_generated/dataModel'
 
+import { PageHeader } from '@/components/app-shell/page-header'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -40,8 +42,7 @@ type DraftState = {
 }
 
 const labelClassName = 'mb-1.5 block font-mono text-label text-text-muted'
-const sectionTitleClassName =
-  'font-mono text-meta font-semibold uppercase tracking-[0.06em] text-text-muted'
+const sectionTitleClassName = 'text-eyebrow text-text-muted'
 
 function detailToDraft(detail: EmailCampaignDetail): DraftState {
   return {
@@ -81,7 +82,7 @@ function SelectedContentRows<T>({
 }) {
   if (items.length === 0) {
     return (
-      <p className="font-mono text-label text-text-faint">
+      <p className="font-mono text-label text-text-muted">
         no {kind}s selected
       </p>
     )
@@ -95,10 +96,10 @@ function SelectedContentRows<T>({
           className="flex items-center gap-3 rounded-control border border-line bg-canvas px-3 py-2"
         >
           <div className="min-w-0 flex-1">
-            <p className="truncate font-mono text-label text-text">
+            <p className="truncate font-sans text-label font-medium text-text">
               {getPrimary(item)}
             </p>
-            <p className="truncate text-meta text-text-faint">
+            <p className="truncate text-meta text-text-muted">
               {getSecondary(item)}
             </p>
           </div>
@@ -111,7 +112,7 @@ function SelectedContentRows<T>({
               disabled={index === 0}
               onClick={() => onChange(moveItem(items, index, index - 1))}
             >
-              ↑
+              <ArrowUp size={14} aria-hidden="true" />
             </Button>
             <Button
               type="button"
@@ -121,7 +122,7 @@ function SelectedContentRows<T>({
               disabled={index === items.length - 1}
               onClick={() => onChange(moveItem(items, index, index + 1))}
             >
-              ↓
+              <ArrowDown size={14} aria-hidden="true" />
             </Button>
             <Button
               type="button"
@@ -145,7 +146,7 @@ function AudienceReview({ detail }: { detail: EmailCampaignDetail }) {
   const run = detail.latestRun
   if (!run || run.revision !== detail.revision) {
     return (
-      <p className="font-mono text-label text-text-faint">
+      <p className="font-mono text-label text-text-muted">
         prepare a review to freeze this revision and calculate its audience.
       </p>
     )
@@ -163,7 +164,7 @@ function AudienceReview({ detail }: { detail: EmailCampaignDetail }) {
         ['sync pending', audience.pendingSync],
       ].map(([label, value]) => (
         <div key={label} className="border-l border-line pl-3">
-          <p className="font-mono text-meta text-text-faint">{label}</p>
+          <p className="font-mono text-meta text-text-muted">{label}</p>
           <p className="font-mono text-body font-semibold text-text">{value}</p>
         </div>
       ))}
@@ -384,465 +385,478 @@ export function CampaignWorkspace() {
   }
 
   return (
-    <main
-      id="main-content"
-      className="mx-auto w-full max-w-[1500px] px-4 py-6 sm:px-6"
-    >
-      <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="mb-1 font-mono text-meta uppercase tracking-[0.08em] text-brand">
-            internal
-          </p>
-          <h1 className="font-sans text-title font-semibold text-text">
-            community email
-          </h1>
-          <p className="mt-1 max-w-2xl text-body text-text-muted">
+    <div className="lx-page-shell">
+      <PageHeader
+        title="community email"
+        subtitle="internal"
+        width="wide"
+        actions={
+          <>
+            <Button
+              type="button"
+              size="touch"
+              onClick={() => create('digest')}
+              disabled={busy !== null}
+            >
+              new digest
+            </Button>
+            <Button
+              type="button"
+              size="touch"
+              variant="primary"
+              onClick={() => create('announcement')}
+              disabled={busy !== null}
+            >
+              new announcement
+            </Button>
+          </>
+        }
+      />
+      <div className="lx-page-scroll">
+        <div className="lx-page-width-wide">
+          <p className="mb-6 max-w-2xl text-body text-text-muted">
             Prepare one structured edition, review the exact artifact, then make
             a separate send decision.
           </p>
-        </div>
-        <div className="flex gap-2">
-          <Button
-            type="button"
-            onClick={() => create('digest')}
-            disabled={busy !== null}
-          >
-            new digest
-          </Button>
-          <Button
-            type="button"
-            variant="primary"
-            onClick={() => create('announcement')}
-            disabled={busy !== null}
-          >
-            new announcement
-          </Button>
-        </div>
-      </header>
 
-      {error ? (
-        <p
-          role="alert"
-          className="mb-4 rounded-control border border-danger px-3 py-2 text-body text-danger"
-        >
-          {error}
-        </p>
-      ) : null}
-      {notice ? (
-        <p
-          role="status"
-          className="mb-4 rounded-control border border-line px-3 py-2 text-body text-text-muted"
-        >
-          {notice}
-        </p>
-      ) : null}
+          {error ? (
+            <p
+              role="alert"
+              className="mb-4 rounded-control border border-danger px-3 py-2 text-body text-danger"
+            >
+              {error}
+            </p>
+          ) : null}
+          {notice ? (
+            <p
+              role="status"
+              className="mb-4 rounded-control border border-line px-3 py-2 text-body text-text-muted"
+            >
+              {notice}
+            </p>
+          ) : null}
 
-      <div className="grid gap-5 lg:grid-cols-[260px_minmax(0,1fr)]">
-        <Card as="aside" density="flush" aria-label="campaigns">
-          <div className="border-b border-line px-4 py-3">
-            <h2 className={sectionTitleClassName}>campaigns</h2>
-            <p className="mt-1 font-mono text-meta text-text-faint">
-              latest 50
-            </p>
-          </div>
-          {campaigns.length === 0 ? (
-            <p className="px-4 py-6 font-mono text-label text-text-faint">
-              no campaigns yet
-            </p>
-          ) : (
-            <ul>
-              {campaigns.map((campaign) => (
-                <li
-                  key={campaign.id}
-                  className="border-b border-line last:border-b-0"
-                >
-                  <button
-                    type="button"
-                    className="w-full px-4 py-3 text-left hover:bg-state-hover"
-                    aria-pressed={campaign.id === selectedId}
-                    onClick={() => selectCampaign(campaign.id)}
-                  >
-                    <span className="block truncate font-mono text-label text-text">
-                      {campaign.title}
-                    </span>
-                    <span className="mt-1 block text-meta text-text-faint">
-                      {campaign.kind} · {campaignStatusLabel(campaign.state)}
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
+          <div className="grid gap-5 lg:grid-cols-[260px_minmax(0,1fr)]">
+            <Card as="aside" density="flush" aria-label="campaigns">
+              <div className="border-b border-line px-4 py-3">
+                <h2 className={sectionTitleClassName}>campaigns</h2>
+                <p className="mt-1 font-mono text-meta text-text-muted">
+                  latest 50
+                </p>
+              </div>
+              {campaigns.length === 0 ? (
+                <p className="px-4 py-6 font-mono text-label text-text-muted">
+                  no campaigns yet
+                </p>
+              ) : (
+                <ul>
+                  {campaigns.map((campaign) => (
+                    <li
+                      key={campaign.id}
+                      className="border-b border-line last:border-b-0"
+                    >
+                      <button
+                        type="button"
+                        className="relative w-full px-4 py-3 text-left transition-colors before:absolute before:inset-y-0 before:left-0 before:w-0.5 hover:bg-state-hover aria-pressed:bg-selected aria-pressed:before:bg-selected-bar"
+                        aria-pressed={campaign.id === selectedId}
+                        onClick={() => selectCampaign(campaign.id)}
+                      >
+                        <span className="block truncate font-sans text-label font-medium text-text">
+                          {campaign.title}
+                        </span>
+                        <span className="mt-1 block text-meta text-text-muted">
+                          {campaign.kind} ·{' '}
+                          {campaignStatusLabel(campaign.state)}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Card>
 
-        {!draft || !detail ? (
-          <Card className="flex min-h-64 items-center justify-center">
-            <p className="font-mono text-label text-text-faint">
-              {selectedId && detailQuery.isLoading
-                ? 'loading campaign...'
-                : 'select or create a campaign'}
-            </p>
-          </Card>
-        ) : (
-          <div className="min-w-0 space-y-5">
-            {stale ? (
-              <Card className="border-danger" role="alert">
-                <p className="text-body text-text">
-                  A newer revision is available. Reload before saving this
-                  draft.
+            {!draft || !detail ? (
+              <Card className="flex min-h-64 items-center justify-center">
+                <p className="font-mono text-label text-text-muted">
+                  {selectedId && detailQuery.isLoading
+                    ? 'loading campaign...'
+                    : 'select or create a campaign'}
                 </p>
               </Card>
-            ) : null}
-
-            <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(360px,0.8fr)]">
-              <Card
-                as="section"
-                density="cozy"
-                aria-labelledby="campaign-editor-title"
-              >
-                <div className="mb-5 flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <h2
-                      id="campaign-editor-title"
-                      className={sectionTitleClassName}
-                    >
-                      edition
-                    </h2>
-                    <p className="mt-1 font-mono text-meta text-text-faint">
-                      revision {draft.revision} · {campaignPeriodLabel(detail)}{' '}
-                      · {campaignStatusLabel(detail.state)}
+            ) : (
+              <div className="min-w-0 space-y-5">
+                {stale ? (
+                  <Card className="border-danger" role="alert">
+                    <p className="text-body text-text">
+                      A newer revision is available. Reload before saving this
+                      draft.
                     </p>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="primary"
-                    onClick={save}
-                    disabled={!isDirty || stale || busy !== null}
+                  </Card>
+                ) : null}
+
+                <div className="grid min-w-0 gap-5 2xl:grid-cols-[minmax(0,1fr)_minmax(360px,0.8fr)]">
+                  <Card
+                    as="section"
+                    density="cozy"
+                    aria-labelledby="campaign-editor-title"
                   >
-                    {busy === 'save' ? 'saving...' : 'save draft'}
-                  </Button>
+                    <div className="mb-5 flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <h2
+                          id="campaign-editor-title"
+                          className={sectionTitleClassName}
+                        >
+                          edition
+                        </h2>
+                        <p className="mt-1 font-mono text-meta text-text-muted">
+                          revision {draft.revision} ·{' '}
+                          {campaignPeriodLabel(detail)} ·{' '}
+                          {campaignStatusLabel(detail.state)}
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="primary"
+                        onClick={save}
+                        disabled={!isDirty || stale || busy !== null}
+                      >
+                        {busy === 'save' ? 'saving...' : 'save draft'}
+                      </Button>
+                    </div>
+
+                    <div className="space-y-4">
+                      <label>
+                        <span className={labelClassName}>internal title</span>
+                        <Input
+                          value={draft.title}
+                          onChange={(event) =>
+                            setDraft({ ...draft, title: event.target.value })
+                          }
+                        />
+                      </label>
+                      <label>
+                        <span className={labelClassName}>subject</span>
+                        <Input
+                          value={draft.content.subject}
+                          maxLength={140}
+                          onChange={(event) =>
+                            updateContent('subject', event.target.value)
+                          }
+                        />
+                      </label>
+                      <label>
+                        <span className={labelClassName}>preheader</span>
+                        <Input
+                          value={draft.content.preheader}
+                          maxLength={200}
+                          onChange={(event) =>
+                            updateContent('preheader', event.target.value)
+                          }
+                        />
+                      </label>
+                      <label>
+                        <span className={labelClassName}>introduction</span>
+                        <Textarea
+                          className="min-h-28"
+                          value={draft.content.introduction}
+                          onChange={(event) =>
+                            updateContent('introduction', event.target.value)
+                          }
+                        />
+                      </label>
+
+                      <section
+                        aria-labelledby="selected-projects-title"
+                        className="space-y-3 border-t border-line pt-4"
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <h3
+                            id="selected-projects-title"
+                            className={sectionTitleClassName}
+                          >
+                            selected projects
+                          </h3>
+                          <span className="font-mono text-meta text-text-muted">
+                            {draft.content.projects.length}/5
+                          </span>
+                        </div>
+                        <SelectedContentRows
+                          items={draft.content.projects}
+                          kind="project"
+                          getKey={(project) => String(project.projectId)}
+                          getPrimary={(project) => project.fullName}
+                          getSecondary={(project) => project.activityLabel}
+                          onChange={(items) => updateContent('projects', items)}
+                        />
+                        <label>
+                          <span className={labelClassName}>
+                            find a public project
+                          </span>
+                          <Input
+                            value={projectSearch}
+                            placeholder="owner/repository"
+                            onChange={(event) =>
+                              setProjectSearch(event.target.value)
+                            }
+                          />
+                          <span className="mt-1 block text-meta text-text-muted">
+                            Searches the 75 most recently eligible projects.
+                          </span>
+                        </label>
+                        {projectSearch.trim() ? (
+                          <ul
+                            className="space-y-1"
+                            aria-label="project search results"
+                          >
+                            {projectResults.map((project) => {
+                              const selected = activeProjectIds.has(
+                                String(project.projectId),
+                              )
+                              return (
+                                <li
+                                  key={project.projectId}
+                                  className="flex items-center justify-between gap-3 border-b border-line py-2"
+                                >
+                                  <span className="truncate font-sans text-label text-text">
+                                    {project.fullName}
+                                  </span>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    disabled={
+                                      selected ||
+                                      draft.content.projects.length >= 5
+                                    }
+                                    onClick={() =>
+                                      updateContent('projects', [
+                                        ...draft.content.projects,
+                                        project,
+                                      ])
+                                    }
+                                  >
+                                    {selected ? 'selected' : 'add'}
+                                  </Button>
+                                </li>
+                              )
+                            })}
+                          </ul>
+                        ) : null}
+                      </section>
+
+                      <section
+                        aria-labelledby="selected-discussions-title"
+                        className="space-y-3 border-t border-line pt-4"
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <h3
+                            id="selected-discussions-title"
+                            className={sectionTitleClassName}
+                          >
+                            selected discussions
+                          </h3>
+                          <span className="font-mono text-meta text-text-muted">
+                            {draft.content.discussions.length}/2
+                          </span>
+                        </div>
+                        <SelectedContentRows
+                          items={draft.content.discussions}
+                          kind="discussion"
+                          getKey={(discussion) => String(discussion.commentId)}
+                          getPrimary={(discussion) => discussion.title}
+                          getSecondary={(discussion) => discussion.summary}
+                          onChange={(items) =>
+                            updateContent('discussions', items)
+                          }
+                        />
+                      </section>
+
+                      <label className="block border-t border-line pt-4">
+                        <span className={labelClassName}>
+                          Locatic shipping update
+                        </span>
+                        <Textarea
+                          className="min-h-28"
+                          value={draft.content.shippingUpdate}
+                          onChange={(event) =>
+                            updateContent('shippingUpdate', event.target.value)
+                          }
+                        />
+                      </label>
+                    </div>
+                  </Card>
+
+                  <Card
+                    as="section"
+                    density="cozy"
+                    className="min-w-0"
+                    aria-labelledby="preview-title"
+                  >
+                    <div className="mb-4 flex items-center justify-between gap-3">
+                      <h2 id="preview-title" className={sectionTitleClassName}>
+                        reviewed preview
+                      </h2>
+                      <Button
+                        type="button"
+                        onClick={review}
+                        disabled={isDirty || stale || busy !== null}
+                      >
+                        {busy === 'review' ? 'preparing...' : 'prepare review'}
+                      </Button>
+                    </div>
+                    {reviewedRun ? (
+                      <iframe
+                        title="reviewed campaign preview"
+                        sandbox=""
+                        srcDoc={reviewedRun.html}
+                        className="h-[640px] w-full rounded-control border border-line bg-white"
+                      />
+                    ) : (
+                      <div className="flex h-64 items-center justify-center rounded-control border border-dashed border-line px-6 text-center">
+                        <p className="font-mono text-label text-text-muted">
+                          save and prepare a review to render the exact
+                          immutable email artifact.
+                        </p>
+                      </div>
+                    )}
+                  </Card>
                 </div>
 
-                <div className="space-y-4">
-                  <label>
-                    <span className={labelClassName}>internal title</span>
-                    <Input
-                      value={draft.title}
-                      onChange={(event) =>
-                        setDraft({ ...draft, title: event.target.value })
-                      }
-                    />
-                  </label>
-                  <label>
-                    <span className={labelClassName}>subject</span>
-                    <Input
-                      value={draft.content.subject}
-                      maxLength={140}
-                      onChange={(event) =>
-                        updateContent('subject', event.target.value)
-                      }
-                    />
-                  </label>
-                  <label>
-                    <span className={labelClassName}>preheader</span>
-                    <Input
-                      value={draft.content.preheader}
-                      maxLength={200}
-                      onChange={(event) =>
-                        updateContent('preheader', event.target.value)
-                      }
-                    />
-                  </label>
-                  <label>
-                    <span className={labelClassName}>introduction</span>
-                    <Textarea
-                      className="min-h-28"
-                      value={draft.content.introduction}
-                      onChange={(event) =>
-                        updateContent('introduction', event.target.value)
-                      }
-                    />
-                  </label>
-
-                  <section
-                    aria-labelledby="selected-projects-title"
-                    className="space-y-3 border-t border-line pt-4"
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <h3
-                        id="selected-projects-title"
+                <Card
+                  as="section"
+                  density="cozy"
+                  aria-labelledby="send-review-title"
+                >
+                  <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <h2
+                        id="send-review-title"
                         className={sectionTitleClassName}
                       >
-                        selected projects
-                      </h3>
-                      <span className="font-mono text-meta text-text-faint">
-                        {draft.content.projects.length}/5
-                      </span>
+                        audience and delivery
+                      </h2>
+                      <p className="mt-1 text-body text-text-muted">
+                        Provider acceptance is not proof of inbox delivery.
+                        Pending contact sync blocks sending.
+                      </p>
+                      <p className="mt-2 font-mono text-meta text-text-muted">
+                        from {detail.sender ?? 'not configured'} · reply-to{' '}
+                        {detail.replyTo ?? 'not configured'}
+                      </p>
                     </div>
-                    <SelectedContentRows
-                      items={draft.content.projects}
-                      kind="project"
-                      getKey={(project) => String(project.projectId)}
-                      getPrimary={(project) => project.fullName}
-                      getSecondary={(project) => project.activityLabel}
-                      onChange={(items) => updateContent('projects', items)}
-                    />
-                    <label>
+                    {reviewedRun ? (
+                      <span className="font-mono text-label text-text-muted">
+                        {campaignStatusLabel(reviewedRun.stage)}
+                      </span>
+                    ) : null}
+                  </div>
+                  <AudienceReview detail={detail} />
+                  {reviewedRun?.metrics ? (
+                    <p className="mt-4 font-mono text-meta text-text-muted">
+                      sent {reviewedRun.metrics.sent} · delivered{' '}
+                      {reviewedRun.metrics.delivered} · bounced{' '}
+                      {reviewedRun.metrics.bounced} · complained{' '}
+                      {reviewedRun.metrics.complained} · failed{' '}
+                      {reviewedRun.metrics.failed} · suppressed{' '}
+                      {reviewedRun.metrics.suppressed}
+                    </p>
+                  ) : null}
+                  {reviewedRun?.lastError ? (
+                    <p className="mt-4 rounded-control border border-danger px-3 py-2 text-body text-danger">
+                      {reviewedRun.lastError}
+                    </p>
+                  ) : null}
+                  <div className="mt-5 flex flex-wrap items-end gap-3 border-t border-line pt-4">
+                    <label className="min-w-64 flex-1">
                       <span className={labelClassName}>
-                        find a public project
+                        allowlisted test recipient
                       </span>
                       <Input
-                        value={projectSearch}
-                        placeholder="owner/repository"
+                        type="email"
+                        value={testRecipient}
                         onChange={(event) =>
-                          setProjectSearch(event.target.value)
+                          setTestRecipient(event.target.value)
                         }
                       />
-                      <span className="mt-1 block text-meta text-text-faint">
-                        Searches the 75 most recently eligible projects.
-                      </span>
                     </label>
-                    {projectSearch.trim() ? (
-                      <ul
-                        className="space-y-1"
-                        aria-label="project search results"
-                      >
-                        {projectResults.map((project) => {
-                          const selected = activeProjectIds.has(
-                            String(project.projectId),
-                          )
-                          return (
-                            <li
-                              key={project.projectId}
-                              className="flex items-center justify-between gap-3 border-b border-line py-2"
-                            >
-                              <span className="truncate font-mono text-label text-text-muted">
-                                {project.fullName}
-                              </span>
-                              <Button
-                                type="button"
-                                size="sm"
-                                disabled={
-                                  selected || draft.content.projects.length >= 5
-                                }
-                                onClick={() =>
-                                  updateContent('projects', [
-                                    ...draft.content.projects,
-                                    project,
-                                  ])
-                                }
-                              >
-                                {selected ? 'selected' : 'add'}
-                              </Button>
-                            </li>
-                          )
-                        })}
-                      </ul>
-                    ) : null}
-                  </section>
-
-                  <section
-                    aria-labelledby="selected-discussions-title"
-                    className="space-y-3 border-t border-line pt-4"
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <h3
-                        id="selected-discussions-title"
-                        className={sectionTitleClassName}
-                      >
-                        selected discussions
-                      </h3>
-                      <span className="font-mono text-meta text-text-faint">
-                        {draft.content.discussions.length}/2
-                      </span>
-                    </div>
-                    <SelectedContentRows
-                      items={draft.content.discussions}
-                      kind="discussion"
-                      getKey={(discussion) => String(discussion.commentId)}
-                      getPrimary={(discussion) => discussion.title}
-                      getSecondary={(discussion) => discussion.summary}
-                      onChange={(items) => updateContent('discussions', items)}
-                    />
-                  </section>
-
-                  <label className="block border-t border-line pt-4">
-                    <span className={labelClassName}>
-                      Locatic shipping update
-                    </span>
-                    <Textarea
-                      className="min-h-28"
-                      value={draft.content.shippingUpdate}
-                      onChange={(event) =>
-                        updateContent('shippingUpdate', event.target.value)
+                    <Button
+                      type="button"
+                      onClick={test}
+                      disabled={
+                        !reviewedRun ||
+                        !testRecipient ||
+                        isDirty ||
+                        stale ||
+                        busy !== null
                       }
-                    />
-                  </label>
-                </div>
-              </Card>
-
-              <Card
-                as="section"
-                density="cozy"
-                className="min-w-0"
-                aria-labelledby="preview-title"
-              >
-                <div className="mb-4 flex items-center justify-between gap-3">
-                  <h2 id="preview-title" className={sectionTitleClassName}>
-                    reviewed preview
-                  </h2>
-                  <Button
-                    type="button"
-                    onClick={review}
-                    disabled={isDirty || stale || busy !== null}
-                  >
-                    {busy === 'review' ? 'preparing...' : 'prepare review'}
-                  </Button>
-                </div>
-                {reviewedRun ? (
-                  <iframe
-                    title="reviewed campaign preview"
-                    sandbox=""
-                    srcDoc={reviewedRun.html}
-                    className="h-[640px] w-full rounded-control border border-line bg-white"
-                  />
-                ) : (
-                  <div className="flex h-64 items-center justify-center rounded-control border border-dashed border-line px-6 text-center">
-                    <p className="font-mono text-label text-text-faint">
-                      save and prepare a review to render the exact immutable
-                      email artifact.
-                    </p>
+                    >
+                      {busy === 'test' ? 'sending test...' : 'send test'}
+                    </Button>
+                    {reviewedRun &&
+                    (reviewedRun.stage === 'needs_attention' ||
+                      reviewedRun.stage === 'failed') ? (
+                      <Button
+                        type="button"
+                        onClick={recover}
+                        disabled={busy !== null}
+                      >
+                        {busy === 'recover'
+                          ? 'recovering...'
+                          : 'recover delivery'}
+                      </Button>
+                    ) : null}
+                    {reviewedRun &&
+                    reviewedRun.audienceSummary.pendingSync > 0 ? (
+                      <Button
+                        type="button"
+                        onClick={retryContacts}
+                        disabled={busy !== null}
+                      >
+                        {busy === 'retry-contacts'
+                          ? 'retrying...'
+                          : 'retry failed contacts'}
+                      </Button>
+                    ) : null}
+                    {reviewedRun?.canCancel ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={cancel}
+                        disabled={busy !== null}
+                      >
+                        {busy === 'cancel'
+                          ? 'cancelling...'
+                          : 'cancel delivery request'}
+                      </Button>
+                    ) : null}
+                    <Button
+                      type="button"
+                      variant="primary"
+                      onClick={send}
+                      disabled={
+                        !reviewedRun ||
+                        reviewedRun.stage !== 'ready' ||
+                        reviewedRun.audienceSummary.eligible === 0 ||
+                        reviewedRun.audienceSummary.pendingSync > 0 ||
+                        isDirty ||
+                        stale ||
+                        busy !== null
+                      }
+                    >
+                      {busy === 'send'
+                        ? 'requesting...'
+                        : `send to ${reviewedRun?.audienceSummary.eligible ?? 0} subscribers`}
+                    </Button>
                   </div>
-                )}
-              </Card>
-            </div>
-
-            <Card
-              as="section"
-              density="cozy"
-              aria-labelledby="send-review-title"
-            >
-              <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <h2 id="send-review-title" className={sectionTitleClassName}>
-                    audience and delivery
-                  </h2>
-                  <p className="mt-1 text-body text-text-muted">
-                    Provider acceptance is not proof of inbox delivery. Pending
-                    contact sync blocks sending.
+                  <p className="mt-3 text-meta text-text-muted">
+                    Cancellation is available only before provider handoff and
+                    is never presented as recall.
                   </p>
-                  <p className="mt-2 font-mono text-meta text-text-faint">
-                    from {detail.sender ?? 'not configured'} · reply-to{' '}
-                    {detail.replyTo ?? 'not configured'}
-                  </p>
-                </div>
-                {reviewedRun ? (
-                  <span className="font-mono text-label text-text-muted">
-                    {campaignStatusLabel(reviewedRun.stage)}
-                  </span>
-                ) : null}
+                </Card>
               </div>
-              <AudienceReview detail={detail} />
-              {reviewedRun?.metrics ? (
-                <p className="mt-4 font-mono text-meta text-text-faint">
-                  sent {reviewedRun.metrics.sent} · delivered{' '}
-                  {reviewedRun.metrics.delivered} · bounced{' '}
-                  {reviewedRun.metrics.bounced} · complained{' '}
-                  {reviewedRun.metrics.complained} · failed{' '}
-                  {reviewedRun.metrics.failed} · suppressed{' '}
-                  {reviewedRun.metrics.suppressed}
-                </p>
-              ) : null}
-              {reviewedRun?.lastError ? (
-                <p className="mt-4 rounded-control border border-danger px-3 py-2 text-body text-danger">
-                  {reviewedRun.lastError}
-                </p>
-              ) : null}
-              <div className="mt-5 flex flex-wrap items-end gap-3 border-t border-line pt-4">
-                <label className="min-w-64 flex-1">
-                  <span className={labelClassName}>
-                    allowlisted test recipient
-                  </span>
-                  <Input
-                    type="email"
-                    value={testRecipient}
-                    onChange={(event) => setTestRecipient(event.target.value)}
-                  />
-                </label>
-                <Button
-                  type="button"
-                  onClick={test}
-                  disabled={
-                    !reviewedRun ||
-                    !testRecipient ||
-                    isDirty ||
-                    stale ||
-                    busy !== null
-                  }
-                >
-                  {busy === 'test' ? 'sending test...' : 'send test'}
-                </Button>
-                {reviewedRun &&
-                (reviewedRun.stage === 'needs_attention' ||
-                  reviewedRun.stage === 'failed') ? (
-                  <Button
-                    type="button"
-                    onClick={recover}
-                    disabled={busy !== null}
-                  >
-                    {busy === 'recover' ? 'recovering...' : 'recover delivery'}
-                  </Button>
-                ) : null}
-                {reviewedRun && reviewedRun.audienceSummary.pendingSync > 0 ? (
-                  <Button
-                    type="button"
-                    onClick={retryContacts}
-                    disabled={busy !== null}
-                  >
-                    {busy === 'retry-contacts'
-                      ? 'retrying...'
-                      : 'retry failed contacts'}
-                  </Button>
-                ) : null}
-                {reviewedRun?.canCancel ? (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    onClick={cancel}
-                    disabled={busy !== null}
-                  >
-                    {busy === 'cancel'
-                      ? 'cancelling...'
-                      : 'cancel delivery request'}
-                  </Button>
-                ) : null}
-                <Button
-                  type="button"
-                  variant="primary"
-                  onClick={send}
-                  disabled={
-                    !reviewedRun ||
-                    reviewedRun.stage !== 'ready' ||
-                    reviewedRun.audienceSummary.eligible === 0 ||
-                    reviewedRun.audienceSummary.pendingSync > 0 ||
-                    isDirty ||
-                    stale ||
-                    busy !== null
-                  }
-                >
-                  {busy === 'send'
-                    ? 'requesting...'
-                    : `send to ${reviewedRun?.audienceSummary.eligible ?? 0} subscribers`}
-                </Button>
-              </div>
-              <p className="mt-3 text-meta text-text-faint">
-                Cancellation is available only before provider handoff and is
-                never presented as recall.
-              </p>
-            </Card>
+            )}
           </div>
-        )}
+        </div>
       </div>
-    </main>
+    </div>
   )
 }

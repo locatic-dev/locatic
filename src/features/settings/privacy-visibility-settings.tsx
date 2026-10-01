@@ -66,7 +66,7 @@ export function PrivacyVisibilitySettings({
             className="flex min-h-11 flex-1 cursor-pointer flex-col justify-center"
           >
             <span className="mb-0.5 text-label text-text">{label}</span>
-            <span className="font-sans text-xs text-text-faint">{desc}</span>
+            <span className="font-sans text-xs text-text-muted">{desc}</span>
           </label>
           <Switch
             id={`privacy-visibility-${key}`}

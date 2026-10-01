@@ -62,6 +62,7 @@ import { ProjectReadmeSection } from '@/features/projects/readme/project-readme-
 import { ProjectReleasesSection } from '@/features/projects/releases/project-releases-section'
 import { ProjectPostsSection } from '@/features/projects/posts/project-posts-section'
 import { EmptyState } from '@/components/ui/empty-state'
+import { cardSheetClass } from '@/components/ui/card-sheet'
 import { ProjectReactionBar } from '@/features/projects/reactions/project-reaction-bar'
 import { ProjectOwnerCard } from '@/features/projects/project-owner-card'
 import { ProjectTopicEditor } from '@/features/projects/project-topic-editor'
@@ -231,6 +232,8 @@ export function ProjectView({
     : detail.project.github.lastCommitAt > 0
       ? { kind: 'repo' as const, at: detail.project.github.lastCommitAt }
       : null
+  const showSyncFreshness =
+    signals !== null && signals.syncStatus.kind !== 'failed'
   const handleAddTopic = async () => {
     const topic = topicDraft.trim()
     if (!topic || pendingTopics || !isOwnProject) {
@@ -575,21 +578,26 @@ export function ProjectView({
       tabIndex={rendersInAppShell ? undefined : -1}
       className="lx-page-shell flex flex-col bg-canvas"
     >
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-line bg-canvas px-(--lx-gutter) py-3">
-        <Button
-          variant="ghost"
-          size="touch"
-          onClick={() => {
-            if (canGoBack) {
-              router.history.back()
-            } else {
-              void router.navigate({ to: isSignedIn ? '/home' : '/' })
-            }
-          }}
-          type="button"
-        >
-          <ArrowLeft size={14} /> back
-        </Button>
+      <div className="shrink-0 border-b border-line bg-canvas px-(--lx-gutter) py-3">
+        {/* In the detail column, the arrow pulled out by the button's
+            padding so it lines up with the title below. */}
+        <div className="lx-page-width-detail flex items-center">
+          <Button
+            variant="ghost"
+            size="touch"
+            className="-ml-3.5 pointer-coarse:-ml-4"
+            onClick={() => {
+              if (canGoBack) {
+                router.history.back()
+              } else {
+                void router.navigate({ to: isSignedIn ? '/home' : '/' })
+              }
+            }}
+            type="button"
+          >
+            <ArrowLeft size={14} /> back
+          </Button>
+        </div>
       </div>
 
       <div
@@ -598,23 +606,28 @@ export function ProjectView({
       >
         <div className="lx-page-width-detail pt-2">
           <div className="mb-8 grid gap-6 border-b border-line pb-7 lg:grid-cols-[minmax(0,1.2fr)_320px] lg:items-start">
-            <div>
-              <h1 className="mb-3 text-display font-bold tracking-tight text-text wrap-anywhere">
-                {repo}
-              </h1>
+            <div className="flex min-w-0 flex-col gap-4">
+              <div className="flex min-w-0 flex-col gap-2">
+                <p className="m-0 text-eyebrow text-text-muted wrap-anywhere">
+                  // {owner}
+                </p>
+                <h1 className="m-0 text-display text-text wrap-anywhere">
+                  {repo}
+                </h1>
+              </div>
 
               {description && (
-                <p className="mb-6 max-w-170 font-sans text-base leading-[1.55] text-text-muted wrap-anywhere">
+                <p className="m-0 max-w-170 text-body text-text-muted wrap-anywhere">
                   {linkify(description)}
                 </p>
               )}
 
-              <div className="mb-5 flex flex-wrap items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <a
                   href={githubHref}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex min-h-11 items-center gap-2 rounded-md border border-line bg-surface px-3 py-2 font-mono text-label text-text-muted no-underline transition-colors hover:border-line-strong hover:bg-surface-alt hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                  className="inline-flex h-8 items-center gap-2 rounded-control border border-line bg-surface px-3 py-2 font-mono text-label text-text-muted no-underline transition-colors hover:border-line-strong hover:bg-surface-alt hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand pointer-coarse:min-h-11"
                   aria-label="View project on GitHub"
                 >
                   <BrandIcon name="github" size={14} />
@@ -672,28 +685,37 @@ export function ProjectView({
                 topics={projectTopics}
               />
 
-              <div className="flex flex-wrap items-center gap-2">
-                {languages.map((language) => (
-                  <LangDot
-                    key={language.name}
-                    lang={language.name}
-                    variant="chip"
-                  />
-                ))}
-              </div>
+              {languages.length > 0 && (
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-label text-text-muted">
+                  {languages.map((language) => (
+                    <LangDot
+                      key={language.name}
+                      lang={language.name}
+                      showLabel
+                    />
+                  ))}
+                </div>
+              )}
 
-              <p className="mt-3 mb-0 flex flex-wrap gap-x-3 gap-y-1 text-meta">
-                {latestUpdate && (
-                  <span className="text-text-muted">
-                    {describeLatestUpdate(latestUpdate)}
-                  </span>
-                )}
-                {signals && signals.syncStatus.kind !== 'failed' && (
-                  <span className="text-text-faint">
-                    {describeSyncFreshness(signals.syncStatus)}
-                  </span>
-                )}
-              </p>
+              {(latestUpdate || showSyncFreshness) && (
+                <p className="m-0 flex flex-wrap gap-x-2 gap-y-1 text-meta">
+                  {latestUpdate && (
+                    <span className="text-text-muted">
+                      {describeLatestUpdate(latestUpdate)}
+                    </span>
+                  )}
+                  {latestUpdate && showSyncFreshness && (
+                    <span aria-hidden="true" className="text-text-muted">
+                      ·
+                    </span>
+                  )}
+                  {showSyncFreshness && (
+                    <span className="text-text-muted">
+                      {describeSyncFreshness(signals.syncStatus)}
+                    </span>
+                  )}
+                </p>
+              )}
             </div>
 
             <ProjectOwnerCard
@@ -702,7 +724,8 @@ export function ProjectView({
               repo={repo}
               signals={signals}
               isOwnProject={isOwnProject}
-              isSignedIn={Boolean(isSignedIn)}
+              isSignedIn={isSignedIn}
+              signInRedirect={signInRedirect}
             />
           </div>
 
@@ -816,7 +839,7 @@ export function ProjectView({
                             </p>
                           )}
                           <div className="mt-2 flex items-center justify-between gap-3">
-                            <span className="hidden font-mono text-meta text-text-faint [@media(hover:hover)_and_(pointer:fine)]:inline">
+                            <span className="hidden font-mono text-meta text-text-muted [@media(hover:hover)_and_(pointer:fine)]:inline">
                               Ctrl/⌘ + Enter to post
                             </span>
                             <Button
@@ -905,14 +928,15 @@ export function ProjectView({
               >
                 <h2
                   id="more-from-city-heading"
-                  className="mb-4 text-headline text-text wrap-anywhere"
+                  className="m-0 mb-4 text-eyebrow text-text-muted wrap-anywhere"
                 >
                   more from {moreFromCity.cityName}
                 </h2>
-                <div className="grid gap-2 md:grid-cols-2">
+                <div className={cardSheetClass}>
                   {moreFromCity.projects.map((preview) => (
                     <ProjectCard
                       key={String(preview.projectId)}
+                      variant="row"
                       density="compact"
                       project={toProjectCardData(preview)}
                       authorLink={{ username: preview.authorHandle }}

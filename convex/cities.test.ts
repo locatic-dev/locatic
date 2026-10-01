@@ -1295,3 +1295,54 @@ describe('landing map aggregate (D7)', () => {
     ])
   })
 })
+
+describe('cities.listNearby (Explore rail)', () => {
+  let t: TestConvex<typeof schema>
+
+  beforeEach(() => {
+    vi.useFakeTimers({ now: NOW })
+    t = convexTest(schema, modules)
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('returns the same rows as the city page, never the city itself', async () => {
+    const fixture = await seedPopulatedCity(t)
+    const mysuru = await seedCity(t, MYSURU)
+    await runRecount(t)
+
+    const rows = await t.query(api.cities.listNearby, { cityId: mysuru })
+    const page = await t.query(api.cities.getPage, { slug: 'mysuru-in' })
+
+    expect(rows).toEqual(page?.nearby)
+    expect(rows.map((row) => row.cityId)).toEqual([fixture.cities.bengaluru])
+    expect(
+      await t.query(api.cities.listNearby, {
+        cityId: fixture.cities.bengaluru,
+      }),
+    ).not.toContainEqual(
+      expect.objectContaining({ cityId: fixture.cities.bengaluru }),
+    )
+  })
+
+  it('returns nothing for an inactive city', async () => {
+    await seedPopulatedCity(t)
+    const closed = await seedCity(t, MYSURU, { isActive: false })
+    await runRecount(t)
+
+    expect(await t.query(api.cities.listNearby, { cityId: closed })).toEqual([])
+  })
+
+  it('returns nothing for a deleted city id', async () => {
+    await seedPopulatedCity(t)
+    const gone = await seedCity(t, MYSURU)
+    await runRecount(t)
+    await t.run(async (ctx) => {
+      await ctx.db.delete(gone)
+    })
+
+    expect(await t.query(api.cities.listNearby, { cityId: gone })).toEqual([])
+  })
+})

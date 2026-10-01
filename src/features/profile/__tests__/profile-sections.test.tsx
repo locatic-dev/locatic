@@ -95,6 +95,14 @@ describe('profile sections', () => {
     expect(screen.getByRole('button', { name: 'unpin two' })).toBeTruthy()
   })
 
+  it('lists profile projects without repeating the profile owner on each card', () => {
+    render(<ProfilePinnedSection projects={[project('one'), project('two')]} />)
+
+    expect(screen.getByRole('link', { name: 'ada/one' })).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'ada/two' })).toBeTruthy()
+    expect(screen.queryByText('Ada')).toBeNull()
+  })
+
   it('states when there is no recent public work', () => {
     render(
       <ProfileRecentWorkSection posts={[]} projects={[]} reactionsDisabled />,

@@ -38,7 +38,7 @@ export function HomeNearbyBuildersSection({
     >
       <h2
         id="home-nearby-builders"
-        className="m-0 font-mono text-label font-semibold text-text"
+        className="m-0 text-eyebrow text-text-muted"
       >
         builders near you
       </h2>
@@ -91,9 +91,7 @@ export function HomeFeedStatus({
           role="alert"
           className="flex flex-col gap-3 rounded-card border border-line bg-surface p-6"
         >
-          <h2 className="m-0 font-mono text-title font-semibold text-text">
-            couldn't load your feed.
-          </h2>
+          <h2 className="m-0 text-title text-text">couldn't load your feed.</h2>
           <p className="m-0 font-sans text-sm leading-6 text-text-muted">
             your follows are unchanged. retry, or come back in a moment.
           </p>

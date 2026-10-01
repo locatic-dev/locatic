@@ -109,15 +109,15 @@ describe('reportActionError', () => {
     expect(retry).toHaveBeenCalledTimes(1)
   })
 
-  it('logs the original error only in development', () => {
+  it('logs the original error only under the Vite dev server', () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
     const error = new Error('original')
 
-    vi.stubEnv('MODE', 'production')
+    vi.stubEnv('DEV', false)
     reportActionError(error)
     expect(consoleError).not.toHaveBeenCalled()
 
-    vi.stubEnv('MODE', 'development')
+    vi.stubEnv('DEV', true)
     reportActionError(error)
     expect(consoleError).toHaveBeenCalledWith(error)
   })

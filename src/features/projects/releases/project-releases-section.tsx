@@ -37,7 +37,7 @@ function ProjectReleaseCard({ release }: { release: ProjectRelease }) {
             </span>
           ) : null}
         </div>
-        <div className="mb-3 flex flex-wrap items-center gap-2 font-mono text-meta text-text-faint">
+        <div className="mb-3 flex flex-wrap items-center gap-2 font-mono text-meta text-text-muted">
           <span>{release.tagName}</span>
           {release.publishedAt ? (
             <span>{relativeTime(release.publishedAt)}</span>

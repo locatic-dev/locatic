@@ -14,7 +14,7 @@ const Textarea = React.forwardRef<
       className={cn(
         // Same field recipe as Input: mono, 16px below md so touch browsers do
         // not zoom, fixed height (resize-none) with a 72px floor.
-        'block min-h-18 w-full resize-none rounded-control border border-control bg-canvas px-3 py-2 font-mono text-body text-text placeholder:text-text-faint disabled:cursor-not-allowed disabled:opacity-50 max-md:text-base',
+        'block min-h-18 w-full resize-none rounded-control border border-control bg-canvas px-3 py-2 font-mono text-body text-text placeholder:text-text-muted disabled:cursor-not-allowed disabled:opacity-50 max-md:text-base',
         className,
       )}
       ref={ref}

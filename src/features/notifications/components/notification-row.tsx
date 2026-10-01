@@ -71,12 +71,12 @@ export function NotificationRow({
               <span className="sr-only">unread:</span>{' '}
             </>
           )}
-          <strong className="font-mono font-semibold text-text">
+          <strong className="font-sans font-medium text-text">
             {notification.actorSnapshot.displayName}
           </strong>{' '}
           {getNotificationAction(notification)}
         </p>
-        <span className="mt-1 block font-mono text-meta text-text-faint">
+        <span className="mt-1 block font-mono text-meta text-text-muted">
           {relativeTime(notification.createdAt)}
         </span>
       </div>

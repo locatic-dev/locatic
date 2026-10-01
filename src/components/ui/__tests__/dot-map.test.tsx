@@ -2,7 +2,13 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
-import { DotMap, isMaskLandCell, projectToMaskCell } from '../dot-map'
+import {
+  DotMap,
+  getLandDots,
+  isMaskLandCell,
+  projectToMaskCell,
+  toMaskFraction,
+} from '../dot-map'
 
 const BENGALURU = { id: 'bengaluru-in', lat: 12.9716, lng: 77.5946 }
 const MYSURU = { id: 'mysuru-in', lat: 12.2958, lng: 76.6394 }
@@ -27,6 +33,40 @@ describe('projectToMaskCell', () => {
     expect(cells.every(isMaskLandCell)).toBe(true)
     const columns = cells.map((cell) => cell.col)
     expect(columns).toEqual([...columns].sort((a, b) => a - b))
+  })
+})
+
+describe('getLandDots', () => {
+  it('returns one dot per land cell, at the cell centre', () => {
+    // 43 x 15 cells at 10px each.
+    const dots = getLandDots(430, 150)
+    const landCells = Array.from({ length: 15 }, (_, row) =>
+      Array.from({ length: 43 }, (_, col) => ({ row, col })),
+    )
+      .flat()
+      .filter(isMaskLandCell)
+
+    expect(dots).toHaveLength(landCells.length)
+    expect(dots).toEqual(
+      landCells.map(({ row, col }) => ({ x: col * 10 + 5, y: row * 10 + 5 })),
+    )
+  })
+
+  it('scales with the map size', () => {
+    const small = getLandDots(430, 150)
+    const large = getLandDots(860, 300)
+
+    expect(large).toEqual(small.map(({ x, y }) => ({ x: x * 2, y: y * 2 })))
+  })
+})
+
+describe('toMaskFraction', () => {
+  it('puts Bengaluru on the centre of its land cell', () => {
+    const { x, y } = toMaskFraction(BENGALURU)
+
+    expect(x).toBeCloseTo(32.5 / 43)
+    expect(y).toBeCloseTo(6.5 / 15)
+    expect(getLandDots(430, 150)).toContainEqual({ x: x * 430, y: y * 150 })
   })
 })
 

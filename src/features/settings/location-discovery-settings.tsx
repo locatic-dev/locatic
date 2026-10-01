@@ -84,7 +84,7 @@ export function CityVisibilitySettings({
       <legend className="mb-0.5 p-0 text-label text-text">
         where your city shows
       </legend>
-      <p className="m-0 font-sans text-xs text-text-faint">
+      <p className="m-0 font-sans text-xs text-text-muted">
         only an exact city lists you on city pages and in city counts.
       </p>
       {CITY_VISIBILITY_OPTIONS.map((option) => {
@@ -103,7 +103,7 @@ export function CityVisibilitySettings({
               </span>
               <span
                 id={descriptionId}
-                className="font-sans text-xs text-text-faint"
+                className="font-sans text-xs text-text-muted"
               >
                 {getCityVisibilityDescription(option.value, {
                   cityName,
@@ -161,7 +161,7 @@ export function AppearInExploreSetting({
         <span className="mb-0.5 text-label text-text">
           {APPEAR_IN_EXPLORE_LABEL}
         </span>
-        <span className="font-sans text-xs text-text-faint">
+        <span className="font-sans text-xs text-text-muted">
           list you and your projects in explore, on city pages and in builder
           suggestions
         </span>

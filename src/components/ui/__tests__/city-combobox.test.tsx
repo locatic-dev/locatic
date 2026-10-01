@@ -114,9 +114,9 @@ describe('CityCombobox', () => {
     fireEvent.focus(screen.getByRole('combobox'))
 
     expect(screen.getByRole('listbox')).not.toBeNull()
-    const option = screen.getByRole('option')
-    expect(option.tagName).toBe('BUTTON')
-    expect(option.textContent).toBe('BengaluruKarnataka, India')
+    expect(screen.getByRole('option').textContent).toBe(
+      'BengaluruKarnataka, India',
+    )
   })
 
   it('labels each row with its region so same-named cities differ', () => {

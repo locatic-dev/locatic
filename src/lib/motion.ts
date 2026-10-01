@@ -1,5 +1,6 @@
 import { useReducedMotion } from 'motion/react'
 import type { Transition, Variants } from 'motion/react'
+import { useSyncExternalStore } from 'react'
 
 // Shared motion vocabulary. Import variants from here instead of redefining
 // per feature so entrance/press behavior stays uniform across surfaces.
@@ -47,3 +48,36 @@ export const indicatorSpring: Transition = {
 }
 
 export { useReducedMotion }
+
+const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)'
+
+function reducedMotionQuery() {
+  return typeof window !== 'undefined' &&
+    typeof window.matchMedia === 'function'
+    ? window.matchMedia(REDUCED_MOTION_QUERY)
+    : null
+}
+
+function subscribeReducedMotion(onChange: () => void) {
+  const query = reducedMotionQuery()
+  query?.addEventListener('change', onChange)
+  return () => query?.removeEventListener('change', onChange)
+}
+
+const readReducedMotion = () => reducedMotionQuery()?.matches ?? false
+// The server cannot know the preference: it renders the full-motion markup,
+// and the client re-renders with the real value right after hydration.
+const readServerReducedMotion = () => false
+
+/**
+ * Live `prefers-reduced-motion`. Motion's `useReducedMotion` reads the query
+ * once per mount; this follows the setting when the viewer changes it, for
+ * loops that must stop at once rather than on the next page load.
+ */
+export function usePrefersReducedMotion(): boolean {
+  return useSyncExternalStore(
+    subscribeReducedMotion,
+    readReducedMotion,
+    readServerReducedMotion,
+  )
+}

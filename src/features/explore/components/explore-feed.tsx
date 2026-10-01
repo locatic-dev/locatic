@@ -208,8 +208,8 @@ function PostRowSkeleton() {
         </div>
       </div>
       <div className="flex items-center gap-1.5 px-5 pb-2">
-        <Skeleton className="h-11 w-14 rounded-control" />
-        <Skeleton className="size-11 rounded-control" />
+        <Skeleton className="h-7 w-12 rounded-full pointer-coarse:h-11" />
+        <Skeleton className="size-7 rounded-full pointer-coarse:size-11" />
       </div>
     </div>
   )
@@ -298,44 +298,45 @@ function FeedFooter({
 }
 
 /**
- * Mirrors ProjectCard with the author in the header: identity row, repo
- * title, two description lines, meta and language lines, then the footer
- * with reactions and follow/message actions.
+ * Mirrors the row ProjectCard with the author in the header: identity line,
+ * repo title, two description lines, the meta line, then the footer with
+ * reactions and follow/save actions. Each text line is one line box of the
+ * card's type role (`h-lh`), and the identity line and footer grow to 44px on
+ * coarse pointers as the card's controls do. On a narrow card place and age
+ * wrap under the name, as in the card.
  */
 function ProjectCardSkeletonRow() {
   return (
     <div
       data-testid="project-card-skeleton"
-      className="flex flex-col gap-3 rounded-card border border-line bg-surface px-5 py-4"
+      className="@container flex flex-col gap-3 bg-surface px-5 py-4"
     >
-      <div>
-        <div className="mb-1 flex min-h-11 items-center gap-2">
-          <Skeleton className="size-5.5 shrink-0 rounded-full" />
-          <Skeleton className="h-3 w-24" />
-          <Skeleton className="h-5 w-28 rounded-pill" />
+      <div className="flex flex-col gap-1.5">
+        <div className="mb-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+          <div className="flex items-center gap-2.5 pointer-coarse:min-h-11">
+            <Skeleton className="size-8 shrink-0 rounded-full" />
+            <Skeleton className="h-3 w-24" />
+          </div>
+          <div className="flex h-lh items-center text-eyebrow @max-xl:-mt-2 @max-xl:basis-full @max-xl:pl-10.5">
+            <Skeleton className="h-2.5 w-20" />
+          </div>
         </div>
-        <div className="mb-1 flex h-5 items-center">
-          <Skeleton className="h-3.5 w-3/5" />
+        <div className="flex h-lh items-center text-title">
+          <Skeleton className="h-4 w-3/5" />
         </div>
-        <div className="flex h-6 items-center">
+        <div className="flex h-lh items-center text-body">
           <Skeleton className="h-3 w-full" />
         </div>
-        <div className="flex h-6 items-center">
+        <div className="flex h-lh items-center text-body">
           <Skeleton className="h-3 w-3/4" />
         </div>
       </div>
-      <div className="flex flex-col gap-2">
-        <div className="flex h-5 items-center justify-between gap-3">
-          <Skeleton className="h-2.5 w-28" />
-          <Skeleton className="h-2.5 w-20" />
-        </div>
-        <div className="flex h-4 items-center">
-          <Skeleton className="h-2.5 w-32" />
-        </div>
+      <div className="flex h-lh items-center font-mono text-label">
+        <Skeleton className="h-2.5 w-48" />
       </div>
-      <div className="flex items-center justify-between gap-2 border-t border-line pt-3">
-        <Skeleton className="h-11 w-24 rounded-control" />
-        <Skeleton className="h-11 w-36 rounded-control" />
+      <div className="flex items-center justify-between gap-2">
+        <Skeleton className="h-7 w-24 rounded-full pointer-coarse:h-11" />
+        <Skeleton className="h-7 w-28 rounded-control pointer-coarse:h-11" />
       </div>
     </div>
   )
@@ -356,7 +357,7 @@ function FeedSkeleton({ state }: { state: ExploreFeedState }) {
         <Skeleton className="h-2.5 w-16" />
       </div>
       {state.mode === 'projects' ? (
-        <div className="flex flex-col gap-2">
+        <div className={cardSheetClass}>
           {rows.map((index) => (
             <ProjectCardSkeletonRow key={index} />
           ))}
@@ -629,7 +630,7 @@ function ExploreFeedBody({
     <div className="mb-3 font-mono text-meta text-text-muted">
       {state.source === 'search' ? `matching ${state.mode}` : state.mode}
       {state.source === 'browse' && orderingCopy ? (
-        <span className="text-text-faint"> · {orderingCopy}</span>
+        <span className="text-text-muted"> · {orderingCopy}</span>
       ) : null}
     </div>
   )
@@ -683,7 +684,7 @@ function ExploreFeedBody({
       {heading}
       <InitialPageMotionList
         key={`projects:${entranceKey}`}
-        className="flex flex-col gap-2"
+        className={cardSheetClass}
         items={state.items}
         getKey={(item) => String(item.projectId)}
       >
@@ -695,7 +696,7 @@ function ExploreFeedBody({
           const liked = likedProjectIds.has(projectKey)
           const saved = savedProjectIds.has(projectKey)
           const followed = getFollowedState(ownerId)
-          const cardData = { ...toProjectCardData(item), liked, followed }
+          const cardData = { ...toProjectCardData(item), followed }
           const projectLink = { owner: item.owner, repo: item.repo }
           const authorLink = { username: item.authorHandle }
           // Search results do not carry `isViewerProject`, so the owner id
@@ -706,25 +707,25 @@ function ExploreFeedBody({
 
           const card = visitor ? (
             <ProjectCard
+              variant="row"
               project={cardData}
               authorPlacement="header"
-              showFullCity
               reactionSlot={
-                <div className="flex flex-wrap items-center gap-2">
-                  <ProjectReactionBar
-                    disabled
-                    projectId={projectId}
-                    reactionCounts={item.reactionCounts}
-                    viewerReactionTypes={[]}
-                  />
-                  <SignInLink
-                    label={`Sign in to like, save or follow ${item.fullName}`}
-                    redirect={visitor.signInRedirect}
-                    variant="ghost"
-                  >
-                    sign in to like, save or follow
-                  </SignInLink>
-                </div>
+                <ProjectReactionBar
+                  disabled
+                  projectId={projectId}
+                  reactionCounts={item.reactionCounts}
+                  viewerReactionTypes={[]}
+                />
+              }
+              actionSlot={
+                <SignInLink
+                  appearance="text"
+                  label={`Sign in to react, follow or save ${item.fullName}`}
+                  redirect={visitor.signInRedirect}
+                >
+                  sign in to react, follow or save
+                </SignInLink>
               }
               className="focus-visible:ring-inset"
               authorLink={authorLink}
@@ -732,9 +733,9 @@ function ExploreFeedBody({
             />
           ) : (
             <ProjectCard
+              variant="row"
               project={cardData}
               authorPlacement="header"
-              showFullCity
               reactionSlot={
                 <ProjectReactionBar
                   projectId={projectId}
@@ -755,10 +756,8 @@ function ExploreFeedBody({
                   ? undefined
                   : () => onFollowUser(ownerId, ownerKey, followed)
               }
-              onDM={isOwn ? undefined : () => onMessageUser(ownerId)}
               projectLink={projectLink}
               followPending={pendingFollows.has(ownerKey)}
-              dmPending={pendingUserId === ownerKey}
               saved={saved}
               savePending={saveToggle.isPending(projectId)}
               onToggleSave={
@@ -777,8 +776,10 @@ function ExploreFeedBody({
           // The viewer's own projects, after everyone else's in a selected
           // city: labelled as theirs, never framed as a recommendation.
           return isOwn ? (
-            <div className="flex flex-col gap-1">
-              <p className="m-0 font-mono text-meta text-text-muted">yours</p>
+            <div className="flex flex-col">
+              <p className="m-0 bg-surface px-5 pt-3 text-eyebrow text-text-muted">
+                yours
+              </p>
               {card}
             </div>
           ) : (

@@ -42,6 +42,23 @@ test.describe('axe: signed-in routes', () => {
     })
   }
 
+  test('explore filter sheet at 390px has no critical or serious violations', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.goto('/explore')
+    requireOnboardedPersona(page)
+    const heading = page.getByRole('heading', { level: 1, name: 'explore' })
+    await expectSettled(page, heading)
+    await expectNoPendingContent(page)
+    await page
+      .locator('header', { has: heading })
+      .getByRole('button', { name: /^filters/ })
+      .click()
+    await expect(page.getByRole('dialog', { name: 'filters' })).toBeVisible()
+    await expectNoSeriousA11yViolations(page)
+  })
+
   test('own profile has no critical or serious violations', async ({
     page,
   }) => {

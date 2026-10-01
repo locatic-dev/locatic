@@ -3,7 +3,7 @@ import {
   query,
   type DatabaseReader,
 } from './_generated/server'
-import { v } from 'convex/values'
+import { v, type Infer } from 'convex/values'
 
 import { internal } from './_generated/api'
 import type { Doc, Id } from './_generated/dataModel'
@@ -14,6 +14,7 @@ import {
   readCityStats,
   readNearbyActiveCities,
   recountCityStats,
+  type NearbyActiveCity,
 } from './lib/cityStats'
 import { isNewBuilderAccount } from './lib/explore'
 import { filterDiscoverablePosts } from './lib/posts'
@@ -357,16 +358,25 @@ export async function readCityPage(db: DatabaseReader, slugOrId: string) {
     recentWork,
     builders,
     posts,
-    nearby: nearby.map(({ city: nearbyCity, stats, distanceKm }) => ({
-      cityId: nearbyCity._id,
-      slug: nearbyCity.slug,
-      name: nearbyCity.name,
-      regionLabel: getRegionLabel(nearbyCity),
-      location: nearbyCity.location,
-      builderCount: stats.builderCount,
-      projectCount: stats.projectCount,
-      distanceKm: Math.round(distanceKm),
-    })),
+    nearby: nearby.map(toNearbyCityRow),
+  }
+}
+
+/** The public row for one nearby active city: city-level fields only. */
+function toNearbyCityRow({
+  city,
+  stats,
+  distanceKm,
+}: NearbyActiveCity): Infer<typeof nearbyCityValidator> {
+  return {
+    cityId: city._id,
+    slug: city.slug,
+    name: city.name,
+    regionLabel: getRegionLabel(city),
+    location: city.location,
+    builderCount: stats.builderCount,
+    projectCount: stats.projectCount,
+    distanceKm: Math.round(distanceKm),
   }
 }
 
@@ -380,6 +390,22 @@ export const getPage = query({
   args: { slug: v.string() },
   returns: v.union(v.null(), cityPageValidator),
   handler: async (ctx, args) => await readCityPage(ctx.db, args.slug),
+})
+
+/**
+ * Nearby active cities for the Explore rail: one city read plus the nine
+ * `by_activity_cell` reads of `readNearbyActiveCities`. City-level fields
+ * only, the same rows as `getPage(...).nearby`. Empty for an unknown or
+ * inactive city.
+ */
+export const listNearby = query({
+  args: { cityId: v.id('cities') },
+  returns: v.array(nearbyCityValidator),
+  handler: async (ctx, args) => {
+    const city = await ctx.db.get(args.cityId)
+    if (!city || !city.isActive) return []
+    return (await readNearbyActiveCities(ctx.db, city)).map(toNearbyCityRow)
+  },
 })
 
 const recountPhaseValidator = v.union(

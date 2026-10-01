@@ -43,6 +43,7 @@ import {
   type InboxConversation,
   type InboxTab,
 } from '@/features/inbox/navigation'
+import { shouldPrefetchPrivateConvexQueries } from '@/lib/auth-routing'
 
 export const Route = createFileRoute('/_app/inbox')({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -62,13 +63,18 @@ export const Route = createFileRoute('/_app/inbox')({
     conversationId: search.conversation,
   }),
   loader: async ({ context, deps }) => {
+    void deps.conversationId
+    void deps.composeUserId
+
+    // Client navigations fetch in the page, once Convex auth is ready.
+    if (!shouldPrefetchPrivateConvexQueries()) {
+      return
+    }
+
     await Promise.all([
       context.queryClient.ensureQueryData(conversationsQueryOptions()),
       context.queryClient.ensureQueryData(viewerQueryOptions()),
     ])
-
-    void deps.conversationId
-    void deps.composeUserId
   },
   pendingComponent: InboxRoutePending,
   pendingMs: ROUTE_PENDING_MS,
@@ -190,7 +196,9 @@ function InboxPage() {
             </span>
           )}
         </div>
-        <div className="lx-inline-tabs gap-0 px-[var(--lx-gutter)]">
+        {/* Pulled left by the tab padding: the first label lines up with the
+            title. */}
+        <div className="lx-inline-tabs -ml-3 gap-0 px-[var(--lx-gutter)]">
           {tabItems.map((tabItem) => (
             <button
               key={tabItem.id}
@@ -205,7 +213,7 @@ function InboxPage() {
                 })
               }
               aria-current={activeTab === tabItem.id ? 'page' : undefined}
-              className={`relative inline-flex items-center gap-[7px] rounded-md px-4 py-2.5 font-mono text-label transition-colors active:scale-[0.98] ${
+              className={`relative inline-flex items-center gap-[7px] rounded-md px-3 py-2.5 font-mono text-label transition-colors active:scale-[0.98] ${
                 activeTab === tabItem.id
                   ? 'font-semibold text-text'
                   : 'text-text-muted hover:text-text'
@@ -219,7 +227,7 @@ function InboxPage() {
                 </span>
               )}
               {activeTab === tabItem.id && (
-                <div className="absolute right-2 -bottom-px left-2 h-0.5 bg-brand" />
+                <div className="absolute inset-x-3 -bottom-px h-0.5 bg-brand" />
               )}
             </button>
           ))}
@@ -336,7 +344,7 @@ function InboxPage() {
                             conversation.otherUser?.githubUsername ??
                             'Unknown user'}
                         </span>
-                        <span className="ml-2 flex shrink-0 items-center gap-2 font-mono text-meta text-text-faint">
+                        <span className="ml-2 flex shrink-0 items-center gap-2 font-mono text-meta text-text-muted">
                           {isPending && (
                             <span className="rounded-pill border border-line px-1.5 py-px text-text-muted">
                               pending
@@ -355,7 +363,7 @@ function InboxPage() {
                       {(conversation.otherUser?.cityName || isUnread) && (
                         <div className="mt-1.5 flex items-center justify-between gap-2">
                           {conversation.otherUser?.cityName ? (
-                            <span className="font-mono text-meta text-text-faint">
+                            <span className="font-mono text-meta text-text-muted">
                               {conversation.otherUser.cityName}
                             </span>
                           ) : (
@@ -541,10 +549,10 @@ function DraftConversationPanel({
             size={32}
           />
           <div className="min-w-0">
-            <div className="truncate font-mono text-label font-semibold text-text">
+            <div className="truncate font-sans text-label font-medium text-text">
               {recipient.displayName}
             </div>
-            <div className="truncate font-mono text-meta text-text-faint">
+            <div className="truncate font-mono text-meta text-text-muted">
               {recipient.cityName ?? 'location hidden'}
             </div>
           </div>
@@ -787,10 +795,10 @@ function SelectedConversationPanel({
             size={32}
           />
           <div className="min-w-0">
-            <div className="truncate font-mono text-label font-semibold text-text">
+            <div className="truncate font-sans text-label font-medium text-text">
               {otherDisplayName}
             </div>
-            <div className="truncate font-mono text-meta text-text-faint">
+            <div className="truncate font-mono text-meta text-text-muted">
               {selectedConversation.otherUser?.cityName ?? 'location hidden'}
             </div>
           </div>
@@ -856,7 +864,7 @@ function SelectedConversationPanel({
                 <div className="whitespace-pre-wrap font-sans text-body leading-6">
                   {message.content}
                 </div>
-                <div className="mt-1.5 font-mono text-meta text-text-faint">
+                <div className="mt-1.5 font-mono text-meta text-text-muted">
                   {relativeTime(message.createdAt)}
                 </div>
               </div>

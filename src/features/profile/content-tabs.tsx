@@ -56,7 +56,7 @@ export function ProfileContentTabs({
                   className={`shrink-0 rounded-pill px-1.5 py-px text-meta leading-[1.3] ${
                     isActive
                       ? 'bg-selected text-text'
-                      : 'bg-surface-alt text-text-faint'
+                      : 'bg-surface-alt text-text-muted'
                   }`}
                 >
                   {tabItem.count}

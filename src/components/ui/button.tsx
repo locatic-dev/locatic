@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils'
 // styles.css, so no ring classes here.
 //   primary   — brand fill; one per surface (post, reply, save).
 //   secondary — the default: control border, muted text (follow, edit, cancel).
-//   ghost     — no border, faint text (mark read, inline actions).
+//   ghost     — no border, muted text (mark read, inline actions).
 //   danger    — solid danger fill with the dark danger foreground; reserved for
 //               the confirming step of a destructive action (delete account,
 //               delete post). Entry points that open a confirmation use
@@ -24,7 +24,7 @@ const buttonVariants = cva(
         secondary:
           'border-control bg-transparent text-text-muted hover:border-line-strong hover:text-text',
         ghost:
-          'border-transparent bg-transparent text-text-faint hover:bg-state-hover hover:text-text',
+          'border-transparent bg-transparent text-text-muted hover:bg-state-hover hover:text-text',
         danger:
           'border-transparent bg-danger font-semibold text-destructive-foreground hover:bg-danger/90',
       },
@@ -33,8 +33,10 @@ const buttonVariants = cva(
         meta: 'h-8 px-3.5',
         md: 'h-9 px-4',
         icon: 'size-8 px-0',
-        // Mobile shell and full-width touch actions: a 44px target.
-        touch: 'min-h-11 px-4',
+        // Mobile shell and full-width touch actions: 44px on coarse pointers;
+        // 32px with a mouse.
+        touch:
+          'h-8 px-3.5 pointer-coarse:h-auto pointer-coarse:min-h-11 pointer-coarse:px-4',
       },
     },
     defaultVariants: {

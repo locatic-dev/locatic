@@ -1,8 +1,10 @@
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Plus, X } from '@/lib/icons'
+import { cn } from '@/lib/utils'
 
 type ProjectTopicEditorProps = {
+  className?: string
   isOwnProject: boolean
   onAddTopic: () => void | Promise<void>
   onRemoveTopic: (topic: string) => void | Promise<void>
@@ -13,6 +15,7 @@ type ProjectTopicEditorProps = {
 }
 
 export function ProjectTopicEditor({
+  className,
   isOwnProject,
   onAddTopic,
   onRemoveTopic,
@@ -21,12 +24,18 @@ export function ProjectTopicEditor({
   topicDraft,
   topics,
 }: ProjectTopicEditorProps) {
+  // Nothing to show or edit: render no element, so the header column's gap
+  // does not open around an empty row.
+  if (topics.length === 0 && !isOwnProject) {
+    return null
+  }
+
   return (
-    <div className="mb-5 flex flex-wrap items-center gap-2">
+    <div className={cn('flex flex-wrap items-center gap-2', className)}>
       {topics.map((topic) => (
         <span
           key={topic}
-          className="inline-flex min-h-7 items-center gap-1 rounded-pill border border-brand/30 bg-brand-quiet px-2.5 py-1 font-mono text-meta text-brand"
+          className="inline-flex min-h-7 items-center gap-1 rounded-pill border border-line px-2.5 py-1 font-mono text-meta text-text-muted"
         >
           #{topic}
           {isOwnProject && (
@@ -34,7 +43,7 @@ export function ProjectTopicEditor({
               type="button"
               onClick={() => void onRemoveTopic(topic)}
               disabled={pending}
-              className="-my-2 -mr-2 inline-flex min-h-11 min-w-11 items-center justify-center rounded-md bg-transparent text-brand transition-colors hover:text-text"
+              className="inline-flex size-5 items-center justify-center rounded-full bg-transparent text-text-muted transition-colors hover:text-text pointer-coarse:-my-2 pointer-coarse:-mr-2 pointer-coarse:size-11"
               aria-label={`Remove ${topic}`}
             >
               <X size={12} />
@@ -55,10 +64,14 @@ export function ProjectTopicEditor({
             onChange={(event) => setTopicDraft(event.target.value)}
             placeholder="add topic"
             aria-label="New topic"
-            className="h-9 w-36"
+            // Chip height to sit in the chip row; 44px on touch. Input keeps
+            // its 16px text below md so iOS does not zoom on focus.
+            className="h-7 w-36 px-2.5 py-0 text-meta pointer-coarse:h-11"
           />
           <Button
             type="submit"
+            size="sm"
+            className="pointer-coarse:min-h-11"
             disabled={!topicDraft.trim() || pending}
             aria-label="Add topic"
           >

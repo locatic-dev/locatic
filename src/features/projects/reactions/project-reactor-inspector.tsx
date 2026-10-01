@@ -227,8 +227,12 @@ export function ReactorInspector({
       <PopoverAnchor asChild>
         <span
           data-reactor-inspector=""
+          data-reaction-pill=""
           style={style}
-          className={cn('relative inline-flex min-h-11', className)}
+          className={cn(
+            'relative inline-flex h-7 pointer-coarse:h-11',
+            className,
+          )}
           onBlur={(event: FocusEvent<HTMLElement>) => {
             if (isInsideInspector(event.relatedTarget)) {
               clearCloseTimer()
@@ -278,7 +282,10 @@ export function ReactorInspector({
                 openReason.current = 'trigger'
                 clearOpenTimer()
               }}
-              className="inline-flex min-h-11 min-w-11 items-center justify-center px-2 font-mono tabular-nums focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+              // min-w-6 keeps a one-digit count at the 24px minimum target
+              // with a mouse; on coarse pointers it is 44px square and
+              // overhangs the pill's 1px border.
+              className="inline-flex h-full min-w-6 items-center justify-start rounded-r-full pr-2 pl-0.5 font-mono tabular-nums focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand pointer-coarse:h-11 pointer-coarse:min-w-11 pointer-coarse:justify-center"
             >
               {count}
             </button>
