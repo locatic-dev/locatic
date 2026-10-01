@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { Id } from '../../../convex/_generated/dataModel'
+import { normalizeExploreLanguage } from '../../../convex/lib/explore'
+import { normalizeProjectTopic } from '../../../convex/lib/topics'
 
 export const EXPLORE_SCOPE_VALUES = ['default', 'global', 'custom'] as const
 export const EXPLORE_MODE_VALUES = ['builders', 'projects', 'posts'] as const
@@ -7,11 +9,69 @@ export const EXPLORE_MODE_VALUES = ['builders', 'projects', 'posts'] as const
 export type ExploreScope = (typeof EXPLORE_SCOPE_VALUES)[number]
 export type ExploreMode = (typeof EXPLORE_MODE_VALUES)[number]
 
+/**
+ * Explore URL state. `language` and `topic` filter the projects feed (plan
+ * item D2) and `openToCollab` the builders feed (D3); each is present only
+ * when set, so a plain Explore URL stays short.
+ */
 export type ExploreSearch = {
   mode: ExploreMode
   q: string
   scope: ExploreScope
   selectedCityIds: string[]
+  language?: string
+  topic?: string
+  openToCollab?: true
+}
+
+/** Longest language or topic kept from the URL (topics cap at 50 on write). */
+export const EXPLORE_FILTER_MAX_LENGTH = 50
+
+/**
+ * The language filter as the server compares it: the stack-preference
+ * normalisation (trimmed, lower case). Blank or overlong input is no filter.
+ */
+export function normalizeExploreLanguageFilter(value: unknown) {
+  if (typeof value !== 'string') return undefined
+  const language = normalizeExploreLanguage(value)
+  return language && language.length <= EXPLORE_FILTER_MAX_LENGTH
+    ? language
+    : undefined
+}
+
+/**
+ * The topic filter in canonical topic form (`normalizeProjectTopic`, the
+ * normalisation every stored topic went through), so the chip shows the
+ * topic exactly as cards do.
+ */
+export function normalizeExploreTopicFilter(value: unknown) {
+  if (typeof value !== 'string') return undefined
+  const topic = normalizeProjectTopic(value)
+  return topic && topic.length <= EXPLORE_FILTER_MAX_LENGTH ? topic : undefined
+}
+
+export type ExploreFilters = Pick<
+  ExploreSearch,
+  'language' | 'openToCollab' | 'topic'
+>
+
+/** The filters that apply to a mode: language and topic to projects, collab to builders. */
+export function getExploreModeFilters(
+  search: ExploreFilters,
+  mode: ExploreMode,
+): ExploreFilters {
+  switch (mode) {
+    case 'projects':
+      return {
+        ...(search.language ? { language: search.language } : {}),
+        ...(search.topic ? { topic: search.topic } : {}),
+      }
+    case 'builders':
+      return search.openToCollab ? { openToCollab: true } : {}
+    case 'posts':
+    default:
+      return {}
+  }
 }
 
 export type ExploreLoaderDeps = Pick<
@@ -88,9 +148,16 @@ export function dedupeExploreCityDocsForIds<TCity extends ExploreCityLike>(
   )
 }
 
+/**
+ * The selected city ids with duplicate cities collapsed. While the cities are
+ * still loading an unknown id is kept; once they have loaded
+ * (`dropUnresolved`), an id that resolved to no city is dropped instead of
+ * showing as a city that never finishes loading.
+ */
 export function getCanonicalExploreCityIds<TCity extends ExploreCityLike>(
   cityIds: string[],
   cities: TCity[],
+  { dropUnresolved = false }: { dropUnresolved?: boolean } = {},
 ): string[] {
   const cityById = new Map(cities.map((city) => [String(city._id), city]))
   const seenIdentities = new Set<string>()
@@ -99,7 +166,9 @@ export function getCanonicalExploreCityIds<TCity extends ExploreCityLike>(
   for (const cityId of dedupeExploreCityIds(cityIds)) {
     const city = cityById.get(cityId)
     if (!city) {
-      canonicalCityIds.push(cityId)
+      if (!dropUnresolved) {
+        canonicalCityIds.push(cityId)
+      }
       continue
     }
 
@@ -174,16 +243,26 @@ export function getNearbyBuilderCityIds({
 
 export function getExploreResultSetKey({
   cityIds,
+  filters = {},
   mode,
   query,
   scope,
 }: {
   cityIds: string[]
+  filters?: ExploreFilters
   mode: ExploreMode
   query: string
   scope: ExploreScope
 }) {
-  return JSON.stringify([mode, scope, cityIds, query])
+  return JSON.stringify([
+    mode,
+    scope,
+    cityIds,
+    query,
+    filters.language ?? null,
+    filters.topic ?? null,
+    filters.openToCollab ?? false,
+  ])
 }
 
 export function getFreshExploreSearch(): ExploreSearch {
@@ -195,6 +274,32 @@ export function getFreshExploreSearch(): ExploreSearch {
   }
 }
 
+/**
+ * The text query Explore runs. Search needs a viewer (the search queries
+ * return nothing without one) and visitors get no search box, so a visitor
+ * opening a shared `?q=` link sees the browse feed; the query stays in the
+ * URL and applies once they sign in.
+ */
+export function getExploreTextQuery(
+  search: Pick<ExploreSearch, 'q'>,
+  isVisitor: boolean,
+): string {
+  return isVisitor ? '' : search.q
+}
+
+/** Most cities a shared Explore URL may select. */
+export const EXPLORE_MAX_SELECTED_CITIES = 10
+
+// Convex document ids: Crockford base32 of the table number, a 16-byte id and
+// a checksum, which comes to 31–37 lowercase letters and digits. Anything else
+// in the URL cannot name a city and would fail the server's `v.id` check.
+const CONVEX_ID_PATTERN = /^[a-z0-9]{20,40}$/
+
+/** True when a URL value has the shape of a Convex document id. */
+export function isConvexIdShape(value: unknown): value is string {
+  return typeof value === 'string' && CONVEX_ID_PATTERN.test(value)
+}
+
 const EXPLORE_SEARCH_SESSION_STORAGE_KEY = 'locatic:explore-search:v1'
 const EXPLORE_SEARCH_SESSION_EVENT = 'locatic:explore-search-session'
 
@@ -203,11 +308,8 @@ export function normalizeExploreSearch(
 ): ExploreSearch {
   const selectedCityIds = Array.isArray(search.selectedCityIds)
     ? dedupeExploreCityIds(
-        search.selectedCityIds.filter(
-          (value): value is string =>
-            typeof value === 'string' && value.length > 0,
-        ),
-      )
+        search.selectedCityIds.filter(isConvexIdShape),
+      ).slice(0, EXPLORE_MAX_SELECTED_CITIES)
     : []
 
   const rawScope = search.scope
@@ -221,6 +323,8 @@ export function normalizeExploreSearch(
       ? rawMode
       : 'projects'
   const q = typeof search.q === 'string' ? search.q : ''
+  const language = normalizeExploreLanguageFilter(search.language)
+  const topic = normalizeExploreTopicFilter(search.topic)
 
   return {
     mode,
@@ -228,6 +332,11 @@ export function normalizeExploreSearch(
     scope:
       scope === 'custom' && selectedCityIds.length === 0 ? 'global' : scope,
     selectedCityIds,
+    // Every key is set, even when invalid: the router merges the raw URL
+    // search under this result, so an omitted key would let a raw value in.
+    language,
+    topic,
+    openToCollab: search.openToCollab === true ? true : undefined,
   }
 }
 
@@ -295,6 +404,9 @@ function areExploreSearchesEqual(
     left.mode === right.mode &&
     left.q === right.q &&
     left.scope === right.scope &&
+    left.language === right.language &&
+    left.topic === right.topic &&
+    left.openToCollab === right.openToCollab &&
     areExploreCityIdsEqual(left.selectedCityIds, right.selectedCityIds)
   )
 }
@@ -370,28 +482,82 @@ export function getExploreProjectCityIds(
   }
 }
 
-export function getExploreScopeStatusCopy(
-  scope: ExploreScope,
-  mode: ExploreMode = 'projects',
-  options: { isSearchActive?: boolean } = {},
+/** Where an Explore view reads from: "everywhere", "bengaluru", "2 cities". */
+export function getExploreScopeLabel(
+  cities: Array<{ shortName: string | null }>,
 ) {
-  switch (scope) {
-    case 'custom':
-      return 'strictly filtered to selected cities'
-    case 'global':
-      return mode === 'posts'
-        ? options.isSearchActive
-          ? 'searching posts everywhere'
-          : 'showing posts everywhere'
-        : `showing ${mode} everywhere`
-    case 'default':
-    default:
-      return mode === 'posts'
-        ? options.isSearchActive
-          ? 'searching posts from your default city context'
-          : 'showing posts from your default city context'
-        : `showing ${mode} from your default city context`
+  const [onlyCity] = cities
+  if (!onlyCity) return 'everywhere'
+  if (cities.length === 1 && onlyCity.shortName) {
+    return onlyCity.shortName.toLowerCase()
   }
+  return `${cities.length} ${cities.length === 1 ? 'city' : 'cities'}`
+}
+
+/** Plain header status: "showing bengaluru", "searching everywhere". */
+export function getExploreScopeStatusCopy({
+  cities,
+  isSearchActive = false,
+}: {
+  cities: Array<{ shortName: string | null }>
+  isSearchActive?: boolean
+}) {
+  return `${isSearchActive ? 'searching' : 'showing'} ${getExploreScopeLabel(cities)}`
+}
+
+/**
+ * Header eyebrow that says whose cities the view uses, so a global feed never
+ * claims to be nearby.
+ */
+export function getExploreEyebrowCopy({
+  cityCount,
+  mode,
+  scope,
+}: {
+  cityCount: number
+  mode: ExploreMode
+  scope: ExploreScope
+}) {
+  if (scope === 'global' || cityCount === 0) return `${mode} from everywhere`
+  return scope === 'custom'
+    ? `${mode} in cities you picked`
+    : `${mode} near you`
+}
+
+/**
+ * How a browse feed is ordered, in plain words (plan items D2, D4); no
+ * percentages or "recommended" framing. Visitors have no stack preferences,
+ * so their project feed claims only recency.
+ */
+export function getExploreOrderingCopy({
+  isVisitor,
+  mode,
+}: {
+  isVisitor: boolean
+  mode: ExploreMode
+}) {
+  switch (mode) {
+    case 'projects':
+      return isVisitor
+        ? 'most recent public work first'
+        : 'most recent public work first; projects matching your stack first'
+    case 'builders':
+      return 'most recent public work first'
+    case 'posts':
+    default:
+      return null
+  }
+}
+
+/** Plain description of the active filters, for empty and partial states. */
+export function describeExploreFilters(filters: ExploreFilters) {
+  return [
+    filters.language ? `primary language ${filters.language}` : null,
+    filters.topic ? `topic #${filters.topic}` : null,
+    filters.openToCollab ? 'open to collab' : null,
+  ]
+    .filter((part): part is string => part !== null)
+    .join(', ')
 }
 
 export function isExploreProjectFeedGlobal(scope: ExploreScope) {

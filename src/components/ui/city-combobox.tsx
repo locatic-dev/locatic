@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react'
+import { useEffect, useId, useState, type KeyboardEvent } from 'react'
 import type { Doc } from '../../../convex/_generated/dataModel'
 import { Input } from './input'
 import { Plus, Search } from '@/lib/icons'
@@ -11,10 +11,24 @@ interface CityComboboxProps {
   onQueryChange: (query: string) => void
   cities: Array<Doc<'cities'>>
   onSelectCity: (city: Doc<'cities'>) => void
+  /**
+   * Whether results for `query` are still loading. Callers that pass it get
+   * "searching…" and "no cities match" in the popup; without it an empty
+   * result keeps the popup closed.
+   */
+  searching?: boolean
   placeholder?: string
   className?: string
   inputClassName?: string
   maxResults?: number
+}
+
+const popupClassName =
+  'absolute left-0 z-10 mt-1 w-full overflow-hidden rounded-card border border-line bg-surface shadow-floating md:min-w-80'
+
+/** Region and country, so two cities with one name stay distinguishable. */
+function getCityRegionLabel(city: Doc<'cities'>) {
+  return [city.region, city.country].filter(Boolean).join(', ')
 }
 
 export function CityCombobox({
@@ -24,6 +38,7 @@ export function CityCombobox({
   onQueryChange,
   cities,
   onSelectCity,
+  searching,
   placeholder,
   className,
   inputClassName,
@@ -32,17 +47,22 @@ export function CityCombobox({
   const generatedId = useId()
   const inputId = id ?? `city-combobox-${generatedId}`
   const listboxId = `${inputId}-options`
-  const rootRef = useRef<HTMLDivElement | null>(null)
   const [open, setOpen] = useState(false)
   const [activeIndex, setActiveIndex] = useState(-1)
   const hasQuery = query.trim().length > 0
   const visibleCities = cities.slice(0, maxResults)
-  const showDropdown = hasQuery && open && visibleCities.length > 0
+  const showListbox = hasQuery && open && visibleCities.length > 0
+  const statusMessage =
+    hasQuery && open && visibleCities.length === 0 && searching !== undefined
+      ? searching
+        ? 'searching…'
+        : 'no cities match'
+      : null
   const activeCity =
-    showDropdown && activeIndex >= 0 ? visibleCities[activeIndex] : null
+    showListbox && activeIndex >= 0 ? visibleCities[activeIndex] : null
 
   useEffect(() => {
-    if (!showDropdown) {
+    if (!showListbox) {
       setActiveIndex(-1)
       return
     }
@@ -50,29 +70,21 @@ export function CityCombobox({
     setActiveIndex((current) =>
       current >= 0 && current < visibleCities.length ? current : 0,
     )
-  }, [showDropdown, visibleCities.length])
+  }, [showListbox, visibleCities.length])
 
-  useEffect(() => {
-    const handlePointerDown = (event: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(event.target as Node)) {
-        setOpen(false)
-      }
-    }
-
-    document.addEventListener('mousedown', handlePointerDown)
-    return () => document.removeEventListener('mousedown', handlePointerDown)
-  }, [])
-
-  const selectCity = (city: Doc<'cities'>) => {
-    onSelectCity(city)
+  const close = () => {
     setOpen(false)
     setActiveIndex(-1)
   }
 
+  const selectCity = (city: Doc<'cities'>) => {
+    onSelectCity(city)
+    close()
+  }
+
   const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'Escape') {
-      setOpen(false)
-      setActiveIndex(-1)
+      close()
       return
     }
 
@@ -105,22 +117,23 @@ export function CityCombobox({
   }
 
   return (
-    <div ref={rootRef} className={cn('relative', className)}>
+    <div className={cn('relative', className)}>
       <div className="relative">
         <Search
           size={14}
-          className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-text-faint"
+          className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-text-muted"
         />
         <Input
           id={inputId}
           type="text"
           role="combobox"
+          autoComplete="off"
           aria-activedescendant={
             activeCity ? `${listboxId}-${String(activeCity._id)}` : undefined
           }
           aria-autocomplete="list"
-          aria-expanded={showDropdown}
-          aria-controls={listboxId}
+          aria-expanded={showListbox}
+          aria-controls={showListbox ? listboxId : undefined}
           aria-label={label}
           placeholder={placeholder}
           value={query}
@@ -130,41 +143,70 @@ export function CityCombobox({
             onQueryChange(nextQuery)
           }}
           onFocus={() => setOpen(hasQuery)}
+          onBlur={close}
           onKeyDown={handleKeyDown}
-          className={cn(
-            'border-line bg-canvas pl-9 font-mono text-sm text-text placeholder:text-text-faint',
-            inputClassName,
-          )}
+          className={cn('pl-9', inputClassName)}
         />
       </div>
 
-      {showDropdown && (
+      {showListbox && (
         <div
           id={listboxId}
           role="listbox"
-          className="absolute z-10 mt-2 max-h-72 w-full overflow-y-auto rounded-card border border-line bg-surface shadow-floating"
+          aria-label={label}
+          // Keeps focus in the input (and the list open) on option or
+          // scrollbar presses; blur is what closes the list.
+          onMouseDown={(event) => event.preventDefault()}
+          className={cn(popupClassName, 'max-h-72 overflow-y-auto')}
         >
-          {visibleCities.map((city, index) => (
-            <div
-              key={String(city._id)}
-              id={`${listboxId}-${String(city._id)}`}
-              role="option"
-              tabIndex={-1}
-              aria-selected={index === activeIndex}
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={() => selectCity(city)}
-              onMouseEnter={() => setActiveIndex(index)}
-              className={cn(
-                'flex min-h-11 w-full items-center justify-between gap-3 border-b border-line px-3 py-2 text-left transition-colors last:border-b-0 hover:bg-surface-alt',
-                index === activeIndex && 'bg-surface-alt',
-              )}
-            >
-              <span className="font-mono text-[12px] text-text">
-                {city.displayName}
-              </span>
-              <Plus size={12} className="text-text-faint" />
-            </div>
-          ))}
+          {visibleCities.map((city, index) => {
+            const regionLabel = getCityRegionLabel(city)
+
+            return (
+              // ARIA combobox pattern: keyboard selection happens on the input
+              // (arrows, Enter, Escape) through aria-activedescendant, which
+              // keeps focus there; options only take pointer clicks.
+              // oxlint-disable-next-line jsx-a11y/click-events-have-key-events
+              <div
+                key={String(city._id)}
+                id={`${listboxId}-${String(city._id)}`}
+                role="option"
+                tabIndex={-1}
+                aria-selected={index === activeIndex}
+                onClick={() => selectCity(city)}
+                onMouseEnter={() => setActiveIndex(index)}
+                className="relative flex min-h-11 w-full cursor-pointer items-center justify-between gap-3 border-b border-line px-3 py-2 text-left transition-colors before:absolute before:inset-y-0 before:left-0 before:w-0.5 last:border-b-0 aria-selected:bg-selected aria-selected:before:bg-selected-bar"
+              >
+                <span className="flex min-w-0 flex-col">
+                  <span className="font-mono text-label wrap-anywhere text-text">
+                    {city.name}
+                  </span>
+                  {regionLabel && (
+                    <span className="font-mono text-meta wrap-anywhere text-text-muted">
+                      {regionLabel}
+                    </span>
+                  )}
+                </span>
+                <Plus
+                  size={12}
+                  aria-hidden="true"
+                  className="text-text-muted"
+                />
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {statusMessage && (
+        <div
+          role="status"
+          className={cn(
+            popupClassName,
+            'px-3 py-3 font-mono text-label text-text-muted',
+          )}
+        >
+          {statusMessage}
         </div>
       )}
     </div>

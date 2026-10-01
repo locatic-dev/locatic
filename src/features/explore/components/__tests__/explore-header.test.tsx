@@ -2,29 +2,29 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
-import type { Doc, Id } from '../../../../../convex/_generated/dataModel'
+import type { Id } from '../../../../../convex/_generated/dataModel'
 import { ExploreHeader } from '../explore-header'
 
 function renderHeader(
   overrides: Partial<Parameters<typeof ExploreHeader>[0]> = {},
 ) {
   const props = {
-    availableCities: [] as Array<Doc<'cities'>>,
-    cityQuery: '',
+    activeFilterCount: 0,
     currentScope: 'custom' as const,
+    filtersOpen: false,
     mode: 'projects' as const,
-    onCityQueryChange: vi.fn(),
     onModeChange: vi.fn(),
-    onRemoveCity: vi.fn(),
-    onResetExplore: vi.fn(),
-    onSelectCity: vi.fn(),
+    onOpenFilters: vi.fn(),
     onSearchQueryChange: vi.fn(),
-    pendingCityIds: false,
-    resetPending: false,
     searchQuery: '',
     selectedCityChips: [
-      { id: 'city_1' as Id<'cities'>, name: 'Bengaluru, Karnataka, India' },
+      {
+        id: 'city_1' as Id<'cities'>,
+        name: 'Bengaluru, Karnataka, India',
+        shortName: 'Bengaluru',
+      },
     ],
+    strip: { place: 'bengaluru', builderCount: 142 },
     ...overrides,
   } satisfies Parameters<typeof ExploreHeader>[0]
 
@@ -40,63 +40,88 @@ describe('ExploreHeader', () => {
     )
   })
 
-  it('routes content typing to the search handler, not the city filter', () => {
+  it('leaves out text search on public Explore', () => {
+    renderHeader({ showSearch: false })
+
+    expect(screen.queryByLabelText('Search projects')).toBeNull()
+    expect(screen.queryByRole('textbox')).toBeNull()
+  })
+
+  it('routes content typing to the search handler', () => {
     const { props } = renderHeader()
     fireEvent.change(screen.getByLabelText('Search projects'), {
       target: { value: 'convex' },
     })
     expect(props.onSearchQueryChange).toHaveBeenCalledWith('convex')
-    expect(props.onCityQueryChange).not.toHaveBeenCalled()
   })
 
-  it('exposes the city filter as a compact add affordance with chips', () => {
+  it('switches mode on tab click and reports the active mode', () => {
     const { props } = renderHeader()
-    expect(screen.getByText('near')).toBeTruthy()
-    expect(screen.getByText('Bengaluru, Karnataka, India')).toBeTruthy()
 
-    const cityInput = screen.getByLabelText('Add a city filter')
-    expect(cityInput.getAttribute('placeholder')).toBe('+ add city')
+    const group = screen.getByRole('group', { name: 'Explore mode' })
+    expect(group).toBeTruthy()
+    expect(
+      screen
+        .getByRole('button', { name: 'projects' })
+        .getAttribute('aria-pressed'),
+    ).toBe('true')
+    expect(
+      screen
+        .getByRole('button', { name: 'builders' })
+        .getAttribute('aria-pressed'),
+    ).toBe('false')
 
-    fireEvent.click(screen.getByLabelText('Remove Bengaluru, Karnataka, India'))
-    expect(props.onRemoveCity).toHaveBeenCalledWith('city_1')
-  })
-
-  it('allows the full selected city label to wrap', () => {
-    renderHeader()
-
-    const city = screen.getByText('Bengaluru, Karnataka, India')
-    expect(city.className).not.toContain('truncate')
-    expect(city.className).toContain('whitespace-normal')
-  })
-
-  it('keeps the city add control on a stable responsive basis', () => {
-    renderHeader()
-    const cityInput = screen.getByLabelText('Add a city filter')
-    const comboboxRoot = cityInput.closest('.basis-full')
-
-    expect(comboboxRoot).toBeTruthy()
-    expect(comboboxRoot?.className).toContain('sm:basis-56')
-    expect(comboboxRoot?.className).toContain('sm:grow-0')
-  })
-
-  it('switches mode on tab click', () => {
-    const { props } = renderHeader()
     fireEvent.click(screen.getByRole('button', { name: 'builders' }))
     expect(props.onModeChange).toHaveBeenCalledWith('builders')
   })
 
-  it('renders mode-aware scope copy', () => {
-    renderHeader({ currentScope: 'global', mode: 'builders' })
-    expect(screen.getByText('showing builders everywhere')).toBeTruthy()
+  it('names the selected city in the status and eyebrow', () => {
+    renderHeader({ currentScope: 'custom' })
+    expect(screen.getByText('showing bengaluru')).toBeTruthy()
+    expect(screen.getByText('// projects in cities you picked')).toBeTruthy()
   })
 
-  it('shows reset only for resettable modes', () => {
-    const { props, rerender } = renderHeader({ mode: 'posts' })
+  it('says everywhere, not nearby, for the global feed', () => {
+    renderHeader({
+      currentScope: 'global',
+      mode: 'builders',
+      selectedCityChips: [],
+      strip: { place: 'everywhere', builderCount: null },
+    })
+    expect(screen.getByText('showing everywhere')).toBeTruthy()
+    expect(screen.getByText('// builders from everywhere')).toBeTruthy()
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'explore' }),
+    ).toBeTruthy()
+  })
 
-    fireEvent.click(screen.getByRole('button', { name: 'reset' }))
-    expect(props.onResetExplore).toHaveBeenCalledTimes(1)
+  it('summarises the place on the compact strip', () => {
+    const { container, props, rerender } = renderHeader()
+    expect(container.textContent).toContain('bengaluru · 142 builders')
 
-    rerender(<ExploreHeader {...props} mode="builders" />)
-    expect(screen.queryByRole('button', { name: 'reset' })).toBeNull()
+    rerender(
+      <ExploreHeader
+        {...props}
+        strip={{ place: 'bengaluru', builderCount: 1 }}
+      />,
+    )
+    expect(container.textContent).toContain('bengaluru · 1 builder')
+    expect(container.textContent).not.toContain('1 builders')
+  })
+
+  it('opens the filter sheet from a filters button that reports the applied count', () => {
+    const { props, rerender } = renderHeader()
+
+    const button = screen.getByRole('button', { name: 'filters' })
+    expect(button.getAttribute('aria-haspopup')).toBe('dialog')
+    expect(button.getAttribute('aria-expanded')).toBe('false')
+    fireEvent.click(button)
+    expect(props.onOpenFilters).toHaveBeenCalledTimes(1)
+
+    rerender(
+      <ExploreHeader {...props} activeFilterCount={2} filtersOpen={true} />,
+    )
+    const counted = screen.getByRole('button', { name: 'filters (2)' })
+    expect(counted.getAttribute('aria-expanded')).toBe('true')
   })
 })

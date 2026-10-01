@@ -13,6 +13,7 @@ import {
   popularCitiesQueryOptions,
 } from '@/features/cities/queries'
 import {
+  useUpdateExploreConfig,
   useUpdateNotificationPrefs,
   useUpdatePrivacy,
   useUpdateProfile,
@@ -29,6 +30,8 @@ import {
   ROUTE_PENDING_MIN_MS,
   ROUTE_PENDING_MS,
 } from '@/components/app-shell/route-pending'
+import { useRevealActiveTab } from '@/components/app-shell/use-reveal-active-tab'
+import { getActionErrorMessage, reportActionError } from '@/lib/action-error'
 import { CheckCircle2 } from '@/lib/icons'
 import { RepositoryManagerDialog } from '@/features/github/repository-manager-dialog'
 import {
@@ -41,6 +44,10 @@ import {
   type PrivateProfileOverviewPayload,
 } from '@/features/contracts'
 import { PrivacyVisibilitySettings } from '@/features/settings/privacy-visibility-settings'
+import {
+  AppearInExploreSetting,
+  CityVisibilitySettings,
+} from '@/features/settings/location-discovery-settings'
 import { ThemePicker } from '@/features/settings/theme-picker'
 import {
   getSettingsAccountStateFromForm,
@@ -49,6 +56,7 @@ import {
   type SettingsAccountFormState,
 } from '@/features/settings/dirty'
 import { useUnsavedChangesGuard } from '@/features/settings/use-unsaved-changes-guard'
+import { shouldPrefetchPrivateConvexQueries } from '@/lib/auth-routing'
 
 export const Route = createFileRoute('/_app/settings')({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -67,8 +75,16 @@ export const Route = createFileRoute('/_app/settings')({
       | 'connected'
       | 'danger',
   }),
-  loader: ({ context }) =>
-    context.queryClient.ensureQueryData(privateProfileOverviewQueryOptions()),
+  loader: async ({ context }) => {
+    // Client navigations fetch in the page, once Convex auth is ready.
+    if (!shouldPrefetchPrivateConvexQueries()) {
+      return
+    }
+
+    await context.queryClient.ensureQueryData(
+      privateProfileOverviewQueryOptions(),
+    )
+  },
   pendingComponent: FormRoutePending,
   pendingMs: ROUTE_PENDING_MS,
   pendingMinMs: ROUTE_PENDING_MIN_MS,
@@ -84,10 +100,11 @@ const TABS = [
 ] as const
 type SettingsTab = (typeof TABS)[number]['id']
 
-const fieldClassName = 'border-line bg-surface font-sans text-text'
-const labelClassName = 'mb-1.5 block font-mono text-[11.5px] text-text-muted'
-const sectionTitleClassName =
-  'mb-4 font-mono text-[10.5px] font-semibold uppercase tracking-[0.06em] text-text-muted'
+// Fields keep the primitives' control border (3:1 against the surface) and
+// mono type; only the bio reads as prose.
+const fieldClassName = 'bg-surface text-text'
+const labelClassName = 'mb-1.5 block font-mono text-label text-text-muted'
+const sectionTitleClassName = 'mb-4 text-eyebrow text-text-muted'
 const settingsRowClassName =
   'flex items-center justify-between gap-4 border-b border-line py-3.5'
 
@@ -105,13 +122,13 @@ function SettingsPage() {
 
   const [citySearch, setCitySearch] = useState('')
   const popularCitiesQuery = useQuery(popularCitiesQueryOptions())
-  const citySearchResultsQuery = useQuery({
-    ...citiesSearchQueryOptions(citySearch.trim() || 'unused'),
-    enabled: citySearch.trim().length > 0,
-  })
+  const citySearchResultsQuery = useQuery(
+    citiesSearchQueryOptions(citySearch.trim()),
+  )
 
   const updateProfile = useUpdateProfile()
   const updatePrivacy = useUpdatePrivacy()
+  const updateExploreConfig = useUpdateExploreConfig()
   const updateNotifPrefs = useUpdateNotificationPrefs()
   const viewerAccountState = getSettingsAccountStateFromViewer(profile.viewer)
 
@@ -132,9 +149,12 @@ function SettingsPage() {
   const [bluesky, setBluesky] = useState(viewerAccountState.bluesky ?? '')
   const [website, setWebsite] = useState(viewerAccountState.website ?? '')
   const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const [persistedAccountState, setPersistedAccountState] =
     useState<SettingsAccountFormState>(viewerAccountState)
   const allowNextNavigationRef = useRef(false)
+  const tabRowRef = useRef<HTMLElement>(null)
+  useRevealActiveTab(tabRowRef, tab)
 
   const cityResults =
     citySearch.trim().length > 0
@@ -180,6 +200,24 @@ function SettingsPage() {
 
   useUnsavedChangesGuard(isAccountDirty, allowNextNavigationRef)
 
+  // Privacy settings save on change, so there is nothing to leave unsaved; a
+  // failed save reports through the shared action-error toast with a retry
+  // (A5), and the control falls back to the saved value.
+  const savePrivacySetting = async (save: () => Promise<unknown>) => {
+    try {
+      await save()
+    } catch (error) {
+      reportActionError(error, {
+        title: "couldn't save privacy setting",
+        retry: () => {
+          void save().catch((e) =>
+            reportActionError(e, { title: "couldn't save privacy setting" }),
+          )
+        },
+      })
+    }
+  }
+
   const handleSettingsTabChange = (nextTab: SettingsTab) => {
     if (nextTab === tab) {
       return
@@ -206,6 +244,7 @@ function SettingsPage() {
 
   const handleSaveAccount = async () => {
     setSaving(true)
+    setSaveError(null)
 
     try {
       const submittedAccountState = getSettingsAccountStateFromForm({
@@ -246,6 +285,7 @@ function SettingsPage() {
       window.setTimeout(() => setSaved(false), 2000)
     } catch (error) {
       console.error(error)
+      setSaveError(getActionErrorMessage(error))
     } finally {
       setSaving(false)
     }
@@ -254,20 +294,26 @@ function SettingsPage() {
   return (
     <div className="lx-page-shell">
       <div className="shrink-0 border-b border-line px-(--lx-gutter) pt-5">
-        <h1 className="mb-4 font-mono text-sm font-semibold text-text">
-          settings
-        </h1>
-        <nav className="lx-settings-tabs">
+        <h1 className="mb-4 text-headline text-text">settings</h1>
+        {/* One scrollable row on phones; the current tab is kept in view.
+            Pulled left by the tab padding so the first label lines up with
+            the title. */}
+        <nav
+          ref={tabRowRef}
+          aria-label="settings sections"
+          className="lx-settings-tabs relative -ml-2"
+        >
           {TABS.map((tabItem) => (
             <button
               key={tabItem.id}
               onClick={() => handleSettingsTabChange(tabItem.id)}
-              className={`-mb-px inline-flex min-h-11 items-end whitespace-nowrap border-b-2 px-2 pb-2.5 font-mono text-[12px] transition-colors ${
+              className={`-mb-px inline-flex min-h-11 shrink-0 items-end whitespace-nowrap border-b-2 px-2 pb-2.5 text-label transition-colors ${
                 tab === tabItem.id
                   ? 'border-text font-semibold text-text'
                   : 'border-transparent text-text-muted hover:text-text'
               }`}
               type="button"
+              aria-current={tab === tabItem.id ? 'true' : undefined}
             >
               {tabItem.label}
             </button>
@@ -302,7 +348,7 @@ function SettingsPage() {
                     <div>
                       <label htmlFor="settings-bio" className={labelClassName}>
                         bio{' '}
-                        <span className="text-text-faint">
+                        <span className="text-text-muted">
                           ({bio.length}/140)
                         </span>
                       </label>
@@ -312,7 +358,7 @@ function SettingsPage() {
                         onChange={(event) =>
                           setBio(event.target.value.slice(0, 140))
                         }
-                        className={`${fieldClassName} resize-none`}
+                        className={`${fieldClassName} resize-none font-sans`}
                         rows={3}
                         placeholder="what are you building?"
                       />
@@ -346,7 +392,7 @@ function SettingsPage() {
                               />
                               <label
                                 htmlFor={inputId}
-                                className={`block cursor-pointer rounded border px-3.5 py-3 text-left transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-brand/40 peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-canvas ${
+                                className={`block cursor-pointer rounded border px-3.5 py-3 text-left transition-colors peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-focus ${
                                   selected
                                     ? 'border-brand bg-brand-quiet'
                                     : 'border-line bg-surface'
@@ -383,7 +429,7 @@ function SettingsPage() {
                         maxResults={6}
                       />
                       {selectedCityName && (
-                        <div className="mt-2 font-mono text-[11px] text-text-faint">
+                        <div className="mt-2 font-mono text-meta text-text-muted">
                           selected: {selectedCityName}
                         </div>
                       )}
@@ -467,7 +513,7 @@ function SettingsPage() {
 
                 <div>
                   <div className={sectionTitleClassName}>legal</div>
-                  <nav className="flex flex-wrap gap-x-5 gap-y-1 font-mono text-[12px]">
+                  <nav className="flex flex-wrap gap-x-5 gap-y-1 font-mono text-label">
                     <Link
                       to="/privacy"
                       className="inline-flex min-h-11 items-center text-text-muted no-underline transition-colors hover:text-text"
@@ -492,13 +538,40 @@ function SettingsPage() {
                   <PrivacyVisibilitySettings
                     privacy={profile.viewer.privacy}
                     settingsRowClassName={settingsRowClassName}
-                    onUpdate={async (nextPrivacy) => {
-                      try {
-                        await updatePrivacy(nextPrivacy)
-                      } catch (error) {
-                        console.error(error)
-                      }
-                    }}
+                    onUpdate={(nextPrivacy) =>
+                      savePrivacySetting(() => updatePrivacy(nextPrivacy))
+                    }
+                  />
+                </div>
+                <div>
+                  <div className={sectionTitleClassName}>
+                    location and discovery
+                  </div>
+                  <CityVisibilitySettings
+                    value={profile.viewer.privacy.cityVisibility}
+                    cityName={profile.viewer.cityName}
+                    regionLabel={profile.regionLabel}
+                    settingsRowClassName={settingsRowClassName}
+                    onChange={(cityVisibility) =>
+                      // Only the changed field: the server merges it, so a
+                      // save never replays other settings from this render.
+                      savePrivacySetting(() =>
+                        updatePrivacy({ cityVisibility }),
+                      )
+                    }
+                  />
+                  <AppearInExploreSetting
+                    value={profile.viewer.appearInExplore}
+                    settingsRowClassName={settingsRowClassName}
+                    onChange={(appearInExplore) =>
+                      savePrivacySetting(() =>
+                        updateExploreConfig({
+                          cityIds: profile.viewer.exploreConfig.cityIds,
+                          stackPrefs: profile.viewer.exploreConfig.stackPrefs,
+                          appearInExplore,
+                        }),
+                      )
+                    }
                   />
                 </div>
               </div>
@@ -523,10 +596,17 @@ function SettingsPage() {
                   },
                 ].map(({ key, label }) => (
                   <div key={key} className={settingsRowClassName}>
-                    <span className="font-mono text-[13px] text-text">
+                    {/* The label toggles the switch too: a 44px+ target. */}
+                    <label
+                      id={`notification-pref-${key}-label`}
+                      htmlFor={`notification-pref-${key}`}
+                      className="flex min-h-11 flex-1 cursor-pointer items-center text-label text-text"
+                    >
                       {label}
-                    </span>
+                    </label>
                     <Switch
+                      id={`notification-pref-${key}`}
+                      aria-labelledby={`notification-pref-${key}-label`}
                       checked={
                         profile.viewer.notificationPrefs[
                           key as keyof typeof profile.viewer.notificationPrefs
@@ -540,7 +620,16 @@ function SettingsPage() {
                         try {
                           await updateNotifPrefs(nextPrefs)
                         } catch (error) {
-                          console.error(error)
+                          reportActionError(error, {
+                            title: "couldn't save notification setting",
+                            retry: () => {
+                              void updateNotifPrefs(nextPrefs).catch((e) =>
+                                reportActionError(e, {
+                                  title: "couldn't save notification setting",
+                                }),
+                              )
+                            },
+                          })
                         }
                       }}
                     />
@@ -556,32 +645,31 @@ function SettingsPage() {
                   <div className="flex items-center gap-3">
                     <BrandIcon name="github" size={18} />
                     <div>
-                      <div className="font-mono text-[13px] font-semibold text-text">
+                      <div className="text-label font-semibold text-text">
                         GitHub
                       </div>
-                      <div className="font-mono text-[11px] text-text-faint">
+                      <div className="font-mono text-meta text-text-muted">
                         @{profile.viewer.githubUsername}
                       </div>
                     </div>
                   </div>
-                  <span className="font-mono text-[11px] text-success">
+                  <span className="font-mono text-meta text-success">
                     connected
                   </span>
                 </div>
                 <div className="rounded-card border border-line bg-surface px-4.5 py-4 shadow-card">
                   <div className="mb-3">
-                    <div className="mb-0.5 font-mono text-[13px] text-text">
+                    <div className="mb-0.5 text-label text-text">
                       manage repositories
                     </div>
-                    <div className="font-sans text-xs leading-5 text-text-faint">
+                    <div className="font-sans text-xs leading-5 text-text-muted">
                       Add, hide, restore, or pin public GitHub repos after
                       onboarding. Locatic likes stay separate from GitHub stars.
                     </div>
                   </div>
                   <RepositoryManagerDialog
                     buttonLabel="manage repositories"
-                    buttonVariant="monoOutline"
-                    buttonSize="meta"
+                    buttonSize="touch"
                     title="Manage repositories"
                     description="Search up to 1,000 public GitHub repos we can load for your account, then add, hide, restore, or pin the ones that belong on your Locatic profile."
                     emptyStateCopy="No imported or public GitHub repositories are available yet."
@@ -597,21 +685,30 @@ function SettingsPage() {
             {tab === 'account' && (isAccountDirty || saving || saved) && (
               <div className="lx-fade-up sticky bottom-[var(--lx-mobile-tab-height)] z-10 mt-8 flex flex-wrap items-center justify-between gap-3 rounded-card border border-line bg-surface px-4 py-3 shadow-floating md:bottom-4">
                 {saved && !isAccountDirty ? (
-                  <span className="flex items-center gap-1.5 font-mono text-[11.5px] text-success">
+                  <span className="flex items-center gap-1.5 font-mono text-label text-success">
                     <CheckCircle2 size={14} /> saved
                   </span>
                 ) : (
                   <>
-                    <span className="font-mono text-[11.5px] text-text-muted">
+                    <span className="font-mono text-label text-text-muted">
                       unsaved changes
                     </span>
+                    {saveError && (
+                      <p
+                        role="alert"
+                        className="m-0 font-mono text-label text-danger"
+                      >
+                        {saveError}
+                      </p>
+                    )}
                     <div className="flex items-center gap-2">
                       <Button
-                        onClick={() => resetAccountForm()}
+                        onClick={() => {
+                          setSaveError(null)
+                          resetAccountForm()
+                        }}
                         disabled={saving || !isAccountDirty}
-                        variant="monoOutline"
-                        size="meta"
-                        className="font-mono"
+                        size="touch"
                       >
                         discard
                       </Button>
@@ -620,9 +717,8 @@ function SettingsPage() {
                         disabled={
                           saving || !isAccountDirty || !displayName.trim()
                         }
-                        variant="brand"
-                        size="meta"
-                        className="font-mono"
+                        variant="primary"
+                        size="touch"
                       >
                         {saving ? 'saving…' : 'save changes'}
                       </Button>

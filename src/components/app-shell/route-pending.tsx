@@ -1,54 +1,82 @@
+import { PageHeader } from '@/components/app-shell/page-header'
+import { CardSheet } from '@/components/ui/card-sheet'
 import { Skeleton } from '@/components/ui/skeleton'
+import { ProfileContentSkeleton } from '@/features/profile/content-skeleton'
 
 export const ROUTE_PENDING_MS = 150
 export const ROUTE_PENDING_MIN_MS = 250
 
 /**
- * Content-region pending used while the Convex auth handshake completes. Unlike
- * the *RoutePending variants, it renders no chrome because the persistent shell
- * frame — sidebar, main content region, and mobile nav — is already painted
- * around it. Route headers still live inside the outlet, so keep this visually
- * quiet and content-scoped.
+ * Quiet page frame: a band shaped like `PageHeader` over an empty content
+ * region. It shows no list rows on purpose. List pages (home, explore) render
+ * their own list skeleton, built from the loaded list's container and row
+ * anatomy, as soon as they mount, so a pending frame never flashes a second,
+ * differently shaped list before it.
  */
-export function ContentRoutePending() {
+function QuietRoutePending({ label }: { label: string }) {
   return (
-    <div className="lx-page-scroll">
+    <div className="lx-page-shell">
       <span className="sr-only" role="status">
-        loading
+        {label}
       </span>
-      <div className="lx-page-width-feed py-5">
-        <div className="flex flex-col gap-3.5">
-          {Array.from({ length: 3 }).map((_, index) => (
-            <Skeleton
-              key={index}
-              className="h-36 rounded-card border border-line bg-surface"
-            />
-          ))}
+      <div className="shrink-0 border-b border-line px-(--lx-gutter) py-4">
+        <div className="flex h-7 items-center">
+          <Skeleton className="h-5 w-28" />
         </div>
       </div>
     </div>
   )
 }
 
+/**
+ * Content-region pending used while the Convex auth handshake completes. The
+ * persistent shell frame (sidebar, main region, mobile nav) is already painted
+ * around it and it cannot know which route is loading, so it stays quiet.
+ */
+export function ContentRoutePending() {
+  return <QuietRoutePending label="loading" />
+}
+
+/** Route pending for list pages that render their own list skeleton. */
 export function FeedRoutePending() {
+  return <QuietRoutePending label="loading feed" />
+}
+
+/**
+ * Mirrors a notification row: 36px avatar, one text line, a timestamp. The
+ * notifications page also renders it while loading more rows.
+ */
+export function NotificationRowSkeleton() {
+  return (
+    <div className="flex items-start gap-3 px-3 py-3">
+      <Skeleton className="size-9 shrink-0 rounded-full" />
+      <div className="min-w-0 flex-1">
+        <div className="flex h-6 items-center">
+          <Skeleton className="h-3.5 w-4/5 max-w-72" />
+        </div>
+        <div className="mt-1 flex h-4 items-center">
+          <Skeleton className="h-2.5 w-16" />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * The notifications header renders for real (its h1 included); only the list
+ * area is a skeleton, inside the same sheet the loaded rows use.
+ */
+export function NotificationsRoutePending() {
   return (
     <div className="lx-page-shell">
-      <span className="sr-only" role="status">
-        loading feed
-      </span>
-      <div className="shrink-0 border-b border-line px-(--lx-gutter) py-4">
-        <Skeleton className="h-4 w-24" />
-      </div>
-      <div className="lx-page-scroll">
-        <div className="lx-page-width-feed py-5">
-          <div className="flex flex-col gap-3.5">
-            {Array.from({ length: 3 }).map((_, index) => (
-              <Skeleton
-                key={index}
-                className="h-36 rounded-card border border-line bg-surface"
-              />
+      <PageHeader title="notifications" />
+      <div className="lx-page-scroll flex-1">
+        <div className="lx-page-width-feed">
+          <CardSheet role="status" aria-label="loading notifications">
+            {Array.from({ length: 6 }, (_, index) => (
+              <NotificationRowSkeleton key={index} />
             ))}
-          </div>
+          </CardSheet>
         </div>
       </div>
     </div>
@@ -65,7 +93,7 @@ export function FormRoutePending() {
         <Skeleton className="h-4 w-24" />
       </div>
       <div className="lx-page-scroll flex-1">
-        <div className="lx-page-width-form py-5">
+        <div className="lx-page-width-form-left py-5">
           <div className="flex flex-col gap-4">
             <Skeleton className="h-10 w-2/5" />
             <Skeleton className="h-28 w-full" />
@@ -118,7 +146,7 @@ export function ProjectRoutePending() {
       </span>
       <div className="shrink-0 border-b border-line px-(--lx-gutter) py-4">
         <div className="lx-page-width-detail flex items-center gap-3">
-          <Skeleton className="h-10 w-10 rounded-button" />
+          <Skeleton className="h-10 w-10 rounded-control" />
           <Skeleton className="h-4 w-32" />
         </div>
       </div>
@@ -128,7 +156,7 @@ export function ProjectRoutePending() {
             <div className="min-w-0 space-y-5">
               <section className="rounded-card border border-line bg-surface p-5 shadow-card">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
-                  <Skeleton className="h-14 w-14 shrink-0 rounded-avatar" />
+                  <Skeleton className="h-14 w-14 shrink-0 rounded-full" />
                   <div className="min-w-0 flex-1 space-y-3">
                     <Skeleton className="h-6 w-4/5 max-w-96" />
                     <Skeleton className="h-4 w-2/3 max-w-80" />
@@ -149,7 +177,7 @@ export function ProjectRoutePending() {
               <section className="rounded-card border border-line bg-surface p-5 shadow-card">
                 <div className="flex items-center justify-between gap-3">
                   <Skeleton className="h-5 w-28" />
-                  <Skeleton className="h-8 w-24 rounded-button" />
+                  <Skeleton className="h-8 w-24 rounded-control" />
                 </div>
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
                   {Array.from({ length: 4 }).map((_, index) => (
@@ -183,53 +211,77 @@ export function ProjectRoutePending() {
   )
 }
 
+/**
+ * Mirrors the profile page order (plan item C6): the identity header (64px
+ * avatar, name, handle, location and status pills), bio, meta and actions,
+ * then one pinned card, the recent-work list (the same content-list
+ * skeleton the page shows while it loads), then the contribution graph.
+ */
 export function ProfileRoutePending() {
   return (
     <div className="lx-page-shell">
       <span className="sr-only" role="status">
         loading profile
       </span>
-      <div className="shrink-0 border-b border-line px-(--lx-gutter) py-4">
-        <div className="lx-page-width-detail flex items-center gap-3">
-          <Skeleton className="h-10 w-10 rounded-button" />
-          <Skeleton className="h-4 w-28" />
-        </div>
-      </div>
-      <div className="lx-page-scroll">
-        <div className="lx-page-width-detail py-5">
-          <div className="space-y-5">
-            <section className="rounded-card border border-line bg-surface p-5 shadow-card">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
-                <Skeleton className="h-16 w-16 shrink-0 rounded-avatar" />
-                <div className="min-w-0 flex-1 space-y-3">
-                  <Skeleton className="h-6 w-3/5 max-w-80" />
-                  <Skeleton className="h-4 w-2/5 max-w-56" />
-                  <div className="flex flex-wrap gap-2">
-                    <Skeleton className="h-7 w-24 rounded-pill" />
-                    <Skeleton className="h-7 w-28 rounded-pill" />
-                  </div>
+      <div className="lx-page-scroll flex-1">
+        <div className="lx-page-width-profile flex flex-col gap-8">
+          <div className="flex flex-col gap-4 border-b border-line pb-6">
+            <div className="flex min-w-0 items-start gap-4">
+              <Skeleton className="size-16 shrink-0 rounded-full" />
+              <div className="min-w-0 flex-1">
+                <Skeleton className="h-8 w-3/5 max-w-64" />
+                <Skeleton className="mt-2 h-3 w-28" />
+                <div className="mt-2 flex items-center gap-2">
+                  <Skeleton className="h-7 w-32 rounded-pill" />
+                  <Skeleton className="h-7 w-24 rounded-pill" />
                 </div>
-                <Skeleton className="h-10 w-28 rounded-button" />
               </div>
-            </section>
-
-            <div className="grid gap-4 md:grid-cols-3">
-              {Array.from({ length: 3 }).map((_, index) => (
-                <Skeleton
-                  key={index}
-                  className="h-24 rounded-card border border-line bg-surface shadow-card"
-                />
-              ))}
             </div>
+            <div className="flex max-w-prose flex-col gap-2">
+              <Skeleton className="h-3.5 w-full" />
+              <Skeleton className="h-3.5 w-4/5" />
+            </div>
+            <div className="flex min-h-11 items-center gap-4">
+              <Skeleton className="h-3 w-20" />
+              <Skeleton className="h-3 w-20" />
+            </div>
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-11 w-28 rounded-control" />
+              <Skeleton className="h-11 w-28 rounded-control" />
+            </div>
+          </div>
 
-            <section className="rounded-card border border-line bg-surface p-5 shadow-card">
-              <Skeleton className="h-5 w-32" />
-              <div className="mt-4 space-y-3">
-                {Array.from({ length: 3 }).map((_, index) => (
-                  <Skeleton key={index} className="h-28 rounded-card" />
-                ))}
+          <div>
+            <div className="mb-3 flex h-5 items-center">
+              <Skeleton className="h-3.5 w-16" />
+            </div>
+            <div className="rounded-card border border-line bg-surface px-4 py-4">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <Skeleton className="h-3 w-32" />
+                <Skeleton className="h-3 w-14" />
               </div>
-            </section>
+              <Skeleton className="h-3 w-full" />
+              <Skeleton className="mt-2 h-3 w-4/5" />
+            </div>
+          </div>
+
+          <div>
+            <div className="mb-3 flex flex-col gap-1">
+              <Skeleton className="h-3.5 w-24" />
+              <Skeleton className="h-2.5 w-40" />
+            </div>
+            {/* The page announces "loading profile" once; the reused list
+                skeleton's own status stays out of the accessibility tree. */}
+            <div aria-hidden="true">
+              <ProfileContentSkeleton />
+            </div>
+          </div>
+
+          <div>
+            <div className="mb-3 flex h-5 items-center">
+              <Skeleton className="h-3.5 w-40" />
+            </div>
+            <Skeleton className="h-28 rounded-card" />
           </div>
         </div>
       </div>

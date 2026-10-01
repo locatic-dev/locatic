@@ -4,12 +4,14 @@ import type { Id } from '../../../../convex/_generated/dataModel'
 import { ReactionBar } from './reaction-bar'
 
 export function ProjectReactionBar({
+  className,
   disabled = false,
   liked,
   projectId,
   reactionCounts,
   viewerReactionTypes,
 }: {
+  className?: string
   disabled?: boolean
   liked?: boolean
   projectId: Id<'projects'>
@@ -30,6 +32,7 @@ export function ProjectReactionBar({
 
   return (
     <ReactionBar
+      className={className}
       disabled={
         disabled ||
         isLoading ||

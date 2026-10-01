@@ -5,6 +5,7 @@ import { ReactionBar } from '@/features/projects/reactions/reaction-bar'
 import { X } from '@/lib/icons'
 import { relativeTime } from '@/lib/time'
 import type { ExplorePostPreview } from '@/features/explore/types'
+import { SignInLink } from './sign-in-link'
 
 // Explore post card, given the same author-led identity as a project card so the
 // two read as one family in the feed: author pfp + name lead the header, the repo
@@ -13,9 +14,12 @@ import type { ExplorePostPreview } from '@/features/explore/types'
 export function ExplorePostCard({
   post,
   onDismiss,
+  visitor,
 }: {
   post: ExplorePostPreview
-  onDismiss: () => void
+  onDismiss?: () => void
+  /** Signed-out visitor: counts only, with a sign-in link to react. */
+  visitor?: { signInRedirect: string | undefined }
 }) {
   const owner =
     post.projectSnapshot.ownerLogin ??
@@ -41,10 +45,10 @@ export function ExplorePostCard({
               size={34}
             />
             <div className="min-w-0 flex-1">
-              <div className="truncate font-mono text-[13px] font-semibold text-text">
+              <div className="truncate font-sans text-label font-medium text-text">
                 {post.actorSnapshot.displayName}
               </div>
-              <div className="truncate font-mono text-[11px] text-text-faint">
+              <div className="truncate font-mono text-meta text-text-muted">
                 <span className="text-text-muted">
                   {post.projectSnapshot.fullName}
                 </span>{' '}
@@ -54,7 +58,7 @@ export function ExplorePostCard({
           </div>
 
           {/* Post body — the content */}
-          <p className="m-0 line-clamp-3 font-sans text-[14px] leading-6 text-text wrap-anywhere">
+          <p className="m-0 line-clamp-3 font-sans text-body leading-6 text-text wrap-anywhere">
             {post.body}
           </p>
 
@@ -63,7 +67,7 @@ export function ExplorePostCard({
               {post.projectTopics.slice(0, 4).map((topic) => (
                 <span
                   key={topic}
-                  className="rounded-control border border-line px-2 py-0.5 font-mono text-[10.5px] text-text-muted"
+                  className="rounded-control border border-line px-2 py-0.5 font-mono text-meta text-text-muted"
                 >
                   #{topic}
                 </span>
@@ -71,23 +75,39 @@ export function ExplorePostCard({
             </div>
           )}
         </Link>
-        <button
-          type="button"
-          onClick={onDismiss}
-          aria-label="Dismiss post"
-          className="mt-3 mr-2 flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-md border-none bg-transparent text-text-muted transition-colors hover:text-text"
-        >
-          <X size={12} aria-hidden="true" />
-        </button>
+        {onDismiss && !visitor && (
+          <button
+            type="button"
+            onClick={onDismiss}
+            aria-label="Dismiss post"
+            // 28px beside the 34px avatar (as the project card's dismiss),
+            // 44px on coarse pointers; the margins keep it centred on the
+            // avatar either way.
+            className="mt-5 mr-3 flex size-7 shrink-0 items-center justify-center rounded-control border-none bg-transparent text-text-muted transition-colors hover:bg-state-hover hover:text-text pointer-coarse:mt-3 pointer-coarse:mr-2 pointer-coarse:size-11"
+          >
+            <X size={12} aria-hidden="true" />
+          </button>
+        )}
       </div>
-      <ReactionBar
-        className="px-5 pb-2"
-        disabled={false}
-        reactionCounts={post.reactionCounts}
-        targetId={String(post._id)}
-        targetType="post"
-        viewerReactionTypes={post.viewerReactionTypes}
-      />
+      <div className="flex flex-wrap items-center gap-2 px-5 pb-2">
+        <ReactionBar
+          className="min-w-0 flex-1"
+          disabled={Boolean(visitor)}
+          reactionCounts={post.reactionCounts}
+          targetId={String(post._id)}
+          targetType="post"
+          viewerReactionTypes={post.viewerReactionTypes}
+        />
+        {visitor && (
+          <SignInLink
+            label="Sign in to react to this post"
+            redirect={visitor.signInRedirect}
+            variant="ghost"
+          >
+            sign in to react
+          </SignInLink>
+        )}
+      </div>
     </div>
   )
 }

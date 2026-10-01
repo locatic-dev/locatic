@@ -10,6 +10,21 @@ import type { Doc } from './types'
 export type HomeFeedTarget = NonNullable<Doc<'activity_events'>['target']>
 type HomeFeedGroupKind = (typeof HOME_FEED_GROUP_KIND_VALUES)[number]
 const HOME_FEED_SOURCE_EVENT_ID_LIMIT = 50
+const HOME_FEED_BACKFILL_LIMIT = 20
+
+/**
+ * The one Home time boundary: follow backfill copies only events newer than
+ * this, `home.list` reads only items newer than this, and the daily cleanup
+ * deletes items older than this. Keeping all three on one constant means an
+ * item is never shown that the next cleanup would delete. Source
+ * `activity_events` keep their own, longer retention (see `cleanup.ts`).
+ */
+export const HOME_FEED_RETENTION_MS = 30 * 24 * 60 * 60 * 1000
+
+/** Oldest `createdAt` (inclusive) that belongs in a Home feed at `now`. */
+export function getHomeFeedCutoff(now: number) {
+  return now - HOME_FEED_RETENTION_MS
+}
 type FeedEventLike = Pick<
   Doc<'activity_events'>,
   'actorId' | 'createdAt' | 'eventType' | 'postId'
@@ -310,48 +325,59 @@ export async function fanOutActivityEventToFollowersPage(
   }
 }
 
+/**
+ * Copies the followed user's latest events inside the Home boundary into the
+ * follower's feed. Events older than `HOME_FEED_RETENTION_MS` are skipped so a
+ * new follow never surfaces activity that the next cleanup would delete.
+ */
 export async function backfillHomeFeedForFollow(
   ctx: MutationCtx,
   followerId: Doc<'users'>['_id'],
   followingId: Doc<'users'>['_id'],
+  now: number,
 ) {
   const recentEvents = await ctx.db
     .query('activity_events')
     .withIndex('by_actor_created_at', (query) =>
-      query.eq('actorId', followingId),
+      query.eq('actorId', followingId).gte('createdAt', getHomeFeedCutoff(now)),
     )
     .order('desc')
-    .take(20)
+    .take(HOME_FEED_BACKFILL_LIMIT)
 
-  await Promise.all(
-    recentEvents.map((event) => {
-      const target = getHomeFeedLegacyTarget(event)
-      if (!target) {
-        return Promise.resolve(null)
-      }
+  // Sequential on purpose: these events share one follower, so several of
+  // them can land in the same group row, and `upsertHomeFeedItemForEvent`
+  // reads the group before it inserts. Run concurrently, two same-group
+  // events would both miss the row and insert duplicates, and every later
+  // `.unique()` on that group would throw. Oldest first, as live fan-out
+  // would have delivered them, so merged rows end with the newest event and
+  // preview. At most `HOME_FEED_BACKFILL_LIMIT` (20) events.
+  for (const event of [...recentEvents].reverse()) {
+    const target = getHomeFeedLegacyTarget(event)
+    if (!target) {
+      continue
+    }
 
-      return upsertHomeFeedItemForEvent(
-        ctx,
-        {
-          userId: followerId,
-          sourceEventId: event._id,
-          dedupeKey: `${followerId}:${event._id}`,
-          reason: 'following',
-          priority: 2,
-          actorId: event.actorId,
-          eventType: event.eventType,
-          projectId: event.projectId ?? null,
-          postId: event.postId ?? null,
-          actorSnapshot: event.actorSnapshot,
-          projectSnapshot: event.projectSnapshot ?? null,
-          postSnapshot: event.postSnapshot ?? null,
-          target,
-          createdAt: event.createdAt,
-        },
+    await upsertHomeFeedItemForEvent(
+      ctx,
+      {
+        userId: followerId,
+        sourceEventId: event._id,
+        dedupeKey: `${followerId}:${event._id}`,
+        reason: 'following',
+        priority: 2,
+        actorId: event.actorId,
+        eventType: event.eventType,
+        projectId: event.projectId ?? null,
+        postId: event.postId ?? null,
+        actorSnapshot: event.actorSnapshot,
+        projectSnapshot: event.projectSnapshot ?? null,
+        postSnapshot: event.postSnapshot ?? null,
         target,
-      )
-    }),
-  )
+        createdAt: event.createdAt,
+      },
+      target,
+    )
+  }
 }
 
 export async function removeHomeFeedItemsForFollow(

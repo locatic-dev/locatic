@@ -1,11 +1,25 @@
+import type { FunctionReturnType } from 'convex/server'
+import type { Infer } from 'convex/values'
+import type { api } from '../../convex/_generated/api'
 import type { Doc, Id } from '../../convex/_generated/dataModel'
+import type { projectCardSignalsFields } from '../../convex/lib/project_previews'
+import type { PublicProfileOverview } from '@/features/profile/types'
 
 export type ViewerRecord = {
   _id: Id<'users'>
   appearInExplore: boolean
   github: Doc<'users'>['github']
   profile: Doc<'users'>['profile']
-  stats: Doc<'users'>['stats']
+  stats: Pick<
+    Doc<'users'>['stats'],
+    | 'followersCount'
+    | 'followingCount'
+    | 'projectsCount'
+    | 'postsCount'
+    | 'contributionsCount'
+    | 'commentsCount'
+    | 'likedCount'
+  >
   exploreConfig: Doc<'users'>['exploreConfig']
   privacy: Doc<'users'>['privacy']
   notificationPrefs: Doc<'users'>['notificationPrefs']
@@ -83,6 +97,17 @@ export type ProjectCardPreview = {
   authorAvatarUrl: string | null
   cityLabel: string | null
   cityVisibilityState: 'exact_city' | 'region_only' | 'hidden' | 'unset'
+} & Partial<ProjectCardSignals>
+
+/**
+ * Card signals as `buildProjectCardPreview` returns them when a caller passes
+ * `signals`: owner location disclosure, owner build status, latest update and
+ * metadata sync state. Optional because not every preview query adds them.
+ */
+export type ProjectCardSignals = {
+  [Key in keyof typeof projectCardSignalsFields]: Infer<
+    (typeof projectCardSignalsFields)[Key]
+  >
 }
 
 export type ViewerBootstrapPayload = {
@@ -112,6 +137,8 @@ export type PrivateProfilePayload = {
 export type PrivateProfileOverviewPayload = {
   viewer: ViewerRecord
   cityName: string | null
+  /** The viewer's region label, what a region-only disclosure shows (D8). */
+  regionLabel?: string | null
 }
 
 export type ViewerSummaryPayload = {
@@ -131,11 +158,6 @@ export type ViewerExplorePrefsPayload = {
   cityId: Id<'cities'> | null
   cityName: string | null
   exploreConfig: Doc<'users'>['exploreConfig']
-}
-
-export type ViewerInboxSummaryPayload = {
-  viewerId: Id<'users'>
-  unreadMessages: number
 }
 
 export type ProfileSocialPagePayload = {
@@ -175,22 +197,8 @@ export type PublicProfilePayload = {
   privacy: Doc<'users'>['privacy']
 }
 
-export type PublicProfileOverviewPayload = {
-  userId: Id<'users'>
-  viewerFollowsProfile: boolean
-  githubUsername: string
-  profile: {
-    displayName: string
-    bio: string
-    avatarUrl: string
-    buildStatus: Doc<'users'>['profile']['buildStatus']
-    socialLinks: Doc<'users'>['profile']['socialLinks']
-    city: string | null
-  }
-  stats: Doc<'users'>['stats']
-  githubContributions?: Doc<'users'>['githubContributions'] | null
-  privacy: Doc<'users'>['privacy']
-}
+/** `users.publicProfileOverview`, as the profile feature types it. */
+export type PublicProfileOverviewPayload = PublicProfileOverview
 
 export type ThreadedProjectComment = Doc<'comments'> & {
   viewerHasLiked: boolean
@@ -199,25 +207,9 @@ export type ThreadedProjectComment = Doc<'comments'> & {
   replies: ThreadedProjectComment[]
 }
 
-export type ProjectDetailPayload = {
-  project: Doc<'projects'>
-  releases: Array<Doc<'project_releases'>>
-  comments: Array<ThreadedProjectComment>
-  viewerHasLiked: boolean
-  reactionCounts: Record<string, number>
-  viewerReactionTypes: string[]
-  viewerFollowsOwner: boolean
-  canonicalRoute: ProjectRouteParams
-  owner: {
-    userId: Id<'users'>
-    githubUsername: string
-    displayName: string
-    avatarUrl: string
-    socialLinks: Doc<'users'>['profile']['socialLinks']
-    buildStatus: Doc<'users'>['profile']['buildStatus']
-    city: string | null
-  }
-}
+export type ProjectDetailPayload = NonNullable<
+  FunctionReturnType<typeof api.projects.getPublicByRoute>
+>
 
 export type NotificationTarget = {
   kind: 'profile' | 'project' | 'conversation'
@@ -234,7 +226,13 @@ export type NotificationRecord = Doc<'notifications'> & {
   target?: NotificationTarget | null
 }
 
+/**
+ * `status` is how the conversation reads for the viewer: `request` is an
+ * incoming message request, `pending` an outgoing one the other person has not
+ * answered, `active` an accepted conversation.
+ */
 export type EnrichedConversation = Doc<'conversations'> & {
+  status: 'active' | 'pending' | 'request'
   otherUser: {
     userId: Id<'users'>
     githubUsername: string
@@ -328,6 +326,7 @@ export function mapPrivateProfileOverview(
 
   return {
     viewer: mapViewer(payload.viewer, payload.cityName),
+    regionLabel: payload.regionLabel ?? null,
   }
 }
 
@@ -357,14 +356,6 @@ export function mapViewerExplorePrefs(
   return payload
 }
 
-export function mapViewerInboxSummary(
-  payload: ViewerInboxSummaryPayload | undefined,
-) {
-  if (!payload) return null
-
-  return payload
-}
-
 export function mapPublicProfile(
   payload: PublicProfilePayload | null | undefined,
 ) {
@@ -388,22 +379,6 @@ export function mapPublicProfile(
   }
 }
 
-export function mapPublicProfileOverview(
-  payload: PublicProfileOverviewPayload | null | undefined,
-) {
-  if (!payload) return null
-
-  return {
-    githubUsername: payload.githubUsername,
-    githubContributions: payload.githubContributions ?? null,
-    privacy: payload.privacy,
-    profile: payload.profile,
-    stats: payload.stats,
-    userId: payload.userId,
-    viewerFollowsProfile: payload.viewerFollowsProfile,
-  }
-}
-
 export function mapProjectDetail(
   payload: ProjectDetailPayload | null | undefined,
 ) {
@@ -411,7 +386,6 @@ export function mapProjectDetail(
 
   return {
     canonicalRoute: payload.canonicalRoute,
-    comments: payload.comments,
     owner: payload.owner,
     project: payload.project,
     releases: payload.releases,

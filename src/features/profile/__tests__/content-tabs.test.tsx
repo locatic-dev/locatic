@@ -62,8 +62,25 @@ describe('ProfileContentTabs', () => {
     expect(screen.getByText('contributions')).toBeTruthy()
   })
 
-  it('uses a mobile-first wrapping grid instead of forcing horizontal overflow', () => {
-    const { container } = render(
+  it('marks only the active tab as current', () => {
+    render(
+      <ProfileContentTabs
+        activeTab="posts"
+        isRoutePending={false}
+        tabs={tabs}
+        onSelectTab={vi.fn()}
+      />,
+    )
+
+    const current = screen
+      .getAllByRole('button')
+      .filter((button) => button.getAttribute('aria-current') === 'true')
+    expect(current).toHaveLength(1)
+    expect(current[0]).toBe(screen.getByRole('button', { name: /^posts/ }))
+  })
+
+  it('scrolls the tab row so a newly active tab is fully visible', () => {
+    const { container, rerender } = render(
       <ProfileContentTabs
         activeTab="projects"
         isRoutePending={false}
@@ -71,14 +88,55 @@ describe('ProfileContentTabs', () => {
         onSelectTab={vi.fn()}
       />,
     )
+    const row = container.querySelector('button')!.parentElement!
+    const liked = screen.getByRole('button', { name: /liked/i })
+    Object.defineProperty(row, 'clientWidth', { value: 300 })
+    Object.defineProperty(liked, 'offsetLeft', { value: 400 })
+    Object.defineProperty(liked, 'offsetWidth', { value: 80 })
 
-    expect(container.querySelector('.grid-cols-2')).toBeTruthy()
+    rerender(
+      <ProfileContentTabs
+        activeTab="liked"
+        isRoutePending={false}
+        tabs={tabs}
+        onSelectTab={vi.fn()}
+      />,
+    )
+
+    // right edge 480 minus the 300px viewport
+    expect(row.scrollLeft).toBe(180)
+  })
+
+  it('shows counts only when they are known and non-zero', () => {
+    render(
+      <ProfileContentTabs
+        activeTab="projects"
+        isRoutePending={false}
+        tabs={[
+          {
+            id: 'projects',
+            label: 'projects',
+            mobileLabel: 'projects',
+            count: 4,
+          },
+          { id: 'posts', label: 'posts', mobileLabel: 'posts', count: 0 },
+          {
+            id: 'comments',
+            label: 'comments',
+            mobileLabel: 'comments',
+            count: null,
+          },
+        ]}
+        onSelectTab={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByRole('button', { name: /^projects.*4$/ })).toBeTruthy()
     expect(
-      container.querySelector('.min-\\[520px\\]\\:grid-cols-3'),
-    ).toBeTruthy()
-    expect(container.querySelector('.lg\\:grid-cols-5')).toBeTruthy()
-    expect(container.querySelector('.overflow-x-auto')).toBeNull()
-    expect(container.querySelector('.min-w-max')).toBeNull()
-    expect(container.querySelector('.whitespace-nowrap')).toBeTruthy()
+      screen.getByRole('button', { name: /^posts/ }).textContent,
+    ).not.toMatch(/\d/)
+    expect(
+      screen.getByRole('button', { name: /^comments/ }).textContent,
+    ).not.toMatch(/\d/)
   })
 })

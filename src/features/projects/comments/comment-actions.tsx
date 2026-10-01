@@ -1,5 +1,7 @@
+import { useState } from 'react'
 import type { Id } from '../../../../convex/_generated/dataModel'
 import { ChevronDown, ChevronRight, CornerUpLeft, Trash2 } from '@/lib/icons'
+import { ConfirmDeleteDialog } from '@/features/projects/confirm-delete-dialog'
 import { ReactionBar } from '@/features/projects/reactions/reaction-bar'
 
 export function CommentActions({
@@ -31,8 +33,10 @@ export function CommentActions({
   onReply: () => void
   onToggleReplies: () => void
 }) {
+  const [confirmOpen, setConfirmOpen] = useState(false)
+
   return (
-    <div className="mt-2 flex flex-wrap items-center gap-1.5 font-mono text-[11px] text-text-muted">
+    <div className="mt-2 flex flex-wrap items-center gap-1.5 font-mono text-meta text-text-muted">
       <ReactionBar
         disabled={disabled}
         reactionCounts={reactionCounts}
@@ -44,7 +48,7 @@ export function CommentActions({
         type="button"
         onClick={onReply}
         aria-label="Reply to comment"
-        className="inline-flex min-h-11 items-center gap-1.5 rounded-md px-2 py-2 text-inherit transition-colors hover:text-text"
+        className="inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-inherit transition-colors hover:text-text pointer-coarse:min-h-11"
       >
         <CornerUpLeft size={13} strokeWidth={1.6} />
         <span>reply</span>
@@ -55,7 +59,7 @@ export function CommentActions({
           onClick={onToggleReplies}
           aria-controls={repliesRegionId}
           aria-expanded={repliesOpen}
-          className="inline-flex min-h-11 items-center gap-1.5 rounded-md px-2 py-2 text-inherit transition-colors hover:text-text"
+          className="inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-inherit transition-colors hover:text-text pointer-coarse:min-h-11"
         >
           {repliesOpen ? (
             <ChevronDown size={13} strokeWidth={1.6} />
@@ -69,16 +73,26 @@ export function CommentActions({
         </button>
       )}
       {canDelete && (
-        <button
-          type="button"
-          onClick={() => onDelete(commentId as Id<'comments'>)}
-          disabled={pendingDelete}
-          aria-label="Delete comment"
-          className="inline-flex min-h-11 items-center gap-1.5 rounded-md px-2 py-2 text-inherit transition-colors hover:text-text disabled:opacity-60"
-        >
-          <Trash2 size={13} strokeWidth={1.6} />
-          <span>{pendingDelete ? 'deleting...' : 'delete'}</span>
-        </button>
+        <>
+          <button
+            type="button"
+            onClick={() => setConfirmOpen(true)}
+            disabled={pendingDelete}
+            aria-label="Delete comment"
+            className="inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-inherit transition-colors hover:text-text disabled:opacity-60 pointer-coarse:min-h-11"
+          >
+            <Trash2 size={13} strokeWidth={1.6} />
+            <span>{pendingDelete ? 'deleting…' : 'delete'}</span>
+          </button>
+          {/* comments.remove soft-deletes: replies stay under a "[deleted]" parent. */}
+          <ConfirmDeleteDialog
+            open={confirmOpen}
+            onOpenChange={setConfirmOpen}
+            title="delete this comment?"
+            description={hasReplies ? 'replies stay.' : "this can't be undone."}
+            onConfirm={() => onDelete(commentId as Id<'comments'>)}
+          />
+        </>
       )}
     </div>
   )

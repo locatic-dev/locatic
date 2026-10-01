@@ -227,8 +227,12 @@ export function ReactorInspector({
       <PopoverAnchor asChild>
         <span
           data-reactor-inspector=""
+          data-reaction-pill=""
           style={style}
-          className={cn('relative inline-flex min-h-11', className)}
+          className={cn(
+            'relative inline-flex h-7 pointer-coarse:h-11',
+            className,
+          )}
           onBlur={(event: FocusEvent<HTMLElement>) => {
             if (isInsideInspector(event.relatedTarget)) {
               clearCloseTimer()
@@ -278,7 +282,10 @@ export function ReactorInspector({
                 openReason.current = 'trigger'
                 clearOpenTimer()
               }}
-              className="inline-flex min-h-11 items-center px-2 font-mono tabular-nums focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+              // min-w-6 keeps a one-digit count at the 24px minimum target
+              // with a mouse; on coarse pointers it is 44px square and
+              // overhangs the pill's 1px border.
+              className="inline-flex h-full min-w-6 items-center justify-start rounded-r-full pr-2 pl-0.5 font-mono tabular-nums focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand pointer-coarse:h-11 pointer-coarse:min-w-11 pointer-coarse:justify-center"
             >
               {count}
             </button>
@@ -288,6 +295,7 @@ export function ReactorInspector({
       <PopoverContent
         ref={contentElement}
         id={contentId}
+        collisionPadding={16}
         onBlurCapture={(event) => {
           if (isInsideInspector(event.relatedTarget)) {
             clearCloseTimer()
@@ -339,7 +347,7 @@ export function ReactorInspector({
         sideOffset={8}
         className="w-64 max-w-[calc(100vw-2rem)] overflow-hidden border-line bg-surface p-0 shadow-floating"
       >
-        <div className="border-b border-line px-3 py-2.5 font-mono text-[12px] text-text">
+        <div className="border-b border-line px-3 py-2.5 font-mono text-label text-text">
           <span aria-hidden="true" className="mr-1.5">
             {emoji}
           </span>
@@ -347,7 +355,7 @@ export function ReactorInspector({
         </div>
         <div className="max-h-72 overflow-y-auto p-1.5">
           {reactors.status === 'LoadingFirstPage' ? (
-            <div className="px-2 py-3 font-mono text-[11px] text-text-muted">
+            <div className="px-2 py-3 font-mono text-meta text-text-muted">
               loading…
             </div>
           ) : (
@@ -378,7 +386,7 @@ export function ReactorInspector({
             <button
               type="button"
               onClick={() => reactors.loadMore(12)}
-              className="min-h-11 w-full rounded-md font-mono text-[11px] text-text-muted hover:bg-surface-alt hover:text-text"
+              className="min-h-11 w-full rounded-md font-mono text-meta text-text-muted hover:bg-surface-alt hover:text-text"
             >
               load more
             </button>

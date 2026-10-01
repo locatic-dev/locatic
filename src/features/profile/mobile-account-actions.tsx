@@ -9,23 +9,13 @@ export function ProfileMobileAccountActions({
 }) {
   return (
     <div className="grid w-full grid-cols-2 gap-2 md:hidden">
-      <Button
-        asChild
-        variant="monoOutline"
-        size="meta"
-        className="w-full font-mono"
-      >
+      <Button asChild size="touch">
         <Link to="/settings" search={{ tab: 'account' }} preload={false}>
           <Settings size={13} />
           settings
         </Link>
       </Button>
-      <Button
-        variant="monoGhost"
-        size="meta"
-        onClick={onSignOut}
-        className="w-full font-mono text-danger hover:text-danger"
-      >
+      <Button variant="ghost" size="touch" onClick={onSignOut}>
         <LogOut size={13} />
         sign out
       </Button>

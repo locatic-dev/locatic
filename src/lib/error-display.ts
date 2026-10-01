@@ -2,18 +2,33 @@ export interface UserFacingErrorCopy {
   title: string
   description: string
   detail: string | null
+  /**
+   * The page's primary control: retry the load, or sign in again. `sign-in`
+   * still offers retry as a secondary control: Clerk can hold a live session
+   * while Convex rejects the token, and the sign-in route then redirects
+   * straight back, so sign-in alone would loop.
+   */
+  action: 'retry' | 'sign-in'
 }
 
-const GENERIC_ERROR_TITLE = 'Something interrupted this page'
+const GENERIC_ERROR_TITLE = "couldn't load this page."
 const GENERIC_ERROR_DESCRIPTION =
-  'Retry the request. If it keeps happening, sign in again or return home.'
-const AUTH_CONFIG_ERROR_TITLE = 'Authentication needs one more sync'
+  'retry, or go home and try again in a moment. if it keeps happening, sign out and back in.'
+const AUTH_CONFIG_ERROR_TITLE = 'your session is still syncing.'
 const AUTH_CONFIG_ERROR_DESCRIPTION =
-  'Locatic reached your session, but the token used for this request was still syncing. Retrying after refresh usually clears it once auth finishes syncing.'
+  'locatic reached your session before its token finished syncing. retry in a moment; a refresh usually clears it.'
+const SESSION_ENDED_TITLE = 'your session ended.'
+const SESSION_ENDED_DESCRIPTION =
+  'sign in again to pick up where you left off, or retry if you are still signed in.'
 const UNKNOWN_ERROR_MESSAGE = 'Something went wrong while loading this page.'
 
+/**
+ * Raw error text only when Vite's `DEV` flag is set, as under `vite dev`. `DEV`
+ * follows NODE_ENV, not `--mode`, so production builds hide it: `vite build`
+ * sets NODE_ENV=production (whatever its --mode) unless NODE_ENV is overridden.
+ */
 export function isDiagnosticErrorMode() {
-  return import.meta.env.MODE === 'development'
+  return import.meta.env.DEV
 }
 
 export function getUserFacingErrorCopy(error: unknown): UserFacingErrorCopy {
@@ -21,11 +36,21 @@ export function getUserFacingErrorCopy(error: unknown): UserFacingErrorCopy {
   const isAuthConfigError = isAuthConfigurationError(message)
   const showDiagnosticDetail = isDiagnosticErrorMode()
 
+  if (isUnauthorizedError(error, message)) {
+    return {
+      title: SESSION_ENDED_TITLE,
+      description: SESSION_ENDED_DESCRIPTION,
+      detail: showDiagnosticDetail ? message : null,
+      action: 'sign-in',
+    }
+  }
+
   if (isAuthConfigError) {
     return {
       title: AUTH_CONFIG_ERROR_TITLE,
       description: AUTH_CONFIG_ERROR_DESCRIPTION,
       detail: showDiagnosticDetail ? message : null,
+      action: 'retry',
     }
   }
 
@@ -33,6 +58,7 @@ export function getUserFacingErrorCopy(error: unknown): UserFacingErrorCopy {
     title: GENERIC_ERROR_TITLE,
     description: GENERIC_ERROR_DESCRIPTION,
     detail: showDiagnosticDetail ? message : null,
+    action: 'retry',
   }
 }
 
@@ -52,5 +78,15 @@ function isAuthConfigurationError(message: string) {
   return (
     message.includes('NoAuthProvider') ||
     message.includes('issuer and audience match')
+  )
+}
+
+// `requireIdentity` and `getViewerOrThrow` throw `ConvexError('Unauthorized')`.
+// Duck-typed rather than `instanceof ConvexError`, which would pull
+// `convex/values` into the entry.
+function isUnauthorizedError(error: unknown, message: string) {
+  return (
+    (error as { data?: unknown } | null)?.data === 'Unauthorized' ||
+    /\bUnauthorized\b/.test(message)
   )
 }

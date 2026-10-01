@@ -1,32 +1,31 @@
-import { clerk, clerkSetup } from '@clerk/testing/playwright'
 import { expect, test as setup } from '@playwright/test'
 import { mkdir } from 'node:fs/promises'
 import path from 'node:path'
-import './env'
+import { gotoRetryingAbort, personas, signIn } from './fixtures/personas'
+import { isE2ESmokeMode } from './fixtures/test'
 
 const authFile = path.join(import.meta.dirname, '.clerk/user.json')
 
-setup.describe.configure({ mode: 'serial' })
-
-setup('configure Clerk testing token', async () => {
-  await clerkSetup()
-})
-
 setup('authenticate and save Clerk storage state', async ({ page }) => {
-  const emailAddress = process.env.E2E_CLERK_USER_EMAIL
-
-  if (!process.env.CLERK_SECRET_KEY) {
-    throw new Error('CLERK_SECRET_KEY is required for authenticated E2E')
+  const missingAuth = !personas.populatedEmail || !process.env.CLERK_SECRET_KEY
+  if (missingAuth && isE2ESmokeMode) {
+    setup.skip(
+      true,
+      'set E2E_CLERK_USER_EMAIL and CLERK_SECRET_KEY in .env.local (playwright/fixtures/fixtures.md)',
+    )
+  }
+  if (missingAuth) {
+    throw new Error(
+      'E2E prerequisite missing: set E2E_CLERK_USER_EMAIL and CLERK_SECRET_KEY in .env.local (playwright/fixtures/fixtures.md)',
+    )
   }
 
-  if (!emailAddress) {
-    throw new Error('E2E_CLERK_USER_EMAIL is required for authenticated E2E')
-  }
-
+  // The landing page, not /sign-in: a signed-in sign-in page navigates on
+  // its own, which would abort the navigation below.
   await page.goto('/')
-  await clerk.signIn({ page, emailAddress })
+  await signIn(page, personas.populatedEmail!)
 
-  await page.goto('/home')
+  await gotoRetryingAbort(page, '/home')
   await expect(page).not.toHaveURL(/\/sign-in/)
   await expect(page).toHaveURL(/\/(home|onboarding)/)
 

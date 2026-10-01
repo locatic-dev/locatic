@@ -163,6 +163,15 @@ describe('optimistic preview helpers', () => {
     updatedAt: 9,
   } as any
 
+  const publicOverviewAt = (location: unknown) =>
+    ({
+      profile: {
+        avatarUrl: 'viewer-avatar',
+        displayName: 'Avinash',
+        location,
+      },
+    }) as any
+
   it('builds private and public previews from the current overview city', () => {
     const privatePreview = buildOptimisticSelfProjectPreview({
       audience: 'private',
@@ -171,6 +180,7 @@ describe('optimistic preview helpers', () => {
         viewer: {
           profile: {
             avatarUrl: 'viewer-avatar',
+            cityId: 'city_blr',
             displayName: 'Avinash',
           },
         },
@@ -181,24 +191,53 @@ describe('optimistic preview helpers', () => {
 
     const publicPreview = buildOptimisticSelfProjectPreview({
       audience: 'public',
-      overview: {
-        privacy: {
-          cityVisibility: 'region_only',
-        },
-        profile: {
-          avatarUrl: 'viewer-avatar',
-          city: 'Karnataka, India',
-          displayName: 'Avinash',
-        },
-      } as any,
+      overview: publicOverviewAt({
+        kind: 'region',
+        regionLabel: 'Karnataka, India',
+      }),
       project,
       profileUsername: 'avinash',
     })
 
     expect(privatePreview.cityLabel).toBe('Bengaluru, Karnataka, India')
     expect(privatePreview.cityVisibilityState).toBe('exact_city')
+    expect(privatePreview.ownerLocation).toEqual({
+      kind: 'city',
+      cityId: 'city_blr',
+      cityName: 'Bengaluru, Karnataka, India',
+      regionLabel: null,
+    })
     expect(publicPreview.cityLabel).toBe('Karnataka, India')
     expect(publicPreview.cityVisibilityState).toBe('region_only')
+    expect(publicPreview.ownerLocation).toEqual({
+      kind: 'region',
+      regionLabel: 'Karnataka, India',
+    })
+  })
+
+  it('maps the public location disclosure to the visibility state', () => {
+    const exact = buildOptimisticSelfProjectPreview({
+      audience: 'public',
+      overview: publicOverviewAt({
+        kind: 'city',
+        cityId: 'city_blr',
+        cityName: 'Bengaluru',
+        regionLabel: 'Karnataka, India',
+      }),
+      project,
+      profileUsername: 'avinash',
+    })
+    const undisclosed = buildOptimisticSelfProjectPreview({
+      audience: 'public',
+      overview: publicOverviewAt({ kind: 'none' }),
+      project,
+      profileUsername: 'avinash',
+    })
+
+    expect(exact.cityLabel).toBe('Bengaluru')
+    expect(exact.cityVisibilityState).toBe('exact_city')
+    expect(undisclosed.cityLabel).toBeNull()
+    expect(undisclosed.cityVisibilityState).toBe('unset')
   })
 
   it('removes hidden previews and restores them in pinned-aware order', () => {

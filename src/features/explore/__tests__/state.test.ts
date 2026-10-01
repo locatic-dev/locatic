@@ -5,6 +5,16 @@ import { renderToString } from 'react-dom/server'
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import {
+  COLLABORATION_BUILD_STATUSES,
+  NEW_BUILDER_WINDOW_MS,
+} from '../../../../convex/lib/explore'
+import { NEW_BUILDER_WINDOW_MS as CLIENT_NEW_BUILDER_WINDOW_MS } from '@/lib/builder-activity'
+import {
+  BUILD_STATUS,
+  isCollaborationStatus,
+} from '@/components/ui/status-pill'
+
+import {
   areExploreCityIdsEqual,
   dedupeExploreCities,
   dedupeExploreCityIds,
@@ -13,12 +23,16 @@ import {
   getExploreLoaderDeps,
   getExploreResultSetKey,
   getExploreProjectCityIds,
+  getExploreEyebrowCopy,
   getExploreScopeStatusCopy,
   getFreshExploreSearch,
   getNearbyBuilderCityIds,
   getResumeExploreSearch,
   isExploreProjectFeedGlobal,
   isExploreUserFollowed,
+  describeExploreFilters,
+  getExploreModeFilters,
+  getExploreOrderingCopy,
   normalizeExploreSearch,
   readStoredExploreSearch,
   removeExploreCityId,
@@ -63,20 +77,23 @@ describe('explore state helpers', () => {
       mode: 'builders',
       q: 'react',
       scope: 'custom',
-      selectedCityIds: ['city_1', 'city_1'],
+      selectedCityIds: [
+        'k57b3r9v6x2m1c0d8e4f5g6h7j8n9p0q',
+        'k57b3r9v6x2m1c0d8e4f5g6h7j8n9p0q',
+      ],
     })
 
     expect(readStoredExploreSearch()).toEqual({
       mode: 'builders',
       q: 'react',
       scope: 'custom',
-      selectedCityIds: ['city_1'],
+      selectedCityIds: ['k57b3r9v6x2m1c0d8e4f5g6h7j8n9p0q'],
     })
     expect(getResumeExploreSearch()).toEqual({
       mode: 'builders',
       q: 'react',
       scope: 'custom',
-      selectedCityIds: ['city_1'],
+      selectedCityIds: ['k57b3r9v6x2m1c0d8e4f5g6h7j8n9p0q'],
     })
   })
 
@@ -117,7 +134,7 @@ describe('explore state helpers', () => {
       mode: 'builders',
       q: 'react',
       scope: 'custom',
-      selectedCityIds: ['city_1'],
+      selectedCityIds: ['k57b3r9v6x2m1c0d8e4f5g6h7j8n9p0q'],
     })
 
     expect(
@@ -135,7 +152,7 @@ describe('explore state helpers', () => {
         mode: 'builders',
         q: 'react',
         scope: 'custom',
-        selectedCityIds: ['city_1'],
+        selectedCityIds: ['k57b3r9v6x2m1c0d8e4f5g6h7j8n9p0q'],
       })
     })
 
@@ -171,13 +188,18 @@ describe('explore state helpers', () => {
         mode: 'builders',
         q: '  avinash  ',
         scope: 'custom',
-        selectedCityIds: ['city_1', 'city_1', '', 123],
+        selectedCityIds: [
+          'k57b3r9v6x2m1c0d8e4f5g6h7j8n9p0q',
+          'k57b3r9v6x2m1c0d8e4f5g6h7j8n9p0q',
+          '',
+          123,
+        ],
       }),
     ).toEqual({
       mode: 'builders',
       q: '  avinash  ',
       scope: 'custom',
-      selectedCityIds: ['city_1'],
+      selectedCityIds: ['k57b3r9v6x2m1c0d8e4f5g6h7j8n9p0q'],
     })
   })
 
@@ -222,7 +244,25 @@ describe('explore state helpers', () => {
         cityIds: ['city_1', 'city_2'],
         query: 'react\u001fmap',
       }),
-    ).toBe('["projects","custom",["city_1","city_2"],"react\\u001fmap"]')
+    ).toBe(
+      '["projects","custom",["city_1","city_2"],"react\\u001fmap",null,null,false]',
+    )
+  })
+
+  it('starts a new result set when a filter changes', () => {
+    const base = {
+      mode: 'projects' as const,
+      scope: 'global' as const,
+      cityIds: [],
+      query: '',
+    }
+
+    expect(getExploreResultSetKey(base)).not.toBe(
+      getExploreResultSetKey({ ...base, filters: { language: 'rust' } }),
+    )
+    expect(
+      getExploreResultSetKey({ ...base, filters: { language: 'rust' } }),
+    ).not.toBe(getExploreResultSetKey({ ...base, filters: { topic: 'rust' } }))
   })
 
   it('converts empty custom selections into an explicit global scope', () => {
@@ -385,34 +425,55 @@ describe('explore state helpers', () => {
     ).toEqual([])
   })
 
-  it('describes the active feed mode clearly', () => {
-    expect(getExploreScopeStatusCopy('default')).toBe(
-      'showing projects from your default city context',
+  it('names the scope in plain words', () => {
+    const bengaluru = { shortName: 'Bengaluru' }
+    const berlin = { shortName: 'Berlin' }
+
+    expect(getExploreScopeStatusCopy({ cities: [bengaluru] })).toBe(
+      'showing bengaluru',
     )
-    expect(getExploreScopeStatusCopy('default', 'builders')).toBe(
-      'showing builders from your default city context',
-    )
-    expect(getExploreScopeStatusCopy('default', 'posts')).toBe(
-      'showing posts from your default city context',
-    )
-    expect(
-      getExploreScopeStatusCopy('default', 'posts', { isSearchActive: true }),
-    ).toBe('searching posts from your default city context')
-    expect(getExploreScopeStatusCopy('custom')).toBe(
-      'strictly filtered to selected cities',
-    )
-    expect(getExploreScopeStatusCopy('global')).toBe(
-      'showing projects everywhere',
-    )
-    expect(getExploreScopeStatusCopy('global', 'builders')).toBe(
-      'showing builders everywhere',
-    )
-    expect(getExploreScopeStatusCopy('global', 'posts')).toBe(
-      'showing posts everywhere',
+    expect(getExploreScopeStatusCopy({ cities: [] })).toBe('showing everywhere')
+    expect(getExploreScopeStatusCopy({ cities: [bengaluru, berlin] })).toBe(
+      'showing 2 cities',
     )
     expect(
-      getExploreScopeStatusCopy('global', 'posts', { isSearchActive: true }),
-    ).toBe('searching posts everywhere')
+      getExploreScopeStatusCopy({ cities: [], isSearchActive: true }),
+    ).toBe('searching everywhere')
+    // A city whose doc has not loaded yet is counted, never mislabelled.
+    expect(getExploreScopeStatusCopy({ cities: [{ shortName: null }] })).toBe(
+      'showing 1 city',
+    )
+  })
+
+  it('keeps the eyebrow truthful about whose cities are shown', () => {
+    expect(
+      getExploreEyebrowCopy({
+        cityCount: 1,
+        mode: 'projects',
+        scope: 'default',
+      }),
+    ).toBe('projects near you')
+    expect(
+      getExploreEyebrowCopy({
+        cityCount: 2,
+        mode: 'builders',
+        scope: 'custom',
+      }),
+    ).toBe('builders in cities you picked')
+    expect(
+      getExploreEyebrowCopy({ cityCount: 0, mode: 'posts', scope: 'global' }),
+    ).toBe('posts from everywhere')
+    // A viewer with no default city browses everywhere, not "near you".
+    expect(
+      getExploreEyebrowCopy({
+        cityCount: 0,
+        mode: 'projects',
+        scope: 'default',
+      }),
+    ).toBe('projects from everywhere')
+  })
+
+  it('treats only the global scope as the global project feed', () => {
     expect(isExploreProjectFeedGlobal('default')).toBe(false)
     expect(isExploreProjectFeedGlobal('global')).toBe(true)
   })
@@ -466,5 +527,112 @@ describe('explore state helpers', () => {
         userId: 'user_1',
       }),
     ).toBe(false)
+  })
+})
+
+describe('explore filters in the URL (D2, D3)', () => {
+  it('keeps language and topic in the form the server compares', () => {
+    expect(
+      normalizeExploreSearch({
+        mode: 'projects',
+        language: '  TypeScript ',
+        topic: 'AI/Agents',
+        openToCollab: true,
+      }),
+    ).toEqual({
+      mode: 'projects',
+      q: '',
+      scope: 'default',
+      selectedCityIds: [],
+      language: 'typescript',
+      topic: 'ai-agents',
+      openToCollab: true,
+    })
+  })
+
+  it('drops blank, malformed and overlong filters from the URL', () => {
+    const search = normalizeExploreSearch({
+      language: '   ',
+      topic: '!!!',
+      openToCollab: 'yes',
+    })
+
+    // Present as undefined, so the router's search merge cannot bring the
+    // raw URL value back.
+    expect(search.language).toBeUndefined()
+    expect(search.topic).toBeUndefined()
+    expect(search.openToCollab).toBeUndefined()
+    expect(
+      normalizeExploreSearch({ language: 'x'.repeat(51) }).language,
+    ).toBeUndefined()
+    expect(normalizeExploreSearch({ language: 42 }).language).toBeUndefined()
+  })
+
+  it('round-trips filters through the stored member search', () => {
+    writeStoredExploreSearch({
+      mode: 'builders',
+      q: '',
+      scope: 'global',
+      selectedCityIds: [],
+      language: 'rust',
+      openToCollab: true,
+    })
+
+    expect(readStoredExploreSearch()).toEqual({
+      mode: 'builders',
+      q: '',
+      scope: 'global',
+      selectedCityIds: [],
+      language: 'rust',
+      openToCollab: true,
+    })
+  })
+
+  it('applies language and topic to projects and collab to builders only', () => {
+    const search = {
+      language: 'rust',
+      topic: 'webgpu',
+      openToCollab: true as const,
+    }
+
+    expect(getExploreModeFilters(search, 'projects')).toEqual({
+      language: 'rust',
+      topic: 'webgpu',
+    })
+    expect(getExploreModeFilters(search, 'builders')).toEqual({
+      openToCollab: true,
+    })
+    expect(getExploreModeFilters(search, 'posts')).toEqual({})
+    expect(describeExploreFilters({ language: 'rust', topic: 'webgpu' })).toBe(
+      'primary language rust, topic #webgpu',
+    )
+  })
+
+  it('describes feed order without recommendation framing', () => {
+    expect(getExploreOrderingCopy({ isVisitor: false, mode: 'projects' })).toBe(
+      'most recent public work first; projects matching your stack first',
+    )
+    // Visitors have no stack preferences to match.
+    expect(getExploreOrderingCopy({ isVisitor: true, mode: 'projects' })).toBe(
+      'most recent public work first',
+    )
+    expect(getExploreOrderingCopy({ isVisitor: true, mode: 'builders' })).toBe(
+      'most recent public work first',
+    )
+    expect(getExploreOrderingCopy({ isVisitor: false, mode: 'posts' })).toBe(
+      null,
+    )
+  })
+
+  it('filters builders by the same statuses the pill treats as collaboration', () => {
+    for (const status of Object.keys(BUILD_STATUS)) {
+      expect(COLLABORATION_BUILD_STATUSES.has(status)).toBe(
+        isCollaborationStatus(status),
+      )
+    }
+  })
+
+  it('uses the client new-builder window for the server label', () => {
+    expect(NEW_BUILDER_WINDOW_MS).toBe(CLIENT_NEW_BUILDER_WINDOW_MS)
   })
 })

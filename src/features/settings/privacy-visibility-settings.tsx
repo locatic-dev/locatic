@@ -60,13 +60,16 @@ export function PrivacyVisibilitySettings({
     <>
       {VISIBILITY_SETTINGS.map(({ key, label, desc }) => (
         <div key={key} className={settingsRowClassName}>
-          <div>
-            <div className="mb-0.5 font-mono text-[13px] text-text">
-              {label}
-            </div>
-            <div className="font-sans text-xs text-text-faint">{desc}</div>
-          </div>
+          {/* The whole text block toggles the switch: a 44px+ touch target. */}
+          <label
+            htmlFor={`privacy-visibility-${key}`}
+            className="flex min-h-11 flex-1 cursor-pointer flex-col justify-center"
+          >
+            <span className="mb-0.5 text-label text-text">{label}</span>
+            <span className="font-sans text-xs text-text-muted">{desc}</span>
+          </label>
           <Switch
+            id={`privacy-visibility-${key}`}
             aria-label={label}
             checked={isVisibilitySettingPublic(privacy, key)}
             onCheckedChange={async (checked) => {

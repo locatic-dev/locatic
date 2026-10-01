@@ -53,6 +53,7 @@ export function CommentThread({
   pendingDeleteIds,
   pendingReplies,
   replyDrafts,
+  replyErrors,
   replyingToId,
   setReplyDrafts,
   viewerId,
@@ -69,6 +70,8 @@ export function CommentThread({
   pendingDeleteIds: Set<string>
   pendingReplies: Record<string, ProjectCommentView[]>
   replyDrafts: Record<string, string>
+  /** Inline failure copy for a reply composer, keyed by parent comment id. */
+  replyErrors?: Record<string, string>
   replyingToId: string | null
   setReplyDrafts: React.Dispatch<React.SetStateAction<Record<string, string>>>
   viewerId: string | null
@@ -126,7 +129,7 @@ export function CommentThread({
       }
     >
       <div
-        className={`min-w-0 rounded-[6px] transition-[opacity,transform,background-color] duration-300 motion-reduce:transition-none ${
+        className={`min-w-0 rounded-card transition-[opacity,transform,background-color] duration-300 motion-reduce:transition-none ${
           highlighted ? 'bg-brand-quiet px-3 py-3' : ''
         } ${comment.pending ? 'opacity-70' : 'opacity-100'}`}
       >
@@ -138,19 +141,20 @@ export function CommentThread({
           />
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="font-mono text-[12.5px] font-semibold text-text">
+              <span className="font-sans text-label font-medium text-text">
                 {comment.authorSnapshot.displayName}
               </span>
               {!nested && comment.authorSnapshot.cityName && (
-                <CityPill city={comment.authorSnapshot.cityName} />
+                <CityPill
+                  city={comment.authorSnapshot.cityName}
+                  cityId={comment.authorSnapshot.cityId}
+                />
               )}
-              <span className="font-mono text-[11px] text-text-faint">
-                {comment.pending
-                  ? 'posting...'
-                  : relativeTime(comment.createdAt)}
+              <span className="font-mono text-meta text-text-muted">
+                {comment.pending ? 'posting…' : relativeTime(comment.createdAt)}
               </span>
             </div>
-            <p className="mt-1.5 mb-0 font-sans text-[13.5px] leading-[1.6] text-text wrap-anywhere">
+            <p className="mt-1.5 mb-0 font-sans text-body leading-[1.6] text-text wrap-anywhere">
               {comment.content}
             </p>
 
@@ -180,7 +184,7 @@ export function CommentThread({
             )}
 
             {replyDrafts[commentId] !== undefined && isSignedIn && (
-              <div className="mt-3 flex flex-wrap gap-3 rounded-[6px] border border-line bg-canvas px-3 py-3">
+              <div className="mt-3 flex flex-wrap gap-3 rounded-card border border-line bg-canvas px-3 py-3">
                 <Textarea
                   value={replyDrafts[commentId] ?? ''}
                   onChange={(event) =>
@@ -190,12 +194,20 @@ export function CommentThread({
                     }))
                   }
                   rows={2}
-                  placeholder={`reply to ${comment.authorSnapshot.displayName}...`}
+                  placeholder={`reply to ${comment.authorSnapshot.displayName}…`}
+                  aria-label={`Reply to ${comment.authorSnapshot.displayName}`}
                   className={commentComposerTextareaClass}
                 />
+                {replyErrors?.[commentId] && (
+                  <p
+                    role="alert"
+                    className="m-0 basis-full font-mono text-label text-danger"
+                  >
+                    {replyErrors[commentId]}
+                  </p>
+                )}
                 <div className="flex items-end gap-2">
                   <Button
-                    variant="monoOutline"
                     size="meta"
                     onClick={() =>
                       setReplyDrafts((current) => {
@@ -204,12 +216,11 @@ export function CommentThread({
                         return next
                       })
                     }
-                    className="font-mono"
                   >
                     cancel
                   </Button>
                   <Button
-                    variant="brand"
+                    variant="primary"
                     size="meta"
                     onClick={() =>
                       void handleReply(commentItem._id as Id<'comments'>)
@@ -218,9 +229,8 @@ export function CommentThread({
                       !(replyDrafts[commentId] ?? '').trim() ||
                       replyingToId === commentId
                     }
-                    className="font-mono"
                   >
-                    {replyingToId === commentId ? 'posting...' : 'reply'}
+                    {replyingToId === commentId ? 'posting…' : 'reply'}
                   </Button>
                 </div>
               </div>
@@ -246,6 +256,7 @@ export function CommentThread({
                     pendingDeleteIds={pendingDeleteIds}
                     pendingReplies={pendingReplies}
                     replyDrafts={replyDrafts}
+                    replyErrors={replyErrors}
                     replyingToId={replyingToId}
                     setReplyDrafts={setReplyDrafts}
                     viewerId={viewerId}
@@ -265,7 +276,7 @@ export function CommentThread({
                   <button
                     type="button"
                     onClick={() => repliesPage.loadMore(6)}
-                    className="ml-3 inline-flex min-h-11 items-center self-start rounded-md px-2 py-2 font-mono text-[11px] text-text-muted transition-colors hover:text-text"
+                    className="ml-3 inline-flex h-7 items-center self-start rounded-md px-2 font-mono text-meta text-text-muted transition-colors hover:text-text pointer-coarse:min-h-11"
                   >
                     show more replies
                   </button>

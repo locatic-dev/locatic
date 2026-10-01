@@ -38,29 +38,52 @@ vi.mock('@/features/explore/state', () => ({
 import { MobileTabBar } from '../mobile-tab-bar'
 
 describe('MobileTabBar', () => {
-  it('keeps the notifications destination name without using replacement copy', () => {
-    render(<MobileTabBar unreadNotifications={3} />)
+  it('lists the tabs in the same order as the desktop sidebar', () => {
+    render(<MobileTabBar />)
 
-    expect(screen.getByRole('link', { name: 'notifications' })).toBeTruthy()
-    expect(screen.getByText('notifications')).toBeTruthy()
-    expect(screen.queryByText('alerts')).toBeNull()
+    expect(
+      screen.getAllByRole('link').map((link) => link.getAttribute('href')),
+    ).toEqual(['/home', '/explore', '/inbox', '/notifications', '/profile'])
   })
 
-  it('renders unread notification badges without changing the route target', () => {
-    render(<MobileTabBar unreadNotifications={12} />)
+  it('shows the short "alerts" caption but keeps "notifications" as the name', () => {
+    render(<MobileTabBar unreadNotifications={0} />)
 
-    const notificationsLink = screen.getByRole('link', {
-      name: 'notifications',
-    })
+    const link = screen.getByRole('link', { name: 'notifications' })
+    expect(link.getAttribute('href')).toBe('/notifications')
+    expect(link.textContent).toBe('alerts')
+  })
 
-    expect(notificationsLink.getAttribute('href')).toBe('/notifications')
-    const badge = screen.getByLabelText('12 unread notifications')
+  it('includes unread counts in the link names without changing the route target', () => {
+    render(<MobileTabBar unreadNotifications={12} unreadMessages={1} />)
+
+    expect(
+      screen
+        .getByRole('link', { name: 'notifications, 12 unread' })
+        .getAttribute('href'),
+    ).toBe('/notifications')
+    expect(
+      screen
+        .getByRole('link', { name: 'inbox, 1 unread' })
+        .getAttribute('href'),
+    ).toBe('/inbox')
     expect(screen.getByText('12')).toBeTruthy()
-    expect(badge).toBeTruthy()
-    expect(badge.className).toContain('bg-surface-alt')
-    expect(badge.className).toContain('text-text-muted')
-    expect(badge.className).not.toContain('bg-brand')
-    expect(badge.className).not.toContain('text-brand-foreground')
+  })
+
+  it('announces 99+ at the server unread cap, matching the badge', () => {
+    const { rerender } = render(<MobileTabBar unreadNotifications={99} />)
+
+    expect(
+      screen.getByRole('link', { name: 'notifications, 99 unread' }),
+    ).toBeTruthy()
+
+    // `notifications.unreadCount` stops counting at 100.
+    rerender(<MobileTabBar unreadNotifications={100} />)
+
+    expect(
+      screen.getByRole('link', { name: 'notifications, 99+ unread' }),
+    ).toBeTruthy()
+    expect(screen.getByText('99+')).toBeTruthy()
   })
 
   it('uses resumed Explore search for the Explore tab only', () => {
