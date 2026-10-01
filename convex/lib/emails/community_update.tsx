@@ -4,21 +4,34 @@ import type { EmailCampaignContent } from '../email_campaigns'
 
 export const RESEND_UNSUBSCRIBE_PLACEHOLDER = '{{{RESEND_UNSUBSCRIBE_URL}}}'
 
-// Keep this palette inline and email-client-safe rather than importing app CSS.
-const palette = {
-  background: '#111719',
-  surface: '#1b2427',
-  line: '#344044',
-  text: '#e8efef',
-  muted: '#a7b5b7',
-  accent: '#39c8c2',
+// Email clients cannot read the app's CSS variables, so the palette carries
+// the sRGB hex of the default (teal) theme tokens in src/styles.css.
+// src/lib/__tests__/theme-browser-colour.test.ts keeps the copies in step.
+export const emailPalette = {
+  background: '#090a0b', // --background (canvas)
+  line: '#2a2b2d', // --border
+  text: '#eaebed', // --foreground
+  muted: '#a3a5a7', // --muted-foreground
+  accent: '#00d1d2', // --primary
+}
+const palette = emailPalette
+
+// The app's Geist and Geist Mono fall back to these same local fonts.
+const fonts = {
+  sans: 'Arial, Helvetica, sans-serif',
+  mono: "Menlo, 'Courier New', monospace",
 }
 
-const bodyStyle: CSSProperties = {
+const pageStyle: CSSProperties = {
   backgroundColor: palette.background,
   color: palette.text,
-  fontFamily: 'Arial, Helvetica, sans-serif',
+  fontFamily: fonts.sans,
   margin: 0,
+}
+
+// Gmail drops <body> styles, so the wrapper repeats the background.
+const wrapperStyle: CSSProperties = {
+  ...pageStyle,
   padding: '32px 16px',
 }
 
@@ -43,10 +56,21 @@ const copyStyle: CSSProperties = {
 
 const metaStyle: CSSProperties = {
   color: palette.muted,
-  fontFamily: 'Courier New, monospace',
+  fontFamily: fonts.mono,
   fontSize: '12px',
   lineHeight: 1.5,
   margin: '6px 0 0',
+}
+
+// The app's text-eyebrow role: mono, uppercase, tracked, muted.
+const eyebrowStyle: CSSProperties = {
+  ...metaStyle,
+  fontSize: '11px',
+  fontWeight: 500,
+  letterSpacing: '0.06em',
+  lineHeight: 1.4,
+  margin: '0 0 18px',
+  textTransform: 'uppercase',
 }
 
 const linkStyle: CSSProperties = {
@@ -64,9 +88,13 @@ export function CommunityUpdateEmail({
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width" />
+        {/* The design is dark already. A hint for clients that honour it
+            (Apple Mail); Gmail and Outlook may still recolour it. */}
+        <meta name="color-scheme" content="dark" />
+        <meta name="supported-color-schemes" content="dark" />
         <title>{content.subject}</title>
       </head>
-      <body style={bodyStyle}>
+      <body style={pageStyle}>
         <div
           style={{
             display: 'none',
@@ -78,109 +106,87 @@ export function CommunityUpdateEmail({
         >
           {content.preheader}
         </div>
-        <main style={containerStyle}>
-          <header>
-            <p style={{ ...metaStyle, color: palette.accent }}>
-              locatic / update
-            </p>
-            <h1
-              style={{
-                color: palette.text,
-                fontFamily: 'Courier New, monospace',
-                fontSize: '28px',
-                lineHeight: 1.25,
-                margin: '12px 0 20px',
-              }}
-            >
-              {content.subject}
-            </h1>
-          </header>
-
-          <p style={copyStyle}>{content.introduction}</p>
-
-          {content.projects.length > 0 ? (
-            <section style={sectionStyle}>
-              <h2
+        <div style={wrapperStyle}>
+          <main style={containerStyle}>
+            <header>
+              <p style={{ ...eyebrowStyle, margin: 0 }}>locatic / update</p>
+              <h1
                 style={{
-                  fontFamily: 'Courier New, monospace',
-                  fontSize: '18px',
-                  margin: '0 0 18px',
+                  color: palette.text,
+                  fontFamily: fonts.sans,
+                  fontSize: '28px',
+                  fontWeight: 600,
+                  letterSpacing: '-0.03em',
+                  lineHeight: 1.2,
+                  margin: '12px 0 20px',
                 }}
               >
-                projects worth a look
-              </h2>
-              {content.projects.map((project) => (
-                <article
-                  key={String(project.projectId)}
-                  style={{ marginBottom: '22px' }}
-                >
-                  <a href={project.url} style={linkStyle}>
-                    <strong>{project.fullName}</strong>
-                  </a>
-                  {project.description ? (
+                {content.subject}
+              </h1>
+            </header>
+
+            <p style={copyStyle}>{content.introduction}</p>
+
+            {content.projects.length > 0 ? (
+              <section style={sectionStyle}>
+                <h2 style={eyebrowStyle}>projects worth a look</h2>
+                {content.projects.map((project) => (
+                  <article
+                    key={String(project.projectId)}
+                    style={{ marginBottom: '22px' }}
+                  >
+                    <a href={project.url} style={linkStyle}>
+                      <strong>{project.fullName}</strong>
+                    </a>
+                    {project.description ? (
+                      <p style={{ ...copyStyle, margin: '8px 0 0' }}>
+                        {project.description}
+                      </p>
+                    ) : null}
+                    <p style={metaStyle}>{project.activityLabel}</p>
+                  </article>
+                ))}
+              </section>
+            ) : null}
+
+            {content.discussions.length > 0 ? (
+              <section style={sectionStyle}>
+                <h2 style={eyebrowStyle}>discussions</h2>
+                {content.discussions.map((discussion) => (
+                  <article
+                    key={String(discussion.commentId)}
+                    style={{ marginBottom: '22px' }}
+                  >
+                    <a href={discussion.url} style={linkStyle}>
+                      <strong>{discussion.title}</strong>
+                    </a>
                     <p style={{ ...copyStyle, margin: '8px 0 0' }}>
-                      {project.description}
+                      {discussion.summary}
                     </p>
-                  ) : null}
-                  <p style={metaStyle}>{project.activityLabel}</p>
-                </article>
-              ))}
-            </section>
-          ) : null}
+                  </article>
+                ))}
+              </section>
+            ) : null}
 
-          {content.discussions.length > 0 ? (
-            <section style={sectionStyle}>
-              <h2
-                style={{
-                  fontFamily: 'Courier New, monospace',
-                  fontSize: '18px',
-                  margin: '0 0 18px',
-                }}
-              >
-                discussions
-              </h2>
-              {content.discussions.map((discussion) => (
-                <article
-                  key={String(discussion.commentId)}
-                  style={{ marginBottom: '22px' }}
-                >
-                  <a href={discussion.url} style={linkStyle}>
-                    <strong>{discussion.title}</strong>
-                  </a>
-                  <p style={{ ...copyStyle, margin: '8px 0 0' }}>
-                    {discussion.summary}
-                  </p>
-                </article>
-              ))}
-            </section>
-          ) : null}
+            {content.shippingUpdate.trim() ? (
+              <section style={sectionStyle}>
+                <h2 style={eyebrowStyle}>what changed in locatic</h2>
+                <p style={copyStyle}>{content.shippingUpdate}</p>
+              </section>
+            ) : null}
 
-          {content.shippingUpdate.trim() ? (
-            <section style={sectionStyle}>
-              <h2
-                style={{
-                  fontFamily: 'Courier New, monospace',
-                  fontSize: '18px',
-                  margin: '0 0 18px',
-                }}
-              >
-                what changed in locatic
-              </h2>
-              <p style={copyStyle}>{content.shippingUpdate}</p>
-            </section>
-          ) : null}
-
-          <footer style={{ ...sectionStyle, color: palette.muted }}>
-            <p style={metaStyle}>
-              You are receiving community and product updates from Locatic.
-            </p>
-            <p style={metaStyle}>
-              <a href={RESEND_UNSUBSCRIBE_PLACEHOLDER} style={linkStyle}>
-                unsubscribe
-              </a>
-            </p>
-          </footer>
-        </main>
+            <footer style={{ ...sectionStyle, color: palette.muted }}>
+              <p style={metaStyle}>
+                You are receiving community and product updates from Locatic.
+              </p>
+              <p style={metaStyle}>
+                <a href={RESEND_UNSUBSCRIBE_PLACEHOLDER} style={linkStyle}>
+                  unsubscribe
+                </a>
+              </p>
+            </footer>
+          </main>
+        </div>
       </body>
     </html>
   )
