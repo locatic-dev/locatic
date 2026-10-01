@@ -1,11 +1,156 @@
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
 @import 'tailwindcss';
-@plugin "@tailwindcss/typography";
+@import 'tw-animate-css';
 
 /* ── Fonts ─────────────────────────────────────────────────────────────── */
+/* Self-hosted Geist and Geist Mono (OFL, public/fonts/OFL.txt), latin subset,
+   one variable file per family, upright only. Both are preloaded in
+   src/routes/__root.tsx. The files carry the full weight axis; the declared
+   ranges cap what the UI uses (sans 400–600, mono 400–600) so a stray
+   font-bold resolves to 600 instead of a synthesised bold. */
+@font-face {
+  font-family: 'Geist';
+  font-style: normal;
+  font-weight: 400 600;
+  font-display: swap;
+  src: url('/fonts/geist-latin-wght.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Geist Mono';
+  font-style: normal;
+  font-weight: 400 600;
+  font-display: swap;
+  src: url('/fonts/geist-mono-latin-wght.woff2') format('woff2');
+}
+
+/* Metric-matched fallbacks: a local font resized to Geist's average glyph
+   width, with Geist's vertical metrics (ascent 1005, descent 295, no line
+   gap, 1000 upm; the same for Geist Mono), so the swap does not reflow text.
+   size-adjust = Geist average width / local average width; each override =
+   Geist metric / size-adjust. Average widths (latin): Geist 467, Geist Mono
+   600 per 1000 (@capsizecss/unpack); Arial 913, Roboto 911, Courier New 1229
+   and Menlo 1233 per 2048 (@capsizecss/metrics and the local font files). */
+@font-face {
+  font-family: 'Geist Fallback';
+  src: local('Arial'), local('ArialMT');
+  size-adjust: 104.76%;
+  ascent-override: 95.94%;
+  descent-override: 28.16%;
+  line-gap-override: 0%;
+}
+
+@font-face {
+  font-family: 'Geist Fallback Roboto';
+  src: local('Roboto'), local('Roboto-Regular');
+  size-adjust: 104.99%;
+  ascent-override: 95.73%;
+  descent-override: 28.1%;
+  line-gap-override: 0%;
+}
+
+@font-face {
+  font-family: 'Geist Mono Fallback';
+  src: local('Menlo'), local('Menlo-Regular');
+  size-adjust: 99.66%;
+  ascent-override: 100.84%;
+  descent-override: 29.6%;
+  line-gap-override: 0%;
+}
+
+@font-face {
+  font-family: 'Geist Mono Fallback Courier';
+  src: local('Courier New'), local('CourierNewPSMT');
+  size-adjust: 99.98%;
+  ascent-override: 100.52%;
+  descent-override: 29.5%;
+  line-gap-override: 0%;
+}
+
 @theme {
-  --font-sans: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
-  --font-mono: 'IBM Plex Mono', ui-monospace, 'Cascadia Code', monospace;
+  --font-sans:
+    'Geist', 'Geist Fallback', 'Geist Fallback Roboto', ui-sans-serif,
+    system-ui, sans-serif;
+  --font-mono:
+    'Geist Mono', 'Geist Mono Fallback', 'Geist Mono Fallback Courier',
+    ui-monospace, 'Cascadia Code', monospace;
+
+  /* ── Type roles (text-hero … text-meta) ─────────────────────────────────
+     Size, line height, weight and tracking ride on --text-*; the matching
+     @utility blocks below add the family (and tabular numerals for label and
+     meta). leading-*, font-* weights and tracking-* still override a role.
+     Names, titles, headings and user content are sans; metadata, counts,
+     timestamps, code and eyebrows are mono. */
+  --text-hero: clamp(44px, 8vw, 72px); /* landing display role */
+  --text-hero--line-height: 1;
+  --text-hero--font-weight: 600;
+  --text-hero--letter-spacing: -0.04em;
+  --text-display: clamp(28px, 4vw, 40px);
+  --text-display--line-height: 1.1;
+  --text-display--font-weight: 600;
+  --text-display--letter-spacing: -0.03em;
+  --text-headline: 22px;
+  --text-headline--line-height: 1.3;
+  --text-headline--font-weight: 600;
+  --text-headline--letter-spacing: -0.02em;
+  --text-title: 16px;
+  --text-title--line-height: 1.4;
+  --text-title--font-weight: 600;
+  --text-title--letter-spacing: -0.01em;
+  --text-body: 15px;
+  --text-body--line-height: 1.6;
+  --text-label: 12px;
+  --text-label--line-height: 1.4;
+  --text-meta: 11px;
+  --text-meta--line-height: 1.4;
+  --text-eyebrow: 11px;
+  --text-eyebrow--line-height: 1.4;
+  --text-eyebrow--font-weight: 500;
+  --text-eyebrow--letter-spacing: 0.06em;
+}
+
+/* Role families. Each block has at least two declarations so Tailwind sorts
+   it before the single-declaration font-sans / font-mono (and normal-case)
+   utilities, which therefore still win when an element sets both. */
+@utility text-hero {
+  font-family: var(--font-sans);
+  font-size: var(--text-hero);
+}
+
+@utility text-display {
+  font-family: var(--font-sans);
+  font-size: var(--text-display);
+}
+
+@utility text-headline {
+  font-family: var(--font-sans);
+  font-size: var(--text-headline);
+}
+
+@utility text-title {
+  font-family: var(--font-sans);
+  font-size: var(--text-title);
+}
+
+@utility text-body {
+  font-family: var(--font-sans);
+  font-size: var(--text-body);
+}
+
+@utility text-label {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+@utility text-meta {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Section headers and metadata micro-labels: mono, uppercase, tracked. */
+@utility text-eyebrow {
+  font-family: var(--font-mono);
+  font-size: var(--text-eyebrow);
+  text-transform: uppercase;
 }
 
 /* ── Raw theme values (dark-first — themeable accent family) ─────────────── */
@@ -13,76 +158,100 @@
    data-theme override. Neutral surfaces are shared across themes. */
 :root,
 [data-theme='teal'] {
-  --lx-accent-l: 72%;
-  --lx-accent-c: 0.15;
+  --lx-accent-l: 76%;
+  --lx-accent-c: 0.17;
   --lx-accent-h: 195;
   /* Secondary accent: section-signature tints only (never primary CTAs). */
   --lx-accent-2: oklch(74% 0.11 300);
   --lx-accent-2-quiet: oklch(74% 0.11 300 / 0.12);
 
-  --background: oklch(13.5% 0.007 230);
-  --foreground: oklch(93% 0.005 230);
-  --card: oklch(20% 0.008 230);
-  --card-foreground: oklch(93% 0.005 230);
-  --popover: oklch(20% 0.008 230);
-  --popover-foreground: oklch(93% 0.005 230);
+  --background: oklch(14.5% 0.003 250);
+  --foreground: oklch(94% 0.003 250);
+  --card: oklch(19% 0.004 250);
+  --card-foreground: oklch(94% 0.003 250);
+  --popover: var(--card);
+  --popover-foreground: oklch(94% 0.003 250);
   --primary: oklch(var(--lx-accent-l) var(--lx-accent-c) var(--lx-accent-h));
-  --primary-foreground: oklch(14% 0.005 230);
-  --secondary: oklch(21% 0.007 230);
-  --secondary-foreground: oklch(93% 0.005 230);
-  --muted: oklch(21% 0.007 230);
-  --muted-foreground: oklch(68% 0.006 230);
-  --accent: oklch(21% 0.007 230);
-  --accent-foreground: oklch(93% 0.005 230);
-  --destructive: oklch(62% 0.22 25);
-  --destructive-foreground: oklch(93% 0.005 230);
-  --border: oklch(36% 0.008 230);
-  --input: oklch(36% 0.008 230);
+  --primary-foreground: oklch(14% 0.003 250);
+  --secondary: var(--muted);
+  --secondary-foreground: oklch(94% 0.003 250);
+  --muted: oklch(23% 0.004 250);
+  --muted-foreground: oklch(72% 0.004 250);
+  --accent: var(--muted);
+  --accent-foreground: oklch(94% 0.003 250);
+  --destructive: oklch(69% 0.19 25);
+  /* Dark label on the danger fill, like brand-foreground on brand. */
+  --destructive-foreground: oklch(14% 0.003 250);
+  /* Decorative dividers; control borders use --input. */
+  --border: oklch(29% 0.004 250);
+  --input: oklch(57% 0.004 250);
   --ring: var(--primary);
   --radius: 0.25rem;
   --chart-1: var(--primary);
   --chart-2: oklch(70% 0.16 145);
   --chart-3: oklch(72% 0.18 75);
   --chart-4: oklch(68% 0.17 260);
-  --chart-5: oklch(62% 0.22 25);
+  --chart-5: var(--destructive);
 
   /* ── Locatic semantic tokens ────────────────────────────────────────────── */
-  /* Surface roles: canvas (page) < chrome (frame) < surface (content) < raised (active) */
+  /* Surface roles on neutral near-black (hue 250, near-zero chroma): canvas
+     (page) < chrome (frame) < surface (content) < alt (hover, inset) < raised
+     (active, badges). Cards separate from the page by the hairline --border,
+     not by fill. surface -> alt -> raised are 4 lightness points apart so
+     hover and selected states stay visible. */
   --lx-bg: var(--background);
-  --lx-surface-chrome: oklch(16% 0.007 230);
+  --lx-surface-chrome: oklch(16.5% 0.003 250);
   --lx-surface: var(--card);
   --lx-surface-alt: var(--muted);
-  --lx-surface-raised: oklch(24% 0.01 230);
+  --lx-surface-raised: oklch(27% 0.005 250);
+  /* Border roles: divider (decorative) < control (fields, switches: 3:1) <
+     strong (hover, emphasis). */
   --lx-border: var(--border);
-  --lx-border-strong: oklch(46% 0.008 230);
-  /* Text roles: primary (body emphasis) > secondary (body) > tertiary (metadata) > disabled */
+  --lx-border-control: var(--input);
+  --lx-border-strong: oklch(58% 0.004 250);
+  /* Text roles: two tiers. text (names, titles, descriptions) > text-2
+     (metadata, the one grey) > disabled. Every role except disabled clears
+     4.5:1 on every surface, including selected. */
   --lx-text: var(--foreground);
   --lx-text-2: var(--muted-foreground);
-  --lx-text-3: oklch(58% 0.006 230);
-  --lx-text-disabled: oklch(43% 0.005 230);
+  --lx-text-disabled: oklch(43% 0.004 250);
   --lx-accent: var(--primary);
   --lx-accent-quiet: oklch(
     var(--lx-accent-l) var(--lx-accent-c) var(--lx-accent-h) / 0.14
   );
-  /* Brand wash for INTERACTION states only (hover/focus/selected) — never resting cards */
-  --lx-surface-accent: oklch(
-    var(--lx-accent-l) var(--lx-accent-c) var(--lx-accent-h) / 0.06
-  );
   --lx-danger: var(--destructive);
   --lx-success: oklch(70% 0.16 145);
   --lx-warning: oklch(72% 0.18 75);
+  /* Live role: "active in the last 24h" (avatar ring and dot). Indicator,
+     not text; constant across themes. */
+  --lx-live: oklch(76% 0.17 150);
+  /* Place role: city labels and location cues. Constant across themes. */
+  --lx-place: oklch(78% 0.14 65);
+  --lx-place-quiet: oklch(78% 0.14 65 / 0.14);
+  /* Categorical palettes (language dots, build-status pills): one lightness
+     and chroma for every hue so no category outweighs another, constant
+     across themes. Hues live with their data in lang-dot.tsx and
+     status-pill.tsx. Status text at this lightness clears 6.5:1 on raised. */
+  --lx-lang-l: 72%;
+  --lx-lang-c: 0.15;
+  --lx-status-l: 80%;
+  --lx-status-c: 0.1;
 
   /* ── Highlight semantics (one job per token; green is not universal) ─────── */
-  --lx-selected-fill: oklch(
-    var(--lx-accent-l) var(--lx-accent-c) var(--lx-accent-h) / 0.1
+  /* State layers. Hover is decorative; for selection the 2px accent bar is
+     the indicator and the fill only supports it. */
+  --lx-state-hover: var(--lx-surface-alt);
+  --lx-state-selected: oklch(
+    var(--lx-accent-l) var(--lx-accent-c) var(--lx-accent-h) / 0.16
   );
   --lx-selected-bar: var(--primary);
   --lx-outgoing-surface: oklch(
     var(--lx-accent-l) var(--lx-accent-c) var(--lx-accent-h) / 0.16
   );
   --lx-unread-dot: oklch(70% 0.1 var(--lx-accent-h));
-  --lx-focus-ring: var(--primary);
-  --lx-liked: oklch(64% 0.21 25);
+  /* Focus: solid accent, 2px, offset 2px. Never translucent. */
+  --lx-focus: var(--primary);
+  --lx-liked: oklch(69% 0.19 25);
 
   /* ── Type tokens ────────────────────────────────────────────────────────── */
   --lx-font-sans: var(--font-sans);
@@ -98,7 +267,7 @@
   --lx-profile-max: 1280px;
   --lx-public-max: 1184px;
   --lx-sidebar-width: 220px;
-  --lx-right-rail-width: 280px;
+  --lx-right-rail-width: 300px;
   --lx-mobile-tab-height: calc(72px + env(safe-area-inset-bottom));
 
   /* ── Radius and elevation tokens ───────────────────────────────────────── */
@@ -117,16 +286,16 @@
    outgoing surface, unread dot, focus ring) follows automatically.
    Set via next-themes: <html data-theme="violet">. */
 [data-theme='violet'] {
-  --lx-accent-l: 74%;
-  --lx-accent-c: 0.15;
+  --lx-accent-l: 76%;
+  --lx-accent-c: 0.17;
   --lx-accent-h: 292;
   --lx-accent-2: oklch(75% 0.11 195);
   --lx-accent-2-quiet: oklch(75% 0.11 195 / 0.12);
 }
 
 [data-theme='amber'] {
-  --lx-accent-l: 76%;
-  --lx-accent-c: 0.14;
+  --lx-accent-l: 78%;
+  --lx-accent-c: 0.16;
   --lx-accent-h: 75;
   --lx-accent-2: oklch(72% 0.11 210);
   --lx-accent-2-quiet: oklch(72% 0.11 210 / 0.12);
@@ -158,39 +327,43 @@
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
+  /* Stock shadcn radius and shadow steps render on the Locatic scale. */
+  --radius-sm: var(--lx-radius-control);
+  --radius-md: var(--lx-radius-control);
+  --radius-lg: var(--lx-radius-control);
   --radius-xl: calc(var(--radius) + 4px);
+  --shadow-sm: var(--lx-shadow-floating);
+  --shadow-md: var(--lx-shadow-floating);
+  --shadow-lg: var(--lx-shadow-floating);
   --color-canvas: var(--lx-bg);
   --color-surface-chrome: var(--lx-surface-chrome);
   --color-surface: var(--lx-surface);
   --color-surface-alt: var(--lx-surface-alt);
   --color-surface-raised: var(--lx-surface-raised);
-  --color-surface-accent: var(--lx-surface-accent);
   --color-line: var(--lx-border);
   --color-line-strong: var(--lx-border-strong);
+  --color-control: var(--lx-border-control);
   --color-text: var(--lx-text);
   --color-text-muted: var(--lx-text-2);
-  --color-text-faint: var(--lx-text-3);
-  /* Explicit role aliases (preferred for new code; existing utilities above unchanged) */
-  --color-text-primary: var(--lx-text);
-  --color-text-secondary: var(--lx-text-2);
-  --color-text-tertiary: var(--lx-text-3);
-  --color-text-disabled: var(--lx-text-disabled);
   --color-brand: var(--lx-accent);
   --color-brand-quiet: var(--lx-accent-quiet);
   --color-brand-foreground: var(--primary-foreground);
   /* Secondary accent — section signatures (tinted borders, chips), not CTAs */
   --color-brand-2: var(--lx-accent-2);
   --color-brand-2-quiet: var(--lx-accent-2-quiet);
-  --color-selected: var(--lx-selected-fill);
+  --color-selected: var(--lx-state-selected);
+  --color-selected-bar: var(--lx-selected-bar);
+  --color-state-hover: var(--lx-state-hover);
+  --color-focus: var(--lx-focus);
   --color-outgoing: var(--lx-outgoing-surface);
   --color-unread: var(--lx-unread-dot);
   --color-liked: var(--lx-liked);
   --color-success: var(--lx-success);
+  --color-live: var(--lx-live);
   --color-warning: var(--lx-warning);
   --color-danger: var(--lx-danger);
+  --color-place: var(--lx-place);
+  --color-place-quiet: var(--lx-place-quiet);
   --radius-control: var(--lx-radius-control);
   --radius-card: var(--lx-radius-card);
   --radius-pill: var(--lx-radius-pill);
@@ -212,6 +385,8 @@ body,
 html {
   color-scheme: dark;
   background: var(--lx-bg);
+  /* Both families ship up to 600; never fake a heavier weight. */
+  font-synthesis-weight: none;
 }
 
 body {
@@ -225,21 +400,53 @@ body {
   text-rendering: optimizeLegibility;
 }
 
-a {
-  color: inherit;
-  text-decoration: none;
+/* In the base layer so utilities (text colour on links, cursor-* on buttons)
+   win the cascade. */
+@layer base {
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  button {
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+
+  /* ── Focus ─────────────────────────────────────────────────────────────── */
+  /* Every focusable element gets this outline by default. It sits in the base
+     layer so a component may replace it (outline-offset-*, or outline-none
+     together with its own focus ring); a control must never end up with no
+     visible focus indicator. */
+  :focus-visible {
+    outline: 2px solid var(--lx-focus);
+    outline-offset: 2px;
+  }
 }
 
-button {
-  cursor: pointer;
-  touch-action: manipulation;
+/* ── Toasts ──────────────────────────────────────────────────────────────── */
+/* Sonner injects its stylesheet unlayered after ours, so these rules stay
+   unlayered and use a more specific selector than Sonner's. */
+:root {
+  --lx-toast-offset-bottom: 24px;
 }
 
-/* ── Focus ───────────────────────────────────────────────────────────────── */
-:focus-visible {
-  outline: 2px solid var(--lx-accent);
+/* The fixed mobile tab bar shows below 768px; keep toasts above it. */
+@media (max-width: 767px) {
+  :root {
+    --lx-toast-offset-bottom: calc(var(--lx-mobile-tab-height) + 8px);
+  }
+}
+
+[data-sonner-toaster] [data-sonner-toast] [data-button]:focus-visible {
+  outline: 2px solid var(--lx-focus);
   outline-offset: 2px;
-  border-radius: 2px;
+}
+
+@media (pointer: coarse) {
+  [data-sonner-toaster] [data-sonner-toast] [data-button] {
+    min-height: 44px;
+  }
 }
 
 /* ── Scrollbar ───────────────────────────────────────────────────────────── */
@@ -258,29 +465,7 @@ button {
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--lx-text-3);
-}
-
-/* ── Skeleton shimmer ────────────────────────────────────────────────────── */
-@keyframes lx-shimmer {
-  0% {
-    background-position: -200% 0;
-  }
-  100% {
-    background-position: 200% 0;
-  }
-}
-
-.lx-skeleton {
-  background: linear-gradient(
-    90deg,
-    var(--lx-surface) 0%,
-    var(--lx-surface-alt) 50%,
-    var(--lx-surface) 100%
-  );
-  background-size: 200% 100%;
-  animation: lx-shimmer 1.6s ease-in-out infinite;
-  border-radius: 3px;
+  background: var(--lx-text-2);
 }
 
 /* ── Animations ──────────────────────────────────────────────────────────── */
@@ -317,38 +502,6 @@ button {
 .lx-hero-up {
   animation: lx-hero-up 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
   animation-delay: calc(var(--hero-step, 0) * 80ms + 40ms);
-}
-
-/* Ambient scroll cue: slow vertical nudge on the "see how it works ↓" arrow. */
-@keyframes lx-nudge-down {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(3px);
-  }
-}
-
-.lx-nudge-down {
-  display: inline-block;
-  animation: lx-nudge-down 1.8s ease-in-out infinite;
-}
-
-/* Ambient slow float for decorative layers (landing preview card backdrop).
-   Animates transform only — safe alongside Tailwind v4's `rotate:` property. */
-@keyframes lx-float-slow {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-7px);
-  }
-}
-
-.lx-float-slow {
-  animation: lx-float-slow 5s ease-in-out infinite;
 }
 
 @keyframes lx-reaction-pop {
@@ -421,11 +574,8 @@ button {
     display: none;
   }
 
-  .lx-skeleton,
   .lx-fade-up,
   .lx-hero-up,
-  .lx-nudge-down,
-  .lx-float-slow,
   .lx-reaction-pop,
   .lx-reaction-burst span {
     animation: none;
@@ -436,28 +586,22 @@ button {
   }
 }
 
-/* ── Card hover: lift + brand wash (interaction state only) ──────────────── */
-/* The teal wash layers over the opaque surface so the base stays opaque for the
-   contrast gate; resting cards rely on border + luminance, never the wash. */
+/* ── Card hover: lighter surface + 2px accent edge ──────────────────────── */
+/* Resting cards separate from the page by their hairline border alone. On
+   hover the fill steps up one surface and a 2px inset accent edge marks the
+   card under the pointer: an interaction state, not decoration. */
 .lx-card {
-  /* Resting elevation: a hairline top light reads as a lift on dark surfaces
-     (luminance + border do the rest). No brand wash at rest. */
-  box-shadow: inset 0 1px 0 oklch(100% 0 0 / 0.04);
   transition:
-    border-color 0.14s ease,
-    box-shadow 0.14s ease,
-    background-color 0.14s ease;
+    background-color 0.14s ease,
+    box-shadow 0.14s ease;
 }
 
-.lx-card:hover {
-  border-color: var(--lx-border-strong);
-  box-shadow:
-    inset 0 1px 0 oklch(100% 0 0 / 0.05),
-    var(--lx-shadow-card);
-  background-image: linear-gradient(
-    var(--lx-surface-accent),
-    var(--lx-surface-accent)
-  );
+/* Touch devices keep :hover after a tap; only pointer devices get the lift. */
+@media (hover: hover) {
+  .lx-card:hover {
+    background-color: var(--lx-surface-alt);
+    box-shadow: inset 2px 0 0 var(--lx-accent);
+  }
 }
 
 /* ── Sidebar nav active bar ──────────────────────────────────────────────── */
@@ -469,11 +613,6 @@ button {
   width: 2px;
   background: var(--lx-accent);
   border-radius: 0 2px 2px 0;
-}
-
-/* ── Mono text helper ────────────────────────────────────────────────────── */
-.lx-mono {
-  font-family: var(--lx-font-mono);
 }
 
 .lx-skip-link {
@@ -511,11 +650,14 @@ html[data-skip-link-modality='keyboard'] .lx-skip-link:focus-visible {
   min-width: 0;
 }
 
+/* The window is the page scroller (the app shell has no fixed height). Clip
+   horizontal overflow without creating a scroll container, so `position:
+   sticky` descendants (settings save bar, section headers) stick to the
+   viewport instead of to a box that never scrolls. */
 .lx-page-scroll {
   flex: 1;
   min-height: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow-x: clip;
   padding: 24px var(--lx-gutter) calc(var(--lx-mobile-tab-height) + 16px);
 }
 
@@ -523,8 +665,7 @@ html[data-skip-link-modality='keyboard'] .lx-skip-link:focus-visible {
 .lx-page-width-form,
 .lx-page-width-wide,
 .lx-page-width-detail,
-.lx-page-width-profile,
-.lx-page-width-public {
+.lx-page-width-profile {
   width: min(100%, var(--lx-feed-max));
   margin-inline: auto;
   min-width: 0;
@@ -532,12 +673,6 @@ html[data-skip-link-modality='keyboard'] .lx-skip-link:focus-visible {
 
 .lx-page-width-form {
   width: min(100%, var(--lx-form-max));
-}
-
-.lx-page-width-feed-left {
-  width: min(100%, var(--lx-feed-max));
-  margin-inline: 0;
-  min-width: 0;
 }
 
 .lx-page-width-form-left {
@@ -558,18 +693,12 @@ html[data-skip-link-modality='keyboard'] .lx-skip-link:focus-visible {
   width: min(100%, var(--lx-profile-max));
 }
 
-.lx-page-width-public {
-  width: min(100%, var(--lx-public-max));
-}
-
+/* Centred so a text label next to a taller button sits level with its label. */
 .lx-stack-actions {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 10px;
-}
-
-.pb-safe {
-  padding-bottom: env(safe-area-inset-bottom);
 }
 
 .lx-inline-tabs {
@@ -591,28 +720,8 @@ html[data-skip-link-modality='keyboard'] .lx-skip-link:focus-visible {
   display: none;
 }
 
-.lx-chip-wrap {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.lx-responsive-grid {
-  display: grid;
-  gap: 16px;
-}
-
-.lx-touch-target {
-  min-width: 44px;
-  min-height: 44px;
-}
-
 @media (min-width: 768px) {
   .lx-page-scroll {
     padding-bottom: 80px;
-  }
-
-  .lx-settings-tabs {
-    overflow-x: visible;
   }
 }

@@ -12,17 +12,19 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
+import { Route as ExploreRouteImport } from './routes/explore'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as UUsernameRouteImport } from './routes/u.$username'
 import { Route as SignUpSplatRouteImport } from './routes/sign-up.$'
 import { Route as SignInSplatRouteImport } from './routes/sign-in.$'
+import { Route as CSlugRouteImport } from './routes/c.$slug'
 import { Route as AppSettingsRouteImport } from './routes/_app/settings'
+import { Route as AppSavedRouteImport } from './routes/_app/saved'
 import { Route as AppProfileRouteImport } from './routes/_app/profile'
 import { Route as AppNotificationsRouteImport } from './routes/_app/notifications'
 import { Route as AppInboxRouteImport } from './routes/_app/inbox'
 import { Route as AppHomeRouteImport } from './routes/_app/home'
-import { Route as AppExploreRouteImport } from './routes/_app/explore'
 import { Route as AppProjectOwnerRepoRouteImport } from './routes/_app/project.$owner.$repo'
 
 const TermsRoute = TermsRouteImport.update({
@@ -38,6 +40,11 @@ const PrivacyRoute = PrivacyRouteImport.update({
 const OnboardingRoute = OnboardingRouteImport.update({
   id: '/onboarding',
   path: '/onboarding',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ExploreRoute = ExploreRouteImport.update({
+  id: '/explore',
+  path: '/explore',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AppRoute = AppRouteImport.update({
@@ -64,9 +71,19 @@ const SignInSplatRoute = SignInSplatRouteImport.update({
   path: '/sign-in/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CSlugRoute = CSlugRouteImport.update({
+  id: '/c/$slug',
+  path: '/c/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AppSettingsRoute = AppSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppSavedRoute = AppSavedRouteImport.update({
+  id: '/saved',
+  path: '/saved',
   getParentRoute: () => AppRoute,
 } as any)
 const AppProfileRoute = AppProfileRouteImport.update({
@@ -89,11 +106,6 @@ const AppHomeRoute = AppHomeRouteImport.update({
   path: '/home',
   getParentRoute: () => AppRoute,
 } as any)
-const AppExploreRoute = AppExploreRouteImport.update({
-  id: '/explore',
-  path: '/explore',
-  getParentRoute: () => AppRoute,
-} as any)
 const AppProjectOwnerRepoRoute = AppProjectOwnerRepoRouteImport.update({
   id: '/project/$owner/$repo',
   path: '/project/$owner/$repo',
@@ -102,15 +114,17 @@ const AppProjectOwnerRepoRoute = AppProjectOwnerRepoRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/explore': typeof ExploreRoute
   '/onboarding': typeof OnboardingRoute
   '/privacy': typeof PrivacyRoute
   '/terms': typeof TermsRoute
-  '/explore': typeof AppExploreRoute
   '/home': typeof AppHomeRoute
   '/inbox': typeof AppInboxRoute
   '/notifications': typeof AppNotificationsRoute
   '/profile': typeof AppProfileRoute
+  '/saved': typeof AppSavedRoute
   '/settings': typeof AppSettingsRoute
+  '/c/$slug': typeof CSlugRoute
   '/sign-in/$': typeof SignInSplatRoute
   '/sign-up/$': typeof SignUpSplatRoute
   '/u/$username': typeof UUsernameRoute
@@ -118,15 +132,17 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/explore': typeof ExploreRoute
   '/onboarding': typeof OnboardingRoute
   '/privacy': typeof PrivacyRoute
   '/terms': typeof TermsRoute
-  '/explore': typeof AppExploreRoute
   '/home': typeof AppHomeRoute
   '/inbox': typeof AppInboxRoute
   '/notifications': typeof AppNotificationsRoute
   '/profile': typeof AppProfileRoute
+  '/saved': typeof AppSavedRoute
   '/settings': typeof AppSettingsRoute
+  '/c/$slug': typeof CSlugRoute
   '/sign-in/$': typeof SignInSplatRoute
   '/sign-up/$': typeof SignUpSplatRoute
   '/u/$username': typeof UUsernameRoute
@@ -136,15 +152,17 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_app': typeof AppRouteWithChildren
+  '/explore': typeof ExploreRoute
   '/onboarding': typeof OnboardingRoute
   '/privacy': typeof PrivacyRoute
   '/terms': typeof TermsRoute
-  '/_app/explore': typeof AppExploreRoute
   '/_app/home': typeof AppHomeRoute
   '/_app/inbox': typeof AppInboxRoute
   '/_app/notifications': typeof AppNotificationsRoute
   '/_app/profile': typeof AppProfileRoute
+  '/_app/saved': typeof AppSavedRoute
   '/_app/settings': typeof AppSettingsRoute
+  '/c/$slug': typeof CSlugRoute
   '/sign-in/$': typeof SignInSplatRoute
   '/sign-up/$': typeof SignUpSplatRoute
   '/u/$username': typeof UUsernameRoute
@@ -154,15 +172,17 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/explore'
     | '/onboarding'
     | '/privacy'
     | '/terms'
-    | '/explore'
     | '/home'
     | '/inbox'
     | '/notifications'
     | '/profile'
+    | '/saved'
     | '/settings'
+    | '/c/$slug'
     | '/sign-in/$'
     | '/sign-up/$'
     | '/u/$username'
@@ -170,15 +190,17 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/explore'
     | '/onboarding'
     | '/privacy'
     | '/terms'
-    | '/explore'
     | '/home'
     | '/inbox'
     | '/notifications'
     | '/profile'
+    | '/saved'
     | '/settings'
+    | '/c/$slug'
     | '/sign-in/$'
     | '/sign-up/$'
     | '/u/$username'
@@ -187,15 +209,17 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/_app'
+    | '/explore'
     | '/onboarding'
     | '/privacy'
     | '/terms'
-    | '/_app/explore'
     | '/_app/home'
     | '/_app/inbox'
     | '/_app/notifications'
     | '/_app/profile'
+    | '/_app/saved'
     | '/_app/settings'
+    | '/c/$slug'
     | '/sign-in/$'
     | '/sign-up/$'
     | '/u/$username'
@@ -205,9 +229,11 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AppRoute: typeof AppRouteWithChildren
+  ExploreRoute: typeof ExploreRoute
   OnboardingRoute: typeof OnboardingRoute
   PrivacyRoute: typeof PrivacyRoute
   TermsRoute: typeof TermsRoute
+  CSlugRoute: typeof CSlugRoute
   SignInSplatRoute: typeof SignInSplatRoute
   SignUpSplatRoute: typeof SignUpSplatRoute
   UUsernameRoute: typeof UUsernameRoute
@@ -234,6 +260,13 @@ declare module '@tanstack/react-router' {
       path: '/onboarding'
       fullPath: '/onboarding'
       preLoaderRoute: typeof OnboardingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/explore': {
+      id: '/explore'
+      path: '/explore'
+      fullPath: '/explore'
+      preLoaderRoute: typeof ExploreRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_app': {
@@ -271,11 +304,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SignInSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/c/$slug': {
+      id: '/c/$slug'
+      path: '/c/$slug'
+      fullPath: '/c/$slug'
+      preLoaderRoute: typeof CSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_app/settings': {
       id: '/_app/settings'
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof AppSettingsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/saved': {
+      id: '/_app/saved'
+      path: '/saved'
+      fullPath: '/saved'
+      preLoaderRoute: typeof AppSavedRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/profile': {
@@ -306,13 +353,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppHomeRouteImport
       parentRoute: typeof AppRoute
     }
-    '/_app/explore': {
-      id: '/_app/explore'
-      path: '/explore'
-      fullPath: '/explore'
-      preLoaderRoute: typeof AppExploreRouteImport
-      parentRoute: typeof AppRoute
-    }
     '/_app/project/$owner/$repo': {
       id: '/_app/project/$owner/$repo'
       path: '/project/$owner/$repo'
@@ -324,21 +364,21 @@ declare module '@tanstack/react-router' {
 }
 
 interface AppRouteChildren {
-  AppExploreRoute: typeof AppExploreRoute
   AppHomeRoute: typeof AppHomeRoute
   AppInboxRoute: typeof AppInboxRoute
   AppNotificationsRoute: typeof AppNotificationsRoute
   AppProfileRoute: typeof AppProfileRoute
+  AppSavedRoute: typeof AppSavedRoute
   AppSettingsRoute: typeof AppSettingsRoute
   AppProjectOwnerRepoRoute: typeof AppProjectOwnerRepoRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
-  AppExploreRoute: AppExploreRoute,
   AppHomeRoute: AppHomeRoute,
   AppInboxRoute: AppInboxRoute,
   AppNotificationsRoute: AppNotificationsRoute,
   AppProfileRoute: AppProfileRoute,
+  AppSavedRoute: AppSavedRoute,
   AppSettingsRoute: AppSettingsRoute,
   AppProjectOwnerRepoRoute: AppProjectOwnerRepoRoute,
 }
@@ -348,9 +388,11 @@ const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AppRoute: AppRouteWithChildren,
+  ExploreRoute: ExploreRoute,
   OnboardingRoute: OnboardingRoute,
   PrivacyRoute: PrivacyRoute,
   TermsRoute: TermsRoute,
+  CSlugRoute: CSlugRoute,
   SignInSplatRoute: SignInSplatRoute,
   SignUpSplatRoute: SignUpSplatRoute,
   UUsernameRoute: UUsernameRoute,

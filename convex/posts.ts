@@ -6,6 +6,13 @@ import { ConvexError, v } from 'convex/values'
 
 import { internalMutation, mutation, query } from './_generated/server'
 import { getViewerFromAuth, getViewerOrThrow } from './lib/auth'
+import { recordProjectActivity } from './lib/cityStats'
+import {
+  raiseLastPublicActivity,
+  raiseProjectPublicActivity,
+  recomputeLastPublicActivityIfLatest,
+  recomputeProjectPublicActivity,
+} from './lib/activity'
 import { enqueueActivityEventFanOut } from './lib/homeFeed'
 import { resolveProjectOwnerLogin } from './lib/project_route'
 import type { Id } from './_generated/dataModel'
@@ -13,10 +20,12 @@ import {
   buildActorSnapshot,
   buildPostSnapshot,
   buildProjectSnapshot,
+  getPostCityId,
 } from './lib/snapshots'
 import { getProjectTopics } from './lib/topics'
 import {
   buildPostSearchText,
+  filterDiscoverablePosts,
   filterVisiblePosts,
   normalizePostSearchQuery,
   withCurrentProjectPostFields,
@@ -158,7 +167,16 @@ export const search = query({
               query.search('searchText', normalizedQ).eq('deletedAt', null),
             )
             .take(limit)
-    const filtered = (await filterVisiblePosts(ctx, posts)).slice(0, limit)
+    // Search is discovery: only posts of discoverable owners, and a city
+    // filter matches the owner's current member city (D8).
+    const filtered = (await filterDiscoverablePosts(ctx, posts))
+      .filter(
+        (post) =>
+          cityIds.size === 0 ||
+          (post.projectCityId !== null &&
+            cityIds.has(String(post.projectCityId))),
+      )
+      .slice(0, limit)
     const viewerReactionTypesByTargetId =
       await getViewerReactionTypesByTargetId(ctx, viewer, {
         targetIds: filtered.map((post) => String(post._id)),
@@ -203,7 +221,8 @@ export const create = mutation({
       }),
       reactionCounts: {},
       commentsCount: 0,
-      projectCityId: project.exploreOwner.cityId,
+      // The author is the owner, read live (`getPostCityId`).
+      projectCityId: getPostCityId(viewer),
       projectTopics,
       actorSnapshot,
       projectSnapshot: {
@@ -225,11 +244,17 @@ export const create = mutation({
       },
       updatedAt: now,
     })
+    await raiseProjectPublicActivity(ctx.db, project._id, now, now)
+    await recordProjectActivity(ctx.db, project, now)
+    const postStats = {
+      ...viewer.stats,
+      postsCount: (viewer.stats.postsCount ?? 0) + 1,
+    }
     await ctx.db.patch(viewer._id, {
-      stats: {
-        ...viewer.stats,
-        postsCount: (viewer.stats.postsCount ?? 0) + 1,
-      },
+      // A post on a hidden project is not public work (plan item D4).
+      stats: project.locatic.isVisible
+        ? raiseLastPublicActivity(postStats, now, now)
+        : postStats,
       updatedAt: now,
     })
 
@@ -338,12 +363,19 @@ export const remove = mutation({
         },
         updatedAt: now,
       })
+      await recomputeProjectPublicActivity(ctx.db, project._id)
+    }
+    const postStats = {
+      ...viewer.stats,
+      postsCount: Math.max(0, (viewer.stats.postsCount ?? 0) - 1),
     }
     await ctx.db.patch(viewer._id, {
-      stats: {
-        ...viewer.stats,
-        postsCount: Math.max(0, (viewer.stats.postsCount ?? 0) - 1),
-      },
+      // Reads after the delete above, so the removed post no longer counts.
+      stats: await recomputeLastPublicActivityIfLatest(
+        ctx.db,
+        { _id: viewer._id, stats: postStats },
+        post.createdAt,
+      ),
       updatedAt: now,
     })
 

@@ -8,6 +8,7 @@ import { Textarea } from '@/components/ui/textarea'
 import type { ProjectDetailPayload } from '@/features/contracts'
 import { shouldAutoLoadDeepLinkPage } from '@/features/projects/deep-link'
 import { useCreatePost } from '@/features/projects/mutations'
+import { getActionErrorMessage } from '@/lib/action-error'
 import { ProjectPostCard } from './project-post-card'
 
 export function ProjectPostsSection({
@@ -33,6 +34,7 @@ export function ProjectPostsSection({
   const createPost = useCreatePost()
   const [postBody, setPostBody] = useState('')
   const [postingRepoPost, setPostingRepoPost] = useState(false)
+  const [postError, setPostError] = useState<string | null>(null)
   const postLoadAttemptsRef = useRef(0)
   const postLoadTargetRef = useRef<string | null>(null)
   const postRefs = useRef<Record<string, HTMLElement | null>>({})
@@ -91,6 +93,7 @@ export function ProjectPostsSection({
     }
 
     setPostingRepoPost(true)
+    setPostError(null)
     try {
       await createPost({
         body,
@@ -100,6 +103,7 @@ export function ProjectPostsSection({
       await queryClient.invalidateQueries({ queryKey: projectDetailQueryKey })
     } catch (error) {
       console.error(error)
+      setPostError(getActionErrorMessage(error))
     } finally {
       setPostingRepoPost(false)
     }
@@ -108,33 +112,39 @@ export function ProjectPostsSection({
   return (
     <div className="flex flex-col gap-4">
       {isOwnProject && (
-        <div className="rounded-[6px] border border-line bg-surface px-4 py-4">
-          <div className="mb-3 font-mono text-[11px] uppercase tracking-[0.06em] text-text-faint">
-            repo post
-          </div>
+        <div className="rounded-card border border-line bg-surface px-4 py-4">
+          <div className="mb-3 text-eyebrow text-text-muted">repo post</div>
           <Textarea
             value={postBody}
             onChange={(event) => setPostBody(event.target.value)}
-            placeholder="share what changed, what you learned, or what help this repo needs..."
+            placeholder="share what changed, what you learned, or what help this repo needs…"
+            aria-label="Repo post"
             rows={4}
-            className="min-h-30 resize-none border-0 bg-canvas px-3 py-3 font-sans text-sm text-text shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+            className="min-h-30 border-0 py-3 font-sans"
           />
+          {postError && (
+            <p
+              role="alert"
+              className="mt-2 mb-0 font-mono text-label text-danger"
+            >
+              {postError}
+            </p>
+          )}
           <div className="mt-3 flex justify-end">
             <Button
-              variant="brand"
+              variant="primary"
               size="meta"
               onClick={() => void handleCreatePost()}
               disabled={!postBody.trim() || postingRepoPost}
-              className="font-mono"
             >
-              {postingRepoPost ? 'posting...' : 'post to repo'}
+              {postingRepoPost ? 'posting…' : 'post to repo'}
             </Button>
           </div>
         </div>
       )}
 
       {posts.length === 0 && projectPosts.status !== 'LoadingFirstPage' ? (
-        <div className="rounded-[6px] border border-line bg-surface px-4 py-5 font-sans text-sm text-text-muted">
+        <div className="rounded-card border border-line bg-surface px-4 py-5 font-sans text-sm text-text-muted">
           no repo posts yet.
         </div>
       ) : (
@@ -174,14 +184,11 @@ export function ProjectPostsSection({
       )}
 
       {projectPosts.status === 'CanLoadMore' && (
-        <Button
-          variant="monoOutline"
-          size="meta"
-          onClick={() => projectPosts.loadMore(8)}
-          className="self-start font-mono"
-        >
-          load more posts
-        </Button>
+        <div>
+          <Button size="meta" onClick={() => projectPosts.loadMore(8)}>
+            load more posts
+          </Button>
+        </div>
       )}
     </div>
   )

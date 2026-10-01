@@ -1,3 +1,7 @@
+import { useState } from 'react'
+
+import { cn } from '@/lib/utils'
+
 const AVATAR_PALETTE = [
   '#3a4a5c',
   '#4a3a5c',
@@ -22,6 +26,11 @@ interface LxAvatarProps {
   avatarUrl?: string | null
   size?: number
   className?: string
+  /**
+   * The name is already shown next to the avatar (a person row, a byline):
+   * hide the avatar from assistive technology so the name is read once.
+   */
+  decorative?: boolean
 }
 
 export function LxAvatar({
@@ -29,6 +38,7 @@ export function LxAvatar({
   avatarUrl,
   size = 32,
   className,
+  decorative = false,
 }: LxAvatarProps) {
   const initials = name
     .split(/[\s_.\-@/]+/)
@@ -40,14 +50,19 @@ export function LxAvatar({
 
   const bg = AVATAR_PALETTE[hashString(name) % AVATAR_PALETTE.length]
 
-  if (avatarUrl) {
+  // A broken or expired image URL falls back to initials. Keyed on the URL so
+  // a new URL gets a fresh attempt.
+  const [failedUrl, setFailedUrl] = useState<string | null>(null)
+
+  if (avatarUrl && failedUrl !== avatarUrl) {
     return (
       <img
         src={avatarUrl}
-        alt={name}
+        alt={decorative ? '' : name}
         width={size}
         height={size}
-        className={`shrink-0 rounded-full object-cover ${className ?? ''}`}
+        onError={() => setFailedUrl(avatarUrl)}
+        className={cn('shrink-0 rounded-full object-cover', className)}
         style={{
           width: size,
           height: size,
@@ -58,8 +73,13 @@ export function LxAvatar({
 
   return (
     <div
-      className={`inline-flex shrink-0 select-none items-center justify-center rounded-full font-mono font-semibold tracking-[-0.02em] text-text ${className ?? ''}`}
-      aria-label={name}
+      className={cn(
+        'inline-flex shrink-0 select-none items-center justify-center rounded-full font-mono font-semibold tracking-[-0.02em] text-text',
+        className,
+      )}
+      {...(decorative
+        ? { 'aria-hidden': true }
+        : { role: 'img', 'aria-label': name })}
       style={{
         width: size,
         height: size,

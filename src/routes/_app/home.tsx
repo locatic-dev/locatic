@@ -1,7 +1,13 @@
-import { createFileRoute } from '@tanstack/react-router'
+import {
+  createFileRoute,
+  useRouter,
+  type ErrorComponentProps,
+} from '@tanstack/react-router'
 import {
   useMutation,
+  useQuery,
   useQueryClient,
+  useQueryErrorResetBoundary,
   useSuspenseQuery,
 } from '@tanstack/react-query'
 import { usePaginatedQuery } from 'convex/react'
@@ -10,20 +16,34 @@ import { useRef, useState } from 'react'
 import { api } from '../../../convex/_generated/api'
 import type { Id } from '../../../convex/_generated/dataModel'
 import { viewerLikedProjectIdsQueryOptions } from '@/features/viewer/queries'
-import { homeFeedQueryOptions } from '@/integrations/convex/query-options'
+import {
+  homeFeedQueryOptions,
+  viewerQueryOptions,
+} from '@/integrations/convex/query-options'
 import { Button } from '@/components/ui/button'
-import { CardSheet, cardSheetClass } from '@/components/ui/card-sheet'
-import { EmptyState } from '@/components/ui/empty-state'
-import { Skeleton } from '@/components/ui/skeleton'
+import { cardSheetClass } from '@/components/ui/card-sheet'
 import { PageHeader } from '@/components/app-shell/page-header'
 import { useLikeProject, useUnlikeProject } from '@/features/projects/mutations'
 import {
   type HomeFeedItem,
   updateLikedProjectIdsPayload,
 } from '@/features/home/cache'
-import { HomeFeedCard } from '@/features/home/home-feed-card'
+import {
+  HomeFeedCard,
+  hasRenderableHomeFeedTarget,
+} from '@/features/home/home-feed-card'
+import {
+  HomeFeedStatus,
+  HomeNearbyBuildersSection,
+} from '@/features/home/home-feed-status'
+import { HomeNearbyBuilders } from '@/features/home/home-nearby-builders'
+import {
+  homeNearbyBuildersQueryOptions,
+  type HomeNearbyBuilder,
+} from '@/features/home/queries'
 import {
   mapViewerLikedProjectIds,
+  type ViewerBootstrapPayload,
   type ViewerLikedProjectIdsPayload,
 } from '@/features/contracts'
 import {
@@ -32,10 +52,11 @@ import {
   ROUTE_PENDING_MS,
 } from '@/components/app-shell/route-pending'
 import { shouldPrefetchPrivateConvexQueries } from '@/lib/auth-routing'
+import { reportActionError } from '@/lib/action-error'
 import { getResumeExploreSearch } from '@/features/explore/state'
 import {
   getHomeFeedHandoffState,
-  getHomeFeedRenderState,
+  getHomeFeedState,
 } from '@/features/home/render-state'
 import { fadeUp, listStagger } from '@/lib/motion'
 
@@ -56,11 +77,46 @@ export const Route = createFileRoute('/_app/home')({
   pendingComponent: FeedRoutePending,
   pendingMs: ROUTE_PENDING_MS,
   pendingMinMs: ROUTE_PENDING_MIN_MS,
+  errorComponent: HomeErrorPage,
   component: HomePage,
 })
 
-function HomePage() {
+function useExploreNavigation() {
   const navigate = Route.useNavigate()
+  return () =>
+    void navigate({ to: '/explore', search: getResumeExploreSearch() })
+}
+
+/** Persistent recovery block when the feed query fails (A5 contract). */
+function HomeErrorPage({ reset }: ErrorComponentProps) {
+  const router = useRouter()
+  const queryErrorResetBoundary = useQueryErrorResetBoundary()
+  const goToExplore = useExploreNavigation()
+
+  return (
+    <div className="lx-page-shell">
+      <PageHeader title="home" />
+      <div className="lx-page-scroll">
+        <div className="lx-page-width-feed">
+          <HomeFeedStatus
+            state={{ kind: 'error' }}
+            onExplore={goToExplore}
+            onRetry={() => {
+              // Clear React Query's error first: otherwise the suspense query
+              // rethrows its cached error on remount instead of refetching.
+              queryErrorResetBoundary.reset()
+              reset()
+              void router.invalidate()
+            }}
+          />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function HomePage() {
+  const goToExplore = useExploreNavigation()
   const queryClient = useQueryClient()
   // SSR-rendered first page — resolved on first paint (prefetched in the loader).
   const { data: firstPageData } = useSuspenseQuery(homeFeedQueryOptions())
@@ -72,6 +128,13 @@ function HomePage() {
   const viewerState = mapViewerLikedProjectIds(
     viewerStateData as ViewerLikedProjectIdsPayload | undefined,
   )
+  // Prefetched by the `_app` loader; the stored counter follow/unfollow keep.
+  const { data: viewerBootstrap } = useSuspenseQuery(viewerQueryOptions())
+  const bootstrapViewer = (
+    viewerBootstrap as ViewerBootstrapPayload | undefined
+  )?.viewer
+  const followingCount = bootstrapViewer?.stats.followingCount ?? 0
+  const viewerCityId = bootstrapViewer?.profile.cityId ?? null
 
   const likeProject = useLikeProject()
   const unlikeProject = useUnlikeProject()
@@ -84,15 +147,32 @@ function HomePage() {
   const ssrItems = ((firstPageData as { page?: Array<unknown> } | undefined)
     ?.page ?? []) as HomeFeedItem[]
   const paginatedItems = (homeFeed.results ?? []) as HomeFeedItem[]
-  const { items, status: renderStatus } = getHomeFeedHandoffState({
+  const { items: handoffItems } = getHomeFeedHandoffState({
     paginatedItems,
     ssrItems,
     status: homeFeed.status,
   })
-  const homeFeedRenderState = getHomeFeedRenderState({
+  const items = handoffItems.filter(hasRenderableHomeFeedTarget)
+  const homeFeedState = getHomeFeedState({
+    followingCount,
     itemCount: items.length,
-    status: renderStatus,
   })
+  // "Builders near you" for a member who arrives following no one, from the
+  // viewer's city; nothing without a city (C5 state copy, C4 city links).
+  // Decided once per visit: the first follow changes the feed state, and the
+  // list must stay so they can follow more than one builder.
+  const [suggestNearbyBuilders] = useState(
+    () => homeFeedState.kind === 'noFollows',
+  )
+  const nearbyBuildersQuery = useQuery(
+    homeNearbyBuildersQueryOptions(suggestNearbyBuilders ? viewerCityId : null),
+  )
+  const nearbyBuilders =
+    (nearbyBuildersQuery.data as HomeNearbyBuilder[] | undefined) ?? []
+  const nearbyBuildersList =
+    nearbyBuilders.length > 0 ? (
+      <HomeNearbyBuilders builders={nearbyBuilders} />
+    ) : undefined
   // First page entrance animation only: capture the item ids present the
   // first time the feed has content, then never animate items outside that
   // set — covers pagination appends and live Convex refetches.
@@ -164,7 +244,10 @@ function HomePage() {
         projectId,
       })
     } catch (error) {
-      console.error('Like failed', error)
+      reportActionError(error, {
+        title: "couldn't update your like",
+        retry: () => handleLike(projectId, projectKey),
+      })
     } finally {
       setPendingLikes((current) => {
         const next = new Set(current)
@@ -181,27 +264,16 @@ function HomePage() {
       <div className="lx-page-scroll" data-scroll-restoration-id="home-feed">
         <div className="lx-page-width-feed">
           <div className="w-full min-w-0">
-            {homeFeedRenderState === 'loading' && <HomeFeedSkeletonRows />}
-
-            {homeFeedRenderState === 'empty' && (
-              <EmptyState
-                title="you're not following anyone yet."
-                description="your feed shows activity from people you follow. start with explore to find builders nearby."
-                action={{
-                  label: 'go to explore',
-                  onClick: () =>
-                    void navigate({
-                      to: '/explore',
-                      search: getResumeExploreSearch(),
-                    }),
-                }}
+            {homeFeedState.kind !== 'ready' ? (
+              <HomeFeedStatus
+                state={homeFeedState}
+                onExplore={goToExplore}
+                nearbyBuilders={nearbyBuildersList}
               />
-            )}
-
-            {homeFeedRenderState === 'items' && (
+            ) : (
               <>
                 <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-                  <span className="font-mono text-[11.5px] lowercase text-text-muted">
+                  <span className="font-mono text-label lowercase text-text-muted">
                     {'// activity from people you follow'}
                   </span>
                 </div>
@@ -241,54 +313,28 @@ function HomePage() {
                   <div className="mt-4 flex justify-center">
                     <Button
                       type="button"
-                      variant="monoOutline"
-                      size="meta"
+                      size="touch"
                       onClick={() => homeFeed.loadMore(20)}
-                      className="min-h-11 font-mono"
                     >
                       load older activity
                     </Button>
                   </div>
                 )}
                 {homeFeed.status === 'LoadingMore' && (
-                  <div className="py-2 text-center font-mono text-[11.5px] text-text-muted">
+                  <div className="py-2 text-center font-mono text-label text-text-muted">
                     loading older activity…
                   </div>
                 )}
+                {nearbyBuildersList ? (
+                  <HomeNearbyBuildersSection>
+                    {nearbyBuildersList}
+                  </HomeNearbyBuildersSection>
+                ) : null}
               </>
             )}
           </div>
-
-          {/* Pulse side rail intentionally hidden until the Home dashboard model is clearer. */}
         </div>
       </div>
     </div>
-  )
-}
-
-function HomeFeedSkeletonRows() {
-  return (
-    <CardSheet role="status" aria-label="Loading home feed">
-      {Array.from({ length: 3 }, (_, index) => (
-        <div key={index} className="bg-surface">
-          {/* Header: avatar + actor summary, matches HomeFeedCard header */}
-          <div className="flex items-start gap-3 px-4 py-4 sm:px-5">
-            <Skeleton className="size-10 shrink-0 rounded-full" />
-            <div className="min-w-0 flex-1 space-y-2">
-              <Skeleton className="h-3.5 w-[min(20rem,78%)]" />
-              <Skeleton className="h-2.5 w-20" />
-            </div>
-          </div>
-          {/* Target row: icon tile + repo/description lines */}
-          <div className="flex min-h-14 items-center gap-3 border-t border-line px-4 py-3 sm:px-5">
-            <Skeleton className="size-8 shrink-0 rounded-md" />
-            <div className="min-w-0 flex-1 space-y-2">
-              <Skeleton className="h-3 w-[min(16rem,60%)]" />
-              <Skeleton className="h-3 w-full" />
-            </div>
-          </div>
-        </div>
-      ))}
-    </CardSheet>
   )
 }

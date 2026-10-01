@@ -28,13 +28,20 @@ export function PublicProfileLikedProjectsList({
     return (
       <EmptyState
         size="compact"
+        headingLevel={3}
         title="liked projects are private on this profile."
       />
     )
   }
 
   if (likedProjects.length === 0) {
-    return <EmptyState size="compact" title="no public likes yet." />
+    return (
+      <EmptyState
+        size="compact"
+        headingLevel={3}
+        title="no public likes yet."
+      />
+    )
   }
 
   return (
@@ -51,10 +58,10 @@ export function PublicProfileLikedProjectsList({
             preload="intent"
             className="block bg-surface px-5 py-4 text-left no-underline transition-colors hover:bg-surface-alt focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-inset"
           >
-            <div className="mb-1 font-mono text-[13px] font-semibold text-text">
+            <div className="mb-1 text-title text-text">
               {getProjectCardFullName(project.project)}
             </div>
-            <div className="font-mono text-[11px] text-text-faint">
+            <div className="font-mono text-meta text-text-muted">
               liked {relativeTime(project.likedAt)}
             </div>
           </Link>

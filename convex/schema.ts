@@ -65,12 +65,35 @@ export default defineSchema({
     timezone: optionalStringValidator,
     searchText: v.string(),
     isActive: v.boolean(),
+    // City counters (plan item A4), maintained on write through
+    // convex/lib/cityStats.ts. Optional so catalogue rows without counts
+    // validate; readers treat a missing value as zero.
+    stats: v.optional(
+      v.object({
+        builderCount: v.number(),
+        projectCount: v.number(),
+        lastActivityAt: v.union(v.number(), v.null()),
+        // Start time of the recount run that last set these values exactly.
+        recountedAt: v.optional(v.number()),
+      }),
+    ),
+    // Coarse location cell for nearby city lookups (plan item D5,
+    // `getActivityCellKey` in convex/lib/geo.ts). Set only while the city's
+    // A4 `builderCount` or `projectCount` is above zero and removed when both
+    // are zero, so `by_activity_cell` holds active cities only and the
+    // lookup never scans the catalogue. Maintained with the counters in
+    // convex/lib/cityStats.ts.
+    activityCell: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
     .index('by_slug', ['slug'])
     .index('by_name', ['name'])
     .index('by_country_name', ['countryCode', 'name'])
+    // Prefix range for city search (plan item B10, convex/lib/citySearch.ts).
+    .index('by_active_normalized_name', ['isActive', 'normalizedName'])
+    // Active cities by coarse cell (plan item D5).
+    .index('by_activity_cell', ['activityCell'])
     .searchIndex('search_text', {
       searchField: 'searchText',
       filterFields: ['isActive', 'countryCode'],
@@ -104,6 +127,7 @@ export default defineSchema({
       contributionsCount: v.number(),
       commentsCount: v.number(),
       likedCount: v.number(),
+      lastPublicActivityAt: v.optional(v.number()),
     }),
     exploreConfig: v.object({
       cityIds: v.array(v.id('cities')),
@@ -168,11 +192,14 @@ export default defineSchema({
       'deactivatedAt',
       'stats.followersCount',
     ])
-    .index('by_explore_rank', [
+    .index('by_city_public_activity', [
       'appearInExplore',
-      'deletedAt',
-      'deactivatedAt',
-      'stats.followersCount',
+      'profile.cityId',
+      'stats.lastPublicActivityAt',
+    ])
+    .index('by_public_activity', [
+      'appearInExplore',
+      'stats.lastPublicActivityAt',
     ])
     .index('by_created_at', ['createdAt'])
     .index('by_purge_after', ['purgeAfter'])
@@ -237,6 +264,8 @@ export default defineSchema({
       commentsCount: v.number(),
       postsCount: v.optional(v.number()),
       topicsEditedAt: v.optional(v.number()),
+      // Optional while the one-off activity backfill upgrades existing rows.
+      lastPublicActivityAt: v.optional(v.number()),
     }),
     exploreOwner: v.object({
       cityId: cityReferenceValidator,
@@ -284,6 +313,11 @@ export default defineSchema({
     ])
     .index('by_owner', ['ownerId'])
     .index('by_owner_visible', ['ownerId', 'locatic.isVisible'])
+    .index('by_owner_visible_activity', [
+      'ownerId',
+      'locatic.isVisible',
+      'locatic.lastPublicActivityAt',
+    ])
     .index('by_explore_eligible_added', [
       'exploreOwner.isEligible',
       'addedToLocaticAt',
@@ -385,6 +419,14 @@ export default defineSchema({
   })
     .index('by_project_published', ['projectId', 'publishedAt'])
     .index('by_project_release', ['projectId', 'githubReleaseId']),
+
+  saved_projects: defineTable({
+    userId: v.id('users'),
+    projectId: v.id('projects'),
+    createdAt: v.number(),
+  })
+    .index('by_user_created', ['userId', 'createdAt'])
+    .index('by_user_project', ['userId', 'projectId']),
 
   posts: defineTable({
     projectId: v.id('projects'),
@@ -697,4 +739,13 @@ export default defineSchema({
     .index('by_target', ['targetType', 'targetId'])
     .index('by_reporter', ['reporterId'])
     .index('by_status', ['status']),
+
+  // Daily product counters (plan item E4): one row per UTC day and key,
+  // written by convex/metrics.ts. Aggregates only; no user ids, no per-view
+  // writes. See docs/metrics.md.
+  metrics_daily: defineTable({
+    day: v.string(),
+    key: v.string(),
+    count: v.number(),
+  }).index('by_day_key', ['day', 'key']),
 })

@@ -29,6 +29,8 @@ import {
   publicProfileOverviewQueryOptions,
   publicProfileProjectsQueryOptions,
 } from '@/features/profile/queries'
+import { reportActionError } from '@/lib/action-error'
+import { showUndoToast } from '@/lib/undo-toast'
 import type {
   PrivateProfileOverviewPayload,
   ProjectCardPreview,
@@ -372,22 +374,19 @@ export function useRepositoryManagerController({
     }
   }
 
-  const handleTogglePin = async (item: RepositoryManagerItem) => {
-    if (
-      !item.projectId ||
-      !canPinRepositoryManagerItem(item) ||
-      busyRepoFullNames.has(item.fullName)
-    ) {
-      return
-    }
-
+  // Shared by the pin toggle and its undo: applies the change optimistically,
+  // restores the caches and rethrows on failure so each caller reports it.
+  const setProjectPinned = async (
+    item: RepositoryManagerItem & { projectId: Id<'projects'> },
+    nextPinned: boolean,
+  ) => {
     setRepoBusy(item.fullName, true)
     setFeedback(null)
 
     const nextPinnedIds = updatePinnedProjectIds(
       pinnedProjectIds,
       item.projectId,
-      !item.isPinned,
+      nextPinned,
     )
     const previousPrivateOverview =
       queryClient.getQueryData<PrivateProfileOverviewPayload>(
@@ -421,18 +420,12 @@ export function useRepositoryManagerController({
 
     try {
       const result = await pinOwnedProject({
-        pinned: !item.isPinned,
+        pinned: nextPinned,
         projectId: item.projectId,
       })
       updateOverviewCaches({ pinnedIds: result })
-      setFeedback(
-        item.isPinned
-          ? `${item.fullName} was unpinned.`
-          : `${item.fullName} was pinned on your profile.`,
-      )
       await invalidateRepositoryViews()
     } catch (error) {
-      console.error(error)
       queryClient.setQueryData(
         privateProfileOverviewQueryKey,
         previousPrivateOverview,
@@ -445,9 +438,41 @@ export function useRepositoryManagerController({
         publicProfileProjectsQueryKey,
         previousPublicProjects,
       )
-      setFeedback(`Could not update the pin state for ${item.fullName}.`)
+      throw error
     } finally {
       setRepoBusy(item.fullName, false)
+    }
+  }
+
+  const handleTogglePin = async (item: RepositoryManagerItem) => {
+    const { projectId } = item
+    if (
+      !projectId ||
+      !canPinRepositoryManagerItem(item) ||
+      busyRepoFullNames.has(item.fullName)
+    ) {
+      return
+    }
+
+    const pinnedItem = { ...item, projectId }
+    const unpinning = item.isPinned
+    try {
+      await setProjectPinned(pinnedItem, !unpinning)
+    } catch (error) {
+      reportActionError(error, {
+        title: unpinning ? "couldn't unpin" : "couldn't pin",
+        retry: () => handleTogglePin(item),
+      })
+      return
+    }
+
+    if (unpinning) {
+      showUndoToast({
+        message: `unpinned ${item.fullName}`,
+        undo: () => setProjectPinned(pinnedItem, true),
+      })
+    } else {
+      setFeedback(`${item.fullName} was pinned on your profile.`)
     }
   }
 

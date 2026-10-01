@@ -13,11 +13,17 @@ import {
 import { getViewerOrThrow } from './lib/auth'
 import { enqueueActivityEventFanOut } from './lib/homeFeed'
 import type { Doc } from './lib/types'
+import type { Id } from './_generated/dataModel'
 import {
   buildActorSnapshot,
   buildPostSnapshot,
   buildProjectSnapshot,
 } from './lib/snapshots'
+import {
+  resolveLocationDisclosure,
+  toSnapshotLocation,
+  type SnapshotLocation,
+} from './lib/visibility'
 import {
   buildProjectNotificationTarget,
   createNotificationIfEnabled,
@@ -36,6 +42,7 @@ import {
   isCommentPubliclyInteractable,
 } from './lib/project_access'
 import { enforceRateLimit } from './lib/rate_limits'
+import { countMetric } from './metrics'
 import {
   getCommentReactionCounts,
   getViewerReactionTypesByTargetId,
@@ -80,6 +87,70 @@ async function getRequester(ctx: QueryCtx) {
     .query('users')
     .withIndex('by_clerk_id', (query) => query.eq('clerkId', identity.subject))
     .unique()
+}
+
+const UNDISCLOSED_LOCATION: SnapshotLocation = { cityId: null, cityName: null }
+
+/**
+ * Current location of each distinct author under the visibility policy: one
+ * user read per author and one city read per distinct city. A stored
+ * `authorSnapshot` holds the location disclosed when the comment was
+ * written, so it is never served as is.
+ */
+async function loadAuthorLocations(
+  ctx: QueryCtx,
+  authorIds: Array<Id<'users'>>,
+): Promise<Map<string, SnapshotLocation>> {
+  const distinctIds = [
+    ...new Map(
+      authorIds.map((authorId) => [String(authorId), authorId]),
+    ).values(),
+  ]
+  const authors = await Promise.all(
+    distinctIds.map((authorId) => ctx.db.get(authorId)),
+  )
+  const cityIds = [
+    ...new Map(
+      authors.flatMap((author) =>
+        author?.profile.cityId
+          ? [[String(author.profile.cityId), author.profile.cityId] as const]
+          : [],
+      ),
+    ).values(),
+  ]
+  const cities = await Promise.all(cityIds.map((cityId) => ctx.db.get(cityId)))
+  const cityById = new Map(
+    cities.flatMap((city) => (city ? [[String(city._id), city] as const] : [])),
+  )
+
+  return new Map(
+    distinctIds.map((authorId, index) => {
+      const author = authors[index]
+      const city = author?.profile.cityId
+        ? cityById.get(String(author.profile.cityId))
+        : null
+      return [
+        String(authorId),
+        author && !author.deletedAt && !author.deactivatedAt
+          ? toSnapshotLocation(resolveLocationDisclosure(author, city))
+          : UNDISCLOSED_LOCATION,
+      ]
+    }),
+  )
+}
+
+/** The comment with its author's current location (`loadAuthorLocations`). */
+function withAuthorLocation<
+  T extends Pick<Doc<'comments'>, 'authorId' | 'authorSnapshot'>,
+>(comment: T, authorLocations: Map<string, SnapshotLocation>): T {
+  return {
+    ...comment,
+    authorSnapshot: {
+      ...comment.authorSnapshot,
+      ...(authorLocations.get(String(comment.authorId)) ??
+        UNDISCLOSED_LOCATION),
+    },
+  }
 }
 
 function withViewerReactions(
@@ -203,60 +274,6 @@ function buildCommentTargetSnapshot(args: {
   }
 }
 
-export const listByTarget = query({
-  args: {
-    targetType: v.union(v.literal('project'), v.literal('post')),
-    targetId: v.string(),
-    sort: v.union(v.literal('newest'), v.literal('top')),
-  },
-  handler: async (ctx, args) => {
-    const allComments = await ctx.db
-      .query('comments')
-      .withIndex('by_target_created', (query) =>
-        query.eq('targetId', args.targetId),
-      )
-      .collect()
-
-    const topLevelComments = allComments.filter(
-      (comment) => comment.parentId === null,
-    )
-    const repliesByParentId = new Map(
-      topLevelComments.map((comment) => [
-        String(comment._id),
-        [] as typeof allComments,
-      ]),
-    )
-
-    for (const comment of allComments) {
-      if (!comment.parentId) {
-        continue
-      }
-
-      const parentReplies = repliesByParentId.get(String(comment.parentId))
-      if (parentReplies) {
-        parentReplies.push(comment)
-      }
-    }
-
-    const commentsWithReplies = topLevelComments.map((comment) => ({
-      ...comment,
-      replies: (repliesByParentId.get(String(comment._id)) ?? []).sort(
-        (left, right) => left.createdAt - right.createdAt,
-      ),
-    }))
-
-    if (args.sort === 'top') {
-      return commentsWithReplies.sort(
-        (left, right) => right.likesCount - left.likesCount,
-      )
-    }
-
-    return commentsWithReplies.sort(
-      (left, right) => right.createdAt - left.createdAt,
-    )
-  },
-})
-
 export const listRootsByTarget = query({
   args: {
     targetType: v.union(v.literal('project'), v.literal('post')),
@@ -317,13 +334,19 @@ export const listRootsByTarget = query({
         targetType: 'comment',
       })
     const previewReplies = await addPreviewReplies(ctx, requester, page.page)
+    const authorLocations = await loadAuthorLocations(ctx, [
+      ...page.page.map((comment) => comment.authorId),
+      ...previewReplies.flat().map((reply) => reply.authorId),
+    ])
 
     return {
       ...page,
       page: withViewerReactions(page.page, viewerReactionTypesByTargetId).map(
         (comment, index) => ({
-          ...comment,
-          previewReplies: previewReplies[index] ?? [],
+          ...withAuthorLocation(comment, authorLocations),
+          previewReplies: (previewReplies[index] ?? []).map((reply) =>
+            withAuthorLocation(reply, authorLocations),
+          ),
         }),
       ),
     }
@@ -358,10 +381,16 @@ export const listReplies = query({
         targetIds: page.page.map((comment) => String(comment._id)),
         targetType: 'comment',
       })
+    const authorLocations = await loadAuthorLocations(
+      ctx,
+      page.page.map((comment) => comment.authorId),
+    )
 
     return {
       ...page,
-      page: withViewerReactions(page.page, viewerReactionTypesByTargetId),
+      page: withViewerReactions(page.page, viewerReactionTypesByTargetId).map(
+        (comment) => withAuthorLocation(comment, authorLocations),
+      ),
     }
   },
 })
@@ -608,6 +637,7 @@ export const create = mutation({
       }
     }
 
+    await countMetric(ctx, 'comment')
     const comment = await ctx.db.get(commentId)
     return comment
       ? {

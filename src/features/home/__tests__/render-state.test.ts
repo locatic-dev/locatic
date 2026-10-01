@@ -1,35 +1,49 @@
 import { describe, expect, it } from 'vitest'
+import { HOME_FEED_RETENTION_MS } from '../../../../convex/lib/homeFeed'
 import {
+  HOME_FEED_WINDOW_DAYS,
   getHomeFeedHandoffState,
-  getHomeFeedRenderState,
+  getHomeFeedState,
+  getQuietFeedTitle,
 } from '../render-state'
 
-describe('getHomeFeedRenderState', () => {
-  it('keeps the empty state hidden while the first page is loading', () => {
-    expect(
-      getHomeFeedRenderState({
-        itemCount: 0,
-        status: 'LoadingFirstPage',
-      }),
-    ).toBe('loading')
+describe('getHomeFeedState', () => {
+  it('is ready whenever there are rows', () => {
+    expect(getHomeFeedState({ followingCount: 0, itemCount: 1 })).toEqual({
+      kind: 'ready',
+    })
   })
 
-  it('shows the empty state only after an exhausted empty result', () => {
+  it('separates following nobody from a quiet window', () => {
     expect(
-      getHomeFeedRenderState({
+      getHomeFeedState({
+        followingCount: 0,
         itemCount: 0,
-        status: 'Exhausted',
       }),
-    ).toBe('empty')
+    ).toEqual({ kind: 'noFollows' })
+    expect(
+      getHomeFeedState({
+        followingCount: 1,
+        itemCount: 0,
+      }),
+    ).toEqual({ kind: 'quiet30d', followingCount: 1 })
+  })
+})
+
+describe('home feed window copy', () => {
+  it('names the same interval the backend retains', () => {
+    expect(HOME_FEED_WINDOW_DAYS * 24 * 60 * 60 * 1000).toBe(
+      HOME_FEED_RETENTION_MS,
+    )
   })
 
-  it('renders feed content when results are present', () => {
-    expect(
-      getHomeFeedRenderState({
-        itemCount: 1,
-        status: 'LoadingFirstPage',
-      }),
-    ).toBe('items')
+  it('counts the people followed and names the 30-day window', () => {
+    expect(getQuietFeedTitle(3)).toBe(
+      'nothing from the 3 people you follow in the last 30 days.',
+    )
+    expect(getQuietFeedTitle(1)).toBe(
+      'nothing from the 1 person you follow in the last 30 days.',
+    )
   })
 })
 

@@ -39,16 +39,20 @@ export function ProfileNetworkSection({
   return (
     <section
       id="profile-network"
+      aria-labelledby="profile-network-heading"
       className="rounded-card border border-line bg-surface/40"
     >
       <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
         <div>
-          <div className="font-mono text-[10.5px] uppercase tracking-[0.06em] text-text-faint">
+          <h2
+            id="profile-network-heading"
+            className="m-0 text-eyebrow text-text-muted"
+          >
             network
-          </div>
-          <div className="mt-1 font-sans text-sm text-text-muted">
-            followers and people this builder keeps close.
-          </div>
+          </h2>
+          <p className="m-0 mt-0.5 text-meta text-text-muted">
+            followers and people this builder follows
+          </p>
         </div>
       </div>
 
@@ -61,7 +65,7 @@ export function ProfileNetworkSection({
                 key={tab}
                 type="button"
                 onClick={() => onChangeTab(tab)}
-                className={`relative min-h-11 rounded-pill px-3.5 font-mono text-[11.5px] transition-colors ${
+                className={`relative h-8 rounded-pill px-3.5 font-mono pointer-coarse:min-h-11 text-label transition-colors ${
                   isActive ? 'text-text' : 'text-text-muted hover:text-text'
                 }`}
               >
@@ -83,10 +87,15 @@ export function ProfileNetworkSection({
         {isPrivate ? (
           <EmptyState
             size="compact"
+            headingLevel={3}
             title="follow graph is private on this profile."
           />
         ) : loading ? (
-          <div className="space-y-3 px-2 py-4" aria-label="loading network">
+          <div
+            role="status"
+            className="space-y-3 px-2 py-4"
+            aria-label="loading network"
+          >
             {[0, 1, 2].map((item) => (
               <div key={item} className="flex min-h-14 items-center gap-3">
                 <Skeleton className="size-9 shrink-0 rounded-full" />
@@ -98,7 +107,7 @@ export function ProfileNetworkSection({
             ))}
           </div>
         ) : items.length === 0 ? (
-          <EmptyState size="compact" title={emptyLabel} />
+          <EmptyState size="compact" headingLevel={3} title={emptyLabel} />
         ) : (
           <>
             {items.map((item) => (
@@ -123,7 +132,7 @@ export function ProfileNetworkSection({
                 type="button"
                 onClick={onLoadMore}
                 disabled={loadingMore}
-                className="mt-3 min-h-11 px-2 font-mono text-[12px] text-text-muted transition-colors hover:text-text disabled:opacity-50"
+                className="mt-3 min-h-11 px-2 font-mono text-label text-text-muted transition-colors hover:text-text disabled:opacity-50"
               >
                 {loadingMore ? 'loading…' : 'load more'}
               </button>

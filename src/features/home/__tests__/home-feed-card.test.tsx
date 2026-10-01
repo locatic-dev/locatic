@@ -1,13 +1,37 @@
+import type { ReactNode } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import type { Id } from '../../../../convex/_generated/dataModel'
 import {
+  getHomeFeedActorLocation,
   getHomeFeedPreviewState,
   getHomeFeedTargetRoute,
+  hasRenderableHomeFeedTarget,
   HomeFeedCard,
 } from '../home-feed-card'
 import type { HomeFeedCommentTarget, HomeFeedItem } from '../cache'
+
+vi.mock('@tanstack/react-router', () => ({
+  Link: ({
+    children,
+    className,
+    params = {},
+    to,
+  }: {
+    children: ReactNode
+    className?: string
+    params?: Record<string, string>
+    to: string
+  }) => (
+    <a
+      className={className}
+      href={to.replace(/\$(\w+)/g, (_match, key: string) => params[key] ?? '')}
+    >
+      {children}
+    </a>
+  ),
+}))
 
 const actorSnapshot = {
   avatarUrl: '',
@@ -253,5 +277,119 @@ describe('HomeFeedCard helpers', () => {
 
     expect(singletonHtml).not.toContain('lx-card-stack')
     expect(groupedHtml).not.toContain('lx-card-stack')
+  })
+
+  it('renders a delivered follow-feed row as returned by home.list', () => {
+    // Last step of the C5 trace (convex/home.test.ts covers source, delivery,
+    // retention and the read).
+    const item = feedItem({
+      eventType: 'project_posted',
+      eventCount: 1,
+      target: { ...projectTarget(1), isOpenable: true },
+      previewTargets: [{ ...projectTarget(1), isOpenable: true }],
+    })
+
+    expect(hasRenderableHomeFeedTarget(item)).toBe(true)
+    const html = renderToStaticMarkup(
+      <HomeFeedCard
+        item={item}
+        likedProjectIds={new Set()}
+        pendingLikes={new Set()}
+        onLikeProject={() => undefined}
+      />,
+    )
+
+    expect(html).toContain('Avi published a project')
+    expect(html).toContain('test-1')
+    expect(html).toContain('href="/project/avi/test-1"')
+  })
+
+  it('links the actor to their profile and their exact city to Explore', () => {
+    const item = feedItem({
+      actorGithubUsername: 'avi',
+      actorSnapshot: {
+        ...actorSnapshot,
+        cityId: 'city_blr' as Id<'cities'>,
+        cityName: 'Bengaluru, Karnataka, India',
+      },
+      eventType: 'project_posted',
+      eventCount: 1,
+      target: { ...projectTarget(1), isOpenable: true },
+      previewTargets: [{ ...projectTarget(1), isOpenable: true }],
+    })
+
+    const html = renderToStaticMarkup(
+      <HomeFeedCard
+        item={item}
+        likedProjectIds={new Set()}
+        pendingLikes={new Set()}
+        onLikeProject={() => undefined}
+      />,
+    )
+
+    expect(html).toContain('href="/u/avi"')
+    expect(html).toContain('href="/c/city_blr"')
+    expect(html).toContain('Bengaluru, Karnataka, India')
+  })
+
+  it('shows the actor without a profile link when the login is unknown', () => {
+    const html = renderToStaticMarkup(
+      <HomeFeedCard
+        item={feedItem({
+          eventType: 'project_posted',
+          eventCount: 1,
+          target: { ...projectTarget(1), isOpenable: true },
+          previewTargets: [{ ...projectTarget(1), isOpenable: true }],
+        })}
+        likedProjectIds={new Set()}
+        pendingLikes={new Set()}
+        onLikeProject={() => undefined}
+      />,
+    )
+
+    expect(html).not.toContain('href="/u/')
+    expect(html).not.toContain('href="/c/')
+  })
+
+  it('reads the actor location from the snapshot encoding', () => {
+    expect(
+      getHomeFeedActorLocation({
+        ...actorSnapshot,
+        cityId: 'city_blr' as Id<'cities'>,
+        cityName: 'Bengaluru, Karnataka, India',
+      }),
+    ).toEqual({
+      kind: 'city',
+      cityId: 'city_blr',
+      cityName: 'Bengaluru, Karnataka, India',
+    })
+    expect(
+      getHomeFeedActorLocation({
+        ...actorSnapshot,
+        cityId: null,
+        cityName: 'Karnataka, India',
+      }),
+    ).toEqual({ kind: 'region', regionLabel: 'Karnataka, India' })
+    expect(getHomeFeedActorLocation(actorSnapshot)).toEqual({ kind: 'none' })
+  })
+
+  it('renders nothing for a row with no target to show', () => {
+    const item = feedItem({
+      eventType: 'project_posted',
+      target: null,
+      previewTargets: [],
+    })
+
+    expect(hasRenderableHomeFeedTarget(item)).toBe(false)
+    expect(
+      renderToStaticMarkup(
+        <HomeFeedCard
+          item={item}
+          likedProjectIds={new Set()}
+          pendingLikes={new Set()}
+          onLikeProject={() => undefined}
+        />,
+      ),
+    ).toBe('')
   })
 })

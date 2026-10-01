@@ -48,7 +48,7 @@ describe('SidebarNav', () => {
     render(<SidebarNav />)
 
     expect(
-      screen.getByRole('link', { name: 'Explore' }).getAttribute('data-search'),
+      screen.getByRole('link', { name: 'explore' }).getAttribute('data-search'),
     ).toBe(
       JSON.stringify({
         mode: 'builders',
@@ -58,7 +58,26 @@ describe('SidebarNav', () => {
       }),
     )
     expect(
-      screen.getByRole('link', { name: 'Home' }).getAttribute('data-search'),
+      screen.getByRole('link', { name: 'home' }).getAttribute('data-search'),
     ).toBe('true')
+  })
+
+  it('names the Notifications link with its unread count', () => {
+    const { rerender } = render(<SidebarNav unreadNotifications={3} />)
+
+    expect(
+      screen.getByRole('link', { name: 'notifications, 3 unread' }),
+    ).toBeTruthy()
+
+    rerender(<SidebarNav unreadNotifications={100} />)
+
+    expect(
+      screen.getByRole('link', { name: 'notifications, 99+ unread' }),
+    ).toBeTruthy()
+
+    rerender(<SidebarNav unreadNotifications={0} />)
+
+    expect(screen.getByRole('link', { name: 'notifications' })).toBeTruthy()
+    expect(screen.queryByRole('link', { name: /unread/ })).toBeNull()
   })
 })

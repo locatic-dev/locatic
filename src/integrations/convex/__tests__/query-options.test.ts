@@ -13,12 +13,14 @@ describe('builderSearchQueryOptions', () => {
   it('passes active city filters through to builder search', () => {
     const query = builderSearchQueryOptions({
       cityIds: ['city_1' as never],
+      openToCollab: true,
       q: 'react',
     })
 
     expect(query.queryKey[2]).toMatchObject({
       cityIds: ['city_1'],
       limit: 20,
+      openToCollab: true,
       q: 'react',
     })
   })
@@ -28,13 +30,17 @@ describe('projectSearchQueryOptions', () => {
   it('targets project-only explore search args', () => {
     const query = projectSearchQueryOptions({
       cityIds: ['city_1' as never],
+      language: 'rust',
       q: 'convex',
+      topic: 'webgpu',
     })
 
     expect(query.queryKey[2]).toMatchObject({
       cityIds: ['city_1'],
+      language: 'rust',
       limit: 10,
       q: 'convex',
+      topic: 'webgpu',
     })
   })
 })

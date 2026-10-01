@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 
+import { LocationPill, type CityPillLocation } from './city-pill'
 import { LxAvatar } from './lx-avatar'
 import { cn } from '@/lib/utils'
 
@@ -13,9 +14,10 @@ import { cn } from '@/lib/utils'
 // The trailing `action` sits outside the interactive identity so its own buttons
 // stay independently clickable.
 const identityBase =
-  'flex min-w-0 flex-1 items-center gap-3 rounded-md text-left'
+  'flex min-w-0 flex-1 items-center gap-3 rounded-control text-left'
+// Focus comes from the global :focus-visible rule.
 const identityInteractive =
-  'bg-transparent p-0 transition-colors hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand'
+  'bg-transparent p-0 transition-colors hover:text-text'
 
 export interface PersonRowProps {
   avatarName: string
@@ -27,6 +29,12 @@ export interface PersonRowProps {
   subtitle?: ReactNode
   /** Trailing action(s) — kept outside the clickable identity region. */
   action?: ReactNode
+  /**
+   * Disclosed location, shown as a city pill beside the identity: a link to
+   * the city page for exact-city members, plain text for a region, nothing
+   * when hidden. Kept outside the identity so the link is its own tab stop.
+   */
+  location?: CityPillLocation
   onClick?: () => void
   ariaLabel?: string
   /** Wrap the identity region in a custom element; overrides `onClick`. */
@@ -44,6 +52,7 @@ export function PersonRow({
   meta,
   subtitle,
   action,
+  location,
   onClick,
   ariaLabel,
   renderIdentity,
@@ -52,22 +61,24 @@ export function PersonRow({
 }: PersonRowProps) {
   const content = (
     <>
+      {/* The name sits beside the avatar, so the avatar is not announced. */}
       <LxAvatar
         name={avatarName}
         avatarUrl={avatarUrl ?? undefined}
         size={size}
+        decorative
       />
       <div className="min-w-0 flex-1">
-        <div className="truncate font-mono text-[13px] font-semibold text-text">
+        <div className="truncate font-sans text-label font-medium text-text">
           {title}
         </div>
         {meta != null && (
-          <div className="truncate font-mono text-[11px] text-text-faint">
+          <div className="truncate font-mono text-meta text-text-muted">
             {meta}
           </div>
         )}
         {subtitle != null && (
-          <div className="mt-0.5 truncate font-mono text-[11px] text-text-faint">
+          <div className="mt-0.5 truncate font-mono text-meta text-text-muted">
             {subtitle}
           </div>
         )}
@@ -101,6 +112,12 @@ export function PersonRow({
   return (
     <div className={cn('flex min-h-11 items-center gap-3', className)}>
       {identity}
+      {location && location.kind !== 'none' && (
+        <LocationPill
+          location={location}
+          className="min-w-0 max-w-2/5 shrink"
+        />
+      )}
       {action != null && <div className="shrink-0">{action}</div>}
     </div>
   )

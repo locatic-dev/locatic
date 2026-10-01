@@ -1,26 +1,36 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
-import * as m from 'motion/react-m'
-import { useEffect, useRef, useState } from 'react'
-import type { Id } from '../../../convex/_generated/dataModel'
-import { notificationsQueryOptions } from '@/features/notifications/queries'
 import {
-  useBackfillNotificationTargets,
+  useQuery,
+  useQueryClient,
+  useSuspenseQuery,
+} from '@tanstack/react-query'
+import { usePaginatedQuery } from 'convex/react'
+import * as m from 'motion/react-m'
+import { useRef, useState } from 'react'
+import { api } from '../../../convex/_generated/api'
+import type { Id } from '../../../convex/_generated/dataModel'
+import {
+  notificationsQueryOptions,
+  notificationsUnreadCountQueryOptions,
+} from '@/features/notifications/queries'
+import {
   useMarkAllNotificationsRead,
   useMarkNotificationRead,
 } from '@/features/notifications/mutations'
-import { LxAvatar } from '@/components/ui/lx-avatar'
+import { formatUnreadCount } from '@/lib/format'
+import { NotificationRow } from '@/features/notifications/components/notification-row'
+import { getNotificationsListState } from '@/features/notifications/pagination'
+import { PageHeader } from '@/components/app-shell/page-header'
 import { Button } from '@/components/ui/button'
 import { cardSheetClass } from '@/components/ui/card-sheet'
 import { EmptyState } from '@/components/ui/empty-state'
-import { Skeleton } from '@/components/ui/skeleton'
 import { fadeUp, listStagger } from '@/lib/motion'
-import { relativeTime } from '@/lib/time'
-import { Bell, Heart, MessageSquare, UserPlus } from '@/lib/icons'
+import { reportActionError } from '@/lib/action-error'
+import { Bell } from '@/lib/icons'
 import { mapNotifications, type NotificationRecord } from '@/features/contracts'
-import type { Doc } from '../../../convex/_generated/dataModel'
 import {
-  FeedRoutePending,
+  NotificationRowSkeleton,
+  NotificationsRoutePending,
   ROUTE_PENDING_MIN_MS,
   ROUTE_PENDING_MS,
 } from '@/components/app-shell/route-pending'
@@ -29,96 +39,69 @@ import {
   projectDetailQueryOptions,
   publicProfileOverviewQueryOptions,
 } from '@/integrations/convex/query-options'
+import { shouldPrefetchPrivateConvexQueries } from '@/lib/auth-routing'
+
+/** Matches the page `notificationsQueryOptions()` renders on the server. */
+const NOTIFICATIONS_PAGE_SIZE = 20
 
 export const Route = createFileRoute('/_app/notifications')({
-  loader: ({ context }) =>
-    context.queryClient.ensureQueryData(notificationsQueryOptions()),
-  pendingComponent: FeedRoutePending,
+  loader: async ({ context }) => {
+    // Client navigations fetch in the page, once Convex auth is ready.
+    if (!shouldPrefetchPrivateConvexQueries()) {
+      return
+    }
+
+    await context.queryClient.ensureQueryData(notificationsQueryOptions())
+  },
+  pendingComponent: NotificationsRoutePending,
   pendingMs: ROUTE_PENDING_MS,
   pendingMinMs: ROUTE_PENDING_MIN_MS,
   component: NotificationsPage,
 })
 
-function notifIcon(type: string) {
-  if (type === 'project_liked') {
-    return <Heart size={14} className="text-brand" fill="currentColor" />
-  }
-  if (type === 'project_commented' || type === 'comment_replied') {
-    return <MessageSquare size={14} className="text-text-muted" />
-  }
-  if (type === 'followed') {
-    return <UserPlus size={14} className="text-text-muted" />
-  }
-  return <Bell size={14} className="text-text-muted" />
-}
-
-function notifText(notification: Doc<'notifications'>) {
-  if (notification.type === 'project_liked') {
-    return `liked your project ${notification.projectName ? `"${notification.projectName}"` : ''}`
-  }
-  if (notification.type === 'project_commented') {
-    return `commented on ${notification.projectName ? `"${notification.projectName}"` : 'your project'}`
-  }
-  if (notification.type === 'comment_replied') {
-    return `replied to your comment`
-  }
-  if (notification.type === 'followed') {
-    return 'started following you'
-  }
-  if (notification.type === 'dm_received') {
-    return 'sent you a message'
-  }
-
-  return 'did something'
-}
-
 function NotificationsPage() {
   const navigate = Route.useNavigate()
   const queryClient = useQueryClient()
-  const { data } = useSuspenseQuery(notificationsQueryOptions())
-  const backfillTargets = useBackfillNotificationTargets()
+  // SSR-rendered first page (prefetched in the loader) for the first paint.
+  const { data: firstPageData } = useSuspenseQuery(notificationsQueryOptions())
+  // Live list: keeps every loaded page and merges new notifications in place.
+  const liveNotifications = usePaginatedQuery(
+    api.notifications.list,
+    {},
+    { initialNumItems: NOTIFICATIONS_PAGE_SIZE },
+  )
+  // The badge query: the sidebar and tab bar read the same count.
+  const { data: unreadCountData } = useQuery(
+    notificationsUnreadCountQueryOptions(),
+  )
   const markRead = useMarkNotificationRead()
   const markAllRead = useMarkAllNotificationsRead()
   const [localReadIds, setLocalReadIds] = useState<Set<string>>(new Set())
   const [markingAll, setMarkingAll] = useState(false)
-  const [loadingMore, setLoadingMore] = useState(false)
 
-  const notificationsPage = data as
-    | {
-        page: Array<NotificationRecord>
-        continueCursor: string
-        isDone: boolean
-      }
-    | undefined
-  const notifications = mapNotifications(notificationsPage?.page) ?? []
-  const unreadCount = notifications.filter(
-    (notification) =>
-      !notification.isRead && !localReadIds.has(String(notification._id)),
-  ).length
+  const ssrNotifications =
+    mapNotifications(
+      (firstPageData as { page?: Array<NotificationRecord> } | undefined)?.page,
+    ) ?? []
+  const {
+    items: notifications,
+    canLoadMore,
+    loadingMore,
+  } = getNotificationsListState({
+    liveItems: (liveNotifications.results ?? []) as Array<NotificationRecord>,
+    ssrItems: ssrNotifications,
+    status: liveNotifications.status,
+  })
+  const unreadCount = typeof unreadCountData === 'number' ? unreadCountData : 0
 
-  // Entrance stagger plays once for the first page only; ids loaded via
-  // "load more" render without replaying the stagger/fadeUp entrance.
+  // Entrance stagger plays once for the first page only; rows added later by
+  // "load more" or a live update render without replaying the entrance.
   const initialNotificationIdsRef = useRef<Set<string> | null>(null)
   if (initialNotificationIdsRef.current === null) {
     initialNotificationIdsRef.current = new Set(
       notifications.map((notification) => String(notification._id)),
     )
   }
-
-  useEffect(() => {
-    const needsBackfill = notifications.some(
-      (notification) =>
-        !notification.target ||
-        (notification.target.kind === 'conversation' &&
-          notification.target.inboxTab === undefined),
-    )
-
-    if (!needsBackfill) {
-      return
-    }
-
-    void backfillTargets({})
-  }, [backfillTargets, notifications])
 
   const handleMarkAll = async () => {
     if (markingAll) return
@@ -130,7 +113,10 @@ function NotificationsPage() {
         new Set(notifications.map((notification) => String(notification._id))),
       )
     } catch (error) {
-      console.error('Mark all failed', error)
+      reportActionError(error, {
+        title: "couldn't mark all read",
+        retry: handleMarkAll,
+      })
     } finally {
       setMarkingAll(false)
     }
@@ -153,46 +139,6 @@ function NotificationsPage() {
         next.delete(notificationKey)
         return next
       })
-    }
-  }
-
-  const handleLoadMore = async () => {
-    if (loadingMore || notificationsPage?.isDone) {
-      return
-    }
-
-    setLoadingMore(true)
-    try {
-      const nextPage = (await queryClient.fetchQuery(
-        notificationsQueryOptions({
-          cursor: notificationsPage?.continueCursor ?? null,
-          numItems: 20,
-        }),
-      )) as {
-        page: Array<NotificationRecord>
-        continueCursor: string
-        isDone: boolean
-      }
-
-      queryClient.setQueryData(
-        notificationsQueryOptions().queryKey,
-        (
-          current:
-            | {
-                page: Array<NotificationRecord>
-                continueCursor: string
-                isDone: boolean
-              }
-            | undefined,
-        ) => ({
-          ...nextPage,
-          page: [...(current?.page ?? []), ...nextPage.page],
-        }),
-      )
-    } catch (error) {
-      console.error('Load notifications failed', error)
-    } finally {
-      setLoadingMore(false)
     }
   }
 
@@ -254,25 +200,30 @@ function NotificationsPage() {
 
   return (
     <div className="lx-page-shell">
-      <div className="flex min-h-14 shrink-0 flex-wrap items-center justify-between gap-3 border-b border-line px-(--lx-gutter)">
-        <h1 className="m-0 font-mono text-sm font-semibold text-text">
-          notifications
-        </h1>
-        {unreadCount > 0 && (
-          <Button
-            variant="ghost"
-            onClick={() => void handleMarkAll()}
-            disabled={markingAll}
-            className="font-mono text-[11.5px] text-text-muted hover:text-text"
-          >
-            mark all read
-          </Button>
-        )}
-      </div>
+      <PageHeader
+        title="notifications"
+        actions={
+          unreadCount > 0 ? (
+            <>
+              <span className="font-mono text-meta text-text-muted">
+                {formatUnreadCount(unreadCount)} unread
+              </span>
+              <Button
+                variant="ghost"
+                size="touch"
+                onClick={() => void handleMarkAll()}
+                disabled={markingAll}
+              >
+                mark all read
+              </Button>
+            </>
+          ) : undefined
+        }
+      />
 
       <div className="lx-page-scroll flex-1">
         <div className="lx-page-width-feed">
-          {notifications.length === 0 && (
+          {notifications.length === 0 && !canLoadMore && !loadingMore && (
             <EmptyState
               icon={<Bell size={32} strokeWidth={1.2} />}
               title="no notifications yet"
@@ -280,102 +231,57 @@ function NotificationsPage() {
             />
           )}
 
-          <m.div
-            className={cardSheetClass}
-            variants={listStagger}
-            initial="hidden"
-            animate="visible"
-          >
-            {notifications.map((notification) => {
-              const notificationId = String(notification._id)
-              const isRead =
-                notification.isRead || localReadIds.has(notificationId)
-              const isInitialItem =
-                initialNotificationIdsRef.current?.has(notificationId) ?? false
-
-              const row = (
-                <button
-                  className={`flex w-full items-start gap-3 px-3 py-3 text-left transition-colors active:scale-[0.99] hover:bg-surface-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-inset`}
-                  onClick={() => void handleNotificationClick(notification)}
-                  onFocus={() => prefetchNotificationDestination(notification)}
-                  onPointerEnter={() =>
-                    prefetchNotificationDestination(notification)
-                  }
-                  onTouchStart={() =>
-                    prefetchNotificationDestination(notification)
-                  }
-                  type="button"
-                >
-                  <div className="relative shrink-0">
-                    <LxAvatar
-                      name={notification.actorSnapshot.displayName}
-                      avatarUrl={notification.actorSnapshot.avatarUrl}
-                      size={36}
-                    />
-                    <div className="absolute -right-0.5 -bottom-0.5 flex size-4.5 items-center justify-center rounded-full border border-line bg-surface">
-                      {notifIcon(notification.type)}
-                    </div>
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p
-                      className={`m-0 font-sans text-[13.5px] leading-6 wrap-anywhere ${
-                        isRead ? 'text-text-muted' : 'text-text'
-                      }`}
-                    >
-                      <strong className="font-mono font-semibold text-text">
-                        {notification.actorSnapshot.displayName}
-                      </strong>{' '}
-                      {notifText(notification)}
-                    </p>
-                    <span className="mt-1 block font-mono text-[11px] text-text-faint">
-                      {relativeTime(notification.createdAt)}
-                    </span>
-                  </div>
-                  <span
-                    aria-hidden
-                    className={`mt-1.5 size-2 shrink-0 rounded-full ${
-                      isRead ? 'bg-transparent' : 'bg-unread'
-                    }`}
+          {(notifications.length > 0 || loadingMore) && (
+            <m.div
+              className={cardSheetClass}
+              variants={listStagger}
+              initial="hidden"
+              animate="visible"
+            >
+              {notifications.map((notification) => {
+                const notificationId = String(notification._id)
+                const row = (
+                  <NotificationRow
+                    notification={notification}
+                    isRead={
+                      notification.isRead || localReadIds.has(notificationId)
+                    }
+                    onOpen={() => void handleNotificationClick(notification)}
+                    onPrefetch={() =>
+                      prefetchNotificationDestination(notification)
+                    }
                   />
-                </button>
-              )
+                )
 
-              if (!isInitialItem) {
-                return <div key={notificationId}>{row}</div>
-              }
+                if (!initialNotificationIdsRef.current?.has(notificationId)) {
+                  return <div key={notificationId}>{row}</div>
+                }
 
-              return (
-                <m.div key={notificationId} variants={fadeUp}>
-                  {row}
-                </m.div>
-              )
-            })}
-          </m.div>
-
-          {loadingMore && (
-            <div className="divide-y divide-line border-t border-line">
-              {Array.from({ length: 3 }).map((_, index) => (
-                <div key={index} className="flex items-start gap-3 px-3 py-3">
-                  <Skeleton className="size-9 shrink-0 rounded-avatar" />
-                  <div className="min-w-0 flex-1 space-y-2">
-                    <Skeleton className="h-3.5 w-4/5 max-w-72" />
-                    <Skeleton className="h-2.5 w-16" />
-                  </div>
+                return (
+                  <m.div key={notificationId} variants={fadeUp}>
+                    {row}
+                  </m.div>
+                )
+              })}
+              {loadingMore && (
+                <div role="status" aria-label="loading more notifications">
+                  {Array.from({ length: 3 }, (_, index) => (
+                    <NotificationRowSkeleton key={index} />
+                  ))}
                 </div>
-              ))}
-            </div>
+              )}
+            </m.div>
           )}
 
-          {!notificationsPage?.isDone && (
+          {canLoadMore && (
             <div className="py-5 text-center">
               <Button
-                variant="monoOutline"
                 size="meta"
-                onClick={() => void handleLoadMore()}
-                disabled={loadingMore}
-                className="font-mono"
+                onClick={() =>
+                  liveNotifications.loadMore(NOTIFICATIONS_PAGE_SIZE)
+                }
               >
-                {loadingMore ? 'loading…' : 'load more'}
+                load more
               </Button>
             </div>
           )}

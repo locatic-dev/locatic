@@ -8,6 +8,11 @@ interface PageHeaderProps {
   className?: string
 }
 
+/**
+ * The band above a feed page. Its content sits in the feed column
+ * (`lx-page-width-feed`), so the title and actions line up with the body
+ * below instead of the viewport edges.
+ */
 export function PageHeader({
   title,
   subtitle,
@@ -18,28 +23,23 @@ export function PageHeader({
     <header
       className={cn(
         'shrink-0 border-b border-line px-(--lx-gutter) py-4',
-        'flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between',
         className,
       )}
     >
-      <div>
-        {subtitle && (
-          <div className="mb-1.5 font-mono text-[11px] lowercase text-text-faint">
-            {subtitle}
-          </div>
-        )}
-        <h1
-          className={cn(
-            'm-0 font-mono font-semibold tracking-[-0.02em] text-text',
-            subtitle ? 'text-[22px]' : 'text-sm',
+      <div className="lx-page-width-feed flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          {subtitle && (
+            <div className="mb-1.5 text-meta lowercase text-text-muted">
+              {subtitle}
+            </div>
           )}
-        >
-          {title}
-        </h1>
+          <h1 className="m-0 text-headline text-text">{title}</h1>
+        </div>
+        {/* Buttons size their own touch targets (`size="touch"`). */}
+        {actions && (
+          <div className="lx-stack-actions sm:justify-end">{actions}</div>
+        )}
       </div>
-      {actions && (
-        <div className="lx-stack-actions sm:justify-end">{actions}</div>
-      )}
     </header>
   )
 }

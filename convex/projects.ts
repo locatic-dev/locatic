@@ -1,4 +1,8 @@
 import { ConvexError, v } from 'convex/values'
+import {
+  paginationOptsValidator,
+  paginationResultValidator,
+} from 'convex/server'
 
 import {
   action,
@@ -8,34 +12,65 @@ import {
   query,
 } from './_generated/server'
 import type { QueryCtx } from './_generated/server'
+import type { Doc, Id } from './_generated/dataModel'
 import { internal } from './_generated/api'
 import { enqueueActivityEventFanOut } from './lib/homeFeed'
+import { getPubliclyInteractableProject } from './lib/project_access'
 import {
   buildViewerSeedFromIdentity,
+  getViewerFromAuth,
   getViewerOrThrow,
   requireIdentity,
 } from './lib/auth'
 import { buildPostSearchText } from './lib/posts'
 import { canPinProject } from './lib/project_pins'
-import { resolvePublicCityLabel } from './lib/project_previews'
+import {
+  buildProjectCardPreview,
+  buildProjectCardSignals,
+  projectCardPreviewValidator,
+  projectCardSignalsFields,
+  resolvePublicCityLabel,
+} from './lib/project_previews'
 import {
   getOwnerLoginFromFullName,
   normalizeProjectRouteKey,
   resolveProjectOwnerLogin,
 } from './lib/project_route'
 import {
+  buildActorSnapshot,
   buildOwnerSnapshot,
   buildProjectExploreOwner,
   buildProjectSnapshot,
+  isOwnerDiscoverable,
 } from './lib/snapshots'
+import { createCityStatsChanges, getProjectCityId } from './lib/cityStats'
+import {
+  computeLastPublicActivityAt,
+  raiseLastPublicActivity,
+  recomputeLastPublicActivityIfLatest,
+  recomputeProjectPublicActivity,
+  withLastPublicActivity,
+} from './lib/activity'
 import { recomputeContributionCountsForUsers } from './lib/project_contributor_sync'
 import { normalizeProjectTopics } from './lib/topics'
-import { buildStatusValidator, socialLinksValidator } from './lib/validators'
+import {
+  buildStatusValidator,
+  optionalStringValidator,
+  optionalTimestampValidator,
+  socialLinksValidator,
+} from './lib/validators'
 import { enforceRateLimit } from './lib/rate_limits'
 import {
   getProjectReactionCounts,
   getViewerReactionTypesByTargetId,
 } from './lib/reactions'
+import { isCityMember, resolveLocationDisclosure } from './lib/visibility'
+import { countMetric } from './metrics'
+
+/** Size of the "more from {city}" list on the project page. */
+const MORE_FROM_CITY_LIMIT = 6
+/** Rows read for "more from": the limit, the project itself and 5 spares. */
+const MORE_FROM_CITY_READ_LIMIT = MORE_FROM_CITY_LIMIT + 6
 
 function getCommitFrequency(lastCommitAt: number) {
   const ageDays = (Date.now() - lastCommitAt) / (24 * 60 * 60 * 1000)
@@ -55,11 +90,51 @@ function getSnapshotOwnerLogin(args: {
   )
 }
 
+const publicProjectDetailValidator = v.object({
+  _id: v.id('projects'),
+  _creationTime: v.number(),
+  github: v.object({
+    fullName: v.string(),
+    description: optionalStringValidator,
+    primaryLanguage: optionalStringValidator,
+    languages: v.array(v.object({ name: v.string(), bytes: v.number() })),
+    topics: v.array(v.string()),
+    stargazersCount: v.number(),
+    lastCommitAt: v.number(),
+    readmePreview: optionalStringValidator,
+    readmeAssetBaseUrl: optionalStringValidator,
+    readmeAssetRootUrl: optionalStringValidator,
+    readmeLinkBaseUrl: optionalStringValidator,
+    readmeLinkRootUrl: optionalStringValidator,
+  }),
+  locatic: v.object({
+    tags: v.array(v.string()),
+    commentsCount: v.number(),
+    postsCount: v.number(),
+  }),
+})
+
+const publicProjectReleaseValidator = v.object({
+  _id: v.id('project_releases'),
+  _creationTime: v.number(),
+  projectId: v.id('projects'),
+  githubReleaseId: v.number(),
+  tagName: v.string(),
+  name: optionalStringValidator,
+  body: optionalStringValidator,
+  htmlUrl: v.string(),
+  isDraft: v.boolean(),
+  isPrerelease: v.boolean(),
+  publishedAt: optionalTimestampValidator,
+  createdAt: v.number(),
+  updatedAt: v.number(),
+  importedAt: v.number(),
+})
+
 const projectDetailValidator = v.union(
   v.object({
-    project: v.any(),
-    releases: v.array(v.any()),
-    comments: v.array(v.any()),
+    project: publicProjectDetailValidator,
+    releases: v.array(publicProjectReleaseValidator),
     viewerHasLiked: v.boolean(),
     reactionCounts: v.record(v.string(), v.number()),
     viewerReactionTypes: v.array(v.string()),
@@ -80,6 +155,51 @@ const projectDetailValidator = v.union(
   }),
   v.null(),
 )
+
+function toPublicProjectDetail(project: Doc<'projects'>) {
+  return {
+    _id: project._id,
+    _creationTime: project._creationTime,
+    github: {
+      fullName: project.github.fullName,
+      description: project.github.description,
+      primaryLanguage: project.github.primaryLanguage,
+      languages: project.github.languages,
+      topics: project.github.topics,
+      stargazersCount: project.github.stargazersCount,
+      lastCommitAt: project.github.lastCommitAt,
+      readmePreview: project.github.readmePreview,
+      readmeAssetBaseUrl: project.github.readmeAssetBaseUrl,
+      readmeAssetRootUrl: project.github.readmeAssetRootUrl,
+      readmeLinkBaseUrl: project.github.readmeLinkBaseUrl,
+      readmeLinkRootUrl: project.github.readmeLinkRootUrl,
+    },
+    locatic: {
+      tags: project.locatic.tags,
+      commentsCount: project.locatic.commentsCount,
+      postsCount: project.locatic.postsCount ?? 0,
+    },
+  }
+}
+
+function toPublicProjectRelease(release: Doc<'project_releases'>) {
+  return {
+    _id: release._id,
+    _creationTime: release._creationTime,
+    projectId: release.projectId,
+    githubReleaseId: release.githubReleaseId,
+    tagName: release.tagName,
+    name: release.name,
+    body: release.body,
+    htmlUrl: release.htmlUrl,
+    isDraft: release.isDraft,
+    isPrerelease: release.isPrerelease,
+    publishedAt: release.publishedAt,
+    createdAt: release.createdAt,
+    updatedAt: release.updatedAt,
+    importedAt: release.importedAt,
+  }
+}
 
 export const listMine = query({
   args: {},
@@ -285,9 +405,8 @@ async function getPublicProjectDetail(
     : null
 
   return {
-    project,
-    releases,
-    comments: [],
+    project: toPublicProjectDetail(project),
+    releases: releases.map(toPublicProjectRelease),
     reactionCounts: getProjectReactionCounts(project),
     viewerHasLiked: viewerReactionTypes.includes('like'),
     viewerReactionTypes,
@@ -299,7 +418,7 @@ async function getPublicProjectDetail(
       avatarUrl: owner.profile.avatarUrl,
       socialLinks: owner.profile.socialLinks,
       buildStatus: owner.profile.buildStatus,
-      city: resolvePublicCityLabel(owner, ownerCity?.displayName ?? null),
+      city: resolvePublicCityLabel(owner, ownerCity),
     },
     canonicalRoute: {
       owner: resolveProjectOwnerLogin(project),
@@ -316,6 +435,134 @@ export const getPublicByRoute = query({
   returns: projectDetailValidator,
   handler: async (ctx, args) => {
     return await getPublicProjectDetail(ctx, args)
+  },
+})
+
+async function getVisibleProjectWithOwner(
+  ctx: QueryCtx,
+  projectId: Id<'projects'>,
+) {
+  const project = await ctx.db.get(projectId)
+  if (!project || !project.locatic.isVisible) {
+    return null
+  }
+
+  const owner = await ctx.db.get(project.ownerId)
+  if (!owner || owner.deletedAt || owner.deactivatedAt) {
+    return null
+  }
+
+  return { owner, project }
+}
+
+/**
+ * Latest update, sync freshness, owner location and collaboration status for
+ * the project page header. The owner also gets a failed refresh and its reason.
+ */
+export const getProjectSignals = query({
+  args: { projectId: v.id('projects') },
+  returns: v.union(v.object(projectCardSignalsFields), v.null()),
+  handler: async (ctx, args) => {
+    const resolved = await getVisibleProjectWithOwner(ctx, args.projectId)
+    if (!resolved) {
+      return null
+    }
+
+    const viewer = await getViewerFromAuth(ctx)
+    const ownerCity = resolved.owner.profile.cityId
+      ? await ctx.db.get(resolved.owner.profile.cityId)
+      : null
+
+    return await buildProjectCardSignals(ctx.db, resolved.project, {
+      audience: 'public',
+      owner: resolved.owner,
+      ownerCity,
+      viewerId: viewer?._id ?? null,
+    })
+  },
+})
+
+/**
+ * Other discoverable projects from the owner's city, most recently pushed
+ * first. Only for owners who disclose their exact city (plan decision D8);
+ * region-only and hidden owners get null. One bounded index read.
+ */
+export const listMoreFromOwnerCity = query({
+  args: { projectId: v.id('projects') },
+  returns: v.union(
+    v.object({
+      cityId: v.id('cities'),
+      cityName: v.string(),
+      projects: v.array(projectCardPreviewValidator),
+    }),
+    v.null(),
+  ),
+  handler: async (ctx, args) => {
+    const resolved = await getVisibleProjectWithOwner(ctx, args.projectId)
+    if (!resolved) {
+      return null
+    }
+
+    const ownerCity = resolved.owner.profile.cityId
+      ? await ctx.db.get(resolved.owner.profile.cityId)
+      : null
+    const location = resolveLocationDisclosure(resolved.owner, ownerCity)
+    if (location.kind !== 'city') {
+      return null
+    }
+
+    // `exploreOwner.cityId` is set only for exact-city members and
+    // `isEligible` only for visible projects of active owners who appear in
+    // Explore, so this read applies the same rules as city discovery. Rows
+    // written before an owner's latest change was re-derived can still name
+    // the city, so the live owner must also be a discoverable member of it;
+    // the read takes a few spare rows for those.
+    const nearby = await ctx.db
+      .query('projects')
+      .withIndex('by_explore_city_last_commit', (query) =>
+        query
+          .eq('exploreOwner.cityId', location.cityId)
+          .eq('exploreOwner.isEligible', true),
+      )
+      .order('desc')
+      .take(MORE_FROM_CITY_READ_LIMIT)
+    const candidates = nearby.filter(
+      (project) => project._id !== resolved.project._id,
+    )
+    const owners = await Promise.all(
+      candidates.map((project) =>
+        project.ownerId === resolved.owner._id
+          ? Promise.resolve(resolved.owner)
+          : ctx.db.get(project.ownerId),
+      ),
+    )
+    const viewer = await getViewerFromAuth(ctx)
+    const projects = await Promise.all(
+      candidates
+        .flatMap((project, index) => {
+          const owner = owners[index]
+          return owner &&
+            isOwnerDiscoverable(owner) &&
+            isCityMember(owner, location.cityId)
+            ? [{ project, owner }]
+            : []
+        })
+        .slice(0, MORE_FROM_CITY_LIMIT)
+        .map(({ project, owner }) =>
+          buildProjectCardPreview(ctx.db, project, {
+            audience: 'public',
+            owner,
+            signals: { viewerId: viewer?._id ?? null },
+          }),
+        ),
+    )
+
+    return {
+      cityId: location.cityId,
+      // The short name reads as a heading ("more from Bengaluru").
+      cityName: ownerCity?.name ?? location.cityName,
+      projects,
+    }
   },
 })
 
@@ -574,21 +821,44 @@ export const updateVisibility = mutation({
         : Math.max(0, viewer.stats.projectsCount - 1)
       : viewer.stats.projectsCount
 
+    const exploreOwner = buildProjectExploreOwner(viewer, args.isVisible)
+    const cityStats = createCityStatsChanges()
+    await cityStats.moveProject(ctx.db, project, project, { exploreOwner })
+
     await ctx.db.patch(project._id, {
       locatic: {
         ...project.locatic,
         isVisible: args.isVisible,
       },
-      exploreOwner: buildProjectExploreOwner(viewer, args.isVisible),
+      exploreOwner,
       updatedAt: now,
     })
+    await cityStats.apply(ctx.db)
+
+    // Activity signal (plan item D4): a project turning visible brings its
+    // commits, posts and releases into public work; turning hidden takes them
+    // out, recomputed after the patch above so this project no longer counts.
+    const visibilityStats = {
+      ...viewer.stats,
+      projectsCount: nextProjectsCount,
+    }
+    const projectActivityAt = visibilityChanged
+      ? await recomputeProjectPublicActivity(ctx.db, project._id)
+      : null
+    const nextStats =
+      projectActivityAt === null
+        ? visibilityStats
+        : args.isVisible
+          ? raiseLastPublicActivity(visibilityStats, projectActivityAt, now)
+          : await recomputeLastPublicActivityIfLatest(
+              ctx.db,
+              { _id: viewer._id, stats: visibilityStats },
+              projectActivityAt,
+            )
 
     await ctx.db.patch(viewer._id, {
       pinnedProfileProjectIds: [...pinnedProjectIds],
-      stats: {
-        ...viewer.stats,
-        projectsCount: nextProjectsCount,
-      },
+      stats: nextStats,
       updatedAt: now,
     })
 
@@ -800,13 +1070,16 @@ export const upsertImportedRepositories = internalMutation({
       throw new ConvexError('Owner not found')
     }
 
-    const ownerSnapshot = await buildOwnerSnapshot(ctx.db, owner)
+    const [ownerSnapshot, actorSnapshot] = await Promise.all([
+      buildOwnerSnapshot(ctx.db, owner),
+      buildActorSnapshot(ctx.db, owner),
+    ])
+    const cityStats = createCityStatsChanges()
     let reposNew = 0
     let reposUpdated = 0
     const skippedRepos: string[] = []
     const now = Date.now()
     const createdProjectIds = []
-
     for (const repository of args.repositories) {
       const ownerLogin =
         repository.ownerLogin || getOwnerLoginFromFullName(repository.fullName)
@@ -831,6 +1104,7 @@ export const upsertImportedRepositories = internalMutation({
           likesCount: 0,
           commentsCount: 0,
           postsCount: 0,
+          lastPublicActivityAt: Math.min(repository.lastCommitAt, now),
         },
         exploreOwner: buildProjectExploreOwner(
           owner,
@@ -854,7 +1128,14 @@ export const upsertImportedRepositories = internalMutation({
           continue
         }
 
+        await cityStats.moveProject(ctx.db, existing, existing, projectRecord)
+        // The import may carry a newer commit than the stored row.
+        cityStats.recordActivity(
+          getProjectCityId(projectRecord),
+          Math.min(repository.lastCommitAt, now),
+        )
         await ctx.db.patch(existing._id, projectRecord)
+        await recomputeProjectPublicActivity(ctx.db, existing._id)
         reposUpdated += 1
         continue
       }
@@ -865,11 +1146,11 @@ export const upsertImportedRepositories = internalMutation({
       })
       createdProjectIds.push(projectId)
       reposNew += 1
-
       const project = await ctx.db.get(projectId)
       if (!project) {
         continue
       }
+      await cityStats.moveProject(ctx.db, project, null, project)
 
       const eventId = await ctx.db.insert('activity_events', {
         actorId: owner._id,
@@ -877,12 +1158,7 @@ export const upsertImportedRepositories = internalMutation({
         projectId,
         postId: null,
         commentId: null,
-        actorSnapshot: {
-          displayName: owner.profile.displayName,
-          avatarUrl: owner.profile.avatarUrl,
-          cityId: owner.profile.cityId,
-          cityName: ownerSnapshot.cityName,
-        },
+        actorSnapshot,
         projectSnapshot: buildProjectSnapshot(project),
         postSnapshot: null,
         target: {
@@ -902,21 +1178,27 @@ export const upsertImportedRepositories = internalMutation({
       )
     }
 
+    const activityAt = await computeLastPublicActivityAt(ctx.db, owner._id, now)
     await ctx.db.patch(owner._id, {
-      stats: {
-        ...owner.stats,
-        projectsCount: (
-          await ctx.db
-            .query('projects')
-            .withIndex('by_owner_visible', (query) =>
-              query.eq('ownerId', owner._id).eq('locatic.isVisible', true),
-            )
-            .collect()
-        ).length,
-      },
+      stats: withLastPublicActivity(
+        {
+          ...owner.stats,
+          projectsCount: (
+            await ctx.db
+              .query('projects')
+              .withIndex('by_owner_visible', (query) =>
+                query.eq('ownerId', owner._id).eq('locatic.isVisible', true),
+              )
+              .collect()
+          ).length,
+        },
+        activityAt,
+      ),
       githubLastSyncedAt: now,
       updatedAt: now,
     })
+
+    await cityStats.apply(ctx.db)
 
     await ctx.db.insert('github_sync_log', {
       userId: owner._id,
@@ -936,5 +1218,206 @@ export const upsertImportedRepositories = internalMutation({
       reposUpdated,
       skippedRepos,
     }
+  },
+})
+
+// ---------------------------------------------------------------------------
+// Saves (plan item D1): a private bookmark list. Rows are readable only by the
+// user who saved them; there are no folders, tags or sharing.
+// ---------------------------------------------------------------------------
+
+/** Most project ids one `getSavedState` call accepts (a page of cards). */
+const SAVED_STATE_MAX_IDS = 40
+
+const savedProjectValidator = v.object({
+  savedAt: v.number(),
+  project: projectCardPreviewValidator,
+})
+
+async function getSavedRow(
+  ctx: Pick<QueryCtx, 'db'>,
+  userId: Id<'users'>,
+  projectId: Id<'projects'>,
+) {
+  return await ctx.db
+    .query('saved_projects')
+    .withIndex('by_user_project', (query) =>
+      query.eq('userId', userId).eq('projectId', projectId),
+    )
+    .first()
+}
+
+/** Idempotent: saving a saved project changes nothing. */
+export const save = mutation({
+  args: { projectId: v.id('projects') },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const viewer = await getViewerOrThrow(ctx)
+    if (!(await getPubliclyInteractableProject(ctx, args.projectId))) {
+      throw new ConvexError('Project not found')
+    }
+    if (await getSavedRow(ctx, viewer._id, args.projectId)) {
+      return null
+    }
+
+    await ctx.db.insert('saved_projects', {
+      userId: viewer._id,
+      projectId: args.projectId,
+      createdAt: Date.now(),
+    })
+    await countMetric(ctx, 'save')
+    return null
+  },
+})
+
+/**
+ * Idempotent, and works for projects that have since been hidden so a user
+ * can always clear their own rows.
+ */
+export const unsave = mutation({
+  args: { projectId: v.id('projects') },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const viewer = await getViewerOrThrow(ctx)
+    const existing = await getSavedRow(ctx, viewer._id, args.projectId)
+    if (existing) {
+      await ctx.db.delete(existing._id)
+    }
+    return null
+  },
+})
+
+/**
+ * The viewer's saved projects, most recently saved first. One paginate over
+ * the viewer's own index range, so no other user's rows are reachable. Saves
+ * of projects that are hidden or whose owner left are skipped (a page can be
+ * shorter than requested); the row stays so the save returns if the project
+ * becomes visible again.
+ */
+export const listSaved = query({
+  args: { paginationOpts: paginationOptsValidator },
+  returns: paginationResultValidator(savedProjectValidator),
+  handler: async (ctx, args) => {
+    const viewer = await getViewerOrThrow(ctx)
+    const result = await ctx.db
+      .query('saved_projects')
+      .withIndex('by_user_created', (query) => query.eq('userId', viewer._id))
+      .order('desc')
+      .paginate(args.paginationOpts)
+
+    const page = await Promise.all(
+      result.page.map(async (row) => {
+        const resolved = await getVisibleProjectWithOwner(ctx, row.projectId)
+        if (!resolved) {
+          return null
+        }
+
+        return {
+          savedAt: row.createdAt,
+          project: await buildProjectCardPreview(ctx.db, resolved.project, {
+            audience: resolved.owner._id === viewer._id ? 'private' : 'public',
+            owner: resolved.owner,
+            signals: { viewerId: viewer._id },
+          }),
+        }
+      }),
+    )
+
+    return {
+      ...result,
+      page: page.filter((entry) => entry !== null),
+    }
+  },
+})
+
+/**
+ * Which of the given projects the viewer has saved, for Save toggles on a
+ * page of cards. At most `SAVED_STATE_MAX_IDS` ids, one indexed point read
+ * each. Signed-out visitors get an empty list.
+ */
+export const getSavedState = query({
+  args: { projectIds: v.array(v.id('projects')) },
+  returns: v.array(v.id('projects')),
+  handler: async (ctx, args) => {
+    const projectIds = [...new Set(args.projectIds)]
+    if (projectIds.length > SAVED_STATE_MAX_IDS) {
+      throw new ConvexError(
+        `Ask for at most ${SAVED_STATE_MAX_IDS} projects at a time`,
+      )
+    }
+
+    const viewer = await getViewerFromAuth(ctx)
+    if (!viewer || projectIds.length === 0) {
+      return []
+    }
+
+    const rows = await Promise.all(
+      projectIds.map((projectId) => getSavedRow(ctx, viewer._id, projectId)),
+    )
+    return rows.flatMap((row) => (row ? [row.projectId] : []))
+  },
+})
+
+/** Projects the landing shows (plan item D7). */
+const LANDING_SHOWCASE_LIMIT = 3
+
+/**
+ * Rows read for the landing showcase. A few more than it shows, so one
+ * builder's several recent pushes, or a row whose owner has just left, do
+ * not leave the landing short.
+ */
+const LANDING_SHOWCASE_READ_LIMIT = 12
+
+/**
+ * Real public work for the landing (plan item D7): up to three eligible
+ * projects, most recently pushed first, one per builder. One bounded read
+ * of `by_explore_eligible_last_commit` (eligible means visible, with an
+ * owner who appears in Explore) plus the owners, then the public card
+ * preview with no viewer. Public and viewer-independent: the landing never
+ * reads auth.
+ */
+export const listLandingShowcase = query({
+  args: {},
+  returns: v.array(projectCardPreviewValidator),
+  handler: async (ctx) => {
+    const candidates = await ctx.db
+      .query('projects')
+      .withIndex('by_explore_eligible_last_commit', (query) =>
+        query.eq('exploreOwner.isEligible', true),
+      )
+      .order('desc')
+      .take(LANDING_SHOWCASE_READ_LIMIT)
+
+    const owners = await Promise.all(
+      candidates.map((project) => ctx.db.get(project.ownerId)),
+    )
+    const seenOwners = new Set<string>()
+    const showcase = candidates.flatMap((project, index) => {
+      const owner = owners[index]
+      // `exploreOwner` is re-derived on owner changes; the live check covers
+      // rows written before the latest one.
+      if (
+        !project.locatic.isVisible ||
+        !owner ||
+        !owner.appearInExplore ||
+        owner.deletedAt ||
+        owner.deactivatedAt ||
+        seenOwners.has(owner._id)
+      ) {
+        return []
+      }
+      seenOwners.add(owner._id)
+      return [{ project, owner }]
+    })
+
+    return await Promise.all(
+      showcase.slice(0, LANDING_SHOWCASE_LIMIT).map(({ project, owner }) =>
+        buildProjectCardPreview(ctx.db, project, {
+          audience: 'public',
+          owner,
+          signals: { viewerId: null },
+        }),
+      ),
+    )
   },
 })

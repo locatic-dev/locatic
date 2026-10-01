@@ -47,7 +47,6 @@ export function toProjectCardData(
     languages: project.languages,
     lastCommitLabel: relativeTime(project.lastCommitAt),
     githubStars: project.githubStars,
-    locaticLikes: project.locaticLikes,
     reactionCounts: project.reactionCounts ?? { like: project.locaticLikes },
     viewerReactionTypes: project.viewerReactionTypes,
     commentsCount: project.commentsCount,
@@ -57,5 +56,12 @@ export function toProjectCardData(
     authorHandle: project.authorHandle,
     authorAvatarUrl: project.authorAvatarUrl,
     city: project.cityLabel,
+    cityId:
+      project.ownerLocation?.kind === 'city'
+        ? String(project.ownerLocation.cityId)
+        : null,
+    buildStatus: project.ownerBuildStatus,
+    latestUpdate: project.latestUpdate,
+    syncStatus: project.syncStatus,
   }
 }

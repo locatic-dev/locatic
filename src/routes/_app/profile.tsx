@@ -1,4 +1,4 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { Link, createFileRoute } from '@tanstack/react-router'
 import {
   useQuery,
   useQueryClient,
@@ -17,35 +17,49 @@ import {
   privateProfileOverviewQueryOptions,
   privateProfilePostsQueryOptions,
   privateProfileProjectsQueryOptions,
+  publicProfileOverviewQueryOptions,
+  publicProfileShippingLogQueryOptions,
 } from '@/features/profile/queries'
 import {
+  emptySocialPage,
+  getPinToggleCopy,
+  mergeSocialItems,
   normalizeProfileSearch,
   type ProfileContentTab,
   type ProfileNetworkTab,
 } from '@/features/profile/state'
 import { ProfileContentTabs } from '@/features/profile/content-tabs'
+import { ProfileShippingLog } from '@/features/profile/shipping-log'
 import { getProfileCommentDestination } from '@/features/profile/comment-navigation'
 import { ProfileMobileAccountActions } from '@/features/profile/mobile-account-actions'
 import { ProfileNetworkSection } from '@/features/profile/network-section'
 import { ProfilePostList } from '@/features/profile/post-list'
 import { ProfileCommentList } from '@/features/profile/comment-list'
 import { ProfileContentSkeleton } from '@/features/profile/content-skeleton'
-import { LxAvatar } from '@/components/ui/lx-avatar'
-import { StatusPill } from '@/components/ui/status-pill'
-import { BrandIcon } from '@/components/ui/brand-icon'
-import { ContributionGraph } from '@/components/ui/contribution-graph'
+import {
+  ProfileContributionSection,
+  ProfileHeader,
+  ProfileLanguagesSection,
+  ProfileMeta,
+  ProfileNetworkAndActivity,
+  ProfilePinnedSection,
+  ProfileRecentWorkSection,
+} from '@/features/profile/profile-sections'
+import { PublicProfileProjectsList } from '@/features/profile/public-profile-projects-list'
 import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
 import { EmptyState } from '@/components/ui/empty-state'
 import { compactNumber } from '@/lib/format'
 import { ProjectCard } from '@/components/ui/project-card'
 import { CardSheet } from '@/components/ui/card-sheet'
 import { ProjectReactionBar } from '@/features/projects/reactions/project-reaction-bar'
 import {
-  FormRoutePending,
+  ProfileRoutePending,
   ROUTE_PENDING_MIN_MS,
   ROUTE_PENDING_MS,
 } from '@/components/app-shell/route-pending'
 import { usePinOwnedProject } from '@/features/projects/mutations'
+import { useRefreshProjectSync } from '@/features/projects/use-refresh-project-sync'
 import { RepositoryManagerDialog } from '@/features/github/repository-manager-dialog'
 import {
   mapPrivateProfileOverview,
@@ -63,7 +77,8 @@ import {
   getProjectCardRepo,
   toProjectCardData,
 } from '@/features/project-card-preview'
-import { socialLinkHref } from '@/lib/social-links'
+import { reportActionError } from '@/lib/action-error'
+import { showUndoToast } from '@/lib/undo-toast'
 import { Pin } from '@/lib/icons'
 import { shouldPrefetchPrivateConvexQueries } from '@/lib/auth-routing'
 
@@ -84,47 +99,36 @@ export const Route = createFileRoute('/_app/profile')({
       privateProfileOverviewQueryOptions(),
     )
 
-    await context.queryClient.ensureQueryData(
-      privateFollowGraphQueryOptions({
-        kind: deps.network,
-        paginationOpts: {
-          cursor: null,
-          numItems: SOCIAL_PAGE_SIZE,
-        },
-      }),
-    )
+    // Pinned projects, recent work and the shipping log come from the public
+    // profile queries, so the owner sees exactly what visitors see. The
+    // shipping log is secondary: a failure leaves it to the client query.
+    await Promise.all([
+      context.queryClient
+        .ensureQueryData(
+          publicProfileShippingLogQueryOptions(overview.viewer.github.username),
+        )
+        .catch(() => null),
+      context.queryClient.ensureQueryData(
+        privateFollowGraphQueryOptions({
+          kind: deps.network,
+          paginationOpts: {
+            cursor: null,
+            numItems: SOCIAL_PAGE_SIZE,
+          },
+        }),
+      ),
+      context.queryClient.ensureQueryData(
+        publicProfileOverviewQueryOptions(overview.viewer.github.username),
+      ),
+    ])
 
     return overview
   },
-  pendingComponent: FormRoutePending,
+  pendingComponent: ProfileRoutePending,
   pendingMs: ROUTE_PENDING_MS,
   pendingMinMs: ROUTE_PENDING_MIN_MS,
   component: ProfilePage,
 })
-
-function mergeSocialItems<
-  TItem extends {
-    userId: Id<'users'>
-  },
->(current: TItem[], nextItems: TItem[]) {
-  const itemsById = new Map(current.map((item) => [String(item.userId), item]))
-
-  for (const item of nextItems) {
-    itemsById.set(String(item.userId), item)
-  }
-
-  return [...itemsById.values()]
-}
-
-function emptySocialPage(): ProfileSocialPagePayload {
-  return {
-    continueCursor: '',
-    isDone: true,
-    page: [],
-    pageStatus: null,
-    splitCursor: null,
-  }
-}
 
 function resolveVisibleSocialPage(
   statePage: ProfileSocialPagePayload,
@@ -159,6 +163,24 @@ function ProfilePage() {
 
   const syncContributions = useAction(api.github_actions.syncContributions)
   const pinOwnedProject = usePinOwnedProject()
+  const ownProfileQueryKey = publicProfileOverviewQueryOptions(
+    overview.viewer.githubUsername,
+  ).queryKey
+  const showcaseQuery = useQuery(
+    publicProfileOverviewQueryOptions(overview.viewer.githubUsername),
+  )
+  const showcase = showcaseQuery.data ?? null
+  const shippingLogQuery = useQuery(
+    publicProfileShippingLogQueryOptions(overview.viewer.githubUsername),
+  )
+  const projectSync = useRefreshProjectSync(() =>
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: ownProfileQueryKey }),
+      queryClient.invalidateQueries({
+        queryKey: privateProfileProjectsQueryOptions().queryKey,
+      }),
+    ]),
+  )
   const [isSyncing, setIsSyncing] = useState(false)
   const [pinPendingId, setPinPendingId] = useState<string | null>(null)
   const [loadingMoreGraph, setLoadingMoreGraph] =
@@ -273,20 +295,6 @@ function ProfilePage() {
     syncContributions,
   ])
 
-  const githubHref = socialLinkHref('github', overview.viewer.githubUsername)
-  const xHref = socialLinkHref('x', overview.viewer.socialLinks.x)
-  const linkedinHref = socialLinkHref(
-    'linkedin',
-    overview.viewer.socialLinks.linkedin,
-  )
-  const blueskyHref = socialLinkHref(
-    'bluesky',
-    overview.viewer.socialLinks.bluesky,
-  )
-  const websiteHref = socialLinkHref(
-    'website',
-    overview.viewer.socialLinks.website,
-  )
   const tabs = [
     {
       id: 'projects',
@@ -391,19 +399,16 @@ function ProfilePage() {
     })
   }
 
-  const handleTogglePin = async (
+  // Shared by the pin toggle and its undo; rejects so each caller reports.
+  const setProjectPinned = async (
     projectId: Id<'projects'>,
     projectKey: string,
-    pinned: boolean,
+    nextPinned: boolean,
   ) => {
-    if (pinPendingId === projectKey) {
-      return
-    }
-
     setPinPendingId(projectKey)
     try {
       await pinOwnedProject({
-        pinned: !pinned,
+        pinned: nextPinned,
         projectId,
       })
       await Promise.all([
@@ -413,12 +418,68 @@ function ProfilePage() {
         queryClient.invalidateQueries({
           queryKey: privateProfileProjectsQueryOptions().queryKey,
         }),
+        queryClient.invalidateQueries({ queryKey: ownProfileQueryKey }),
       ])
-    } catch (error) {
-      console.error(error)
     } finally {
       setPinPendingId(null)
     }
+  }
+
+  const handleTogglePin = async (
+    projectId: Id<'projects'>,
+    projectKey: string,
+    pinned: boolean,
+    repo: string,
+  ) => {
+    if (pinPendingId === projectKey) {
+      return
+    }
+
+    try {
+      await setProjectPinned(projectId, projectKey, !pinned)
+    } catch (error) {
+      reportActionError(error, {
+        title: pinned ? "couldn't unpin" : "couldn't pin",
+        retry: () => handleTogglePin(projectId, projectKey, pinned, repo),
+      })
+      return
+    }
+
+    if (pinned) {
+      showUndoToast({
+        message: `unpinned ${repo}`,
+        undo: () => setProjectPinned(projectId, projectKey, true),
+      })
+    }
+  }
+
+  const renderPinToggle = (project: ProjectCardPreview) => {
+    const projectId = getProjectCardDbId(project)
+    const projectKey = getProjectCardId(project)
+    const isPinned = pinnedProjectIds.has(projectKey)
+    const repo = getProjectCardRepo(project)
+    const copy = getPinToggleCopy({
+      isPinned,
+      pending: pinPendingId === projectKey,
+      repo,
+    })
+
+    return (
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() =>
+          void handleTogglePin(projectId, projectKey, isPinned, repo)
+        }
+        disabled={pinPendingId === projectKey}
+        aria-label={copy.accessibleName}
+        aria-pressed={isPinned}
+        className="max-md:min-h-11"
+      >
+        <Pin size={12} />
+        {copy.label}
+      </Button>
+    )
   }
 
   const openCommentTarget = (comment: ProfileCommentPreview) => {
@@ -469,7 +530,10 @@ function ProfilePage() {
         }))
       }
     } catch (error) {
-      console.error(error)
+      reportActionError(error, {
+        title: "couldn't load more",
+        retry: () => handleLoadMoreGraph(kind),
+      })
     } finally {
       setLoadingMoreGraph(null)
     }
@@ -478,433 +542,305 @@ function ProfilePage() {
   const networkIsLoading =
     activeSocialQuery.isLoading && activeSocialQuery.data === undefined
 
+  const manageRepositoriesDialog = (
+    <RepositoryManagerDialog
+      buttonLabel="manage repositories"
+      buttonVariant="primary"
+      buttonSize="touch"
+      title="Manage profile repositories"
+      description="Choose which public GitHub repositories show up on your Locatic profile, and restore or pin the ones you want people to notice first."
+      pinnedProjectIds={overview.viewer.pinnedProfileProjectIds}
+      profileUsername={overview.viewer.githubUsername}
+      buttonClassName="w-full md:w-auto"
+    />
+  )
+
   return (
     <div className="lx-page-shell">
       <div className="lx-page-scroll flex-1">
-        <div className="lx-page-width-profile">
-          <div className="relative border-b border-line py-8 pb-7">
-            <div className="flex flex-col items-start gap-6">
-              <LxAvatar
-                name={overview.viewer.displayName}
-                avatarUrl={overview.viewer.avatarUrl}
-                size={88}
-                className="ring-1 ring-transparent ring-offset-2 ring-offset-canvas transition-[box-shadow] hover:ring-brand/40"
+        <div className="lx-page-width-profile flex flex-col gap-8">
+          <ProfileHeader
+            avatarUrl={overview.viewer.avatarUrl || null}
+            bio={overview.viewer.bio}
+            buildStatus={overview.viewer.buildStatus}
+            displayName={overview.viewer.displayName}
+            githubUsername={overview.viewer.githubUsername}
+            location={showcase?.profile.location ?? { kind: 'none' }}
+            meta={
+              <ProfileMeta
+                followersCount={overview.viewer.stats.followersCount}
+                followingCount={overview.viewer.stats.followingCount}
+                githubUsername={overview.viewer.githubUsername}
+                onSelectNetwork={(nextTab) =>
+                  navigateSearch({ network: nextTab })
+                }
+                socialLinks={overview.viewer.socialLinks}
               />
-              <div className="flex w-full flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-                <div className="flex-1 pt-1">
-                  <div className="mb-2 flex flex-wrap items-center gap-3">
-                    <h1 className="m-0 font-mono text-[30px] font-bold tracking-[-0.02em] text-text">
-                      {overview.viewer.displayName}
-                    </h1>
-                    <StatusPill
-                      status={overview.viewer.buildStatus}
-                      size="md"
-                    />
-                  </div>
-                  <div className="mb-3.5 font-mono text-[13px] text-text-faint">
-                    <span>@{overview.viewer.githubUsername}</span>
-                    {overview.viewer.cityName && (
-                      <span> · {overview.viewer.cityName}</span>
-                    )}
-                  </div>
-                  {overview.viewer.bio && (
-                    <p className="mb-4 max-w-135 font-sans text-sm leading-6 text-text-muted">
-                      {overview.viewer.bio}
-                    </p>
-                  )}
-                  <div className="flex flex-wrap items-center gap-4.5 font-mono text-xs">
-                    <button
-                      type="button"
-                      onClick={() => navigateSearch({ network: 'followers' })}
-                      className="group -m-1.5 min-h-11 bg-transparent p-1.5 text-left font-mono text-xs text-inherit"
-                    >
-                      <strong className="text-text transition-colors group-hover:text-brand">
-                        {compactNumber(overview.viewer.stats.followersCount)}
-                      </strong>{' '}
-                      <span className="text-text-muted">followers</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => navigateSearch({ network: 'following' })}
-                      className="group -m-1.5 min-h-11 bg-transparent p-1.5 text-left font-mono text-xs text-inherit"
-                    >
-                      <strong className="text-text transition-colors group-hover:text-brand">
-                        {compactNumber(overview.viewer.stats.followingCount)}
-                      </strong>{' '}
-                      <span className="text-text-muted">following</span>
-                    </button>
-                    <span className="ml-1.5 inline-flex items-center gap-2.5 text-text-faint">
-                      {githubHref && (
-                        <a
-                          href={githubHref}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-inherit"
-                        >
-                          <BrandIcon name="github" size={14} />
-                        </a>
-                      )}
-                      {xHref && (
-                        <a
-                          href={xHref}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-inherit"
-                        >
-                          <BrandIcon name="twitter" size={14} />
-                        </a>
-                      )}
-                      {linkedinHref && (
-                        <a
-                          href={linkedinHref}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-inherit"
-                        >
-                          <BrandIcon name="linkedin" size={14} />
-                        </a>
-                      )}
-                      {blueskyHref && (
-                        <a
-                          href={blueskyHref}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-[11px] text-inherit no-underline"
-                        >
-                          bsky
-                        </a>
-                      )}
-                      {websiteHref && (
-                        <a
-                          href={websiteHref}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-[11px] text-inherit no-underline"
-                        >
-                          site
-                        </a>
-                      )}
-                    </span>
-                  </div>
-                </div>
-                <Button
-                  variant="monoOutline"
-                  size="meta"
-                  onClick={() =>
-                    void navigate({
-                      to: '/settings',
-                      search: { tab: 'account' },
-                    })
-                  }
-                  className="shrink-0 font-mono"
-                >
-                  edit profile
+            }
+            actions={
+              <>
+                <Button asChild size="touch" className="max-md:hidden">
+                  <Link to="/settings" search={{ tab: 'account' }}>
+                    edit profile
+                  </Link>
                 </Button>
-              </div>
-              <ProfileMobileAccountActions
-                onSignOut={() => void signOut({ redirectUrl: '/' })}
-              />
-            </div>
-
-            <div className="mt-7">
-              <div className="mb-2.5 font-mono text-[10.5px] uppercase tracking-[0.06em] text-text-faint">
-                {overview.viewer.githubContributions?.totalContributions != null
-                  ? `${overview.viewer.githubContributions.totalContributions.toLocaleString()} contributions this year`
-                  : 'contributions this year'}
-              </div>
-              <div className="overflow-x-auto">
-                <ContributionGraph
-                  weeks={
-                    overview.viewer.githubContributions?.weeks ?? undefined
-                  }
-                  totalContributions={
-                    overview.viewer.githubContributions?.totalContributions ??
-                    undefined
-                  }
-                  loading={isSyncing && !overview.viewer.githubContributions}
-                  unavailable={
-                    !isSyncing &&
-                    (!overview.viewer.githubContributions?.weeks ||
-                      overview.viewer.githubContributions.weeks.length === 0)
-                  }
+                <Button asChild size="touch" variant="ghost">
+                  <Link to="/saved">saved</Link>
+                </Button>
+                <ProfileMobileAccountActions
+                  onSignOut={() => void signOut({ redirectUrl: '/' })}
                 />
-              </div>
-            </div>
-          </div>
+              </>
+            }
+          />
 
-          <div className="grid gap-8 py-7 lg:grid-cols-[minmax(0,1.75fr)_minmax(280px,0.95fr)]">
-            <aside className="order-first lg:order-last">
-              <div className="lg:sticky lg:top-6">
-                <ProfileNetworkSection
-                  activeTab={network}
-                  emptyLabel={
-                    network === 'followers'
-                      ? 'no followers yet.'
-                      : 'not following anyone yet.'
-                  }
-                  hasMore={hasMoreSocial}
-                  items={socialItems.map((item) => ({
-                    ...item,
-                    userId: String(item.userId),
-                  }))}
-                  loading={networkIsLoading}
-                  loadingMore={loadingMoreGraph === network}
-                  onChangeTab={(nextTab) =>
-                    navigateSearch({ network: nextTab })
-                  }
-                  onLoadMore={() => void handleLoadMoreGraph(network)}
-                  onSelectUser={(username) =>
-                    void navigate({
-                      to: '/u/$username',
-                      params: { username },
-                      search: { tab: 'projects', network: 'followers' },
-                    })
-                  }
-                />
-              </div>
-            </aside>
+          <ProfilePinnedSection
+            loading={showcaseQuery.isLoading}
+            projects={showcase?.pinnedProjects ?? []}
+            renderProjectAction={renderPinToggle}
+            retrySync={projectSync}
+            emptyContent={
+              <Card
+                density="cozy"
+                className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between"
+              >
+                <p className="m-0 text-body text-text-muted">
+                  pin up to three projects so visitors see them first.
+                </p>
+                {manageRepositoriesDialog}
+              </Card>
+            }
+          />
 
-            <section>
-              <ProfileContentTabs
-                activeTab={tab}
-                isRoutePending={isRoutePending}
-                tabs={tabs}
-                onSelectTab={(nextTab) => {
-                  void prefetchTab(nextTab)
-                  navigateSearch({ tab: nextTab })
-                }}
+          <ProfileRecentWorkSection
+            loading={showcaseQuery.isLoading}
+            posts={showcase?.recentPosts ?? []}
+            projects={showcase?.recentProjects ?? []}
+            reactionsDisabled={false}
+            renderProjectAction={renderPinToggle}
+            retrySync={projectSync}
+          />
+
+          <ProfileShippingLog entries={shippingLogQuery.data ?? []} />
+
+          <ProfileContributionSection
+            githubContributions={overview.viewer.githubContributions}
+            loading={isSyncing}
+          />
+
+          <ProfileLanguagesSection
+            projects={[
+              ...(showcase?.pinnedProjects ?? []),
+              ...(showcase?.recentProjects ?? []),
+            ]}
+          />
+
+          <ProfileNetworkAndActivity
+            network={
+              <ProfileNetworkSection
+                activeTab={network}
+                emptyLabel={
+                  network === 'followers'
+                    ? 'no followers yet.'
+                    : 'not following anyone yet.'
+                }
+                hasMore={hasMoreSocial}
+                items={socialItems.map((item) => ({
+                  ...item,
+                  userId: String(item.userId),
+                }))}
+                loading={networkIsLoading}
+                loadingMore={loadingMoreGraph === network}
+                onChangeTab={(nextTab) => navigateSearch({ network: nextTab })}
+                onLoadMore={() => void handleLoadMoreGraph(network)}
+                onSelectUser={(username) =>
+                  void navigate({
+                    to: '/u/$username',
+                    params: { username },
+                    search: { tab: 'projects', network: 'followers' },
+                  })
+                }
               />
+            }
+            activity={
+              <>
+                <ProfileContentTabs
+                  activeTab={tab}
+                  isRoutePending={isRoutePending}
+                  tabs={tabs}
+                  onSelectTab={(nextTab) => {
+                    void prefetchTab(nextTab)
+                    navigateSearch({ tab: nextTab })
+                  }}
+                />
 
-              <div className="pt-7">
-                {contentIsLoading && <ProfileContentSkeleton />}
+                <div className="pt-7">
+                  {contentIsLoading && <ProfileContentSkeleton />}
 
-                {!contentIsLoading && tab === 'projects' && (
-                  <div className="flex flex-col gap-3">
-                    <div className="rounded-card border border-line bg-surface px-4 py-4 shadow-card">
-                      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                  {!contentIsLoading && tab === 'projects' && (
+                    <div className="flex flex-col gap-3">
+                      <Card
+                        density="cozy"
+                        className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between"
+                      >
                         <div className="min-w-0">
-                          <div className="mb-1 font-mono text-[12px] text-text">
-                            Missing a repo on your profile?
+                          <div className="mb-1 text-label text-text">
+                            missing a repo on your profile?
                           </div>
-                          <div className="font-sans text-[13px] leading-6 text-text-muted">
-                            Add, hide, restore, or pin repositories here instead
+                          <p className="m-0 text-body text-text-muted">
+                            add, hide, restore, or pin repositories here instead
                             of digging through settings.
-                          </div>
+                          </p>
                         </div>
-                        <RepositoryManagerDialog
-                          buttonLabel="manage repositories"
-                          buttonVariant="brand"
-                          buttonSize="meta"
-                          title="Manage profile repositories"
-                          description="Choose which public GitHub repositories show up on your Locatic profile, and restore or pin the ones you want people to notice first."
-                          pinnedProjectIds={
-                            overview.viewer.pinnedProfileProjectIds
-                          }
-                          profileUsername={overview.viewer.githubUsername}
-                          buttonClassName="w-full md:w-auto"
+                        {manageRepositoriesDialog}
+                      </Card>
+
+                      {projects.length === 0 ? (
+                        <EmptyState
+                          size="compact"
+                          headingLevel={3}
+                          title="no projects imported yet."
                         />
-                      </div>
+                      ) : (
+                        <PublicProfileProjectsList
+                          projects={projects}
+                          renderTopLeftSlot={renderPinToggle}
+                          retrySync={projectSync}
+                        />
+                      )}
                     </div>
+                  )}
 
-                    {projects.length === 0 && (
-                      <EmptyState
-                        size="compact"
-                        title="no projects imported yet."
-                      />
-                    )}
-                    {projects.length > 0 && (
-                      <CardSheet className="flex flex-col gap-2 overflow-visible border-0 bg-transparent divide-y-0">
-                        {projects.map((project) => {
-                          const owner = getProjectCardOwner(project)
-                          const repo = getProjectCardRepo(project)
-                          const projectId = getProjectCardDbId(project)
-                          const projectKey = getProjectCardId(project)
-                          const isPinned = pinnedProjectIds.has(projectKey)
+                  {!contentIsLoading && tab === 'posts' && (
+                    <ProfilePostList posts={posts} emptyLabel="no posts yet." />
+                  )}
 
-                          return (
-                            <ProjectCard
-                              key={projectId}
-                              project={{
-                                ...toProjectCardData(project),
-                                isPinned,
-                              }}
-                              showActions={false}
-                              topLeftSlot={
-                                <Button
-                                  variant="monoGhost"
-                                  size="compact"
-                                  onClick={() =>
-                                    void handleTogglePin(
-                                      projectId,
-                                      projectKey,
-                                      isPinned,
-                                    )
+                  {!contentIsLoading && tab === 'contributions' && (
+                    <div className="flex flex-col gap-3">
+                      {contributions.length === 0 && (
+                        <EmptyState
+                          size="compact"
+                          headingLevel={3}
+                          title="no matched contributions yet."
+                        />
+                      )}
+                      {contributions.length > 0 && (
+                        <CardSheet className="flex flex-col gap-2 overflow-visible border-0 bg-transparent divide-y-0">
+                          {contributions.map((entry) => {
+                            const owner = getProjectCardOwner(entry.project)
+                            const repo = getProjectCardRepo(entry.project)
+
+                            return (
+                              <div
+                                key={getProjectCardId(entry.project)}
+                                className="overflow-hidden rounded-card border border-line bg-surface"
+                              >
+                                <div className="border-b border-line px-4 py-3 text-eyebrow text-text-muted">
+                                  contributor ·{' '}
+                                  {compactNumber(entry.commitCount)} commits
+                                  matched
+                                </div>
+                                <ProjectCard
+                                  project={toProjectCardData(entry.project)}
+                                  showActions={false}
+                                  reactionSlot={
+                                    <ProjectReactionBar
+                                      projectId={getProjectCardDbId(
+                                        entry.project,
+                                      )}
+                                      reactionCounts={
+                                        entry.project.reactionCounts
+                                      }
+                                      viewerReactionTypes={
+                                        entry.project.viewerReactionTypes
+                                      }
+                                    />
                                   }
-                                  disabled={pinPendingId === projectKey}
-                                  aria-label={
-                                    isPinned
-                                      ? 'Unpin from profile'
-                                      : 'Pin to profile'
-                                  }
-                                  aria-pressed={isPinned}
-                                  className="-ml-2 min-h-8 px-2 font-mono text-[10.5px] text-text-faint hover:text-text"
-                                >
-                                  <Pin size={12} />
-                                  {pinPendingId === projectKey
-                                    ? 'saving…'
-                                    : isPinned
-                                      ? 'pinned'
-                                      : 'pin'}
-                                </Button>
-                              }
-                              reactionSlot={
-                                <ProjectReactionBar
-                                  projectId={projectId}
-                                  reactionCounts={project.reactionCounts}
-                                  viewerReactionTypes={
-                                    project.viewerReactionTypes
-                                  }
+                                  className="rounded-none border-0 focus-visible:ring-inset"
+                                  authorLink={{
+                                    username: entry.project.authorHandle,
+                                    search: { tab: 'projects' },
+                                  }}
+                                  projectLink={{ owner, repo }}
                                 />
-                              }
-                              className="focus-visible:ring-inset"
-                              authorLink={{
-                                username: project.authorHandle,
-                                search: { tab: 'projects' },
-                              }}
-                              projectLink={{ owner, repo }}
-                            />
-                          )
-                        })}
-                      </CardSheet>
-                    )}
-                  </div>
-                )}
-
-                {!contentIsLoading && tab === 'posts' && (
-                  <ProfilePostList posts={posts} emptyLabel="no posts yet." />
-                )}
-
-                {!contentIsLoading && tab === 'contributions' && (
-                  <div className="flex flex-col gap-3">
-                    {contributions.length === 0 && (
-                      <EmptyState
-                        size="compact"
-                        title="no matched contributions yet."
-                      />
-                    )}
-                    {contributions.length > 0 && (
-                      <CardSheet className="flex flex-col gap-2 overflow-visible border-0 bg-transparent divide-y-0">
-                        {contributions.map((entry) => {
-                          const owner = getProjectCardOwner(entry.project)
-                          const repo = getProjectCardRepo(entry.project)
-
-                          return (
-                            <div
-                              key={getProjectCardId(entry.project)}
-                              className="overflow-hidden rounded-card border border-line bg-surface"
-                            >
-                              <div className="border-b border-line px-4 py-3 font-mono text-[11px] text-text-faint">
-                                contributor · {compactNumber(entry.commitCount)}{' '}
-                                commits matched
                               </div>
+                            )
+                          })}
+                        </CardSheet>
+                      )}
+                    </div>
+                  )}
+
+                  {!contentIsLoading && tab === 'comments' && (
+                    <ProfileCommentList
+                      authorAvatarUrl={overview.viewer.avatarUrl}
+                      authorName={overview.viewer.displayName}
+                      comments={comments}
+                      emptyLabel="no comments yet."
+                      onOpenComment={openCommentTarget}
+                      reactionsDisabled={false}
+                    />
+                  )}
+
+                  {!contentIsLoading && tab === 'liked' && (
+                    <div className="flex flex-col gap-3">
+                      {likedProjects.length === 0 && (
+                        <EmptyState
+                          size="compact"
+                          headingLevel={3}
+                          title="no liked projects yet."
+                        />
+                      )}
+                      {likedProjects.length > 0 && (
+                        <CardSheet>
+                          {likedProjects.map((likedProject) => {
+                            const owner = getProjectCardOwner(
+                              likedProject.project,
+                            )
+                            const repo = getProjectCardRepo(
+                              likedProject.project,
+                            )
+
+                            return (
                               <ProjectCard
-                                project={toProjectCardData(entry.project)}
+                                key={String(likedProject.projectId)}
+                                project={toProjectCardData(
+                                  likedProject.project,
+                                )}
                                 showActions={false}
                                 reactionSlot={
                                   <ProjectReactionBar
-                                    projectId={getProjectCardDbId(
-                                      entry.project,
-                                    )}
+                                    projectId={likedProject.projectId}
                                     reactionCounts={
-                                      entry.project.reactionCounts
+                                      likedProject.project.reactionCounts
                                     }
-                                    viewerReactionTypes={
-                                      entry.project.viewerReactionTypes
-                                    }
+                                    viewerReactionTypes={[
+                                      ...new Set([
+                                        ...(likedProject.project
+                                          .viewerReactionTypes ?? []),
+                                        'like',
+                                      ]),
+                                    ]}
+                                    liked
                                   />
                                 }
-                                className="rounded-none border-0 focus-visible:ring-inset"
+                                className="focus-visible:ring-inset"
                                 authorLink={{
-                                  username: entry.project.authorHandle,
+                                  username: likedProject.project.authorHandle,
                                   search: { tab: 'projects' },
                                 }}
                                 projectLink={{ owner, repo }}
                               />
-                            </div>
-                          )
-                        })}
-                      </CardSheet>
-                    )}
-                  </div>
-                )}
-
-                {!contentIsLoading && tab === 'comments' && (
-                  <ProfileCommentList
-                    authorAvatarUrl={overview.viewer.avatarUrl}
-                    authorName={overview.viewer.displayName}
-                    comments={comments}
-                    emptyLabel="no comments yet."
-                    onOpenComment={openCommentTarget}
-                    reactionsDisabled={false}
-                  />
-                )}
-
-                {!contentIsLoading && tab === 'liked' && (
-                  <div className="flex flex-col gap-3">
-                    {likedProjects.length === 0 && (
-                      <EmptyState
-                        size="compact"
-                        title="no liked projects yet."
-                      />
-                    )}
-                    {likedProjects.length > 0 && (
-                      <CardSheet>
-                        {likedProjects.map((likedProject) => {
-                          const owner = getProjectCardOwner(
-                            likedProject.project,
-                          )
-                          const repo = getProjectCardRepo(likedProject.project)
-
-                          return (
-                            <ProjectCard
-                              key={String(likedProject.projectId)}
-                              project={{
-                                ...toProjectCardData(likedProject.project),
-                                liked: true,
-                              }}
-                              showActions={false}
-                              reactionSlot={
-                                <ProjectReactionBar
-                                  projectId={likedProject.projectId}
-                                  reactionCounts={
-                                    likedProject.project.reactionCounts
-                                  }
-                                  viewerReactionTypes={[
-                                    ...new Set([
-                                      ...(likedProject.project
-                                        .viewerReactionTypes ?? []),
-                                      'like',
-                                    ]),
-                                  ]}
-                                  liked
-                                />
-                              }
-                              className="focus-visible:ring-inset"
-                              authorLink={{
-                                username: likedProject.project.authorHandle,
-                                search: { tab: 'projects' },
-                              }}
-                              projectLink={{ owner, repo }}
-                            />
-                          )
-                        })}
-                      </CardSheet>
-                    )}
-                  </div>
-                )}
-              </div>
-            </section>
-          </div>
+                            )
+                          })}
+                        </CardSheet>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </>
+            }
+          />
         </div>
       </div>
     </div>

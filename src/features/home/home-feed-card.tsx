@@ -12,6 +12,7 @@ import {
   UserPlus,
 } from '@/lib/icons'
 import { Button } from '@/components/ui/button'
+import { LocationPill, type CityPillLocation } from '@/components/ui/city-pill'
 import { LxAvatar } from '@/components/ui/lx-avatar'
 import { langColor } from '@/components/ui/lang-dot'
 import { cn } from '@/lib/utils'
@@ -41,6 +42,27 @@ function isCommentGroup(item: HomeFeedItem) {
   return groupKind === 'project_commented' || groupKind === 'post_commented'
 }
 
+/**
+ * The actor's disclosed location from the row's actor snapshot, which stores
+ * it in the visibility policy's snapshot encoding: a `cityId` only for
+ * exact-city members, otherwise `cityName` is a region label or null.
+ */
+export function getHomeFeedActorLocation(
+  actorSnapshot: HomeFeedItem['actorSnapshot'],
+): CityPillLocation {
+  if (actorSnapshot.cityId && actorSnapshot.cityName) {
+    return {
+      kind: 'city',
+      cityId: String(actorSnapshot.cityId),
+      cityName: actorSnapshot.cityName,
+    }
+  }
+  if (actorSnapshot.cityName) {
+    return { kind: 'region', regionLabel: actorSnapshot.cityName }
+  }
+  return { kind: 'none' }
+}
+
 export function getHomeFeedPreviewState(item: HomeFeedItem, expanded: boolean) {
   const targets = item.previewTargets?.length
     ? item.previewTargets
@@ -63,6 +85,16 @@ export function getHomeFeedPreviewState(item: HomeFeedItem, expanded: boolean) {
     totalCount,
     visibleTargets,
   }
+}
+
+/**
+ * A row renders only when it has at least one target to show. Delivery never
+ * persists an item without one, but legacy rows may lack both `target` and
+ * `previewTargets`; those render nothing instead of an actor line pointing
+ * at nothing.
+ */
+export function hasRenderableHomeFeedTarget(item: HomeFeedItem) {
+  return getHomeFeedPreviewState(item, false).targets.length > 0
 }
 
 function projectDisplay(
@@ -183,13 +215,13 @@ function ProjectMeta({
   const primaryLanguage = languages[0]?.name
 
   return (
-    <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[11px] text-text-muted">
+    <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-meta text-text-muted">
       {primaryLanguage && (
         <span
           className="inline-flex items-center gap-1.5 rounded-control border px-1.5 py-0.5 text-text"
           style={{
-            background: `${langColor(primaryLanguage)}1f`,
-            borderColor: `${langColor(primaryLanguage)}80`,
+            background: `color-mix(in oklch, ${langColor(primaryLanguage)} 12%, transparent)`,
+            borderColor: `color-mix(in oklch, ${langColor(primaryLanguage)} 50%, transparent)`,
           }}
         >
           <span
@@ -231,12 +263,12 @@ function ProjectTargetRow({
   const liked = likedProjectIds.has(projectKey)
   const content = (
     <div className="min-w-0 flex-1">
-      <p className="font-mono text-[13px] leading-5 text-text wrap-anywhere">
-        <span className="text-text-faint">{project.owner}/</span>
+      <p className="font-sans text-label font-semibold leading-5 text-text wrap-anywhere">
+        <span className="text-text-muted">{project.owner}/</span>
         {project.repo}
       </p>
       {project.description && (
-        <p className="mt-1 line-clamp-2 font-sans text-[13px] leading-5 text-text-muted">
+        <p className="mt-1 line-clamp-2 font-sans text-body leading-5 text-text-muted">
           {project.description}
         </p>
       )}
@@ -260,16 +292,13 @@ function ProjectTargetRow({
       {target.isOpenable !== false && (
         <Button
           type="button"
-          variant="monoGhost"
+          variant="ghost"
           size="icon"
           aria-label={
             liked ? `Unlike ${project.fullName}` : `Like ${project.fullName}`
           }
           onClick={() => onLikeProject(target.projectId, projectKey)}
-          className={cn(
-            'min-h-11 min-w-11 shrink-0',
-            liked && 'text-liked hover:text-liked',
-          )}
+          className={cn('size-11', liked && 'text-liked hover:text-liked')}
           disabled={pendingLikes.has(projectKey)}
         >
           <Heart
@@ -301,19 +330,19 @@ function PostTargetRow({
           preload="intent"
           className="min-w-0 flex-1 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
         >
-          <p className="font-mono text-[12.5px] text-text-faint">
+          <p className="font-mono text-label text-text-muted">
             {project.fullName}
           </p>
-          <p className="mt-1 line-clamp-2 text-[13px] leading-5 text-text">
+          <p className="mt-1 line-clamp-2 text-body leading-5 text-text">
             {target.postSnapshot?.body || 'Project update'}
           </p>
         </Link>
       ) : (
         <div className="min-w-0 flex-1">
-          <p className="font-mono text-[12.5px] text-text-faint">
+          <p className="font-mono text-label text-text-muted">
             {project.fullName}
           </p>
-          <p className="mt-1 line-clamp-2 text-[13px] leading-5 text-text">
+          <p className="mt-1 line-clamp-2 text-body leading-5 text-text">
             {target.postSnapshot?.body || 'Project update'}
           </p>
         </div>
@@ -340,20 +369,20 @@ function CommentTargetRow({
           preload="intent"
           className="min-w-0 flex-1 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
         >
-          <p className="font-mono text-[12.5px] text-text-faint">
+          <p className="font-mono text-label text-text-muted">
             {target.targetType === 'post' ? 'update on ' : ''}
             {project.fullName}
           </p>
-          <p className="mt-1 line-clamp-2 text-[13px] leading-5 text-text">
+          <p className="mt-1 line-clamp-2 text-body leading-5 text-text">
             {target.content || 'Open comment thread'}
           </p>
         </Link>
       ) : (
         <div className="min-w-0 flex-1">
-          <p className="font-mono text-[12.5px] text-text-faint">
+          <p className="font-mono text-label text-text-muted">
             {project.fullName}
           </p>
-          <p className="mt-1 line-clamp-2 text-[13px] leading-5 text-text">
+          <p className="mt-1 line-clamp-2 text-body leading-5 text-text">
             {target.content || 'Comment unavailable'}
           </p>
         </div>
@@ -381,7 +410,7 @@ function ProfileTargetRow({
         <p className="truncate text-[13px] font-semibold text-text">
           {profile.displayName}
         </p>
-        <p className="truncate font-mono text-[11.5px] text-text-faint">
+        <p className="truncate font-mono text-label text-text-muted">
           @{profile.githubUsername}
           {profile.cityName ? ` · ${profile.cityName}` : ''}
         </p>
@@ -426,19 +455,19 @@ function PullRequestTargetRow({
           rel="noreferrer"
           className="min-w-0 flex-1 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
         >
-          <p className="font-mono text-[12.5px] text-text-faint">
+          <p className="font-mono text-label text-text-muted">
             {project.fullName} #{target.number}
           </p>
-          <p className="mt-1 line-clamp-2 text-[13px] leading-5 text-text">
+          <p className="mt-1 line-clamp-2 text-body leading-5 text-text">
             {target.title}
           </p>
         </a>
       ) : (
         <div className="min-w-0 flex-1">
-          <p className="font-mono text-[12.5px] text-text-faint">
+          <p className="font-mono text-label text-text-muted">
             {project.fullName} #{target.number}
           </p>
-          <p className="mt-1 line-clamp-2 text-[13px] leading-5 text-text">
+          <p className="mt-1 line-clamp-2 text-body leading-5 text-text">
             {target.title}
           </p>
         </div>
@@ -475,7 +504,7 @@ function TargetRow({
           }
           className={cn(
             'flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-line bg-canvas',
-            target.isOpenable === false && 'border-dashed text-text-faint',
+            target.isOpenable === false && 'border-dashed text-text-muted',
           )}
         >
           <Icon size={15} strokeWidth={1.6} />
@@ -565,6 +594,11 @@ export function HomeFeedCard({
   const showCommentMore =
     remainingCount > 0 && isCommentGroup(item) && Boolean(commentMoreRoute)
   const showExpand = remainingCount > 0 && hasStoredTargetsToExpand
+  const actorLabel = item.actorSnapshot.displayName.trim() || 'Someone'
+  if (targets.length === 0) {
+    return null
+  }
+
   return (
     <article
       className={cn(
@@ -573,18 +607,40 @@ export function HomeFeedCard({
       )}
     >
       <header className="flex min-w-0 items-start gap-3 px-4 py-4 sm:px-5">
-        <LxAvatar
-          name={item.actorSnapshot.displayName}
-          avatarUrl={item.actorSnapshot.avatarUrl}
-          size={40}
-        />
+        {item.actorGithubUsername ? (
+          <Link
+            to="/u/$username"
+            params={{ username: item.actorGithubUsername }}
+            search={{ tab: 'projects' }}
+            preload="intent"
+            aria-label={`Open ${actorLabel}'s profile`}
+            className="shrink-0 rounded-full"
+          >
+            <LxAvatar
+              name={item.actorSnapshot.displayName}
+              avatarUrl={item.actorSnapshot.avatarUrl}
+              size={40}
+            />
+          </Link>
+        ) : (
+          <LxAvatar
+            name={item.actorSnapshot.displayName}
+            avatarUrl={item.actorSnapshot.avatarUrl}
+            size={40}
+          />
+        )}
         <div className="min-w-0 flex-1">
           <p className="font-sans text-[14.5px] font-semibold leading-5 text-text wrap-anywhere">
             {getHomeFeedSummary(item)}
           </p>
-          <p className="mt-1 font-mono text-[11px] text-text-faint">
-            {getHomeFeedTimeCopy(item)}
-          </p>
+          <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+            <p className="m-0 font-mono text-meta text-text-muted">
+              {getHomeFeedTimeCopy(item)}
+            </p>
+            <LocationPill
+              location={getHomeFeedActorLocation(item.actorSnapshot)}
+            />
+          </div>
         </div>
       </header>
 
@@ -607,7 +663,7 @@ export function HomeFeedCard({
             <Link
               {...commentMoreRoute}
               preload="intent"
-              className="inline-flex min-h-11 items-center gap-2 rounded-md px-2 font-mono text-[11.5px] text-text-muted transition-colors hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+              className="inline-flex h-8 items-center gap-2 rounded-md px-2 font-mono text-label text-text-muted transition-colors hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand pointer-coarse:min-h-11"
             >
               +{remainingCount} more
               <ArrowRight size={13} />
@@ -615,9 +671,8 @@ export function HomeFeedCard({
           ) : (
             <Button
               type="button"
-              variant="monoGhost"
-              size="meta"
-              className="min-h-11"
+              variant="ghost"
+              size="touch"
               onClick={() => setExpanded(true)}
               disabled={expanded}
             >
