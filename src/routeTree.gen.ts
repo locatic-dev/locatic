@@ -25,6 +25,7 @@ import { Route as AppProfileRouteImport } from './routes/_app/profile'
 import { Route as AppNotificationsRouteImport } from './routes/_app/notifications'
 import { Route as AppInboxRouteImport } from './routes/_app/inbox'
 import { Route as AppHomeRouteImport } from './routes/_app/home'
+import { Route as AppAdminEmailsRouteImport } from './routes/_app/admin/emails'
 import { Route as AppProjectOwnerRepoRouteImport } from './routes/_app/project.$owner.$repo'
 
 const TermsRoute = TermsRouteImport.update({
@@ -106,6 +107,11 @@ const AppHomeRoute = AppHomeRouteImport.update({
   path: '/home',
   getParentRoute: () => AppRoute,
 } as any)
+const AppAdminEmailsRoute = AppAdminEmailsRouteImport.update({
+  id: '/admin/emails',
+  path: '/admin/emails',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppProjectOwnerRepoRoute = AppProjectOwnerRepoRouteImport.update({
   id: '/project/$owner/$repo',
   path: '/project/$owner/$repo',
@@ -128,6 +134,7 @@ export interface FileRoutesByFullPath {
   '/sign-in/$': typeof SignInSplatRoute
   '/sign-up/$': typeof SignUpSplatRoute
   '/u/$username': typeof UUsernameRoute
+  '/admin/emails': typeof AppAdminEmailsRoute
   '/project/$owner/$repo': typeof AppProjectOwnerRepoRoute
 }
 export interface FileRoutesByTo {
@@ -146,6 +153,7 @@ export interface FileRoutesByTo {
   '/sign-in/$': typeof SignInSplatRoute
   '/sign-up/$': typeof SignUpSplatRoute
   '/u/$username': typeof UUsernameRoute
+  '/admin/emails': typeof AppAdminEmailsRoute
   '/project/$owner/$repo': typeof AppProjectOwnerRepoRoute
 }
 export interface FileRoutesById {
@@ -166,6 +174,7 @@ export interface FileRoutesById {
   '/sign-in/$': typeof SignInSplatRoute
   '/sign-up/$': typeof SignUpSplatRoute
   '/u/$username': typeof UUsernameRoute
+  '/_app/admin/emails': typeof AppAdminEmailsRoute
   '/_app/project/$owner/$repo': typeof AppProjectOwnerRepoRoute
 }
 export interface FileRouteTypes {
@@ -186,6 +195,7 @@ export interface FileRouteTypes {
     | '/sign-in/$'
     | '/sign-up/$'
     | '/u/$username'
+    | '/admin/emails'
     | '/project/$owner/$repo'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -204,6 +214,7 @@ export interface FileRouteTypes {
     | '/sign-in/$'
     | '/sign-up/$'
     | '/u/$username'
+    | '/admin/emails'
     | '/project/$owner/$repo'
   id:
     | '__root__'
@@ -223,6 +234,7 @@ export interface FileRouteTypes {
     | '/sign-in/$'
     | '/sign-up/$'
     | '/u/$username'
+    | '/_app/admin/emails'
     | '/_app/project/$owner/$repo'
   fileRoutesById: FileRoutesById
 }
@@ -353,6 +365,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppHomeRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/admin/emails': {
+      id: '/_app/admin/emails'
+      path: '/admin/emails'
+      fullPath: '/admin/emails'
+      preLoaderRoute: typeof AppAdminEmailsRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/project/$owner/$repo': {
       id: '/_app/project/$owner/$repo'
       path: '/project/$owner/$repo'
@@ -370,6 +389,7 @@ interface AppRouteChildren {
   AppProfileRoute: typeof AppProfileRoute
   AppSavedRoute: typeof AppSavedRoute
   AppSettingsRoute: typeof AppSettingsRoute
+  AppAdminEmailsRoute: typeof AppAdminEmailsRoute
   AppProjectOwnerRepoRoute: typeof AppProjectOwnerRepoRoute
 }
 
@@ -380,6 +400,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppProfileRoute: AppProfileRoute,
   AppSavedRoute: AppSavedRoute,
   AppSettingsRoute: AppSettingsRoute,
+  AppAdminEmailsRoute: AppAdminEmailsRoute,
   AppProjectOwnerRepoRoute: AppProjectOwnerRepoRoute,
 }
 
