@@ -69,6 +69,11 @@ import {
   withLastPublicActivity,
 } from './lib/activity'
 import {
+  enqueueProviderContactCleanup,
+  upsertLocalEmailContact,
+} from './lib/email_contacts'
+import { emailRefs } from './lib/email_function_refs'
+import {
   buildStatusValidator,
   cityReferenceValidator,
   cityVisibilityValidator,
@@ -463,6 +468,15 @@ async function requestAccountDeletion(ctx: MutationCtx, user: Doc<'users'>) {
     purgeAfter,
     appearInExplore: false,
   })
+
+  await upsertLocalEmailContact(ctx, {
+    ...user,
+    deletedAt,
+    deactivatedAt,
+    purgeAfter,
+    appearInExplore: false,
+  })
+  await ctx.scheduler.runAfter(0, emailRefs.delivery.reconcileContacts, {})
 
   await ctx.scheduler.runAfter(
     Math.max(0, purgeAfter - now),
@@ -1943,10 +1957,37 @@ export const updateNotificationPrefs = mutation({
       throw new ConvexError('Viewer not found')
     }
 
+    const digestChanged =
+      args.weeklyDigest !== viewer.notificationPrefs.weeklyDigest
+    const now = Date.now()
+    const emailSubscription = digestChanged
+      ? {
+          primaryEmailVerified:
+            viewer.emailSubscription?.primaryEmailVerified ?? false,
+          primaryEmailVerifiedAt:
+            viewer.emailSubscription?.primaryEmailVerifiedAt ?? null,
+          preferenceVersion:
+            (viewer.emailSubscription?.preferenceVersion ?? 0) + 1,
+          preferenceUpdatedAt: now,
+          preferenceSource: 'settings' as const,
+        }
+      : viewer.emailSubscription
+
     await ctx.db.patch(viewer._id, {
       notificationPrefs: args,
-      updatedAt: Date.now(),
+      ...(emailSubscription ? { emailSubscription } : {}),
+      updatedAt: now,
     })
+
+    if (digestChanged) {
+      await upsertLocalEmailContact(ctx, {
+        ...viewer,
+        notificationPrefs: args,
+        emailSubscription,
+        updatedAt: now,
+      })
+      await ctx.scheduler.runAfter(0, emailRefs.delivery.reconcileContacts, {})
+    }
 
     return null
   },
@@ -2165,6 +2206,14 @@ export const deactivateAccount = mutation({
       deactivatedAt: now,
       appearInExplore: false,
     })
+
+    await upsertLocalEmailContact(ctx, {
+      ...viewer,
+      deactivatedAt: now,
+      appearInExplore: false,
+      updatedAt: now,
+    })
+    await ctx.scheduler.runAfter(0, emailRefs.delivery.reconcileContacts, {})
 
     return null
   },
@@ -2496,6 +2545,19 @@ export const scrubDeletedAccount = internalMutation({
     }
     if (user.purgedAt) {
       return null
+    }
+
+    const emailContact = await ctx.db
+      .query('email_contacts')
+      .withIndex('by_user', (query) => query.eq('userId', user._id))
+      .unique()
+    if (emailContact?.providerContactId) {
+      await enqueueProviderContactCleanup(ctx, emailContact.providerContactId)
+      await ctx.scheduler.runAfter(
+        0,
+        emailRefs.delivery.reconcileContactCleanups,
+        {},
+      )
     }
 
     const [
@@ -2832,6 +2894,7 @@ export const scrubDeletedAccount = internalMutation({
       ...reports.map((report) => ctx.db.delete(report._id)),
       ...reactions.map((reaction) => ctx.db.delete(reaction._id)),
       ...savedProjects.map((saved) => ctx.db.delete(saved._id)),
+      ...(emailContact ? [ctx.db.delete(emailContact._id)] : []),
     ])
 
     await ctx.db.patch(user._id, {
@@ -2881,6 +2944,7 @@ export const upsertFromClerkWebhook = internalMutation({
     githubUrl: v.string(),
     displayName: v.string(),
     avatarUrl: v.string(),
+    primaryEmailVerified: v.boolean(),
   },
   handler: async (ctx, args) => {
     const existingViewer = await getViewerByClerkId(ctx, args.clerkId)
@@ -2890,20 +2954,34 @@ export const upsertFromClerkWebhook = internalMutation({
     })
 
     if (!existingViewer) {
-      const userId = await ctx.db.insert(
-        'users',
-        createDefaultViewerProfile({
-          clerkId: args.clerkId,
-          email: args.email,
-          githubId: args.githubId,
-          githubUsername: args.githubUsername,
-          githubUrl: args.githubUrl,
-          avatarUrl: args.avatarUrl,
-          displayName: args.displayName,
-        }),
-      )
+      const createdProfile = createDefaultViewerProfile({
+        clerkId: args.clerkId,
+        email: args.email,
+        githubId: args.githubId,
+        githubUsername: args.githubUsername,
+        githubUrl: args.githubUrl,
+        avatarUrl: args.avatarUrl,
+        displayName: args.displayName,
+      })
+      const userId = await ctx.db.insert('users', {
+        ...createdProfile,
+        emailSubscription: {
+          ...createdProfile.emailSubscription,
+          primaryEmailVerified: args.primaryEmailVerified,
+          primaryEmailVerifiedAt: args.primaryEmailVerified ? now : null,
+        },
+      })
 
-      return await ctx.db.get(userId)
+      const createdUser = await ctx.db.get(userId)
+      if (createdUser) {
+        await upsertLocalEmailContact(ctx, createdUser)
+        await ctx.scheduler.runAfter(
+          0,
+          emailRefs.delivery.reconcileContacts,
+          {},
+        )
+      }
+      return createdUser
     }
 
     if (existingViewer.deletedAt) {
@@ -2915,8 +2993,23 @@ export const upsertFromClerkWebhook = internalMutation({
       args.githubId,
     )
 
+    const emailSubscription = {
+      primaryEmailVerified: args.primaryEmailVerified,
+      primaryEmailVerifiedAt: args.primaryEmailVerified
+        ? (existingViewer.emailSubscription?.primaryEmailVerifiedAt ?? now)
+        : null,
+      preferenceVersion:
+        existingViewer.emailSubscription?.preferenceVersion ?? 0,
+      preferenceUpdatedAt:
+        existingViewer.emailSubscription?.preferenceUpdatedAt ?? null,
+      preferenceSource:
+        existingViewer.emailSubscription?.preferenceSource ??
+        ('legacy' as const),
+    }
+
     await ctx.db.patch(existingViewer._id, {
       email: args.email,
+      emailSubscription,
       github: {
         id: nextGithubId,
         username: args.githubUsername,
@@ -2959,6 +3052,28 @@ export const upsertFromClerkWebhook = internalMutation({
         },
       },
     })
+
+    await upsertLocalEmailContact(ctx, {
+      ...existingViewer,
+      email: args.email,
+      emailSubscription,
+      github: {
+        id: nextGithubId,
+        username: args.githubUsername,
+      },
+      profile: {
+        ...existingViewer.profile,
+        displayName: args.displayName,
+        fullName: args.displayName,
+        avatarUrl: args.avatarUrl,
+        socialLinks: {
+          ...existingViewer.profile.socialLinks,
+          github: args.githubUrl,
+        },
+      },
+      updatedAt: now,
+    })
+    await ctx.scheduler.runAfter(0, emailRefs.delivery.reconcileContacts, {})
 
     return await ctx.db.get(existingViewer._id)
   },

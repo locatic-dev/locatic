@@ -80,6 +80,13 @@ export function createDefaultViewerProfile(
       weeklyDigest: false,
       contributorRecognized: true,
     },
+    emailSubscription: {
+      primaryEmailVerified: false,
+      primaryEmailVerifiedAt: null,
+      preferenceVersion: 0,
+      preferenceUpdatedAt: null,
+      preferenceSource: 'legacy' as const,
+    },
     githubLastSyncedAt: null,
     onboardingCompletedAt: null,
     createdAt: now,
