@@ -33,7 +33,9 @@ describe('HeroCopy', () => {
       }),
     ).toBeTruthy()
     expect(
-      screen.getByText('discover devs & projects from your city to anywhere.'),
+      screen.getByText(
+        'discover devs & projects from your city to anywhere on the globe.',
+      ),
     ).toBeTruthy()
   })
 
