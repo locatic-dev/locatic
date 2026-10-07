@@ -32,11 +32,7 @@ export function HeroMapCaption({
   )
 }
 
-function CityLine({
-  map,
-}: {
-  map: Extract<LandingMap, { kind: 'cities' }>
-}) {
+function CityLine({ map }: { map: Extract<LandingMap, { kind: 'cities' }> }) {
   const moreCount = map.cityCount - map.featured.length
   return (
     <p className="m-0">
