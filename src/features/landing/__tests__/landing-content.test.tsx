@@ -196,9 +196,7 @@ describe('HeroMapCaption', () => {
   })
 
   it('renders nothing while there is no city map', () => {
-    const { container } = render(
-      <HeroMapCaption map={{ kind: 'example' }} />,
-    )
+    const { container } = render(<HeroMapCaption map={{ kind: 'example' }} />)
 
     expect(container.innerHTML).toBe('')
   })
