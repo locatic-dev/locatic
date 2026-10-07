@@ -71,38 +71,29 @@ test.describe('public landing', () => {
     }
   })
 
-  test('shows real cities and ping cards, or labels the examples (D7)', async ({
+  test('shows real cities and activity cards, never examples (D7)', async ({
     page,
   }) => {
     await page.goto('/')
     const main = page.locator('main#main-content')
+    await expect(main.getByText('EXAMPLE', { exact: true })).toHaveCount(0)
 
-    // Hero globe: real cities with builders as links to their pages, or the
-    // example label while fewer than five cities have builders.
+    // Hero globe: real cities with builders as links to their pages.
     const mapCaption = main.getByText(/^on the map: builders in /)
-    const exampleMap = main.getByText(
-      'the map pins are illustrative until more cities have builders',
-    )
-    await expect(mapCaption.or(exampleMap)).toBeVisible()
     if (await mapCaption.isVisible()) {
-      await expect(exampleMap).toHaveCount(0)
       const cityLinks = mapCaption.getByRole('link')
       await expect(cityLinks).toHaveCount(3)
       await expect(cityLinks.first()).toHaveAttribute('href', /^\/c\/[\w-]+$/)
     }
 
-    // Ping globe: the attached card is up on first paint. Its copy is
-    // labelled EXAMPLE exactly when the map is the example.
-    const pingGlobe = main.getByRole('region', { name: 'builders on the map' })
+    // Ping globe: the card, when one is up, links to what it describes. The
+    // globe is aria-hidden, so its link is found by tag, not role.
+    const pingGlobe = main.getByRole('region', {
+      name: 'recent activity on the map',
+    })
     await expect(pingGlobe).toBeVisible()
     await expect(pingGlobe.locator('canvas')).toBeVisible()
-    const card = pingGlobe.locator('[data-ping-card]')
-    await expect(card).toHaveCount(1)
-    if (await mapCaption.isVisible()) {
-      await expect(card).not.toContainText('EXAMPLE')
-    } else {
-      await expect(card).toContainText('EXAMPLE')
-    }
+    await expect(main.getByText('recently on the map')).toHaveCount(0)
   })
 
   test('shows a still frame of three pinged cities under reduced motion', async ({
@@ -112,9 +103,13 @@ test.describe('public landing', () => {
     await page.goto('/')
     const pingGlobe = page
       .locator('main#main-content')
-      .getByRole('region', { name: 'builders on the map' })
+      .getByRole('region', { name: 'recent activity on the map' })
     const pinged = pingGlobe.locator('[data-ping-key][data-active="true"]')
     const card = pingGlobe.locator('[data-ping-card]')
+    requireE2EPrerequisite(
+      (await pinged.count()) >= 3,
+      'Needs at least three recent activity items in the deployment.',
+    )
 
     await expect(pinged).toHaveCount(3)
     const pingedKeys = await pinged.evaluateAll((nodes) =>

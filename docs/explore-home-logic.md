@@ -786,11 +786,15 @@ The landing reads two public, viewer-independent queries:
   `builderCount > 0`, most builders first. City-level fields only (slug,
   name, coordinates, builder count); no user appears in the payload. With more
   than 200 active cities the map shows an arbitrary 200.
-- `api.projects.listLandingShowcase`: one
-  `projects.by_explore_eligible_last_commit` read, `take(12)`, plus the owners
-  (at most 12 reads), keeping visible projects of active, discoverable owners,
-  one per builder, up to 3, as public card previews. Hidden-city builders can
-  appear without a city, as in global Explore.
+- `api.landing.listRecentActivity`: the newest posts
+  (`posts.by_deleted_created`, `take(24)`), published releases
+  (`project_releases.by_published`, `take(24)`) and newly shared projects
+  (`projects.by_explore_eligible_added`, `take(12)`), plus cached project,
+  owner and city reads. Keeps visible projects of active, discoverable owners
+  who disclose an exact city (region-only and hidden-city builders never
+  appear), newest first, at most two per builder, up to 12. Each item carries
+  its city's coordinates and links to its project, post (`?post=`) or release
+  (`?release=`).
 
 ## Do Not Change Casually
 

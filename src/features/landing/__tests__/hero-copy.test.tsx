@@ -27,10 +27,13 @@ describe('HeroCopy', () => {
 
     expect(screen.getByText('// for builders who ship')).toBeTruthy()
     expect(
-      screen.getByRole('heading', { level: 1, name: 'github, with a map.' }),
+      screen.getByRole('heading', {
+        level: 1,
+        name: 'github, with a map.',
+      }),
     ).toBeTruthy()
     expect(
-      screen.getByText('find the people shipping in your city.'),
+      screen.getByText('discover devs & projects from your city to anywhere.'),
     ).toBeTruthy()
   })
 
