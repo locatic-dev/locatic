@@ -1,7 +1,9 @@
+import { useEffect, useRef } from 'react'
 import type { ProjectDetailPayload } from '@/features/contracts'
 import { Card } from '@/components/ui/card'
 import { MarkdownPreview } from '@/components/ui/markdown-prose'
 import { relativeTime } from '@/lib/time'
+import { cn } from '@/lib/utils'
 
 type ProjectRelease = ProjectDetailPayload['releases'][number]
 
@@ -14,11 +16,36 @@ function getReleaseBodyPreview(body: string) {
   return `${trimmed.slice(0, 700).trimEnd()}…`
 }
 
-function ProjectReleaseCard({ release }: { release: ProjectRelease }) {
+function ProjectReleaseCard({
+  release,
+  highlighted,
+}: {
+  release: ProjectRelease
+  highlighted: boolean
+}) {
   const title = release.name || release.tagName
+  const articleRef = useRef<HTMLElement>(null)
+
+  // A `?release=` deep link brings its release into view.
+  useEffect(() => {
+    if (highlighted) {
+      articleRef.current?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+      })
+    }
+  }, [highlighted])
 
   return (
-    <article className="group relative border-b border-line px-4 py-3 transition-colors last:border-b-0 hover:bg-surface-alt sm:px-5">
+    <article
+      ref={articleRef}
+      id={`release-${String(release._id)}`}
+      data-highlighted={highlighted || undefined}
+      className={cn(
+        'group relative border-b border-line px-4 py-3 transition-colors last:border-b-0 hover:bg-surface-alt sm:px-5',
+        highlighted && 'ring-2 ring-brand ring-inset',
+      )}
+    >
       <a
         href={release.htmlUrl}
         target="_blank"
@@ -62,8 +89,11 @@ function ProjectReleaseCard({ release }: { release: ProjectRelease }) {
 
 export function ProjectReleasesSection({
   releases,
+  highlightedReleaseId = null,
 }: {
   releases: ProjectRelease[]
+  /** From a `?release=` deep link: shown highlighted and scrolled into view. */
+  highlightedReleaseId?: string | null
 }) {
   return (
     <Card density="flush" className="overflow-hidden">
@@ -73,7 +103,11 @@ export function ProjectReleasesSection({
         </div>
       ) : (
         releases.map((release) => (
-          <ProjectReleaseCard key={String(release._id)} release={release} />
+          <ProjectReleaseCard
+            key={String(release._id)}
+            release={release}
+            highlighted={String(release._id) === highlightedReleaseId}
+          />
         ))
       )}
     </Card>

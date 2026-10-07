@@ -582,7 +582,9 @@ export default defineSchema({
     importedAt: v.number(),
   })
     .index('by_project_published', ['projectId', 'publishedAt'])
-    .index('by_project_release', ['projectId', 'githubReleaseId']),
+    .index('by_project_release', ['projectId', 'githubReleaseId'])
+    // Newest releases across projects, for the landing activity (D7).
+    .index('by_published', ['publishedAt']),
 
   saved_projects: defineTable({
     userId: v.id('users'),

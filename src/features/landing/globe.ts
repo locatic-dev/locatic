@@ -69,6 +69,41 @@ export function faceRotation(point: LatLng): GlobeRotation {
   }
 }
 
+/** Tilt range a drag may reach: further than the tour, short of the poles. */
+const DRAG_MIN_PHI = -60
+const DRAG_MAX_PHI = 60
+
+/** A tilt clamped to the range a drag may reach. */
+export function clampDragPhi(phi: number): number {
+  return Math.min(Math.max(phi, DRAG_MIN_PHI), DRAG_MAX_PHI)
+}
+
+/**
+ * Degrees the globe turns per pixel of drag in a box `boxWidth` pixels wide:
+ * a place at the centre of the disc stays under the pointer.
+ */
+export function dragDegreesPerPixel(boxWidth: number): number {
+  return 1 / (RAD * GLOBE_RADIUS * Math.max(boxWidth, 1))
+}
+
+/**
+ * The rotation after dragging `dx`, `dy` pixels from `start`: the globe
+ * follows the pointer, so dragging right moves places right (lower
+ * `lambda`) and dragging down moves them down (higher `phi`).
+ */
+export function dragRotation(
+  start: GlobeRotation,
+  dx: number,
+  dy: number,
+  boxWidth: number,
+): GlobeRotation {
+  const degreesPerPixel = dragDegreesPerPixel(boxWidth)
+  return {
+    lambda: wrapLongitude(start.lambda - dx * degreesPerPixel),
+    phi: clampDragPhi(start.phi + dy * degreesPerPixel),
+  }
+}
+
 /** A projected point as fractions of the globe's square box, from its top left. */
 export function toBoxFraction(point: GlobePoint): {
   left: number

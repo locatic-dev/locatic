@@ -45,15 +45,21 @@ export function parseCommentPathSearch(commentPath: string | null | undefined) {
 export function getProjectDeepLinkTab({
   commentId,
   postId,
+  releaseId = null,
   postsCount,
 }: {
   commentId: string | null
   postId: string | null
+  releaseId?: string | null
   postsCount: number
 }): ProjectTab {
   void postsCount
   if (postId) {
     return 'posts'
+  }
+
+  if (releaseId) {
+    return 'releases'
   }
 
   if (commentId) {
@@ -119,11 +125,18 @@ export function shouldAutoLoadDeepLinkPage({
   )
 }
 
-const PROJECT_DEEP_LINK_KEYS = ['comment', 'commentPath', 'post', 'thread']
+const PROJECT_DEEP_LINK_KEYS = [
+  'comment',
+  'commentPath',
+  'post',
+  'release',
+  'thread',
+]
 
 /**
  * The project URL (path and deep-link query) a signed-out visitor returns to
- * after sign-in, so a shared `?comment=` or `?post=` link survives it. The
+ * after sign-in, so a shared `?comment=`, `?post=` or `?release=` link
+ * survives it. The
  * hash is added by the caller on the client.
  */
 export function buildProjectReturnHref({
