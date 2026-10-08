@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, redirect } from '@tanstack/react-router'
 import { PublicHeader } from '@/components/app-shell/public-header'
 import { PublicFooter } from '@/components/app-shell/public-footer'
+import { HeroActivityList } from '@/features/landing/hero-activity-list'
 import { HeroCopy } from '@/features/landing/hero-copy'
 import { HeroMapCaption } from '@/features/landing/hero-map-caption'
 import {
@@ -31,7 +32,7 @@ export const Route = createFileRoute('/')({
     throw redirect({ to: bootstrap.needsOnboarding ? '/onboarding' : '/home' })
   },
   // The public queries render on the server. `prefetchQuery` never throws:
-  // if one fails, the landing still renders with its labelled examples.
+  // if one fails, the landing still renders, with nothing pinged.
   loader: async ({ context }) => {
     await Promise.all([
       context.queryClient.prefetchQuery(landingMapCitiesQueryOptions()),
@@ -65,6 +66,7 @@ function LandingPage() {
             className="mx-auto mt-10 w-full max-w-105 md:mt-14 lg:mt-0 lg:max-w-none"
           >
             <PingGlobe items={pingItems} cityDots={getLandingCityDots(map)} />
+            <HeroActivityList items={pingItems} />
           </section>
         </div>
         <div className="mx-auto max-w-(--lx-public-max) px-(--lx-gutter)">

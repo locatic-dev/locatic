@@ -179,6 +179,138 @@ describe('landing recent activity (D7)', () => {
     ])
   })
 
+  it('reads past newer rows that never reach the map', async () => {
+    const ada = await seedUser(t, { username: 'ada', cityId: cities.bengaluru })
+    const region = await seedUser(t, {
+      username: 'region',
+      cityId: cities.bengaluru,
+      cityVisibility: 'region_only',
+    })
+    // More region-only work than any one read window held, all newer.
+    for (let index = 0; index < 30; index++) {
+      const tool = await seedProject(t, {
+        ownerId: region,
+        name: `r${index}`,
+        addedAt: daysAgo(1),
+        lastCommitAt: daysAgo(0.5),
+      })
+      await seedPost(t, tool, region, daysAgo(0.5))
+      await seedRelease(t, tool, daysAgo(0.5))
+    }
+    const tool = await seedProject(t, {
+      ownerId: ada,
+      name: 'tool',
+      addedAt: daysAgo(10),
+      lastCommitAt: daysAgo(20),
+    })
+
+    const activity = await listActivity()
+
+    expect(activity.map((item) => item.key)).toEqual([`project:${tool}`])
+  })
+
+  it('fills in from other builders when one builder is busy', async () => {
+    const ada = await seedUser(t, { username: 'ada', cityId: cities.bengaluru })
+    const bob = await seedUser(t, { username: 'bob', cityId: cities.hyderabad })
+    const tool = await seedProject(t, {
+      ownerId: ada,
+      name: 'tool',
+      addedAt: daysAgo(30),
+      lastCommitAt: daysAgo(30),
+    })
+    const bobTool = await seedProject(t, {
+      ownerId: bob,
+      name: 'bob-tool',
+      addedAt: daysAgo(30),
+      lastCommitAt: daysAgo(30),
+    })
+    for (let index = 0; index < 30; index++) {
+      await seedPost(t, tool, ada, daysAgo(0.01 * (index + 1)))
+    }
+    const bobPost = await seedPost(t, bobTool, bob, daysAgo(1))
+
+    const activity = await listActivity()
+
+    expect(activity.map((item) => item.actor.handle)).toEqual([
+      'ada',
+      'ada',
+      'bob',
+      'bob',
+    ])
+    expect(activity[2]?.key).toBe(`post:${bobPost}`)
+  })
+
+  it('shows a project pushed since it was shared as shipped, however many pushed later', async () => {
+    const ada = await seedUser(t, { username: 'ada', cityId: cities.bengaluru })
+    const region = await seedUser(t, {
+      username: 'region',
+      cityId: cities.bengaluru,
+      cityVisibility: 'region_only',
+    })
+    // Newer pushes than the target's, enough to fill a push window.
+    for (let index = 0; index < 20; index++) {
+      await seedProject(t, {
+        ownerId: region,
+        name: `r${index}`,
+        addedAt: daysAgo(60),
+        lastCommitAt: daysAgo(0.5),
+      })
+    }
+    const tool = await seedProject(t, {
+      ownerId: ada,
+      name: 'tool',
+      addedAt: daysAgo(2),
+      lastCommitAt: daysAgo(1),
+    })
+
+    const activity = await listActivity()
+
+    expect(activity).toHaveLength(1)
+    expect(activity[0]).toMatchObject({
+      key: `push:${tool}`,
+      kind: 'push',
+      at: daysAgo(1),
+    })
+  })
+
+  it('stops after its scan budget, counting rows a source skips', async () => {
+    const ada = await seedUser(t, { username: 'ada', cityId: cities.bengaluru })
+    const region = await seedUser(t, {
+      username: 'region',
+      cityId: cities.bengaluru,
+      cityVisibility: 'region_only',
+    })
+    // Pushed since shared, so the shared source reads and skips each one.
+    const first = await seedProject(t, {
+      ownerId: region,
+      name: 'r0',
+      addedAt: daysAgo(1),
+      lastCommitAt: daysAgo(0.5),
+    })
+    await t.run(async (ctx) => {
+      const { _id, _creationTime, ...row } = (await ctx.db.get(first))!
+      for (let index = 1; index < 410; index++) {
+        await ctx.db.insert('projects', {
+          ...row,
+          github: {
+            ...row.github,
+            repoId: row.github.repoId + index,
+            name: `r${index}`,
+          },
+        })
+      }
+    })
+    // Only past every one of them.
+    await seedProject(t, {
+      ownerId: ada,
+      name: 'tool',
+      addedAt: daysAgo(10),
+      lastCommitAt: daysAgo(20),
+    })
+
+    expect(await listActivity()).toEqual([])
+  })
+
   it('is the same for visitors and members', async () => {
     const ada = await seedUser(t, { username: 'ada', cityId: cities.bengaluru })
     await seedProject(t, { ownerId: ada, name: 'tool' })

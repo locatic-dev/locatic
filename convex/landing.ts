@@ -1,4 +1,4 @@
-import { v } from 'convex/values'
+import { v, type Infer } from 'convex/values'
 
 import { query } from './_generated/server'
 import type { QueryCtx } from './_generated/server'
@@ -13,13 +13,12 @@ const LANDING_ACTIVITY_LIMIT = 12
 /** Most items one builder contributes, so a busy builder cannot fill the globe. */
 const LANDING_ACTIVITY_PER_ACTOR = 2
 /**
- * Rows read per source. More than the globe shows, since rows of hidden
- * projects, owners who left discovery or region-only owners drop out.
+ * Most index rows the activity scan reads across its four sources. Rows of
+ * hidden projects, owners who left discovery, region-only owners and capped
+ * builders are skipped and the scan reads on, so older eligible work still
+ * fills the globe; the budget keeps that bounded.
  */
-const POST_READ_LIMIT = 24
-const RELEASE_READ_LIMIT = 24
-const PROJECT_READ_LIMIT = 12
-const PUSH_READ_LIMIT = 12
+const LANDING_SCAN_BUDGET = 400
 /** Longest post excerpt, in characters, before the ellipsis. */
 const POST_EXCERPT_LENGTH = 90
 
@@ -61,6 +60,8 @@ export const landingActivityValidator = v.union(
     name: optionalStringValidator,
   }),
 )
+
+type LandingActivity = Infer<typeof landingActivityValidator>
 
 type Located = {
   project: Doc<'projects'>
@@ -151,15 +152,66 @@ export function toPostExcerpt(body: string): string {
   return `${(lastSpace > POST_EXCERPT_LENGTH / 2 ? cut.slice(0, lastSpace) : cut).trimEnd()}…`
 }
 
+/** An index row the scan has read: when it happened, and what it is. */
+type Candidate =
+  | { kind: 'post'; at: number; post: Doc<'posts'> }
+  | { kind: 'release'; at: number; release: Doc<'project_releases'> }
+  | { kind: 'project' | 'push'; at: number; project: Doc<'projects'> }
+
+/**
+ * Merges sources that each yield newest first into one stream, newest
+ * first. Sources are read lazily: the one just yielded from advances only
+ * when the next item is asked for, so a consumer that stops reads no
+ * further.
+ */
+async function* newestFirst(
+  sources: ReadonlyArray<AsyncIterable<Candidate>>,
+): AsyncGenerator<Candidate> {
+  const iterators = sources.map((source) => source[Symbol.asyncIterator]())
+  // Per source: its next candidate, null once it is done, undefined while
+  // it has not been read.
+  const heads: Array<Candidate | null | undefined> = iterators.map(
+    () => undefined,
+  )
+  for (;;) {
+    await Promise.all(
+      iterators.map(async (iterator, index) => {
+        if (heads[index] === undefined) {
+          heads[index] = (await iterator.next()).value ?? null
+        }
+      }),
+    )
+    let newest: number | null = null
+    heads.forEach((head, index) => {
+      const current = newest === null ? null : heads[newest]
+      if (head && (!current || head.at > current.at)) {
+        newest = index
+      }
+    })
+    if (newest === null) {
+      return
+    }
+    const head = heads[newest]!
+    heads[newest] = undefined
+    yield head
+  }
+}
+
 /**
  * Public activity for the landing globe (plan item D7): the newest posts,
  * published releases, pushes ("shipped") and newly shared projects, newest
  * first, at most `LANDING_ACTIVITY_PER_ACTOR` per builder. There is no time
- * window, so older work fills in while little is new. Only visible projects whose live
- * owner is discoverable and discloses an exact city appear, placed on that
- * city. A project pushed since it was shared shows as shipped, not as shared.
- * Four bounded indexed reads plus cached lookups. Public and
- * viewer-independent: the landing never reads auth.
+ * window, so older work fills in while little is new. Only visible projects
+ * whose live owner is discoverable and discloses an exact city appear, placed
+ * on that city.
+ *
+ * A project is one item, classified by its own timestamps: shipped at its
+ * last push when it was pushed after it was shared, else shared when it was
+ * added. The four indexes are read lazily and merged newest first, skipping
+ * rows that fail the privacy checks or the builder cap, until the globe is
+ * full or `LANDING_SCAN_BUDGET` rows have been read; project, owner and city
+ * reads are cached. Public and viewer-independent: the landing never reads
+ * auth.
  */
 export const listRecentActivity = query({
   args: {},
@@ -167,41 +219,82 @@ export const listRecentActivity = query({
   handler: async (ctx) => {
     const loaders = createLoaders(ctx)
 
-    const [posts, releases, projects, pushed] = await Promise.all([
+    // Every index row read counts, including rows a source skips.
+    let budget = LANDING_SCAN_BUDGET
+    async function* budgeted<T>(rows: AsyncIterable<T>): AsyncGenerator<T> {
+      for await (const row of rows) {
+        if (budget <= 0) {
+          return
+        }
+        budget--
+        yield row
+      }
+    }
+
+    const posts = budgeted(
       ctx.db
         .query('posts')
         .withIndex('by_deleted_created', (query) => query.eq('deletedAt', null))
-        .order('desc')
-        .take(POST_READ_LIMIT),
-      ctx.db
-        .query('project_releases')
-        .withIndex('by_published')
-        .order('desc')
-        .take(RELEASE_READ_LIMIT),
+        .order('desc'),
+    )
+    const releases = budgeted(
+      ctx.db.query('project_releases').withIndex('by_published').order('desc'),
+    )
+    const added = budgeted(
       ctx.db
         .query('projects')
         .withIndex('by_explore_eligible_added', (query) =>
           query.eq('exploreOwner.isEligible', true),
         )
-        .order('desc')
-        .take(PROJECT_READ_LIMIT),
+        .order('desc'),
+    )
+    const pushed = budgeted(
       ctx.db
         .query('projects')
         .withIndex('by_explore_eligible_last_commit', (query) =>
           query.eq('exploreOwner.isEligible', true),
         )
-        .order('desc')
-        .take(PUSH_READ_LIMIT),
-    ])
-    // Pushed after it was shared: the push is the news.
-    const shipped = pushed.filter(
-      (project) => project.github.lastCommitAt > project.addedToLocaticAt,
+        .order('desc'),
     )
-    const shippedIds = new Set(shipped.map((project) => String(project._id)))
 
-    const items = (
-      await Promise.all([
-        ...posts.map(async (post) => {
+    async function* postCandidates(): AsyncGenerator<Candidate> {
+      for await (const post of posts) {
+        yield { kind: 'post', at: post.createdAt, post }
+      }
+    }
+    async function* releaseCandidates(): AsyncGenerator<Candidate> {
+      for await (const release of releases) {
+        // Unpublished releases sort last: nothing published follows.
+        if (release.publishedAt === null) {
+          return
+        }
+        if (!release.isDraft) {
+          yield { kind: 'release', at: release.publishedAt, release }
+        }
+      }
+    }
+    async function* sharedCandidates(): AsyncGenerator<Candidate> {
+      for await (const project of added) {
+        if (project.github.lastCommitAt <= project.addedToLocaticAt) {
+          yield { kind: 'project', at: project.addedToLocaticAt, project }
+        }
+      }
+    }
+    async function* shippedCandidates(): AsyncGenerator<Candidate> {
+      for await (const project of pushed) {
+        // Pushed after it was shared: the push is the news.
+        if (project.github.lastCommitAt > project.addedToLocaticAt) {
+          yield { kind: 'push', at: project.github.lastCommitAt, project }
+        }
+      }
+    }
+
+    async function toItem(
+      candidate: Candidate,
+    ): Promise<LandingActivity | null> {
+      switch (candidate.kind) {
+        case 'post': {
+          const { post } = candidate
           const [located, actor] = await Promise.all([
             loaders.located(post.projectId),
             loaders.user(post.actorId),
@@ -210,16 +303,14 @@ export const listRecentActivity = query({
             return null
           }
           return {
-            ...toBaseFields(located, actor, `post:${post._id}`, post.createdAt),
-            kind: 'post' as const,
+            ...toBaseFields(located, actor, `post:${post._id}`, candidate.at),
+            kind: 'post',
             postId: post._id,
             excerpt: toPostExcerpt(post.body),
           }
-        }),
-        ...releases.map(async (release) => {
-          if (release.isDraft || release.publishedAt === null) {
-            return null
-          }
+        }
+        case 'release': {
+          const { release } = candidate
           const located = await loaders.located(release.projectId)
           if (!located) {
             return null
@@ -229,15 +320,17 @@ export const listRecentActivity = query({
               located,
               located.owner,
               `release:${release._id}`,
-              release.publishedAt,
+              candidate.at,
             ),
-            kind: 'release' as const,
+            kind: 'release',
             releaseId: release._id,
             tag: release.tagName,
             name: release.name,
           }
-        }),
-        ...shipped.map(async (project) => {
+        }
+        case 'project':
+        case 'push': {
+          const { project, kind } = candidate
           const located = await loaders.located(project._id)
           if (!located) {
             return null
@@ -246,38 +339,27 @@ export const listRecentActivity = query({
             ...toBaseFields(
               located,
               located.owner,
-              `push:${project._id}`,
-              project.github.lastCommitAt,
+              `${kind}:${project._id}`,
+              candidate.at,
             ),
-            kind: 'push' as const,
+            kind,
           }
-        }),
-        ...projects.map(async (project) => {
-          if (shippedIds.has(String(project._id))) {
-            return null
-          }
-          const located = await loaders.located(project._id)
-          if (!located) {
-            return null
-          }
-          return {
-            ...toBaseFields(
-              located,
-              located.owner,
-              `project:${project._id}`,
-              project.addedToLocaticAt,
-            ),
-            kind: 'project' as const,
-          }
-        }),
-      ])
-    ).filter((item) => item !== null)
-
-    items.sort((left, right) => right.at - left.at)
+        }
+      }
+    }
 
     const perActor = new Map<string, number>()
-    const recent: typeof items = []
-    for (const item of items) {
+    const recent: LandingActivity[] = []
+    for await (const candidate of newestFirst([
+      postCandidates(),
+      releaseCandidates(),
+      sharedCandidates(),
+      shippedCandidates(),
+    ])) {
+      const item = await toItem(candidate)
+      if (!item) {
+        continue
+      }
       const count = perActor.get(item.actor.handle) ?? 0
       if (count >= LANDING_ACTIVITY_PER_ACTOR) {
         continue
