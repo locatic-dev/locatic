@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { Id } from '../../../../../convex/_generated/dataModel'
 import type { ProjectDetailPayload } from '@/features/contracts'
@@ -30,8 +30,25 @@ function releaseFixture(
   }
 }
 
+function stubReducedMotion(matches: boolean) {
+  vi.stubGlobal(
+    'matchMedia',
+    vi.fn((media: string) => ({
+      matches: media === '(prefers-reduced-motion: reduce)' && matches,
+      media,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    })),
+  )
+}
+
 describe('ProjectReleasesSection', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
   it('highlights the release a deep link names and scrolls it into view', () => {
+    stubReducedMotion(false)
     const scrollIntoView = vi.fn()
     Element.prototype.scrollIntoView = scrollIntoView
     const { container } = render(
@@ -52,6 +69,27 @@ describe('ProjectReleasesSection', () => {
     expect(highlighted?.id).toBe('release-release_2')
     expect(container.querySelector('#release-release_1')).toBeTruthy()
     expect(scrollIntoView).toHaveBeenCalledTimes(1)
+    expect(scrollIntoView).toHaveBeenCalledWith({
+      behavior: 'smooth',
+      block: 'center',
+    })
+  })
+
+  it('jumps to the release without smooth scrolling under reduced motion', () => {
+    stubReducedMotion(true)
+    const scrollIntoView = vi.fn()
+    Element.prototype.scrollIntoView = scrollIntoView
+    render(
+      <ProjectReleasesSection
+        releases={[releaseFixture()]}
+        highlightedReleaseId="release_1"
+      />,
+    )
+
+    expect(scrollIntoView).toHaveBeenCalledWith({
+      behavior: 'instant',
+      block: 'center',
+    })
   })
 
   it('renders release rows as full external GitHub links', () => {

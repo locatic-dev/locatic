@@ -1,5 +1,12 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import {
+  act,
+  cleanup,
+  createEvent,
+  fireEvent,
+  render,
+  screen,
+} from '@testing-library/react'
 import { renderToString } from 'react-dom/server'
 import type { AnchorHTMLAttributes, ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -36,7 +43,12 @@ import {
   type PingItem,
 } from '../landing-content'
 
-import { anchorVariables, faceRotation, projectToGlobe } from '../globe'
+import {
+  anchorVariables,
+  dragDegreesPerPixel,
+  faceRotation,
+  projectToGlobe,
+} from '../globe'
 import { PingGlobe, pickStaticPings } from '../ping-globe'
 
 /**
@@ -489,6 +501,39 @@ function dragBy(target: Element, dx: number, dy = 0) {
   return fireEvent.click(target)
 }
 
+/** A pointer event at `timeStamp` ms, so the drag can measure a flick. */
+function pointerAt(
+  type: 'pointerDown' | 'pointerMove' | 'pointerUp',
+  target: Element,
+  clientX: number,
+  timeStamp: number,
+) {
+  const event = createEvent[type](target, {
+    pointerId: 1,
+    isPrimary: true,
+    button: 0,
+    clientX,
+    clientY: 100,
+  })
+  Object.defineProperty(event, 'timeStamp', { value: timeStamp })
+  fireEvent(target, event)
+}
+
+/** A quick drag by `dx` pixels, released while still moving. */
+function flick(target: Element, dx: number) {
+  pointerAt('pointerDown', target, 100, 0)
+  pointerAt('pointerMove', target, 106, 10)
+  pointerAt('pointerMove', target, 106 + dx, 26)
+  pointerAt('pointerUp', target, 106 + dx, 30)
+}
+
+const MOUSE = {
+  pointerId: 1,
+  isPrimary: true,
+  button: 0,
+  pointerType: 'mouse',
+}
+
 describe('PingGlobe drag', () => {
   beforeEach(() => {
     vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(420)
@@ -557,6 +602,116 @@ describe('PingGlobe drag', () => {
     expect(frames.size).toBe(0)
     rerender(<PingGlobe items={ITEMS} />)
     expect(readVariable(marker(), '--gx')).toBe(turned)
+  })
+
+  it('forgets a press released outside the globe before it became a drag', () => {
+    const { container } = render(<PingGlobe items={ITEMS} />)
+    const box = globeBox(container)
+    const before = readVariable(cardAnchor(container), '--gx')
+
+    fireEvent.pointerDown(box, { ...MOUSE, buttons: 1, clientX: 100 })
+    fireEvent.pointerMove(box, { ...MOUSE, buttons: 1, clientX: 103 })
+    // Released off the globe: only the window hears it.
+    fireEvent.pointerUp(window, { ...MOUSE, buttons: 0, clientX: 104 })
+    // Back over the globe with no button held: hovering never drags.
+    fireEvent.pointerMove(box, { ...MOUSE, buttons: 0, clientX: 160 })
+
+    expect(readVariable(cardAnchor(container), '--gx')).toBe(before)
+    expect(
+      screen.getByRole('button', { name: 'pause map animation' }),
+    ).toBeTruthy()
+    // The next press still turns the globe.
+    dragBy(box, 40)
+    expect(readVariable(cardAnchor(container), '--gx')).not.toBe(before)
+  })
+
+  it('treats a buttonless mouse move as a release it missed', () => {
+    const { container } = render(<PingGlobe items={ITEMS} />)
+    const box = globeBox(container)
+    const before = readVariable(cardAnchor(container), '--gx')
+
+    fireEvent.pointerDown(box, { ...MOUSE, buttons: 1, clientX: 100 })
+    fireEvent.pointerMove(box, { ...MOUSE, buttons: 0, clientX: 160 })
+    fireEvent.pointerMove(box, { ...MOUSE, buttons: 0, clientX: 200 })
+
+    expect(readVariable(cardAnchor(container), '--gx')).toBe(before)
+    expect(
+      screen.getByRole('button', { name: 'pause map animation' }),
+    ).toBeTruthy()
+  })
+
+  it('stops listening for a pending release on unmount', () => {
+    const removeListener = vi.spyOn(window, 'removeEventListener')
+    const { container, unmount } = render(<PingGlobe items={ITEMS} />)
+    fireEvent.pointerDown(globeBox(container), { ...MOUSE, buttons: 1 })
+
+    unmount()
+
+    expect(removeListener).toHaveBeenCalledWith(
+      'pointerup',
+      expect.any(Function),
+    )
+    expect(removeListener).toHaveBeenCalledWith(
+      'pointercancel',
+      expect.any(Function),
+    )
+  })
+
+  it('ends a drag whose pointer capture is lost', () => {
+    const { container } = render(<PingGlobe items={ITEMS} />)
+    const box = globeBox(container)
+    const pointer = { pointerId: 1, isPrimary: true, button: 0 }
+    fireEvent.pointerDown(box, { ...pointer, clientX: 100, clientY: 100 })
+    fireEvent.pointerMove(box, { ...pointer, clientX: 120, clientY: 100 })
+    const dragged = readVariable(cardAnchor(container), '--gx')
+
+    fireEvent.lostPointerCapture(box, pointer)
+    fireEvent.pointerMove(box, { ...pointer, clientX: 200, clientY: 100 })
+
+    expect(readVariable(cardAnchor(container), '--gx')).toBe(dragged)
+  })
+
+  it('keeps dragging when a touch hands its capture from a child to the globe', () => {
+    const { container } = render(<PingGlobe items={ITEMS} />)
+    const box = globeBox(container)
+    const canvas = container.querySelector('canvas')!
+    const pointer = { pointerId: 1, isPrimary: true, button: 0 }
+    fireEvent.pointerDown(canvas, { ...pointer, clientX: 100, clientY: 100 })
+    fireEvent.pointerMove(canvas, { ...pointer, clientX: 120, clientY: 100 })
+    const dragged = readVariable(cardAnchor(container), '--gx')
+
+    // The canvas held the touch's implicit capture; the box takes it over.
+    fireEvent.lostPointerCapture(canvas, pointer)
+    fireEvent.pointerMove(box, { ...pointer, clientX: 200, clientY: 100 })
+
+    expect(readVariable(cardAnchor(container), '--gx')).not.toBe(dragged)
+  })
+
+  it('hides a card turned to the far side, so it takes no clicks', () => {
+    const { container } = render(<PingGlobe items={ITEMS} />)
+    expect(cardAnchor(container)?.style.visibility).toBe('visible')
+
+    dragBy(globeBox(container), 180 / dragDegreesPerPixel(420))
+
+    const anchor = cardAnchor(container)
+    expect(readVariable(anchor, '--gv')).toBe('0.00')
+    expect(anchor?.style.visibility).toBe('hidden')
+  })
+
+  it('stops a released flick at once when reduced motion is switched on', () => {
+    const { container } = render(<PingGlobe items={ITEMS} />)
+    flick(globeBox(container), 60)
+    flushFrames(3)
+    const coasting = readVariable(cardAnchor(container), '--gx')
+    flushFrames(3)
+    expect(readVariable(cardAnchor(container), '--gx')).not.toBe(coasting)
+
+    act(() => reducedMotionQuery.set(true))
+    const stopped = readVariable(cardAnchor(container), '--gx')
+    flushFrames(30)
+
+    expect(readVariable(cardAnchor(container), '--gx')).toBe(stopped)
+    expect(frames.size).toBe(0)
   })
 
   it('ignores presses on the pause control', () => {

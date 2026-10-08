@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
-import { render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { AnchorHTMLAttributes, ReactNode } from 'react'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { Id } from '../../../../convex/_generated/dataModel'
 
@@ -31,6 +31,7 @@ vi.mock('@tanstack/react-router', () => ({
   },
 }))
 
+import { HeroActivityList } from '../hero-activity-list'
 import { HeroMapCaption } from '../hero-map-caption'
 import {
   LANDING_MAP_MAX_PINS,
@@ -281,6 +282,53 @@ describe('getPingSequence', () => {
     ])
 
     expect(item?.headline).toBe('carol shared notes')
+  })
+})
+
+describe('HeroActivityList', () => {
+  afterEach(() => {
+    cleanup()
+  })
+
+  it('gives keyboards every activity link, with its deep link, without the city caption', () => {
+    const onClick = vi.fn((event: MouseEvent) => event.preventDefault())
+    render(
+      <>
+        <HeroMapCaption map={getLandingMap([])} />
+        <HeroActivityList items={getPingSequence([POST, RELEASE, PROJECT])} />
+      </>,
+    )
+
+    const list = screen.getByRole('list', { name: 'recent activity' })
+    expect(list.closest('[aria-hidden="true"]')).toBeNull()
+    const post = screen.getByRole('link', { name: 'Saroj posted in portfolio' })
+    expect(post.getAttribute('href')).toBe(
+      '/project/saroj/portfolio?post=post_1',
+    )
+    expect(post.getAttribute('tabindex')).toBeNull()
+    expect(
+      screen
+        .getByRole('link', { name: 'Bob released cli v0.3' })
+        .getAttribute('href'),
+    ).toBe('/project/bob/cli?release=release_1')
+    expect(
+      screen
+        .getByRole('link', { name: 'Carol shared notes' })
+        .getAttribute('href'),
+    ).toBe('/project/carol/notes')
+    expect(list.textContent).toContain('Saroj posted in portfolio · Berlin')
+
+    post.focus()
+    expect(document.activeElement).toBe(post)
+    post.addEventListener('click', onClick)
+    fireEvent.click(post)
+    expect(onClick).toHaveBeenCalledTimes(1)
+  })
+
+  it('renders nothing while there is no activity', () => {
+    const { container } = render(<HeroActivityList items={[]} />)
+
+    expect(container.innerHTML).toBe('')
   })
 })
 

@@ -246,11 +246,20 @@ function advanceScene(scene: Scene, dt: number) {
   scene.rotation.phi = scene.phi.value
 }
 
+/**
+ * Far-side anchors are hidden, not just transparent: a transparent card
+ * still takes clicks and hovers.
+ */
+function anchorVisibility(opacity: string): 'visible' | 'hidden' {
+  return Number(opacity) > 0 ? 'visible' : 'hidden'
+}
+
 function writeAnchor(anchor: Anchor, rotation: GlobeRotation) {
   const variables = anchorVariables(anchor, rotation)
   anchor.element.style.setProperty('--gx', variables['--gx'])
   anchor.element.style.setProperty('--gy', variables['--gy'])
   anchor.element.style.setProperty('--gv', variables['--gv'])
+  anchor.element.style.visibility = anchorVisibility(variables['--gv'])
 }
 
 function renderScene(scene: Scene) {
@@ -262,7 +271,11 @@ function renderScene(scene: Scene) {
 
 /** Inline custom properties that place an anchor on first paint. */
 function anchorStyle(point: LatLng, rotation: GlobeRotation): CSSProperties {
-  return anchorVariables(point, rotation) as CSSProperties
+  const variables = anchorVariables(point, rotation)
+  return {
+    ...variables,
+    visibility: anchorVisibility(variables['--gv']),
+  } as CSSProperties
 }
 
 type DragState = {
@@ -291,7 +304,8 @@ function clampSpin(speed: number): number {
  * play. A press that moves less than `DRAG_THRESHOLD_PX` stays a click, so
  * the card under it still opens; the click that ends a drag is swallowed.
  * `held` is true from the drag's start until the flick has coasted out
- * (`DRAG_COAST_MS` after the release).
+ * (`DRAG_COAST_MS` after the release). Switching reduced motion on stops a
+ * released flick at once.
  */
 function useGlobeDrag(
   sceneRef: RefObject<Scene | null>,
@@ -305,13 +319,63 @@ function useGlobeDrag(
     undefined,
   )
   const swallowClickRef = useRef(false)
+  // Stops listening for the release of a press that is not yet a drag.
+  const unwatchReleaseRef = useRef<(() => void) | null>(null)
   const reducedMotionRef = useRef(reducedMotion)
   const onGrabRef = useRef(onGrab)
   useEffect(() => {
     reducedMotionRef.current = reducedMotion
     onGrabRef.current = onGrab
   }, [reducedMotion, onGrab])
-  useEffect(() => () => clearTimeout(holdTimerRef.current), [])
+  useEffect(
+    () => () => {
+      clearTimeout(holdTimerRef.current)
+      unwatchReleaseRef.current?.()
+    },
+    [],
+  )
+
+  // Reduced motion switched on: a released flick stops where it is. A drag
+  // still in progress keeps following the pointer.
+  useEffect(() => {
+    const scene = sceneRef.current
+    if (!reducedMotion || !scene) {
+      return
+    }
+    scene.lambda.velocity = 0
+    scene.phi.velocity = 0
+    if (scene.held && !dragRef.current?.dragging) {
+      clearTimeout(holdTimerRef.current)
+      scene.held = false
+      setHeld(false)
+    }
+  }, [reducedMotion, sceneRef])
+
+  const forgetPress = () => {
+    dragRef.current = null
+    unwatchReleaseRef.current?.()
+    unwatchReleaseRef.current = null
+  }
+
+  /**
+   * Nothing captures a press until it becomes a drag, so its release can
+   * land outside the globe; listen for it on the window, or the press would
+   * linger and a later hover would drag.
+   */
+  const watchRelease = (pointerId: number) => {
+    const onRelease = (event: PointerEvent) => {
+      const drag = dragRef.current
+      if (event.pointerId === pointerId && drag && !drag.dragging) {
+        forgetPress()
+      }
+    }
+    window.addEventListener('pointerup', onRelease)
+    window.addEventListener('pointercancel', onRelease)
+    unwatchReleaseRef.current = () => {
+      window.removeEventListener('pointerup', onRelease)
+      window.removeEventListener('pointercancel', onRelease)
+    }
+  }
 
   const endDrag = (
     event: ReactPointerEvent<HTMLDivElement>,
@@ -321,7 +385,7 @@ function useGlobeDrag(
     if (!drag || event.pointerId !== drag.pointerId) {
       return
     }
-    dragRef.current = null
+    forgetPress()
     if (!drag.dragging) {
       return
     }
@@ -370,6 +434,7 @@ function useGlobeDrag(
         lambdaSpeed: 0,
         phiSpeed: 0,
       }
+      watchRelease(event.pointerId)
     },
     onPointerMove: (event: ReactPointerEvent<HTMLDivElement>) => {
       const drag = dragRef.current
@@ -379,6 +444,11 @@ function useGlobeDrag(
         return
       }
       if (!drag.dragging) {
+        // A mouse moving with no button down was released somewhere unseen.
+        if (event.pointerType === 'mouse' && event.buttons === 0) {
+          forgetPress()
+          return
+        }
         const moved = Math.hypot(
           event.clientX - drag.originX,
           event.clientY - drag.originY,
@@ -430,6 +500,14 @@ function useGlobeDrag(
     // A scroll or system gesture took the pointer: stop where it is.
     onPointerCancel: (event: ReactPointerEvent<HTMLDivElement>) =>
       endDrag(event, false),
+    // Capture taken from the box mid-drag: the drag ends there, without a
+    // flick. A touch press starts captured by what it landed on, which loses
+    // that capture to the box as the drag begins; that bubbles up here too.
+    onLostPointerCapture: (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (event.target === event.currentTarget) {
+        endDrag(event, false)
+      }
+    },
     onClickCapture: (event: ReactMouseEvent<HTMLDivElement>) => {
       if (swallowClickRef.current) {
         swallowClickRef.current = false
@@ -468,8 +546,9 @@ function useGlobeDrag(
  * - Each card links to its project, post or release; hovering it
  *   holds the tour so it can be clicked.
  *
- * The globe itself is decorative (`aria-hidden`): `HeroMapCaption` carries
- * its content and links. Only the pause control is exposed.
+ * The globe itself is decorative (`aria-hidden`): `HeroActivityList` gives
+ * keyboards and screen readers the same items and links, and
+ * `HeroMapCaption` names its cities. Only the pause control is exposed.
  */
 export function PingGlobe({
   items,
@@ -841,7 +920,7 @@ function PingCard({
           onPointerEnter={() => onHoldChange(true)}
           onPointerLeave={() => onHoldChange(false)}
         >
-          {/* Out of the tab order: it moves on its own. HeroMapCaption
+          {/* Out of the tab order: it moves on its own. HeroActivityList
               lists the same links for keyboards and screen readers. */}
           <Link
             to="/project/$owner/$repo"

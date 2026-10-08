@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import type { ProjectDetailPayload } from '@/features/contracts'
 import { Card } from '@/components/ui/card'
 import { MarkdownPreview } from '@/components/ui/markdown-prose'
+import { prefersReducedMotion } from '@/lib/motion'
 import { relativeTime } from '@/lib/time'
 import { cn } from '@/lib/utils'
 
@@ -26,11 +27,12 @@ function ProjectReleaseCard({
   const title = release.name || release.tagName
   const articleRef = useRef<HTMLElement>(null)
 
-  // A `?release=` deep link brings its release into view.
+  // A `?release=` deep link brings its release into view. Browser scrolling
+  // is outside MotionConfig, so it follows the motion preference itself.
   useEffect(() => {
     if (highlighted) {
       articleRef.current?.scrollIntoView({
-        behavior: 'smooth',
+        behavior: prefersReducedMotion() ? 'instant' : 'smooth',
         block: 'center',
       })
     }
