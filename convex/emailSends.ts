@@ -30,9 +30,8 @@ import { emailCategoryValidator } from './lib/validators'
 const CANCEL_PAGE_SIZE = 100
 const PURGE_PAGE_SIZE = 500
 const RECONCILE_LIMIT = 100
-const RECONCILE_AFTER_MS = 15 * 60_000
-// Rows read per status to choose from; the least recently checked win.
-const RECONCILE_SCAN = 500
+// A row is checked this long after it was enqueued, then this often.
+const RECONCILE_INTERVAL_MS = 15 * 60_000
 const DAY_MS = 24 * 60 * 60_000
 // Reconcile only while the component surely still has its copy (finalized
 // copies are deleted after 30 days, see below). Older rows keep their status.
@@ -45,9 +44,12 @@ const ABANDONED_RETENTION_MS = 60 * DAY_MS
  * Applies a delivery outcome to a send row. The displayed status moves
  * forward only (a late `delivered` never replaces `complained`). A complaint
  * is handled separately and exactly once per send, whatever the status was:
- * the first one turns every email preference off (which also cancels the
- * member's waiting sends) and stamps `complaintHandledAt`, so a repeat, even
- * after the member turned email back on, changes nothing.
+ * the first one stamps `complaintHandledAt`, so a repeat, even after the
+ * member turned email back on, changes nothing. If the send went to the
+ * member's current address (created after `emailChangedAt`, the same rule
+ * Settings uses), it also turns every email preference off, which cancels the
+ * member's waiting sends. A complaint about an earlier address is recorded
+ * but does not switch off email to the new one.
  */
 async function applySendStatus(
   ctx: MutationCtx,
@@ -62,13 +64,16 @@ async function applySendStatus(
   if (!next && !firstComplaint) return false
   await ctx.db.patch(row._id, {
     ...(next ? { status: next } : {}),
+    // A final status leaves the reconciliation schedule.
+    ...(next && !isOpenStatus(next) ? { nextReconcileAt: undefined } : {}),
     ...(next && errorMessage && (next === 'bounced' || next === 'failed')
       ? { errorMessage: errorMessage.slice(0, 500) }
       : {}),
     ...(firstComplaint ? { complaintHandledAt: now } : {}),
     updatedAt: now,
   })
-  if (firstComplaint) {
+  const user = firstComplaint ? await ctx.db.get(row.userId) : null
+  if (user && row.createdAt > (user.emailChangedAt ?? 0)) {
     for (const category of ['product_updates', 'weekly_digest'] as const) {
       await setEmailPreference(ctx, {
         userId: row.userId,
@@ -106,13 +111,20 @@ export const handleEmailEvent = internalMutation({
   },
 })
 
+/** Statuses that can still change; only these stay on the check schedule. */
+function isOpenStatus(status: SendStatus) {
+  return status === 'queued' || status === 'sent'
+}
+
 /**
  * Copies outcomes that never reach `onEmailEvent` (API failures, exhausted
- * retries) from the component while it still has its copy: only rows created
- * in the last 25 days and untouched for 15 minutes. Of the oldest 500 such
- * rows per status, the least recently checked are taken, 100 in all: half
- * for `queued` and half for `sent`, with slots one status cannot use going to
- * the other. Each row looked at moves to the back of its line.
+ * retries) from the component while it still has its copy. Each open row
+ * carries `nextReconcileAt`: set 15 minutes after it is enqueued, pushed 15
+ * minutes on after every check, and removed once the row reaches a final
+ * status or is 25 days old. A run takes up to 100 due rows, half `queued` and
+ * half `sent`, with slots one status cannot use going to the other. Because
+ * every check moves a row to the back of the schedule, every open row is
+ * visited in turn, however many there are.
  *
  * `sent` means handed to Resend with delivery not confirmed. An address
  * Resend suppresses (an earlier bounce or complaint) never produces a
@@ -126,35 +138,42 @@ export const reconcileSends = internalMutation({
   returns: v.null(),
   handler: async (ctx) => {
     const now = Date.now()
-    const cutoff = now - RECONCILE_AFTER_MS
     const windowStart = now - RECONCILE_WINDOW_MS
     const [queued, sent] = await Promise.all(
-      (['queued', 'sent'] as const).map(async (status) =>
-        (
-          await ctx.db
-            .query('email_sends')
-            .withIndex('by_status_and_created_at', (q) =>
-              q
-                .eq('status', status)
-                .gte('createdAt', windowStart)
-                .lt('createdAt', cutoff),
-            )
-            .take(RECONCILE_SCAN)
-        )
-          .filter((row) => row.updatedAt < cutoff)
-          .sort((a, b) => a.updatedAt - b.updatedAt),
+      (['queued', 'sent'] as const).map((status) =>
+        ctx.db
+          .query('email_sends')
+          .withIndex('by_status_and_next_reconcile_at', (q) =>
+            // The lower bound skips rows without a schedule.
+            q
+              .eq('status', status)
+              .gte('nextReconcileAt', 0)
+              .lte('nextReconcileAt', now),
+          )
+          .take(RECONCILE_LIMIT),
       ),
     )
     const rows = pickReconcileRows(queued!, sent!, RECONCILE_LIMIT)
     const resend = getResend()
     for (const row of rows) {
+      if (row.createdAt < windowStart) {
+        // Past the window: the component may have deleted its copy, so the
+        // row keeps its status and leaves the schedule.
+        await ctx.db.patch(row._id, { nextReconcileAt: undefined })
+        continue
+      }
       const component = await resend.status(ctx, row.emailId as EmailId)
-      const changed = component
-        ? await applyComponentStatus(ctx, row, component)
-        : row.status === 'queued'
-          ? await applySendStatus(ctx, row, 'failed', 'No delivery record')
-          : false
-      if (!changed) await ctx.db.patch(row._id, { updatedAt: now })
+      if (component) {
+        await applyComponentStatus(ctx, row, component)
+      } else if (row.status === 'queued') {
+        await applySendStatus(ctx, row, 'failed', 'No delivery record')
+      }
+      const current = await ctx.db.get(row._id)
+      if (current && isOpenStatus(current.status)) {
+        await ctx.db.patch(row._id, {
+          nextReconcileAt: now + RECONCILE_INTERVAL_MS,
+        })
+      }
     }
     return null
   },
@@ -293,6 +312,7 @@ export const enqueueBatch = internalMutation({
         status: 'queued',
         createdAt: now,
         updatedAt: now,
+        nextReconcileAt: now + RECONCILE_INTERVAL_MS,
       })
     }
 
@@ -322,15 +342,17 @@ export const enqueueBatch = internalMutation({
 })
 
 /**
- * Cancels component emails that are still `waiting` (not yet in a batch to
- * Resend), a page at a time, for one campaign or for one user. A user-scoped
+ * Cancels component emails Resend has not accepted yet, a page at a time,
+ * for one campaign or for one user: `waiting` (not batched) and `queued` (in
+ * a component batch that has not gone out; the batch worker re-reads its
+ * emails and skips cancelled ones when it builds the request). A user-scoped
  * job can be narrowed to one category (an opt-out) and is bounded by
  * `before`, the time the change that requested it happened: sends created
  * later were enqueued after a fresh eligibility check (to a re-enabled
  * category, or to a new address) and are left alone. A send created in the
  * same millisecond as the change is cancelled, erring toward the opt-out.
- * Rows it cannot cancel are left for delivery events and reconciliation. It
- * never throws for an email already handed over, and it runs in its own
+ * Emails `sent` or later are left for delivery events and reconciliation:
+ * nothing can recall what Resend accepted. It never throws for those, and it runs in its own
  * transaction so it can never roll back the change that requested it.
  */
 export const cancelWaitingSends = internalMutation({
@@ -385,10 +407,17 @@ export const cancelWaitingSends = internalMutation({
     const now = Date.now()
     for (const row of page.page) {
       const emailId = row.emailId as EmailId
+      // Read first: the component's cancelEmail throws for anything past
+      // `queued`, and a throw here would only fail this job, never the change
+      // that scheduled it.
       const status = await resend.status(ctx, emailId)
-      if (status?.status !== 'waiting') continue
+      if (status?.status !== 'waiting' && status?.status !== 'queued') continue
       await resend.cancelEmail(ctx, emailId)
-      await ctx.db.patch(row._id, { status: 'cancelled', updatedAt: now })
+      await ctx.db.patch(row._id, {
+        status: 'cancelled',
+        nextReconcileAt: undefined,
+        updatedAt: now,
+      })
     }
     if (!page.isDone) {
       await ctx.scheduler.runAfter(0, internal.emailSends.cancelWaitingSends, {

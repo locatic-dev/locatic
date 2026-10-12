@@ -275,6 +275,10 @@ export default defineSchema({
     errorMessage: v.optional(v.string()),
     // Set by the first complaint for this send, whatever its status was.
     complaintHandledAt: v.optional(v.number()),
+    // When reconciliation next checks this row. Cleared when the row becomes
+    // final, and at its first check past the reconciliation window
+    // (emailSends.reconcileSends).
+    nextReconcileAt: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
@@ -292,7 +296,7 @@ export default defineSchema({
       'status',
       'createdAt',
     ])
-    .index('by_status_and_created_at', ['status', 'createdAt'])
+    .index('by_status_and_next_reconcile_at', ['status', 'nextReconcileAt'])
     .index('by_user_and_complaint_handled_at', [
       'userId',
       'complaintHandledAt',
@@ -415,6 +419,11 @@ export default defineSchema({
       'exploreOwner.isEligible',
       'locatic.lastPublicActivityAt',
     ])
+    // The email digest's project picker searches repository names.
+    .searchIndex('search_name', {
+      searchField: 'github.name',
+      filterFields: ['exploreOwner.isEligible'],
+    })
     .index('by_explore_eligible_last_commit', [
       'exploreOwner.isEligible',
       'github.lastCommitAt',

@@ -19,7 +19,6 @@ import {
   audienceLabel,
   EMAIL_LIMITS,
   type EmailCampaignKind,
-  type EmailSendPreview,
   formatCount,
   skippedSummary,
 } from '../contracts'
@@ -49,8 +48,8 @@ export function SendDialog({
   const [open, setOpen] = useState(false)
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const { data } = useQuery(emailSendPreviewQueryOptions(campaignId, open))
-  const preview = data as EmailSendPreview | undefined
+  const previewQuery = useQuery(emailSendPreviewQueryOptions(campaignId, open))
+  const preview = previewQuery.data
   // A capped estimate counted only the first members, so a capped zero is
   // incomplete and must not block sending; only an uncapped zero does.
   const nobody = preview?.estimatedCount === 0
@@ -153,6 +152,16 @@ export function SendDialog({
                 Not sending to {skipped}
               </p>
             ) : null}
+          </div>
+        ) : previewQuery.error ? (
+          <div
+            role="alert"
+            className="flex flex-wrap items-center justify-between gap-3"
+          >
+            <p className="text-body text-text">Couldn't count recipients.</p>
+            <Button type="button" onClick={() => void previewQuery.refetch()}>
+              Retry
+            </Button>
           </div>
         ) : (
           <p className="text-body text-text-muted" role="status">

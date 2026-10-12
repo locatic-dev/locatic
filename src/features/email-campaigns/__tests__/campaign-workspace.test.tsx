@@ -16,6 +16,8 @@ const mocks = vi.hoisted(() => ({
   save: vi.fn(),
   sendTest: vi.fn(),
   requestSend: vi.fn(),
+  detailError: null as Error | null,
+  refetchDetail: vi.fn(),
 }))
 
 vi.mock('@tanstack/react-router', () => ({
@@ -31,7 +33,12 @@ vi.mock('@tanstack/react-query', async (importOriginal) => ({
   },
   useQuery: ({ queryKey: [, name] }: QueryOptions) =>
     name === 'emailCampaigns:get'
-      ? { data: mocks.detail, isLoading: false }
+      ? {
+          data: mocks.detailError ? undefined : mocks.detail,
+          error: mocks.detailError,
+          isLoading: false,
+          refetch: mocks.refetchDetail,
+        }
       : { data: undefined, isLoading: false },
 }))
 
@@ -59,6 +66,8 @@ vi.mock('../mutations', () => ({
 
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 
+import { toast } from 'sonner'
+
 import { CampaignWorkspace } from '../components/campaign-workspace'
 
 const summary: EmailCampaignSummary = {
@@ -75,6 +84,8 @@ describe('CampaignWorkspace', () => {
   beforeEach(() => {
     mocks.campaigns = [summary]
     mocks.detail = makeDetail()
+    mocks.detailError = null
+    mocks.refetchDetail.mockReset()
     for (const fn of [
       mocks.create,
       mocks.save,
@@ -94,7 +105,10 @@ describe('CampaignWorkspace', () => {
         title: 'September',
         kind: 'digest',
         state: 'sent',
-        results: { total: 3, delivered: 1, capped: false },
+        results: {
+          total: { count: 3, capped: false },
+          delivered: { count: 1, capped: false },
+        },
       },
     ]
     render(<CampaignWorkspace />)
@@ -102,7 +116,7 @@ describe('CampaignWorkspace', () => {
     const list = screen.getByRole('list', { name: 'Campaigns' })
     const sent = within(list).getByRole('button', { name: /September/ })
     expect(sent.textContent).toContain('digest')
-    expect(sent.textContent).toContain('sent to 3 · 1 delivered')
+    expect(sent.textContent).toContain('3 recipients · 1 delivered')
     expect(
       within(list)
         .getByRole('button', { name: /Maps launch/ })
@@ -177,6 +191,22 @@ describe('CampaignWorkspace', () => {
         subject: 'Maps!',
       }),
     )
+    // Queued, not sent: the component delivers it a moment later.
+    expect(toast.success).toHaveBeenCalledWith(
+      'Test email queued for admin@example.test.',
+    )
+  })
+
+  it('shows a failed campaign load with Retry instead of the empty state', async () => {
+    const user = userEvent.setup()
+    mocks.detailError = new Error('network')
+    render(<CampaignWorkspace />)
+
+    const alert = screen.getByRole('alert')
+    expect(alert.textContent).toContain("Couldn't load this campaign.")
+    expect(screen.queryByText('Pick a campaign or start a new one.')).toBeNull()
+    await user.click(within(alert).getByRole('button', { name: 'Retry' }))
+    expect(mocks.refetchDetail).toHaveBeenCalledTimes(1)
   })
 
   it('opens a campaign that has started sending on its results', () => {
@@ -185,16 +215,15 @@ describe('CampaignWorkspace', () => {
       sending: { startedAt: 0, lastBatchAt: 0, enqueuedAt: 0 },
       results: {
         counts: {
-          queued: 0,
-          sent: 1,
-          delivered: 0,
-          bounced: 0,
-          complained: 0,
-          failed: 0,
-          cancelled: 0,
+          queued: { count: 0, capped: false },
+          sent: { count: 1, capped: false },
+          delivered: { count: 0, capped: false },
+          bounced: { count: 0, capped: false },
+          complained: { count: 0, capped: false },
+          failed: { count: 0, capped: false },
+          cancelled: { count: 0, capped: false },
         },
-        total: 1,
-        capped: false,
+        total: { count: 1, capped: false },
       },
     })
     render(<CampaignWorkspace />)

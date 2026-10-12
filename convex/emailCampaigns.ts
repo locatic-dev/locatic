@@ -34,6 +34,10 @@ import {
 } from './lib/email_provider'
 import { isProjectPubliclyInteractable } from './lib/project_access'
 import {
+  normalizeProjectRouteKey,
+  parseProjectReference,
+} from './lib/project_route'
+import {
   emailCampaignContentValidator,
   emailCampaignStateValidator,
   emailProjectSelectionValidator,
@@ -46,6 +50,14 @@ const campaignKindValidator = v.union(
   v.literal('digest'),
 )
 
+// A bounded count: `capped` means there are more than `count`, shown "N+".
+const countValidator = v.object({ count: v.number(), capped: v.boolean() })
+
+/** Counts up to `cap` rows; `capped` when more exist. */
+function boundedCount(rows: unknown[], cap: number) {
+  return { count: Math.min(rows.length, cap), capped: rows.length > cap }
+}
+
 const campaignSummaryValidator = v.object({
   id: v.id('email_campaigns'),
   kind: campaignKindValidator,
@@ -55,7 +67,7 @@ const campaignSummaryValidator = v.object({
   updatedAt: v.number(),
   // "sent to N · M delivered" for campaigns that started sending.
   results: v.union(
-    v.object({ total: v.number(), delivered: v.number(), capped: v.boolean() }),
+    v.object({ total: countValidator, delivered: countValidator }),
     v.null(),
   ),
 })
@@ -94,16 +106,16 @@ const campaignDetailValidator = v.object({
   results: v.union(
     v.object({
       counts: v.object({
-        queued: v.number(),
-        sent: v.number(),
-        delivered: v.number(),
-        bounced: v.number(),
-        complained: v.number(),
-        failed: v.number(),
-        cancelled: v.number(),
+        queued: countValidator,
+        sent: countValidator,
+        delivered: countValidator,
+        bounced: countValidator,
+        complained: countValidator,
+        failed: countValidator,
+        cancelled: countValidator,
       }),
-      total: v.number(),
-      capped: v.boolean(),
+      // Capped when any status count is.
+      total: countValidator,
     }),
     v.null(),
   ),
@@ -142,9 +154,8 @@ async function toCampaignSummary(
         .take(LIST_COUNT_CAP + 1),
     ])
     results = {
-      total: Math.min(all.length, LIST_COUNT_CAP),
-      delivered: Math.min(delivered.length, LIST_COUNT_CAP),
-      capped: all.length > LIST_COUNT_CAP,
+      total: boundedCount(all, LIST_COUNT_CAP),
+      delivered: boundedCount(delivered, LIST_COUNT_CAP),
     }
   }
   return {
@@ -271,43 +282,73 @@ export const list = query({
   },
 })
 
+const PROJECT_RESULT_LIMIT = 8
+// Search candidates read before the public-interactability check drops some.
+const PROJECT_SEARCH_CANDIDATES = 25
+
+function toProjectSelection(project: Doc<'projects'>, activityAt: number) {
+  return {
+    projectId: project._id,
+    name: project.github.name,
+    fullName: project.github.fullName,
+    description: project.github.description,
+    url: `${getSiteUrl()}/project/${encodeURIComponent(project.github.ownerLogin)}/${encodeURIComponent(project.github.name)}`,
+    activityAt,
+    activityLabel: `Latest known public activity on ${new Intl.DateTimeFormat('en', { day: 'numeric', month: 'short', timeZone: 'UTC', year: 'numeric' }).format(activityAt)}`,
+  }
+}
+
+/**
+ * Public projects for the digest picker. A pasted `owner/repo`, GitHub URL or
+ * Locatic project URL is looked up exactly and ranked first; otherwise the
+ * repository name is searched through the `search_name` index, so older
+ * projects are found too. Every result must still be publicly interactable
+ * and have public activity.
+ */
 export const searchProjects = query({
   args: { query: v.string() },
   returns: v.array(emailProjectSelectionValidator),
   handler: async (ctx, args) => {
     await requireEmailAdmin(ctx)
-    const normalized = args.query.trim().toLowerCase()
-    if (!normalized) return []
-    const candidates = await ctx.db
+    const text = args.query.trim()
+    if (!text) return []
+    const reference = parseProjectReference(text)
+    const exact = reference
+      ? await ctx.db
+          .query('projects')
+          .withIndex('by_github_route_visible', (q) =>
+            q
+              .eq(
+                'github.ownerLoginKey',
+                normalizeProjectRouteKey(reference.owner),
+              )
+              .eq('github.nameKey', normalizeProjectRouteKey(reference.repo))
+              .eq('locatic.isVisible', true),
+          )
+          .first()
+      : null
+    const searchTerm = reference ? reference.repo : text
+    const matches = await ctx.db
       .query('projects')
-      .withIndex('by_explore_eligible_added', (index) =>
-        index.eq('exploreOwner.isEligible', true),
+      .withSearchIndex('search_name', (q) =>
+        q.search('github.name', searchTerm).eq('exploreOwner.isEligible', true),
       )
-      .order('desc')
-      .take(75)
+      .take(PROJECT_SEARCH_CANDIDATES)
     const results = []
-    for (const project of candidates) {
-      if (results.length >= 8) break
+    const seen = new Set<string>()
+    for (const project of exact ? [exact, ...matches] : matches) {
+      if (results.length >= PROJECT_RESULT_LIMIT) break
+      if (seen.has(project._id)) continue
+      seen.add(project._id)
+      const activityAt = project.locatic.lastPublicActivityAt
       if (
-        ![project.github.fullName, project.github.description ?? '']
-          .join(' ')
-          .toLowerCase()
-          .includes(normalized) ||
+        !activityAt ||
+        !project.exploreOwner.isEligible ||
         !(await isProjectPubliclyInteractable(ctx, project))
       ) {
         continue
       }
-      const activityAt = project.locatic.lastPublicActivityAt
-      if (!activityAt) continue
-      results.push({
-        projectId: project._id,
-        name: project.github.name,
-        fullName: project.github.fullName,
-        description: project.github.description,
-        url: `${getSiteUrl()}/project/${encodeURIComponent(project.github.ownerLogin)}/${encodeURIComponent(project.github.name)}`,
-        activityAt,
-        activityLabel: `Latest known public activity on ${new Intl.DateTimeFormat('en', { day: 'numeric', month: 'short', timeZone: 'UTC', year: 'numeric' }).format(activityAt)}`,
-      })
+      results.push(toProjectSelection(project, activityAt))
     }
     return results
   },
@@ -352,28 +393,26 @@ export const get = query({
 // Counted from email_sends by index; @convex-dev/aggregate is the upgrade
 // path if this gets slow.
 async function countSends(ctx: QueryCtx, campaignId: Id<'email_campaigns'>) {
-  const counts = {
-    queued: 0,
-    sent: 0,
-    delivered: 0,
-    bounced: 0,
-    complained: 0,
-    failed: 0,
-    cancelled: 0,
+  const entries = await Promise.all(
+    SEND_STATUSES.map(async (status) => {
+      const rows = await ctx.db
+        .query('email_sends')
+        .withIndex('by_campaign_and_status', (q) =>
+          q.eq('campaignId', campaignId).eq('status', status),
+        )
+        .take(RESULTS_COUNT_CAP + 1)
+      return [status, boundedCount(rows, RESULTS_COUNT_CAP)] as const
+    }),
+  )
+  const counts = Object.fromEntries(entries) as Record<
+    (typeof SEND_STATUSES)[number],
+    { count: number; capped: boolean }
+  >
+  const total = {
+    count: entries.reduce((sum, [, value]) => sum + value.count, 0),
+    capped: entries.some(([, value]) => value.capped),
   }
-  let capped = false
-  for (const status of SEND_STATUSES) {
-    const rows = await ctx.db
-      .query('email_sends')
-      .withIndex('by_campaign_and_status', (q) =>
-        q.eq('campaignId', campaignId).eq('status', status),
-      )
-      .take(RESULTS_COUNT_CAP + 1)
-    counts[status] = Math.min(rows.length, RESULTS_COUNT_CAP)
-    capped ||= rows.length > RESULTS_COUNT_CAP
-  }
-  const total = Object.values(counts).reduce((sum, count) => sum + count, 0)
-  return { counts, total, capped }
+  return { counts, total }
 }
 
 export const listRecipients = query({

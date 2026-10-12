@@ -60,12 +60,34 @@ export const CAMPAIGN_STATE_LABELS: Record<EmailCampaignState, string> = {
 
 export const SEND_STATUS_LABELS: Record<EmailSendStatus, string> = {
   queued: 'waiting to send',
-  sent: 'sent',
+  sent: 'handed to Resend',
   delivered: 'delivered',
   bounced: 'bounced',
   complained: 'marked as spam',
   failed: 'failed',
   cancelled: 'cancelled',
+}
+
+/** What each status count means, shown under it in the results. */
+export const SEND_STATUS_HINTS: Record<EmailSendStatus, string> = {
+  queued: 'not handed to Resend yet',
+  sent: 'handed to Resend; delivery not confirmed',
+  delivered: "accepted by the reader's mail server",
+  bounced: 'rejected by the mail server',
+  complained: 'reported as spam by the reader',
+  failed: 'could not be sent',
+  cancelled: 'stopped before it went out',
+}
+
+/** A count from the server that may stop at a cap. */
+export interface BoundedCount {
+  count: number
+  capped: boolean
+}
+
+/** "N", or "N+" when the server stopped counting. */
+export function formatBoundedCount({ count, capped }: BoundedCount) {
+  return `${formatCount(count)}${capped ? '+' : ''}`
 }
 
 export const SEND_STATUS_ORDER: EmailSendStatus[] = [
@@ -140,14 +162,16 @@ export function skippedSummary(
   return parts.join(' · ')
 }
 
-/** "sent to N · M delivered" for a campaign that started sending. */
+/** "N recipients · M delivered" for a campaign that started sending. */
 export function resultsSummary(results: {
-  total: number
-  delivered: number
-  capped: boolean
+  total: BoundedCount
+  delivered: BoundedCount
 }) {
-  const suffix = results.capped ? '+' : ''
-  return `sent to ${formatCount(results.total)}${suffix} · ${formatCount(
+  const noun =
+    results.total.count === 1 && !results.total.capped
+      ? 'recipient'
+      : 'recipients'
+  return `${formatBoundedCount(results.total)} ${noun} · ${formatBoundedCount(
     results.delivered,
   )} delivered`
 }

@@ -5,7 +5,6 @@ import {
   ROUTE_PENDING_MIN_MS,
   ROUTE_PENDING_MS,
 } from '@/components/app-shell/route-pending'
-import type { ViewerBootstrapPayload } from '@/features/contracts'
 import { CampaignWorkspace } from '@/features/email-campaigns/components/campaign-workspace'
 import { emailCampaignListQueryOptions } from '@/features/email-campaigns/queries'
 import { viewerQueryOptions } from '@/features/viewer/queries'
@@ -16,9 +15,8 @@ export const Route = createFileRoute('/_app/admin/emails')({
   // set, on SSR and client navigation); this reads the cached result before
   // any privileged query runs. Every Convex function checks again.
   beforeLoad: async ({ context }) => {
-    const bootstrap = (await context.queryClient.ensureQueryData(
-      viewerQueryOptions(),
-    )) as ViewerBootstrapPayload
+    const bootstrap =
+      await context.queryClient.ensureQueryData(viewerQueryOptions())
     if (!bootstrap.isEmailAdmin) {
       throw redirect({ to: '/home' })
     }

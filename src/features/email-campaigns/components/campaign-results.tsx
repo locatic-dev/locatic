@@ -6,9 +6,9 @@ import { Button } from '@/components/ui/button'
 import {
   CAMPAIGN_STATE_LABELS,
   type EmailCampaignDetail,
-  type EmailRecipient,
-  formatCount,
+  formatBoundedCount,
   isStalled,
+  SEND_STATUS_HINTS,
   SEND_STATUS_LABELS,
   SEND_STATUS_ORDER,
 } from '../contracts'
@@ -54,7 +54,7 @@ export function CampaignResults({
     { initialNumItems: RECIPIENT_PAGE_SIZE },
   )
   const results = detail.results
-  const waiting = results?.counts.queued ?? 0
+  const waiting = results?.counts.queued ?? { count: 0, capped: false }
   const stalled = isStalled(detail, now)
   // While sending, Cancel also stops the remaining members from being
   // visited; afterwards it only cancels emails not handed over yet.
@@ -95,7 +95,11 @@ export function CampaignResults({
             ? ` · started ${formatTime(detail.sending.startedAt)}`
             : null}
           {results
-            ? ` · ${formatCount(results.total)}${results.capped ? '+' : ''} added`
+            ? ` · ${formatBoundedCount(results.total)} ${
+                results.total.count === 1 && !results.total.capped
+                  ? 'recipient'
+                  : 'recipients'
+              }`
             : null}
         </p>
       </div>
@@ -131,21 +135,26 @@ export function CampaignResults({
                 {SEND_STATUS_LABELS[status]}
               </span>
               <span className="block font-mono text-body font-semibold text-text">
-                {formatCount(results.counts[status])}
+                {formatBoundedCount(results.counts[status])}
+              </span>
+              <span className="block text-meta text-text-muted">
+                {SEND_STATUS_HINTS[status]}
               </span>
             </li>
           ))}
         </ul>
       ) : null}
 
-      {stillSending || waiting > 0 ? (
+      {stillSending || waiting.count > 0 ? (
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-body text-text-muted">
             {stillSending
               ? `Still going through members${
-                  waiting > 0 ? `; ${formatCount(waiting)} waiting to send` : ''
+                  waiting.count > 0
+                    ? `; ${formatBoundedCount(waiting)} waiting to send`
+                    : ''
                 }.`
-              : `${formatCount(waiting)} waiting to send.`}
+              : `${formatBoundedCount(waiting)} waiting to send.`}
           </p>
           <Button
             type="button"
@@ -181,7 +190,7 @@ export function CampaignResults({
                 </tr>
               </thead>
               <tbody>
-                {(recipients.results as EmailRecipient[]).map((recipient) => (
+                {recipients.results.map((recipient) => (
                   <tr key={recipient.id} className="border-b border-line">
                     <td className="py-2 pr-4">
                       <span className="block text-label text-text">

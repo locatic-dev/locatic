@@ -24,14 +24,15 @@ import { CampaignResults } from '../components/campaign-results'
 
 const NOW = Date.UTC(2026, 9, 1, 12)
 
+const exact = (count: number) => ({ count, capped: false })
 const counts = {
-  queued: 1,
-  sent: 0,
-  delivered: 2,
-  bounced: 1,
-  complained: 0,
-  failed: 0,
-  cancelled: 0,
+  queued: exact(1),
+  sent: exact(0),
+  delivered: exact(2),
+  bounced: exact(1),
+  complained: exact(0),
+  failed: exact(0),
+  cancelled: exact(0),
 }
 
 describe('CampaignResults', () => {
@@ -58,7 +59,7 @@ describe('CampaignResults', () => {
         detail={makeDetail({
           state: 'sent',
           sending: { startedAt: NOW, lastBatchAt: NOW, enqueuedAt: NOW },
-          results: { counts, total: 4, capped: false },
+          results: { counts, total: exact(4) },
           ...overrides,
         })}
         onCancel={onCancel}
@@ -82,6 +83,25 @@ describe('CampaignResults', () => {
     expect(screen.queryByRole('button', { name: 'Resume sending' })).toBeNull()
   })
 
+  it('explains each status and marks capped counts', () => {
+    renderResults({
+      results: {
+        counts: { ...counts, delivered: { count: 1000, capped: true } },
+        total: { count: 1004, capped: true },
+      },
+    })
+
+    const list = screen.getByRole('list', { name: 'Results by status' })
+    expect(within(list).getByText('delivered').nextSibling?.textContent).toBe(
+      '1,000+',
+    )
+    expect(
+      within(list).getByText('handed to Resend; delivery not confirmed'),
+    ).toBeTruthy()
+    expect(within(list).getByText('not handed to Resend yet')).toBeTruthy()
+    expect(screen.getByText(/1,004\+ recipients/)).toBeTruthy()
+  })
+
   it('cancels emails still waiting after a confirmation', async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
@@ -96,7 +116,7 @@ describe('CampaignResults', () => {
 
   it('hides Cancel when nothing is waiting', () => {
     renderResults({
-      results: { counts: { ...counts, queued: 0 }, total: 3, capped: false },
+      results: { counts: { ...counts, queued: exact(0) }, total: exact(3) },
     })
     expect(
       screen.queryByRole('button', { name: 'Cancel emails not sent yet' }),
@@ -124,7 +144,7 @@ describe('CampaignResults', () => {
     const { onCancel } = renderResults({
       state: 'sending',
       sending: { startedAt: NOW, lastBatchAt: NOW, enqueuedAt: null },
-      results: { counts: { ...counts, queued: 0 }, total: 3, capped: false },
+      results: { counts: { ...counts, queued: exact(0) }, total: exact(3) },
     })
 
     expect(
