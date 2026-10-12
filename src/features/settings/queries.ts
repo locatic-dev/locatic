@@ -1,6 +1,6 @@
 import { convexQuery } from '@convex-dev/react-query'
 
-import { emailClientRefs } from '@/integrations/convex/email-function-refs'
+import { api } from '../../../convex/_generated/api'
 
-export const emailContactStatusQueryOptions = () =>
-  convexQuery(emailClientRefs.contacts.myStatus, {})
+export const myEmailStatusQueryOptions = () =>
+  convexQuery(api.emailPreferences.myEmailStatus, {})

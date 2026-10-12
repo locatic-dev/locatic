@@ -1,20 +1,16 @@
 import { useAction, useMutation } from 'convex/react'
 
-import { emailClientRefs } from '@/integrations/convex/email-function-refs'
+import { api } from '../../../convex/_generated/api'
 
 export const useCreateEmailCampaign = () =>
-  useMutation(emailClientRefs.campaigns.createDraft)
+  useMutation(api.emailCampaigns.createDraft)
 export const useSaveEmailCampaign = () =>
-  useMutation(emailClientRefs.campaigns.saveDraft)
-export const usePrepareEmailCampaignReview = () =>
-  useAction(emailClientRefs.render.prepareReview)
-export const useSendEmailCampaignTest = () =>
-  useAction(emailClientRefs.delivery.sendTest)
-export const useRequestEmailCampaignSend = () =>
-  useMutation(emailClientRefs.campaigns.requestSend)
-export const useRecoverEmailCampaignDelivery = () =>
-  useMutation(emailClientRefs.delivery.recover)
-export const useCancelEmailCampaignDelivery = () =>
-  useMutation(emailClientRefs.delivery.cancel)
-export const useRetryFailedEmailContacts = () =>
-  useMutation(emailClientRefs.contacts.retryFailed)
+  useMutation(api.emailCampaigns.saveDraft)
+export const usePreviewEmailCampaign = () =>
+  useAction(api.emailRender.previewCampaign)
+export const useSendEmailTest = () => useAction(api.emailRender.sendTest)
+export const useRequestEmailSend = () => useAction(api.emailRender.requestSend)
+export const useCancelEmailSend = () =>
+  useMutation(api.emailCampaigns.cancelSend)
+export const useResumeEmailSend = () =>
+  useMutation(api.emailCampaigns.resumeSend)

@@ -36,4 +36,21 @@ describe('createDefaultViewerProfile', () => {
 
     expect(profile.discoverability?.searchText).toBe('octocat octo cat')
   })
+
+  test('creates new viewers subscribed to product updates with unverified email', () => {
+    const profile = createDefaultViewerProfile({
+      clerkId: 'user_1',
+      email: 'ada@example.test',
+      githubId: 1,
+      githubUsername: 'ada',
+      githubUrl: 'https://github.com/ada',
+      avatarUrl: '',
+      displayName: 'Ada',
+    })
+
+    expect(profile.notificationPrefs.productUpdates).toBe(true)
+    expect(profile.notificationPrefs.weeklyDigest).toBe(false)
+    expect(profile.emailVerified).toBe(false)
+    expect(profile).not.toHaveProperty('emailSubscription')
+  })
 })

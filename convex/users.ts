@@ -46,6 +46,9 @@ import {
   getPostCityId,
 } from './lib/snapshots'
 import { createDefaultViewerProfile } from './lib/viewer'
+import { normalizeEmailAddress } from './lib/email_address'
+import { isEmailAdminViewer } from './lib/email_admin'
+import { isSubscribed } from './lib/email_audience'
 import { resolveStoredGithubId } from './lib/clerk'
 import { assertGithubUsernameAvailable } from './lib/github_identity'
 import {
@@ -68,11 +71,6 @@ import {
   recomputeProjectPublicActivity,
   withLastPublicActivity,
 } from './lib/activity'
-import {
-  enqueueProviderContactCleanup,
-  upsertLocalEmailContact,
-} from './lib/email_contacts'
-import { emailRefs } from './lib/email_function_refs'
 import {
   buildStatusValidator,
   cityReferenceValidator,
@@ -165,6 +163,7 @@ const serializedViewerValidator = v.object({
     dms: v.boolean(),
     weeklyDigest: v.boolean(),
     contributorRecognized: v.boolean(),
+    productUpdates: v.optional(v.boolean()),
   }),
   onboardingSelectedOwnedProjectIds: v.array(v.id('projects')),
   pinnedProfileProjectIds: v.array(v.id('projects')),
@@ -204,6 +203,8 @@ const profileCommentPreviewValidator = v.object({
 const viewerBootstrapValidator = v.object({
   isAuthenticated: v.boolean(),
   needsOnboarding: v.boolean(),
+  // UI hint only; every email admin function checks again.
+  isEmailAdmin: v.boolean(),
   status: viewerBootstrapStatusValidator,
   viewer: v.union(serializedViewerValidator, v.null()),
 })
@@ -342,7 +343,10 @@ function serializeViewer(
     },
     exploreConfig: viewer.exploreConfig,
     privacy: viewer.privacy,
-    notificationPrefs: viewer.notificationPrefs,
+    notificationPrefs: {
+      ...viewer.notificationPrefs,
+      productUpdates: viewer.notificationPrefs.productUpdates ?? true,
+    },
     onboardingSelectedOwnedProjectIds: viewer.onboardingSelectedOwnedProjectIds,
     pinnedProfileProjectIds: viewer.pinnedProfileProjectIds,
     unreadMessagesCount: viewer.unreadMessagesCount,
@@ -469,14 +473,10 @@ async function requestAccountDeletion(ctx: MutationCtx, user: Doc<'users'>) {
     appearInExplore: false,
   })
 
-  await upsertLocalEmailContact(ctx, {
-    ...user,
-    deletedAt,
-    deactivatedAt,
-    purgeAfter,
-    appearInExplore: false,
+  await ctx.scheduler.runAfter(0, internal.emailSends.cancelWaitingSends, {
+    userId: user._id,
+    before: now,
   })
-  await ctx.scheduler.runAfter(0, emailRefs.delivery.reconcileContacts, {})
 
   await ctx.scheduler.runAfter(
     Math.max(0, purgeAfter - now),
@@ -1347,6 +1347,7 @@ export const viewerBootstrap = query({
       return {
         isAuthenticated: false,
         needsOnboarding: false,
+        isEmailAdmin: false,
         status: 'unauthenticated' as const,
         viewer: null,
       }
@@ -1356,6 +1357,7 @@ export const viewerBootstrap = query({
       return {
         isAuthenticated: true,
         needsOnboarding: true,
+        isEmailAdmin: false,
         status: 'missingViewer' as const,
         viewer: null,
       }
@@ -1364,6 +1366,10 @@ export const viewerBootstrap = query({
     return {
       isAuthenticated: true,
       needsOnboarding: viewerState.viewer.onboardingCompletedAt === null,
+      isEmailAdmin: isEmailAdminViewer(
+        viewerState.identity.subject,
+        viewerState.viewer,
+      ),
       status: 'ready' as const,
       viewer: serializeViewer(viewerState.viewer),
     }
@@ -1940,54 +1946,35 @@ export const updatePrivacy = mutation({
   },
 })
 
-export const updateNotificationPrefs = mutation({
-  args: {
-    projectLikes: v.boolean(),
-    updateLikes: v.boolean(),
-    comments: v.boolean(),
-    commentReplies: v.boolean(),
-    newFollowers: v.boolean(),
-    dms: v.boolean(),
-    weeklyDigest: v.boolean(),
-    contributorRecognized: v.boolean(),
-  },
+// In-app notification keys only. Email preferences go through
+// emailPreferences.updateEmailPreference (the single writer, with consent log).
+const inAppNotificationKeyValidator = v.union(
+  v.literal('projectLikes'),
+  v.literal('updateLikes'),
+  v.literal('comments'),
+  v.literal('commentReplies'),
+  v.literal('newFollowers'),
+  v.literal('dms'),
+  v.literal('contributorRecognized'),
+)
+
+// One key per call, so a stale settings tab cannot restore old values.
+export const updateNotificationPref = mutation({
+  args: { key: inAppNotificationKeyValidator, value: v.boolean() },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const viewer = await getOrCreateViewer(ctx)
     if (!viewer) {
       throw new ConvexError('Viewer not found')
     }
 
-    const digestChanged =
-      args.weeklyDigest !== viewer.notificationPrefs.weeklyDigest
-    const now = Date.now()
-    const emailSubscription = digestChanged
-      ? {
-          primaryEmailVerified:
-            viewer.emailSubscription?.primaryEmailVerified ?? false,
-          primaryEmailVerifiedAt:
-            viewer.emailSubscription?.primaryEmailVerifiedAt ?? null,
-          preferenceVersion:
-            (viewer.emailSubscription?.preferenceVersion ?? 0) + 1,
-          preferenceUpdatedAt: now,
-          preferenceSource: 'settings' as const,
-        }
-      : viewer.emailSubscription
-
     await ctx.db.patch(viewer._id, {
-      notificationPrefs: args,
-      ...(emailSubscription ? { emailSubscription } : {}),
-      updatedAt: now,
+      notificationPrefs: {
+        ...viewer.notificationPrefs,
+        [args.key]: args.value,
+      },
+      updatedAt: Date.now(),
     })
-
-    if (digestChanged) {
-      await upsertLocalEmailContact(ctx, {
-        ...viewer,
-        notificationPrefs: args,
-        emailSubscription,
-        updatedAt: now,
-      })
-      await ctx.scheduler.runAfter(0, emailRefs.delivery.reconcileContacts, {})
-    }
 
     return null
   },
@@ -2105,6 +2092,22 @@ export const completeOnboarding = mutation({
     })
     await syncOwnedProjectOwnerState(ctx, viewer, updatedViewer)
 
+    // New members are told about update emails on the last step and start
+    // subscribed; the consent log records that default once.
+    const priorPreference = await ctx.db
+      .query('email_preference_changes')
+      .withIndex('by_user_and_changed_at', (q) => q.eq('userId', viewer._id))
+      .first()
+    if (!priorPreference && isSubscribed(viewer, 'product_updates')) {
+      await ctx.db.insert('email_preference_changes', {
+        userId: viewer._id,
+        category: 'product_updates',
+        subscribed: true,
+        source: 'signup_default',
+        changedAt: Date.now(),
+      })
+    }
+
     return await ctx.db.get(viewer._id)
   },
 })
@@ -2207,13 +2210,10 @@ export const deactivateAccount = mutation({
       appearInExplore: false,
     })
 
-    await upsertLocalEmailContact(ctx, {
-      ...viewer,
-      deactivatedAt: now,
-      appearInExplore: false,
-      updatedAt: now,
+    await ctx.scheduler.runAfter(0, internal.emailSends.cancelWaitingSends, {
+      userId: viewer._id,
+      before: now,
     })
-    await ctx.scheduler.runAfter(0, emailRefs.delivery.reconcileContacts, {})
 
     return null
   },
@@ -2547,18 +2547,11 @@ export const scrubDeletedAccount = internalMutation({
       return null
     }
 
-    const emailContact = await ctx.db
-      .query('email_contacts')
-      .withIndex('by_user', (query) => query.eq('userId', user._id))
-      .unique()
-    if (emailContact?.providerContactId) {
-      await enqueueProviderContactCleanup(ctx, emailContact.providerContactId)
-      await ctx.scheduler.runAfter(
-        0,
-        emailRefs.delivery.reconcileContactCleanups,
-        {},
-      )
-    }
+    // Send records and the consent log hold user ids, not addresses; they
+    // go with the account, in bounded pages.
+    await ctx.scheduler.runAfter(0, internal.emailSends.purgeUserEmailRecords, {
+      userId: user._id,
+    })
 
     const [
       ownedProjects,
@@ -2894,7 +2887,6 @@ export const scrubDeletedAccount = internalMutation({
       ...reports.map((report) => ctx.db.delete(report._id)),
       ...reactions.map((reaction) => ctx.db.delete(reaction._id)),
       ...savedProjects.map((saved) => ctx.db.delete(saved._id)),
-      ...(emailContact ? [ctx.db.delete(emailContact._id)] : []),
     ])
 
     await ctx.db.patch(user._id, {
@@ -2944,7 +2936,7 @@ export const upsertFromClerkWebhook = internalMutation({
     githubUrl: v.string(),
     displayName: v.string(),
     avatarUrl: v.string(),
-    primaryEmailVerified: v.boolean(),
+    emailVerified: v.boolean(),
   },
   handler: async (ctx, args) => {
     const existingViewer = await getViewerByClerkId(ctx, args.clerkId)
@@ -2954,34 +2946,20 @@ export const upsertFromClerkWebhook = internalMutation({
     })
 
     if (!existingViewer) {
-      const createdProfile = createDefaultViewerProfile({
-        clerkId: args.clerkId,
-        email: args.email,
-        githubId: args.githubId,
-        githubUsername: args.githubUsername,
-        githubUrl: args.githubUrl,
-        avatarUrl: args.avatarUrl,
-        displayName: args.displayName,
-      })
       const userId = await ctx.db.insert('users', {
-        ...createdProfile,
-        emailSubscription: {
-          ...createdProfile.emailSubscription,
-          primaryEmailVerified: args.primaryEmailVerified,
-          primaryEmailVerifiedAt: args.primaryEmailVerified ? now : null,
-        },
+        ...createDefaultViewerProfile({
+          clerkId: args.clerkId,
+          email: args.email,
+          githubId: args.githubId,
+          githubUsername: args.githubUsername,
+          githubUrl: args.githubUrl,
+          avatarUrl: args.avatarUrl,
+          displayName: args.displayName,
+        }),
+        emailVerified: args.emailVerified,
       })
 
-      const createdUser = await ctx.db.get(userId)
-      if (createdUser) {
-        await upsertLocalEmailContact(ctx, createdUser)
-        await ctx.scheduler.runAfter(
-          0,
-          emailRefs.delivery.reconcileContacts,
-          {},
-        )
-      }
-      return createdUser
+      return await ctx.db.get(userId)
     }
 
     if (existingViewer.deletedAt) {
@@ -2993,23 +2971,14 @@ export const upsertFromClerkWebhook = internalMutation({
       args.githubId,
     )
 
-    const emailSubscription = {
-      primaryEmailVerified: args.primaryEmailVerified,
-      primaryEmailVerifiedAt: args.primaryEmailVerified
-        ? (existingViewer.emailSubscription?.primaryEmailVerifiedAt ?? now)
-        : null,
-      preferenceVersion:
-        existingViewer.emailSubscription?.preferenceVersion ?? 0,
-      preferenceUpdatedAt:
-        existingViewer.emailSubscription?.preferenceUpdatedAt ?? null,
-      preferenceSource:
-        existingViewer.emailSubscription?.preferenceSource ??
-        ('legacy' as const),
-    }
+    const emailChanged =
+      normalizeEmailAddress(args.email) !==
+      normalizeEmailAddress(existingViewer.email)
 
     await ctx.db.patch(existingViewer._id, {
       email: args.email,
-      emailSubscription,
+      emailVerified: args.emailVerified,
+      ...(emailChanged ? { emailChangedAt: now } : {}),
       github: {
         id: nextGithubId,
         username: args.githubUsername,
@@ -3053,27 +3022,17 @@ export const upsertFromClerkWebhook = internalMutation({
       },
     })
 
-    await upsertLocalEmailContact(ctx, {
-      ...existingViewer,
-      email: args.email,
-      emailSubscription,
-      github: {
-        id: nextGithubId,
-        username: args.githubUsername,
-      },
-      profile: {
-        ...existingViewer.profile,
-        displayName: args.displayName,
-        fullName: args.displayName,
-        avatarUrl: args.avatarUrl,
-        socialLinks: {
-          ...existingViewer.profile.socialLinks,
-          github: args.githubUrl,
-        },
-      },
-      updatedAt: now,
-    })
-    await ctx.scheduler.runAfter(0, emailRefs.delivery.reconcileContacts, {})
+    // Emails still waiting were addressed to the old (or now unverified)
+    // address; batches re-check eligibility for everyone else.
+    if (
+      emailChanged ||
+      (existingViewer.emailVerified === true && !args.emailVerified)
+    ) {
+      await ctx.scheduler.runAfter(0, internal.emailSends.cancelWaitingSends, {
+        userId: existingViewer._id,
+        before: now,
+      })
+    }
 
     return await ctx.db.get(existingViewer._id)
   },
