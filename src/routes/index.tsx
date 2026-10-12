@@ -6,6 +6,7 @@ import { HeroActivityList } from '@/features/landing/hero-activity-list'
 import { HeroCopy } from '@/features/landing/hero-copy'
 import { HeroMapCaption } from '@/features/landing/hero-map-caption'
 import {
+  getCitiesWithActivity,
   getLandingCityDots,
   getLandingMap,
   getPingSequence,
@@ -48,7 +49,8 @@ const HERO_MAP_CAPTION_ID = 'hero-map-caption'
 function LandingPage() {
   const { data: mapCities } = useQuery(landingMapCitiesQueryOptions())
   const { data: activity } = useQuery(landingActivityQueryOptions())
-  const map = getLandingMap(mapCities)
+  // Only cities with something to ping: the dots and caption match the pings.
+  const map = getLandingMap(getCitiesWithActivity(mapCities, activity))
   const pingItems = getPingSequence(activity)
 
   return (

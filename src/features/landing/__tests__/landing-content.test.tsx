@@ -36,6 +36,7 @@ import { HeroMapCaption } from '../hero-map-caption'
 import {
   LANDING_MAP_MAX_PINS,
   LANDING_MAP_MIN_CITIES,
+  getCitiesWithActivity,
   getLandingCityDots,
   getLandingMap,
   getLatLngCell,
@@ -329,6 +330,21 @@ describe('HeroActivityList', () => {
     const { container } = render(<HeroActivityList items={[]} />)
 
     expect(container.innerHTML).toBe('')
+  })
+})
+
+describe('getCitiesWithActivity', () => {
+  it('keeps only the cities with activity, in their order', () => {
+    const bengaluru = city('bengaluru', 12.97, 77.59, 9)
+    const berlin = city('berlin', 52.52, 13.4, 6)
+    // Builders, but no projects: nothing there ever pings.
+    const vizag = city('visakhapatnam', 17.68, 83.2, 1)
+
+    expect(
+      getCitiesWithActivity([bengaluru, vizag, berlin], [POST, RELEASE]),
+    ).toEqual([bengaluru, berlin])
+    expect(getCitiesWithActivity([bengaluru, berlin], [])).toEqual([])
+    expect(getCitiesWithActivity(undefined, [POST])).toEqual([])
   })
 })
 
