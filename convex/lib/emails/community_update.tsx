@@ -1,8 +1,18 @@
-import type { CSSProperties } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
+import Markdown, { type Components } from 'react-markdown'
 
 import type { EmailCampaignContent } from '../email_campaigns'
+import { UNSUBSCRIBE_URL_PLACEHOLDER } from './placeholders'
 
-export const RESEND_UNSUBSCRIBE_PLACEHOLDER = '{{{RESEND_UNSUBSCRIBE_URL}}}'
+export { UNSUBSCRIBE_URL_PLACEHOLDER }
+
+export interface CommunityUpdateProps {
+  subject: string
+  preheader: string
+  content: EmailCampaignContent
+  siteUrl: string
+  postalAddress: string | null
+}
 
 // Email clients cannot read the app's CSS variables, so the palette carries
 // the sRGB hex of the default (teal) theme tokens in src/styles.css.
@@ -51,7 +61,11 @@ const copyStyle: CSSProperties = {
   fontSize: '16px',
   lineHeight: 1.65,
   margin: '0 0 16px',
-  whiteSpace: 'pre-wrap',
+}
+
+const listStyle: CSSProperties = {
+  ...copyStyle,
+  paddingLeft: '24px',
 }
 
 const metaStyle: CSSProperties = {
@@ -78,11 +92,126 @@ const linkStyle: CSSProperties = {
   textDecoration: 'underline',
 }
 
+/** Paragraphs, emphasis, HTTPS links and lists; nothing else survives. */
+export const ALLOWED_MARKDOWN_ELEMENTS = [
+  'p',
+  'strong',
+  'em',
+  'a',
+  'ul',
+  'ol',
+  'li',
+]
+
+// Markdown percent-encodes the placeholder's braces in link targets.
+const ENCODED_UNSUBSCRIBE_URL_PLACEHOLDER = encodeURI(
+  UNSUBSCRIBE_URL_PLACEHOLDER,
+)
+
+/** Body links: HTTPS only, plus the reader's own unsubscribe link. */
+export function toEmailHref(url: string) {
+  if (
+    url === UNSUBSCRIBE_URL_PLACEHOLDER ||
+    url === ENCODED_UNSUBSCRIBE_URL_PLACEHOLDER
+  ) {
+    return UNSUBSCRIBE_URL_PLACEHOLDER
+  }
+  return url.startsWith('https://') ? url : ''
+}
+
+const markdownComponents: Components = {
+  p: ({ children }) => <p style={copyStyle}>{children}</p>,
+  strong: ({ children }) => <strong>{children}</strong>,
+  em: ({ children }) => <em>{children}</em>,
+  a: ({ href, children }) =>
+    href ? (
+      <a href={href} style={linkStyle}>
+        {children}
+      </a>
+    ) : (
+      <>{children}</>
+    ),
+  ul: ({ children }) => <ul style={listStyle}>{children}</ul>,
+  ol: ({ children }) => <ol style={listStyle}>{children}</ol>,
+  li: ({ children }) => <li style={{ margin: '0 0 6px' }}>{children}</li>,
+}
+
+/** The admin-written body: a Markdown subset with no raw HTML or images. */
+export function EmailBody({ markdown }: { markdown: string }) {
+  return (
+    <Markdown
+      allowedElements={ALLOWED_MARKDOWN_ELEMENTS}
+      unwrapDisallowed
+      skipHtml
+      urlTransform={toEmailHref}
+      components={markdownComponents}
+    >
+      {markdown}
+    </Markdown>
+  )
+}
+
+export function settingsUrl(siteUrl: string) {
+  return `${siteUrl}/settings?tab=notifications`
+}
+
+export function footerReason(kind: EmailCampaignContent['kind']) {
+  return kind === 'digest'
+    ? "You're receiving the Locatic weekly digest because you turned on the weekly digest."
+    : "You're receiving Locatic updates because you have a Locatic account."
+}
+
+// A table keeps the button's padding and colour in Outlook.
+function CallToAction({ label, url }: { label: string; url: string }) {
+  return (
+    <table
+      role="presentation"
+      cellPadding={0}
+      cellSpacing={0}
+      style={{ margin: '8px 0 24px' }}
+    >
+      <tbody>
+        <tr>
+          <td style={{ backgroundColor: palette.accent, borderRadius: '8px' }}>
+            <a
+              href={url}
+              style={{
+                color: palette.background,
+                display: 'inline-block',
+                fontFamily: fonts.sans,
+                fontSize: '15px',
+                fontWeight: 600,
+                padding: '12px 20px',
+                textDecoration: 'none',
+              }}
+            >
+              {label}
+            </a>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  )
+}
+
+function Section({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section style={sectionStyle}>
+      <h2 style={eyebrowStyle}>{title}</h2>
+      {children}
+    </section>
+  )
+}
+
 export function CommunityUpdateEmail({
+  subject,
+  preheader,
   content,
-}: {
-  content: EmailCampaignContent
-}) {
+  siteUrl,
+  postalAddress,
+}: CommunityUpdateProps) {
+  const projects = content.kind === 'digest' ? content.projects : []
+  const discussions = content.kind === 'digest' ? content.discussions : []
   return (
     <html lang="en">
       <head>
@@ -92,7 +221,7 @@ export function CommunityUpdateEmail({
             (Apple Mail); Gmail and Outlook may still recolour it. */}
         <meta name="color-scheme" content="dark" />
         <meta name="supported-color-schemes" content="dark" />
-        <title>{content.subject}</title>
+        <title>{subject}</title>
       </head>
       <body style={pageStyle}>
         <div
@@ -104,7 +233,7 @@ export function CommunityUpdateEmail({
             overflow: 'hidden',
           }}
         >
-          {content.preheader}
+          {preheader}
         </div>
         <div style={wrapperStyle}>
           <main style={containerStyle}>
@@ -121,16 +250,19 @@ export function CommunityUpdateEmail({
                   margin: '12px 0 20px',
                 }}
               >
-                {content.subject}
+                {subject}
               </h1>
             </header>
 
-            <p style={copyStyle}>{content.introduction}</p>
+            <EmailBody markdown={content.body} />
 
-            {content.projects.length > 0 ? (
-              <section style={sectionStyle}>
-                <h2 style={eyebrowStyle}>projects worth a look</h2>
-                {content.projects.map((project) => (
+            {content.cta ? (
+              <CallToAction label={content.cta.label} url={content.cta.url} />
+            ) : null}
+
+            {projects.length > 0 ? (
+              <Section title="projects worth a look">
+                {projects.map((project) => (
                   <article
                     key={String(project.projectId)}
                     style={{ marginBottom: '22px' }}
@@ -146,13 +278,12 @@ export function CommunityUpdateEmail({
                     <p style={metaStyle}>{project.activityLabel}</p>
                   </article>
                 ))}
-              </section>
+              </Section>
             ) : null}
 
-            {content.discussions.length > 0 ? (
-              <section style={sectionStyle}>
-                <h2 style={eyebrowStyle}>discussions</h2>
-                {content.discussions.map((discussion) => (
+            {discussions.length > 0 ? (
+              <Section title="discussions">
+                {discussions.map((discussion) => (
                   <article
                     key={String(discussion.commentId)}
                     style={{ marginBottom: '22px' }}
@@ -165,70 +296,25 @@ export function CommunityUpdateEmail({
                     </p>
                   </article>
                 ))}
-              </section>
-            ) : null}
-
-            {content.shippingUpdate.trim() ? (
-              <section style={sectionStyle}>
-                <h2 style={eyebrowStyle}>what changed in locatic</h2>
-                <p style={copyStyle}>{content.shippingUpdate}</p>
-              </section>
+              </Section>
             ) : null}
 
             <footer style={{ ...sectionStyle, color: palette.muted }}>
+              <p style={metaStyle}>{footerReason(content.kind)}</p>
               <p style={metaStyle}>
-                You are receiving community and product updates from Locatic.
-              </p>
-              <p style={metaStyle}>
-                <a href={RESEND_UNSUBSCRIBE_PLACEHOLDER} style={linkStyle}>
-                  unsubscribe
+                <a href={UNSUBSCRIBE_URL_PLACEHOLDER} style={linkStyle}>
+                  Unsubscribe
+                </a>
+                {' · '}
+                <a href={settingsUrl(siteUrl)} style={linkStyle}>
+                  Email settings
                 </a>
               </p>
+              {postalAddress ? <p style={metaStyle}>{postalAddress}</p> : null}
             </footer>
           </main>
         </div>
       </body>
     </html>
   )
-}
-
-export function renderCommunityUpdateText(content: EmailCampaignContent) {
-  const sections = [content.subject, content.introduction]
-
-  if (content.projects.length > 0) {
-    sections.push(
-      [
-        'PROJECTS WORTH A LOOK',
-        ...content.projects.flatMap((project) => [
-          project.fullName,
-          ...(project.description ? [project.description] : []),
-          project.activityLabel,
-          project.url,
-        ]),
-      ].join('\n'),
-    )
-  }
-
-  if (content.discussions.length > 0) {
-    sections.push(
-      [
-        'DISCUSSIONS',
-        ...content.discussions.flatMap((discussion) => [
-          discussion.title,
-          discussion.summary,
-          discussion.url,
-        ]),
-      ].join('\n'),
-    )
-  }
-
-  if (content.shippingUpdate.trim()) {
-    sections.push(`WHAT CHANGED IN LOCATIC\n${content.shippingUpdate}`)
-  }
-
-  sections.push(
-    `You are receiving community and product updates from Locatic.\nUnsubscribe: ${RESEND_UNSUBSCRIBE_PLACEHOLDER}`,
-  )
-
-  return sections.join('\n\n')
 }

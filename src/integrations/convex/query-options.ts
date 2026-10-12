@@ -3,27 +3,9 @@ import type { PaginationOptions } from 'convex/server'
 
 import { api } from '../../../convex/_generated/api'
 import type { Id } from '../../../convex/_generated/dataModel'
-import { emailClientRefs } from './email-function-refs'
 
 export const viewerQueryOptions = () =>
   convexQuery(api.users.viewerBootstrap, {})
-
-export const emailCampaignListQueryOptions = () =>
-  convexQuery(emailClientRefs.campaigns.list, {})
-
-export const emailCampaignQueryOptions = (
-  campaignId: Id<'email_campaigns'> | null,
-) =>
-  convexQuery(
-    emailClientRefs.campaigns.get,
-    campaignId ? { campaignId } : 'skip',
-  )
-
-export const emailCampaignProjectSearchQueryOptions = (query: string) =>
-  convexQuery(
-    emailClientRefs.campaigns.searchProjects,
-    query.trim() ? { query } : 'skip',
-  )
 
 export const privateProfileQueryOptions = () =>
   convexQuery(api.users.privateProfile, {})

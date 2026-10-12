@@ -14,7 +14,8 @@ import {
 } from '@/features/cities/queries'
 import {
   useUpdateExploreConfig,
-  useUpdateNotificationPrefs,
+  useUpdateEmailPreference,
+  useUpdateNotificationPref,
   useUpdatePrivacy,
   useUpdateProfile,
 } from '@/features/settings/mutations'
@@ -56,7 +57,10 @@ import {
   type SettingsAccountFormState,
 } from '@/features/settings/dirty'
 import { useUnsavedChangesGuard } from '@/features/settings/use-unsaved-changes-guard'
-import { emailContactStatusQueryOptions } from '@/features/settings/queries'
+import { EmailPreferencesSection } from '@/features/settings/email-preferences-section'
+import { myEmailStatusQueryOptions } from '@/features/settings/queries'
+import type { ViewerBootstrapPayload } from '@/features/contracts'
+import { viewerQueryOptions } from '@/features/viewer/queries'
 import { shouldPrefetchPrivateConvexQueries } from '@/lib/auth-routing'
 
 export const Route = createFileRoute('/_app/settings')({
@@ -82,9 +86,10 @@ export const Route = createFileRoute('/_app/settings')({
       return
     }
 
-    await context.queryClient.ensureQueryData(
-      privateProfileOverviewQueryOptions(),
-    )
+    await Promise.all([
+      context.queryClient.ensureQueryData(privateProfileOverviewQueryOptions()),
+      context.queryClient.ensureQueryData(myEmailStatusQueryOptions()),
+    ])
   },
   pendingComponent: FormRoutePending,
   pendingMs: ROUTE_PENDING_MS,
@@ -130,8 +135,13 @@ function SettingsPage() {
   const updateProfile = useUpdateProfile()
   const updatePrivacy = useUpdatePrivacy()
   const updateExploreConfig = useUpdateExploreConfig()
-  const updateNotifPrefs = useUpdateNotificationPrefs()
-  const emailContactStatus = useQuery(emailContactStatusQueryOptions())
+  const updateNotifPref = useUpdateNotificationPref()
+  const updateEmailPreference = useUpdateEmailPreference()
+  const emailStatusQuery = useQuery(myEmailStatusQueryOptions())
+  const bootstrapQuery = useQuery(viewerQueryOptions())
+  const isEmailAdmin =
+    (bootstrapQuery.data as ViewerBootstrapPayload | undefined)
+      ?.isEmailAdmin === true
   const viewerAccountState = getSettingsAccountStateFromViewer(profile.viewer)
 
   const [saved, setSaved] = useState(false)
@@ -584,24 +594,23 @@ function SettingsPage() {
                 <div className={sectionTitleClassName}>
                   notification preferences
                 </div>
-                {[
-                  { key: 'projectLikes', label: 'likes on your projects' },
-                  { key: 'updateLikes', label: 'likes on your posts' },
-                  { key: 'comments', label: 'comments on your projects' },
-                  { key: 'commentReplies', label: 'replies to your comments' },
-                  { key: 'newFollowers', label: 'new followers' },
-                  { key: 'dms', label: 'direct messages' },
-                  {
-                    key: 'weeklyDigest',
-                    label: 'community and product updates',
-                    description:
-                      'roughly every two weeks, plus occasional announcements',
-                  },
-                  {
-                    key: 'contributorRecognized',
-                    label: 'contributor recognition',
-                  },
-                ].map(({ key, label, description }) => (
+                {(
+                  [
+                    { key: 'projectLikes', label: 'likes on your projects' },
+                    { key: 'updateLikes', label: 'likes on your posts' },
+                    { key: 'comments', label: 'comments on your projects' },
+                    {
+                      key: 'commentReplies',
+                      label: 'replies to your comments',
+                    },
+                    { key: 'newFollowers', label: 'new followers' },
+                    { key: 'dms', label: 'direct messages' },
+                    {
+                      key: 'contributorRecognized',
+                      label: 'contributor recognition',
+                    },
+                  ] as const
+                ).map(({ key, label }) => (
                   <div key={key} className={settingsRowClassName}>
                     {/* The label toggles the switch too: a 44px+ target. */}
                     <label
@@ -609,35 +618,22 @@ function SettingsPage() {
                       htmlFor={`notification-pref-${key}`}
                       className="flex min-h-11 flex-1 cursor-pointer items-center text-label text-text"
                     >
-                      <span>
-                        <span className="block">{label}</span>
-                        {description ? (
-                          <span className="mt-1 block max-w-96 font-sans text-body text-text-muted">
-                            {description}
-                          </span>
-                        ) : null}
-                      </span>
+                      {label}
                     </label>
                     <Switch
                       id={`notification-pref-${key}`}
                       aria-labelledby={`notification-pref-${key}-label`}
-                      checked={
-                        profile.viewer.notificationPrefs[
-                          key as keyof typeof profile.viewer.notificationPrefs
-                        ]
-                      }
+                      checked={profile.viewer.notificationPrefs[key]}
                       onCheckedChange={async (checked) => {
-                        const nextPrefs = {
-                          ...profile.viewer.notificationPrefs,
-                          [key]: checked,
-                        }
+                        // One key per call: a stale tab cannot restore others.
+                        const change = { key, value: checked }
                         try {
-                          await updateNotifPrefs(nextPrefs)
+                          await updateNotifPref(change)
                         } catch (error) {
                           reportActionError(error, {
                             title: "couldn't save notification setting",
                             retry: () => {
-                              void updateNotifPrefs(nextPrefs).catch((e) =>
+                              void updateNotifPref(change).catch((e) =>
                                 reportActionError(e, {
                                   title: "couldn't save notification setting",
                                 }),
@@ -649,29 +645,25 @@ function SettingsPage() {
                     />
                   </div>
                 ))}
-                {profile.viewer.notificationPrefs.weeklyDigest &&
-                emailContactStatus.data ? (
-                  <p
-                    className="mt-4 max-w-120 font-sans text-body text-text-muted"
-                    role={
-                      emailContactStatus.data.syncStatus === 'failed'
-                        ? 'alert'
-                        : 'status'
-                    }
-                  >
-                    {!emailContactStatus.data.emailVerified
-                      ? 'Updates are paused until your primary email is verified.'
-                      : emailContactStatus.data.suppression !== 'none'
-                        ? 'Updates are paused because the email provider has suppressed this address.'
-                        : emailContactStatus.data.syncStatus === 'pending'
-                          ? 'Your subscription change is waiting to sync.'
-                          : emailContactStatus.data.syncStatus === 'syncing'
-                            ? 'Your subscription change is syncing.'
-                            : emailContactStatus.data.syncStatus === 'failed'
-                              ? `Subscription sync failed${emailContactStatus.data.lastError ? `: ${emailContactStatus.data.lastError}` : '.'}`
-                              : null}
-                  </p>
-                ) : null}
+                <EmailPreferencesSection
+                  status={emailStatusQuery.data}
+                  isEmailAdmin={isEmailAdmin}
+                  onChange={(category, subscribed) => {
+                    const change = { category, subscribed }
+                    updateEmailPreference(change).catch((error: unknown) =>
+                      reportActionError(error, {
+                        title: "couldn't save email setting",
+                        retry: () => {
+                          void updateEmailPreference(change).catch((e) =>
+                            reportActionError(e, {
+                              title: "couldn't save email setting",
+                            }),
+                          )
+                        },
+                      }),
+                    )
+                  }}
+                />
               </div>
             )}
 

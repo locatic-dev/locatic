@@ -1,11 +1,11 @@
 import { verifyWebhook } from '@clerk/backend/webhooks'
 import { httpRouter } from 'convex/server'
-import { Webhook } from 'svix'
 
 import { internal } from './_generated/api'
 import { httpAction } from './_generated/server'
 import { parseClerkGithubExternalAccount } from './lib/clerk'
-import { emailRefs } from './lib/email_function_refs'
+import { getSiteUrl } from './lib/email_provider'
+import { getResend } from './lib/resend'
 
 function getPrimaryEmail(data: Record<string, unknown>) {
   const emailAddresses = Array.isArray(data.email_addresses)
@@ -111,38 +111,6 @@ function getDisplayName(data: Record<string, unknown>, email: string) {
 
 const http = httpRouter()
 
-function getResendEventEmail(eventType: string, data: Record<string, unknown>) {
-  if (typeof data.email === 'string') return data.email
-  if (Array.isArray(data.to) && typeof data.to[0] === 'string') {
-    return data.to[0]
-  }
-  if (
-    eventType === 'suppression.added' &&
-    typeof data.email_address === 'string'
-  ) {
-    return data.email_address
-  }
-  return ''
-}
-
-function getResendSuppression(
-  eventType: string,
-  data: Record<string, unknown>,
-) {
-  if (eventType === 'email.complained') return 'complaint' as const
-  if (eventType === 'email.suppressed' || eventType === 'suppression.added') {
-    return 'provider_suppressed' as const
-  }
-  if (eventType === 'email.bounced') {
-    const bounce =
-      data.bounce && typeof data.bounce === 'object' ? data.bounce : null
-    if (bounce && 'type' in bounce && bounce.type === 'Permanent') {
-      return 'hard_bounce' as const
-    }
-  }
-  return undefined
-}
-
 http.route({
   path: '/clerk/webhooks',
   method: 'POST',
@@ -213,7 +181,7 @@ http.route({
             : 'https://github.com',
           displayName: getDisplayName(payload, email),
           avatarUrl,
-          primaryEmailVerified: primaryEmail.verified,
+          emailVerified: primaryEmail.verified,
         })
 
         await ctx.runMutation(internal.users.markClerkWebhookEventProcessed, {
@@ -263,70 +231,56 @@ http.route({
   }),
 })
 
+// Delivery events from Resend, verified and recorded by the email component,
+// which then calls emailSends.handleEmailEvent.
 http.route({
-  path: '/resend/webhooks',
+  path: '/resend-webhook',
+  method: 'POST',
+  handler: httpAction(async (ctx, request) =>
+    getResend().handleResendEventWebhook(ctx, request),
+  ),
+})
+
+// RFC 8058 one-click unsubscribe. Mail clients POST the body field
+// `List-Unsubscribe=One-Click` (URL-encoded or multipart) with no cookies.
+async function hasOneClickField(request: Request) {
+  try {
+    const form = await request.formData()
+    return form.get('List-Unsubscribe') === 'One-Click'
+  } catch {
+    return false
+  }
+}
+
+http.route({
+  path: '/email/unsubscribe',
   method: 'POST',
   handler: httpAction(async (ctx, request) => {
-    const secret = process.env.RESEND_WEBHOOK_SECRET
-    if (!secret) {
-      return new Response('webhook not configured', { status: 503 })
+    const token = new URL(request.url).searchParams.get('t') ?? ''
+    if (!token || !(await hasOneClickField(request))) {
+      return new Response(null, { status: 400 })
     }
+    const ok = await ctx.runMutation(
+      internal.emailPreferences.oneClickUnsubscribe,
+      { token },
+    )
+    return new Response(null, { status: ok ? 200 : 400 })
+  }),
+})
 
-    const eventId = request.headers.get('svix-id') ?? ''
-    const timestamp = request.headers.get('svix-timestamp') ?? ''
-    const signature = request.headers.get('svix-signature') ?? ''
-    if (!eventId || !timestamp || !signature) {
-      return new Response('missing signature headers', { status: 400 })
-    }
-
-    const payload = await request.text()
-    let verified: unknown
-    try {
-      verified = new Webhook(secret).verify(payload, {
-        'svix-id': eventId,
-        'svix-timestamp': timestamp,
-        'svix-signature': signature,
-      })
-    } catch {
-      return new Response('invalid webhook', { status: 400 })
-    }
-
-    if (!verified || typeof verified !== 'object') {
-      return new Response('invalid payload', { status: 400 })
-    }
-    const event = verified as Record<string, unknown>
-    const eventType = typeof event.type === 'string' ? event.type : ''
-    const data =
-      event.data && typeof event.data === 'object'
-        ? (event.data as Record<string, unknown>)
-        : {}
-    const providerContactId =
-      typeof data.id === 'string' && eventType.startsWith('contact.')
-        ? data.id
-        : null
-    const providerBroadcastId =
-      typeof data.broadcast_id === 'string' ? data.broadcast_id : null
-    const providerEmailId =
-      typeof data.email_id === 'string' ? data.email_id : null
-    const providerUnsubscribed =
-      eventType === 'contact.updated' && typeof data.unsubscribed === 'boolean'
-        ? data.unsubscribed
-        : undefined
-
-    await ctx.runMutation(emailRefs.events.record, {
-      eventId,
-      eventType,
-      email: getResendEventEmail(eventType, data),
-      providerContactId,
-      providerBroadcastId,
-      providerEmailId,
-      ...(providerUnsubscribed === undefined ? {} : { providerUnsubscribed }),
-      ...(getResendSuppression(eventType, data)
-        ? { suppression: getResendSuppression(eventType, data) }
-        : {}),
+// Link scanners prefetch GETs, so a GET never changes anything: it sends the
+// reader to the confirmation page.
+http.route({
+  path: '/email/unsubscribe',
+  method: 'GET',
+  handler: httpAction(async (_ctx, request) => {
+    const token = new URL(request.url).searchParams.get('t') ?? ''
+    return new Response(null, {
+      status: 303,
+      headers: {
+        Location: `${getSiteUrl()}/unsubscribe?t=${encodeURIComponent(token)}`,
+      },
     })
-
-    return new Response('ok', { status: 200 })
   }),
 })
 
