@@ -35,14 +35,11 @@ import {
   tabVisibilityValidator,
   cityVisibilityValidator,
   emailCampaignContentValidator,
-  emailCampaignKindValidator,
-  emailCampaignRunStageValidator,
+  emailCampaignSentValidator,
   emailCampaignStateValidator,
-  emailBroadcastPhaseValidator,
-  emailContactCleanupStatusValidator,
-  emailContactSyncStatusValidator,
-  emailSegmentPhaseValidator,
-  emailSuppressionValidator,
+  emailCategoryValidator,
+  emailPreferenceSourceValidator,
+  emailSendStatusValidator,
 } from './lib/validators'
 
 export default defineSchema({
@@ -164,20 +161,18 @@ export default defineSchema({
       dms: v.boolean(),
       weeklyDigest: v.boolean(),
       contributorRecognized: v.boolean(),
+      // Read as `?? true` until the backfill runs; then required.
+      productUpdates: v.optional(v.boolean()),
     }),
-    emailSubscription: v.optional(
-      v.object({
-        primaryEmailVerified: v.boolean(),
-        primaryEmailVerifiedAt: optionalTimestampValidator,
-        preferenceVersion: v.number(),
-        preferenceUpdatedAt: optionalTimestampValidator,
-        preferenceSource: v.union(
-          v.literal('legacy'),
-          v.literal('settings'),
-          v.literal('provider'),
-        ),
-      }),
-    ),
+    // From Clerk's primary address; optional until the backfill runs.
+    emailVerified: v.optional(v.boolean()),
+    // Set when the primary address changes; bounces before it are ignored.
+    emailChangedAt: v.optional(v.number()),
+    // Deprecated: PR #32's subscription state, which development data may
+    // still hold. Nothing reads or writes it; emailMigrations
+    // .clearLegacyEmailSubscription removes it, then the field goes in the
+    // same change that makes emailVerified and productUpdates required.
+    emailSubscription: v.optional(v.any()),
     githubContributions: v.optional(
       v.object({
         totalContributions: v.number(),
@@ -247,135 +242,69 @@ export default defineSchema({
     .index('by_source_event', ['source', 'eventId'])
     .index('by_status_received', ['status', 'receivedAt']),
 
-  email_contacts: defineTable({
-    userId: v.id('users'),
-    email: v.string(),
-    normalizedEmail: v.string(),
-    emailVerified: v.boolean(),
-    desiredSubscribed: v.boolean(),
-    preferenceVersion: v.number(),
-    acknowledgedVersion: v.number(),
-    stateVersion: v.optional(v.number()),
-    acknowledgedStateVersion: v.optional(v.number()),
-    syncStatus: emailContactSyncStatusValidator,
-    claimToken: v.optional(optionalStringValidator),
-    claimExpiresAt: v.optional(optionalTimestampValidator),
-    retryCount: v.optional(v.number()),
-    nextRetryAt: v.optional(optionalTimestampValidator),
-    providerContactId: optionalStringValidator,
-    syncedEmail: optionalStringValidator,
-    providerUnsubscribed: v.boolean(),
-    providerOptOutPreferenceVersion: v.optional(optionalTimestampValidator),
-    allowProviderResubscribe: v.optional(v.boolean()),
-    suppression: emailSuppressionValidator,
-    lastError: optionalStringValidator,
-    lastSyncAttemptedAt: optionalTimestampValidator,
-    lastSyncedAt: optionalTimestampValidator,
-    createdAt: v.number(),
-    updatedAt: v.number(),
-  })
-    .index('by_user', ['userId'])
-    .index('by_normalized_email', ['normalizedEmail'])
-    .index('by_sync_status_updated', ['syncStatus', 'updatedAt'])
-    .index('by_sync_status_retry', ['syncStatus', 'nextRetryAt', 'updatedAt'])
-    .index('by_sync_status_claim', [
-      'syncStatus',
-      'claimExpiresAt',
-      'updatedAt',
-    ]),
-
-  email_contact_cleanups: defineTable({
-    providerContactId: v.string(),
-    status: emailContactCleanupStatusValidator,
-    claimToken: optionalStringValidator,
-    claimExpiresAt: optionalTimestampValidator,
-    retryCount: v.number(),
-    nextRetryAt: optionalTimestampValidator,
-    lastError: optionalStringValidator,
-    createdAt: v.number(),
-    updatedAt: v.number(),
-  })
-    .index('by_provider_contact', ['providerContactId'])
-    .index('by_status_retry', ['status', 'nextRetryAt', 'updatedAt'])
-    .index('by_status_claim', ['status', 'claimExpiresAt', 'updatedAt']),
-
   email_campaigns: defineTable({
-    kind: emailCampaignKindValidator,
     title: v.string(),
-    periodKey: optionalStringValidator,
-    periodStart: optionalTimestampValidator,
-    periodEnd: optionalTimestampValidator,
+    subject: v.string(),
+    preheader: v.string(),
     revision: v.number(),
     templateVersion: v.number(),
-    content: emailCampaignContentValidator,
     state: emailCampaignStateValidator,
+    content: emailCampaignContentValidator,
     preparationDiagnostics: v.array(v.string()),
+    // Set once by startSend: the exact artifact sent, and enqueue progress.
+    sent: v.optional(emailCampaignSentValidator),
     createdBy: v.id('users'),
     updatedBy: v.id('users'),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
-    .index('by_period_key', ['periodKey'])
-    .index('by_state_updated', ['state', 'updatedAt'])
-    .index('by_updated', ['updatedAt']),
+    .index('by_updated_at', ['updatedAt'])
+    .index('by_state_and_updated_at', ['state', 'updatedAt'])
+    .index('by_content_kind_and_period_key', [
+      'content.kind',
+      'content.periodKey',
+    ]),
 
-  email_campaign_runs: defineTable({
+  email_sends: defineTable({
     campaignId: v.id('email_campaigns'),
-    campaignRevision: v.number(),
-    requestId: v.string(),
-    stage: emailCampaignRunStageValidator,
-    subject: v.string(),
-    html: v.string(),
-    text: v.string(),
-    contentFingerprint: v.string(),
-    sourceFingerprint: v.string(),
-    audienceCutoffAt: v.number(),
-    audienceSummary: v.object({
-      eligible: v.number(),
-      excludedDisabled: v.number(),
-      excludedInactive: v.number(),
-      excludedUnverified: v.number(),
-      excludedSuppressed: v.number(),
-      excludedDuplicate: v.number(),
-      pendingSync: v.number(),
-    }),
-    approvedBy: v.id('users'),
-    approvedAt: v.number(),
-    providerBroadcastId: optionalStringValidator,
-    providerSegmentId: v.optional(optionalStringValidator),
-    segmentPhase: v.optional(emailSegmentPhaseValidator),
-    broadcastPhase: v.optional(emailBroadcastPhaseValidator),
-    segmentCleanupAttempts: v.optional(v.number()),
-    nextRecoveryAt: v.optional(optionalTimestampValidator),
-    metrics: v.object({
-      sent: v.number(),
-      delivered: v.number(),
-      bounced: v.number(),
-      complained: v.number(),
-      failed: v.number(),
-      suppressed: v.number(),
-    }),
-    retryCount: v.number(),
-    lastError: optionalStringValidator,
+    userId: v.id('users'),
+    // The campaign's category, so an opt-out cancels only that category.
+    category: emailCategoryValidator,
+    emailId: v.string(),
+    status: emailSendStatusValidator,
+    errorMessage: v.optional(v.string()),
+    // Set by the first complaint for this send, whatever its status was.
+    complaintHandledAt: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
-    .index('by_campaign_revision', ['campaignId', 'campaignRevision'])
-    .index('by_campaign_stage', ['campaignId', 'stage'])
-    .index('by_provider_broadcast', ['providerBroadcastId'])
-    .index('by_stage_updated', ['stage', 'updatedAt'])
-    .index('by_next_recovery', ['nextRecoveryAt']),
+    .index('by_campaign_and_user', ['campaignId', 'userId'])
+    .index('by_campaign_and_status', ['campaignId', 'status'])
+    .index('by_email_id', ['emailId'])
+    .index('by_user_and_status_and_created_at', [
+      'userId',
+      'status',
+      'createdAt',
+    ])
+    .index('by_user_and_category_and_status_and_created_at', [
+      'userId',
+      'category',
+      'status',
+      'createdAt',
+    ])
+    .index('by_status_and_created_at', ['status', 'createdAt'])
+    .index('by_user_and_complaint_handled_at', [
+      'userId',
+      'complaintHandledAt',
+    ]),
 
-  email_campaign_recipients: defineTable({
-    runId: v.id('email_campaign_runs'),
-    contactId: v.id('email_contacts'),
-    normalizedEmail: v.string(),
-    stateVersion: v.number(),
-    providerContactId: v.string(),
-    createdAt: v.number(),
-  })
-    .index('by_run', ['runId'])
-    .index('by_run_contact', ['runId', 'contactId']),
+  email_preference_changes: defineTable({
+    userId: v.id('users'),
+    category: emailCategoryValidator,
+    subscribed: v.boolean(),
+    source: emailPreferenceSourceValidator,
+    changedAt: v.number(),
+  }).index('by_user_and_changed_at', ['userId', 'changedAt']),
 
   email_digest_config: defineTable({
     key: v.literal('fortnightly'),

@@ -291,6 +291,55 @@ describe('completeOnboarding (U5)', () => {
     expect(user?.exploreConfig.cityIds).toEqual([city])
   })
 
+  it('records the default update subscription once, at signup', async () => {
+    const userId = await seedUser(t, { username: 'newbie', onboarded: false })
+    const finish = () =>
+      as(t, 'newbie').mutation(api.users.completeOnboarding, {
+        ...baseArgs,
+        cityId: null,
+        exploreCityIds: [],
+      })
+
+    await finish()
+    await finish()
+
+    const changes = await t.run((ctx) =>
+      ctx.db.query('email_preference_changes').collect(),
+    )
+    expect(changes).toEqual([
+      expect.objectContaining({
+        userId,
+        category: 'product_updates',
+        subscribed: true,
+        source: 'signup_default',
+        changedAt: NOW,
+      }),
+    ])
+  })
+
+  it('does not log a signup default for someone who already opted out', async () => {
+    const userId = await seedUser(t, { username: 'newbie', onboarded: false })
+    await t.run(async (ctx) => {
+      const user = await ctx.db.get(userId)
+      await ctx.db.patch(userId, {
+        notificationPrefs: {
+          ...user!.notificationPrefs,
+          productUpdates: false,
+        },
+      })
+    })
+
+    await as(t, 'newbie').mutation(api.users.completeOnboarding, {
+      ...baseArgs,
+      cityId: null,
+      exploreCityIds: [],
+    })
+
+    expect(
+      await t.run((ctx) => ctx.db.query('email_preference_changes').collect()),
+    ).toEqual([])
+  })
+
   it('rejects a city that does not exist', async () => {
     const city = await seedCity(t, BERLIN)
     await t.run((ctx) => ctx.db.delete(city))

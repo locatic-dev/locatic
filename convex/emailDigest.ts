@@ -6,7 +6,11 @@ import {
   type MutationCtx,
 } from './_generated/server'
 import { requireEmailAdmin } from './lib/email_admin'
-import { EMAIL_TEMPLATE_VERSION } from './lib/email_campaigns'
+import {
+  EMAIL_TEMPLATE_VERSION,
+  type DigestContent,
+} from './lib/email_campaigns'
+import { getSiteUrl } from './lib/email_provider'
 import {
   isCommentPubliclyInteractable,
   isProjectPubliclyInteractable,
@@ -19,7 +23,6 @@ const PROJECT_SCAN_LIMIT = 50
 const DISCUSSION_SCAN_LIMIT = 100
 const PROJECT_SELECTION_LIMIT = 5
 const DISCUSSION_SELECTION_LIMIT = 2
-const SITE_ORIGIN = 'https://locatic.dev'
 
 type DigestPeriod = {
   key: string
@@ -56,7 +59,7 @@ function formatUtcDate(timestamp: number) {
 }
 
 function projectUrl(project: Doc<'projects'>) {
-  return `${SITE_ORIGIN}/project/${encodeURIComponent(project.github.ownerLogin)}/${encodeURIComponent(project.github.name)}`
+  return `${getSiteUrl()}/project/${encodeURIComponent(project.github.ownerLogin)}/${encodeURIComponent(project.github.name)}`
 }
 
 async function loadProjectCandidates(ctx: MutationCtx, period: DigestPeriod) {
@@ -71,7 +74,7 @@ async function loadProjectCandidates(ctx: MutationCtx, period: DigestPeriod) {
     .order('desc')
     .take(PROJECT_SCAN_LIMIT)
 
-  const selected: Doc<'email_campaigns'>['content']['projects'] = []
+  const selected: DigestContent['projects'] = []
   for (const project of candidates) {
     if (selected.length >= PROJECT_SELECTION_LIMIT) break
     const owner = await ctx.db.get(project.ownerId)
@@ -138,7 +141,7 @@ async function loadDiscussionCandidates(
     .order('desc')
     .take(DISCUSSION_SCAN_LIMIT)
 
-  const selected: Doc<'email_campaigns'>['content']['discussions'] = []
+  const selected: DigestContent['discussions'] = []
   const seenThreads = new Set<string>()
   for (const comment of candidates) {
     if (selected.length >= DISCUSSION_SELECTION_LIMIT) break
@@ -232,7 +235,9 @@ export const prepareDue = internalMutation({
 
     const existing = await ctx.db
       .query('email_campaigns')
-      .withIndex('by_period_key', (index) => index.eq('periodKey', period.key))
+      .withIndex('by_content_kind_and_period_key', (index) =>
+        index.eq('content.kind', 'digest').eq('content.periodKey', period.key),
+      )
       .unique()
     if (existing) {
       return { status: 'exists' as const, campaignId: existing._id }
@@ -263,22 +268,20 @@ export const prepareDue = internalMutation({
 
     const now = Date.now()
     const campaignId = await ctx.db.insert('email_campaigns', {
-      kind: 'digest',
       title: `Community update: ${formatUtcDate(period.start)} to ${formatUtcDate(period.end)}`,
-      periodKey: period.key,
-      periodStart: period.start,
-      periodEnd: period.end,
+      subject: `What Locatic builders shipped: ${formatUtcDate(period.start)} to ${formatUtcDate(period.end)}`,
+      preheader: 'A fortnight of public projects and community conversations.',
       revision: 1,
       templateVersion: EMAIL_TEMPLATE_VERSION,
       content: {
-        subject: `What Locatic builders shipped: ${formatUtcDate(period.start)} to ${formatUtcDate(period.end)}`,
-        preheader:
-          'A fortnight of public projects and community conversations.',
-        introduction:
-          'Here is a short editorial look at recent public work from the Locatic community.',
+        kind: 'digest',
+        body: 'Here is a short editorial look at recent public work from the Locatic community.',
+        cta: null,
+        periodKey: period.key,
+        periodStart: period.start,
+        periodEnd: period.end,
         projects: projects.selected,
         discussions: discussions.selected,
-        shippingUpdate: '',
       },
       state: 'draft',
       preparationDiagnostics: diagnostics,

@@ -1,7 +1,7 @@
 import { convexTest, type TestConvex } from 'convex-test'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { api } from './_generated/api'
+import { api, internal } from './_generated/api'
 import type { Id } from './_generated/dataModel'
 import schema from './schema'
 import {
@@ -89,6 +89,35 @@ describe('users.viewerBootstrap', () => {
     expect(bootstrap.status).toBe('ready')
     expect(sortedKeys(bootstrap.viewer?.stats)).toEqual(STATS_KEYS)
     expect(bootstrap.viewer?.stats).not.toHaveProperty('lastPublicActivityAt')
+  })
+})
+
+describe('users.viewerBootstrap isEmailAdmin', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
+
+  it('is true only for an allowlisted, active viewer', async () => {
+    vi.stubEnv(
+      'EMAIL_ADMIN_CLERK_IDS',
+      `${fixtureClerkId('admin')},clerk_missing`,
+    )
+    const t = convexTest(schema, modules)
+    const adminId = await seedUser(t, { username: 'admin' })
+    await seedUser(t, { username: 'ada' })
+    const bootstrap = (subject?: string) =>
+      (subject ? t.withIdentity({ subject }) : t).query(
+        api.users.viewerBootstrap,
+        {},
+      )
+
+    expect((await bootstrap(fixtureClerkId('admin'))).isEmailAdmin).toBe(true)
+    expect((await bootstrap(fixtureClerkId('ada'))).isEmailAdmin).toBe(false)
+    expect((await bootstrap()).isEmailAdmin).toBe(false)
+    expect((await bootstrap('clerk_missing')).isEmailAdmin).toBe(false)
+
+    await t.run((ctx) => ctx.db.patch(adminId, { deactivatedAt: NOW }))
+    expect((await bootstrap(fixtureClerkId('admin'))).isEmailAdmin).toBe(false)
   })
 })
 
@@ -366,5 +395,101 @@ describe('users.publicProfileOverview (C6 profile payload)', () => {
       hasReadme: false,
       error: 'GitHub returned 502',
     })
+  })
+})
+
+describe('users.upsertFromClerkWebhook email fields', () => {
+  const webhookArgs = (
+    username: string,
+    email: string,
+    emailVerified: boolean,
+  ) => ({
+    clerkId: fixtureClerkId(username),
+    email,
+    githubId: null,
+    githubUsername: username,
+    githubUrl: `https://github.com/${username}`,
+    displayName: username,
+    avatarUrl: '',
+    emailVerified,
+  })
+
+  it('stores Clerk verification on new users with default email preferences', async () => {
+    const t = convexTest(schema, modules)
+    const user = await t.mutation(
+      internal.users.upsertFromClerkWebhook,
+      webhookArgs('grace', 'grace@example.test', true),
+    )
+
+    expect(user?.emailVerified).toBe(true)
+    expect(user?.notificationPrefs.productUpdates).toBe(true)
+    expect(user?.notificationPrefs.weeklyDigest).toBe(false)
+    expect(user?.emailChangedAt).toBeUndefined()
+  })
+
+  it('records when the primary address changes, ignoring case', async () => {
+    const t = convexTest(schema, modules)
+    const userId = await seedUser(t, { username: 'ada' })
+
+    await t.mutation(
+      internal.users.upsertFromClerkWebhook,
+      webhookArgs('ada', 'ADA@example.test', true),
+    )
+    let user = await t.run((ctx) => ctx.db.get(userId))
+    expect(user?.emailVerified).toBe(true)
+    expect(user?.emailChangedAt).toBeUndefined()
+
+    await t.mutation(
+      internal.users.upsertFromClerkWebhook,
+      webhookArgs('ada', 'ada@new.example.test', false),
+    )
+    user = await t.run((ctx) => ctx.db.get(userId))
+    expect(user?.email).toBe('ada@new.example.test')
+    expect(user?.emailVerified).toBe(false)
+    expect(user?.emailChangedAt).toEqual(expect.any(Number))
+  })
+})
+
+describe('users.updateNotificationPref', () => {
+  it('changes only the named in-app key', async () => {
+    const t = convexTest(schema, modules)
+    const userId = await seedUser(t, { username: 'ada' })
+    const before = await t.run((ctx) => ctx.db.get(userId))
+    await t.run((ctx) =>
+      ctx.db.patch(userId, {
+        notificationPrefs: {
+          ...before!.notificationPrefs,
+          productUpdates: false,
+          weeklyDigest: true,
+        },
+      }),
+    )
+
+    await t
+      .withIdentity({ subject: fixtureClerkId('ada') })
+      .mutation(api.users.updateNotificationPref, { key: 'dms', value: true })
+
+    const after = await t.run((ctx) => ctx.db.get(userId))
+    expect(after?.notificationPrefs).toEqual({
+      ...before!.notificationPrefs,
+      productUpdates: false,
+      weeklyDigest: true,
+      dms: true,
+    })
+  })
+
+  it('rejects email preference keys', async () => {
+    const t = convexTest(schema, modules)
+    await seedUser(t, { username: 'ada' })
+    const viewer = t.withIdentity({ subject: fixtureClerkId('ada') })
+
+    for (const key of ['weeklyDigest', 'productUpdates']) {
+      await expect(
+        viewer.mutation(api.users.updateNotificationPref, {
+          key: key as 'dms',
+          value: true,
+        }),
+      ).rejects.toThrow()
+    }
   })
 })
