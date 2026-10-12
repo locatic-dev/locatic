@@ -800,6 +800,10 @@ The landing reads two public, viewer-independent queries:
   city's coordinates and links to its project, post (`?post=`) or release
   (`?release=`).
 
+The globe's city dots and caption use only the map cities that appear in that
+activity (`getCitiesWithActivity`): a builder with no projects counts toward a
+city's `builderCount` but gives it nothing to ping, so it gets no dot.
+
 ## Do Not Change Casually
 
 - Do not blend Home and Explore. Home is the viewer's network; Explore is city

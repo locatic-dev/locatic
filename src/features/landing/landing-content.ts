@@ -9,7 +9,7 @@ export type ActiveMapCity = FunctionReturnType<
 >[number]
 
 /**
- * Fewer cities with builders than this and the landing shows no city dots
+ * Fewer cities with activity than this and the landing shows no city dots
  * (plan item D7): a handful of dots reads as an empty
  * product, not a map.
  */
@@ -29,6 +29,20 @@ export function getLatLngCell(location: LatLng): string {
   // -180 and 180 are one meridian, so both sides of it share a cell.
   const lng = Math.round(location.lng)
   return `${Math.round(location.lat)}:${lng === -180 ? 180 : lng}`
+}
+
+/**
+ * The map's cities that have something in `activity`, in their order. A
+ * city's builder count includes builders with nothing public yet (no
+ * projects), so without this the globe and its caption would mark places
+ * where nothing ever pings.
+ */
+export function getCitiesWithActivity(
+  cities: ReadonlyArray<ActiveMapCity> | undefined,
+  activity: ReadonlyArray<LandingActivity> | undefined,
+): ActiveMapCity[] {
+  const active = new Set((activity ?? []).map((item) => item.city.slug))
+  return (cities ?? []).filter((city) => active.has(city.slug))
 }
 
 export type LandingMap =
@@ -190,7 +204,7 @@ export function getPingSequence(
   })
 }
 
-/** Every plotted city with builders: the globe's quiet city dots. */
+/** Every plotted city: the globe's quiet city dots. */
 export function getLandingCityDots(
   map: LandingMap,
 ): Array<{ key: string; lat: number; lng: number }> {
