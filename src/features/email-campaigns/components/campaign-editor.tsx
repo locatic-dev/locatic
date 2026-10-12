@@ -10,7 +10,6 @@ import {
   formatCount,
   type CampaignDraft,
   type EmailCampaignContent,
-  type EmailProjectSelection,
 } from '../contracts'
 import { emailProjectSearchQueryOptions } from '../queries'
 
@@ -69,7 +68,7 @@ function DigestPicks({
   const searchId = useId()
   const { data } = useQuery(emailProjectSearchQueryOptions(search))
   const chosen = new Set(content.projects.map((project) => project.projectId))
-  const results = ((data ?? []) as EmailProjectSelection[]).filter(
+  const results = (data ?? []).filter(
     (project) => !chosen.has(project.projectId),
   )
   const full = content.projects.length >= EMAIL_LIMITS.projects
@@ -142,7 +141,7 @@ function DigestPicks({
           value={search}
           disabled={full}
           onChange={(event) => setSearch(event.target.value)}
-          placeholder="name or description"
+          placeholder="repo name, owner/repo or GitHub link"
         />
         <p className={hintClassName}>
           {full

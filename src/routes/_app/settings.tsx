@@ -59,7 +59,6 @@ import {
 import { useUnsavedChangesGuard } from '@/features/settings/use-unsaved-changes-guard'
 import { EmailPreferencesSection } from '@/features/settings/email-preferences-section'
 import { myEmailStatusQueryOptions } from '@/features/settings/queries'
-import type { ViewerBootstrapPayload } from '@/features/contracts'
 import { viewerQueryOptions } from '@/features/viewer/queries'
 import { shouldPrefetchPrivateConvexQueries } from '@/lib/auth-routing'
 
@@ -139,9 +138,7 @@ function SettingsPage() {
   const updateEmailPreference = useUpdateEmailPreference()
   const emailStatusQuery = useQuery(myEmailStatusQueryOptions())
   const bootstrapQuery = useQuery(viewerQueryOptions())
-  const isEmailAdmin =
-    (bootstrapQuery.data as ViewerBootstrapPayload | undefined)
-      ?.isEmailAdmin === true
+  const isEmailAdmin = bootstrapQuery.data?.isEmailAdmin === true
   const viewerAccountState = getSettingsAccountStateFromViewer(profile.viewer)
 
   const [saved, setSaved] = useState(false)

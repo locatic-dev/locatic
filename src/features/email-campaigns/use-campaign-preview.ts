@@ -16,6 +16,9 @@ export const PREVIEW_DEBOUNCE_MS = 500
 export function useCampaignPreview(value: EmailPreviewArgs) {
   const preview = usePreviewEmailCampaign()
   const latestRequest = useRef(0)
+  // The effect keys on a serialized copy; the request sends the live value.
+  const latestValue = useRef(value)
+  latestValue.current = value
   const [html, setHtml] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -26,7 +29,7 @@ export function useCampaignPreview(value: EmailPreviewArgs) {
     const requestId = latestRequest.current
     setIsLoading(true)
     const timer = setTimeout(() => {
-      preview({ ...(JSON.parse(key) as EmailPreviewArgs), requestId })
+      preview({ ...latestValue.current, requestId })
         .then((result) => {
           if (result.requestId !== latestRequest.current) return
           setHtml(result.html)

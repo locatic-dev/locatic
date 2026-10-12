@@ -30,7 +30,8 @@ export function TestSendPanel({ detail, draft }: TestSendPanelProps) {
         content: draft.content,
         recipient: recipient.trim(),
       })
-      toast.success(`Test sent to ${recipient.trim()}.`)
+      // Queued in Convex; the email component hands it to Resend shortly.
+      toast.success(`Test email queued for ${recipient.trim()}.`)
     } catch (error) {
       reportActionError(error, { title: "couldn't send the test" })
     } finally {

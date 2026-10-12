@@ -41,12 +41,13 @@ The browser never talks to Resend and never sees an API key.
 ## Sending an edition
 
 1. **Write.** Subject, preview text, a body in simple Markdown (paragraphs, bold, HTTPS links, lists), and an optional button. A live preview shows exactly what will be sent. The body is capped so the email stays under Gmail's clipping size. A body link to `{{UNSUBSCRIBE_URL}}` becomes each reader's own unsubscribe link, for an edition that should open with one (such as the first update to existing members).
-2. **Test.** Send it to your own address. Test sends only go to an allowlist and carry `[test]` in the subject.
+   For a digest, pick projects by repository name, `owner/repo`, or a pasted GitHub or Locatic project link; an exact link is listed first, and only public projects appear.
+2. **Test.** Send it to your own address. The confirmation says the test is queued; it reaches Resend a moment later. Test sends only go to an allowlist and carry `[test]` in the subject.
 3. **Send.** A confirmation shows an estimate of how many people will receive it, the first few names, and how many are skipped and why. The estimate counts only the first 100 members, so with more members it reads "N+"; sending itself checks everyone. Confirming locks the edition; Convex re-checks that nothing changed since you previewed it, and for digests that every picked project and discussion is still public.
 4. **Deliver.** Convex goes through members in batches, oldest account first: up to 100 members a batch, fewer when the email is large, so a batch always fits in one transaction. For each eligible member it builds a personal unsubscribe link, hands the email to the Resend component, and records a send for that member. A member who already has a send for this edition is skipped, so retries never send anyone a second copy.
-5. **Track.** As Resend reports back, each member's send moves from queued (waiting in Convex) to sent (handed to Resend; delivery not confirmed) to delivered, or ends as bounced, complained, failed or cancelled. The admin page shows the totals and a per-member list. An address Resend suppresses (for example after an earlier bounce or complaint) never reports back, so its send stays "sent"; Locatic does not yet handle Resend's `email.suppressed` event.
+5. **Track.** As Resend reports back, each member's send moves from queued (not handed to Resend yet) to sent (handed to Resend; delivery not confirmed) to delivered, or ends as bounced, complained, failed or cancelled. The admin page shows "N recipients · M delivered", a count per status with what it means, and a per-member list. Counts that stop at a limit show as "N+". An address Resend suppresses (for example after an earlier bounce or complaint) never reports back, so its send stays "sent"; Locatic does not yet handle Resend's `email.suppressed` event.
 
-While a send is running, **Stop sending** stops it from reaching anyone else and cancels emails still waiting; afterwards, **Cancel emails not sent yet** cancels whatever is still waiting. Emails already handed to Resend cannot be recalled. If a send ever stops partway, the admin page offers **Resume**, which carries on from where it stopped without sending anyone a second copy.
+While a send is running, **Stop sending** stops it from reaching anyone else and cancels every email Resend has not accepted yet, including ones already gathered into a batch that has not gone out; afterwards, **Cancel emails not sent yet** does the same for whatever is left. Emails Resend has already accepted cannot be recalled. If a send ever stops partway, the admin page offers **Resume**, which carries on from where it stopped without sending anyone a second copy.
 
 ## Unsubscribing
 
@@ -59,7 +60,7 @@ Each link carries a signed token for one member and one email type, so unsubscri
 
 Members can also switch either email type on or off in **Settings → Notifications**. Every change, from any source, is written to a log with the time and where it came from.
 
-If someone reports an email as spam, Convex turns off both email types for them, and Resend stops delivering to that address. This happens once per email, even if that email had already failed or been cancelled. Turning the setting back on doesn't lift Resend's block; Settings keeps telling the member to contact us until their address changes.
+If someone reports an email as spam, Convex turns off both email types for them, and Resend stops delivering to that address. This happens once per email, even if that email had already failed or been cancelled. A complaint about an email sent to an earlier address is recorded but does not turn email off for the member's current address (the same rule Settings uses for its warning). Turning the setting back on doesn't lift Resend's block; Settings keeps telling the member to contact us until their address changes.
 
 The footer says who sent the email and why, links to Settings and the unsubscribe page, and shows a postal address once Locatic has one. Updates stick to news about Locatic itself; promotional email would need that address first.
 
@@ -101,10 +102,11 @@ These are documented by Convex but not yet verified on a deployment (they pass i
 
 ## What happens when something fails
 
-- **Resend is down or rate-limits us:** the component retries on its own. If retries run out, those emails are marked failed, and a check every 15 minutes copies that result onto the campaign so the admin page shows it. The check looks at sends from the last 25 days only, while the component still has its copies.
+- **Resend is down or rate-limits us:** the component retries on its own. If retries run out, those emails are marked failed, and a check every 15 minutes copies that result onto the campaign so the admin page shows it. Every unresolved send is checked in turn for 25 days while the component still has its copy; after that it keeps its last status. Each run checks up to 100 sends, so with more than 100 open sends a given send is checked less often than every 15 minutes.
+- **A cancelled email in a batch whose response was lost:** rare. If Resend accepted a batch but the reply never arrived, and one of its emails is cancelled before the retry, the retry differs from the first request under the same idempotency key. Resend rejects it, and the rest of that batch shows as failed although it was delivered.
 - **Convex restarts mid-send:** each batch (up to 100 members) is one transaction, so a batch either fully happens or not at all, and the next batch starts from a saved position.
 - **A batch hits a bug:** the send stops with the campaign still "sending". The admin page shows **Resume** after five minutes without progress.
-- **A member opts out mid-send:** their emails of that type still waiting in the queue are cancelled; the other type is untouched. The opt-out itself always takes effect, even if their email was already handed to Resend. Emails queued after a member turns email back on are not cancelled by the earlier opt-out.
+- **A member opts out mid-send:** their emails of that type that Resend has not accepted yet are cancelled, even if already in a component batch; the other type is untouched. The opt-out itself always takes effect, even if their email was already handed to Resend. Emails queued after a member turns email back on are not cancelled by the earlier opt-out.
 - **An email is too big:** each recipient's copy (HTML and plain text) is capped at 120 KB, checked at preview, test and send, so a batch of emails always fits Convex's per-transaction limits. Long reference links repeated many times are the usual cause.
 - **An address changes or loses verification:** the Clerk webhook records it and cancels that member's waiting emails; Settings ignores bounces from before the change.
 

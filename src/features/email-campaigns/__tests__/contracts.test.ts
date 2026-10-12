@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { LIMITS } from '../../../../convex/lib/email_campaigns'
 import {
   audienceLabel,
+  formatBoundedCount,
   EMAIL_LIMITS,
   isStalled,
   resultsSummary,
@@ -53,12 +54,19 @@ describe('email campaign contracts', () => {
     expect(
       audienceLabel({ ...preview, estimatedCount: 12, capped: false }),
     ).toBe('12')
-    expect(resultsSummary({ total: 4, delivered: 2, capped: false })).toBe(
-      'sent to 4 · 2 delivered',
+    const exact = (count: number) => ({ count, capped: false })
+    const capped = (count: number) => ({ count, capped: true })
+    expect(resultsSummary({ total: exact(4), delivered: exact(2) })).toBe(
+      '4 recipients · 2 delivered',
     )
-    expect(resultsSummary({ total: 100, delivered: 100, capped: true })).toBe(
-      'sent to 100+ · 100 delivered',
+    expect(resultsSummary({ total: exact(1), delivered: exact(0) })).toBe(
+      '1 recipient · 0 delivered',
     )
+    expect(resultsSummary({ total: capped(100), delivered: capped(100) })).toBe(
+      '100+ recipients · 100+ delivered',
+    )
+    expect(formatBoundedCount(capped(1000))).toBe('1,000+')
+    expect(formatBoundedCount(exact(1000))).toBe('1,000')
   })
 
   it('treats a sending campaign without a batch for five minutes as stalled', () => {
