@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -9,13 +9,20 @@ import { CAMPAIGN_ID } from './fixtures'
 const mocks = vi.hoisted(() => ({
   preview: undefined as EmailSendPreview | undefined,
   queried: vi.fn(),
+  previewError: null as Error | null,
+  refetch: vi.fn(),
 }))
 
 vi.mock('@tanstack/react-query', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@tanstack/react-query')>()),
   useQuery: (options: { queryKey: unknown[] }) => {
     mocks.queried(options.queryKey)
-    return { data: mocks.preview, isLoading: mocks.preview === undefined }
+    return {
+      data: mocks.previewError ? undefined : mocks.preview,
+      error: mocks.previewError,
+      isLoading: mocks.preview === undefined && !mocks.previewError,
+      refetch: mocks.refetch,
+    }
   },
 }))
 
@@ -49,6 +56,24 @@ function renderDialog(props: Partial<Parameters<typeof SendDialog>[0]> = {}) {
 describe('SendDialog', () => {
   beforeEach(() => {
     mocks.preview = preview
+    mocks.previewError = null
+    mocks.refetch.mockReset()
+  })
+
+  it('shows a failed count with Retry instead of counting forever', async () => {
+    const user = userEvent.setup()
+    mocks.previewError = new Error('network')
+    const { onSend } = renderDialog()
+
+    await user.click(screen.getByRole('button', { name: 'Review and send' }))
+    const alert = screen.getByRole('alert')
+    expect(alert.textContent).toContain("Couldn't count recipients.")
+    expect(screen.queryByText('Counting recipients…')).toBeNull()
+    await user.click(within(alert).getByRole('button', { name: 'Retry' }))
+    expect(mocks.refetch).toHaveBeenCalledTimes(1)
+    const confirm = screen.getByRole('button', { name: /^Send to/ })
+    expect((confirm as HTMLButtonElement).disabled).toBe(true)
+    expect(onSend).not.toHaveBeenCalled()
   })
 
   it('shows the estimate, a sample and who is skipped', async () => {

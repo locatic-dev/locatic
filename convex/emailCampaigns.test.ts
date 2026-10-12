@@ -1,7 +1,15 @@
 import { convexTest, type TestConvex } from 'convex-test'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { fixtureClerkId, seedUser } from './__tests__/fixtures.helpers'
+import {
+  BENGALURU,
+  DAY_MS,
+  fixtureClerkId,
+  NOW,
+  seedCity,
+  seedProject,
+  seedUser,
+} from './__tests__/fixtures.helpers'
 import { api } from './_generated/api'
 import type { Id } from './_generated/dataModel'
 import { createDefaultViewerProfile } from './lib/viewer'
@@ -352,5 +360,77 @@ describe('email campaign preview', () => {
     expect(preview.estimatedCount).toBe(99)
     expect(preview.skipped.unverified).toBe(1)
     expect(preview.sample).toHaveLength(5)
+  })
+})
+
+describe('email campaign project search', () => {
+  async function setupSearch() {
+    vi.stubEnv('EMAIL_ADMIN_CLERK_IDS', fixtureClerkId('admin'))
+    vi.stubEnv('SITE_URL', 'https://locatic.test')
+    const t = convexTest(schema, modules)
+    await seedUser(t, { username: 'admin' })
+    // Explore eligibility needs an owner with a profile city.
+    const cityId = await seedCity(t, BENGALURU)
+    const ownerId = await seedUser(t, { username: 'ada', cityId })
+    const mapkit = await seedProject(t, {
+      ownerId,
+      name: 'mapkit',
+      addedAt: NOW - 400 * DAY_MS,
+    })
+    for (let index = 0; index < 80; index += 1) {
+      await seedProject(t, {
+        ownerId,
+        name: `newer-${index}`,
+        addedAt: NOW - index * 1_000,
+      })
+    }
+    const hidden = await seedProject(t, {
+      ownerId,
+      name: 'mapkit-private',
+      isVisible: false,
+    })
+    return {
+      t,
+      mapkit,
+      hidden,
+      admin: t.withIdentity({ subject: fixtureClerkId('admin') }),
+    }
+  }
+
+  it('finds an older project by name behind many newer ones', async () => {
+    const { admin, mapkit } = await setupSearch()
+
+    const results = await admin.query(api.emailCampaigns.searchProjects, {
+      query: 'mapkit',
+    })
+    expect(results.map((project) => project.projectId)).toEqual([mapkit])
+  })
+
+  it.each([
+    'ada/mapkit',
+    'Ada/MapKit',
+    'https://github.com/ada/mapkit',
+    'https://locatic.test/project/ada/mapkit',
+  ])('ranks an exact match for %s first', async (query) => {
+    const { admin, mapkit } = await setupSearch()
+
+    const results = await admin.query(api.emailCampaigns.searchProjects, {
+      query,
+    })
+    expect(results[0]?.projectId).toBe(mapkit)
+    expect(new Set(results.map((project) => project.projectId)).size).toBe(
+      results.length,
+    )
+  })
+
+  it('never offers a hidden project, by name or exact reference', async () => {
+    const { admin, hidden } = await setupSearch()
+
+    for (const query of ['mapkit-private', 'ada/mapkit-private']) {
+      const results = await admin.query(api.emailCampaigns.searchProjects, {
+        query,
+      })
+      expect(results.map((project) => project.projectId)).not.toContain(hidden)
+    }
   })
 })

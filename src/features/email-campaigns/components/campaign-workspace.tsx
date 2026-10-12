@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import type { Id } from '../../../../convex/_generated/dataModel'
 
 import { PageHeader } from '@/components/app-shell/page-header'
+import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { getActionErrorMessage, reportActionError } from '@/lib/action-error'
@@ -13,7 +14,6 @@ import {
   detailToDraft,
   type EmailCampaignDetail,
   type EmailCampaignKind,
-  type EmailCampaignSummary,
   isStaleDraftError,
   sameDraft,
 } from '../contracts'
@@ -190,13 +190,12 @@ function DraftPanel({
 }
 
 export function CampaignWorkspace() {
-  const { data } = useSuspenseQuery(emailCampaignListQueryOptions())
-  const campaigns = data as EmailCampaignSummary[]
+  const { data: campaigns } = useSuspenseQuery(emailCampaignListQueryOptions())
   const [selectedId, setSelectedId] = useState<Id<'email_campaigns'> | null>(
     campaigns[0]?.id ?? null,
   )
   const detailQuery = useQuery(emailCampaignQueryOptions(selectedId))
-  const detail = (detailQuery.data ?? null) as EmailCampaignDetail | null
+  const detail = detailQuery.data ?? null
   const createCampaign = useCreateEmailCampaign()
   const cancelSend = useCancelEmailSend()
   const resumeSend = useResumeEmailSend()
@@ -245,7 +244,22 @@ export function CampaignWorkspace() {
             />
           </div>
           <Card as="section" density="cozy" className="min-w-0 flex-1">
-            {!detail ? (
+            {selectedId && detailQuery.error ? (
+              <div
+                role="alert"
+                className="flex flex-col items-center gap-3 py-10 text-center"
+              >
+                <p className="text-body text-text">
+                  Couldn't load this campaign.
+                </p>
+                <Button
+                  type="button"
+                  onClick={() => void detailQuery.refetch()}
+                >
+                  Retry
+                </Button>
+              </div>
+            ) : !detail ? (
               <p className="py-10 text-center font-mono text-label text-text-muted">
                 {selectedId && detailQuery.isLoading
                   ? 'Loading…'
