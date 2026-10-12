@@ -498,7 +498,8 @@ function dragBy(target: Element, dx: number, dy = 0) {
     clientX: 106 + dx,
     clientY: 100 + dy,
   })
-  return fireEvent.click(target)
+  // A pointer click: `detail` counts clicks, and is 0 for keyboard ones.
+  return fireEvent.click(target, { detail: 1 })
 }
 
 /** A pointer event at `timeStamp` ms, so the drag can measure a flick. */
@@ -582,7 +583,7 @@ describe('PingGlobe drag', () => {
 
     expect(dragBy(link, 40)).toBe(false)
     // Only that one click.
-    expect(fireEvent.click(link)).toBe(true)
+    expect(fireEvent.click(link, { detail: 1 })).toBe(true)
   })
 
   it('turns under reduced motion too, and keeps the turn', () => {
@@ -712,6 +713,39 @@ describe('PingGlobe drag', () => {
 
     expect(readVariable(cardAnchor(container), '--gx')).toBe(stopped)
     expect(frames.size).toBe(0)
+  })
+
+  it('lets a keyboard press play after a drag the browser cancelled', () => {
+    const { container } = render(<PingGlobe items={ITEMS} />)
+    const box = globeBox(container)
+    const pointer = { pointerId: 1, isPrimary: true, button: 0 }
+    fireEvent.pointerDown(box, { ...pointer, clientX: 100, clientY: 100 })
+    fireEvent.pointerMove(box, { ...pointer, clientX: 106, clientY: 100 })
+    // A vertical swipe hands the touch to page scrolling: no click follows.
+    fireEvent.pointerCancel(box, pointer)
+    advance(DRAG_COAST_MS)
+
+    // Enter on the focused control: a click with detail 0.
+    fireEvent.click(screen.getByRole('button', { name: 'play map animation' }))
+
+    expect(
+      screen.getByRole('button', { name: 'pause map animation' }),
+    ).toBeTruthy()
+  })
+
+  it('lets a keyboard click through even while a drag click is pending', () => {
+    const { container } = render(<PingGlobe items={ITEMS} />)
+    const box = globeBox(container)
+    const pointer = { pointerId: 1, isPrimary: true, button: 0 }
+    fireEvent.pointerDown(box, { ...pointer, clientX: 100, clientY: 100 })
+    fireEvent.pointerMove(box, { ...pointer, clientX: 140, clientY: 100 })
+    fireEvent.pointerUp(box, { ...pointer, clientX: 140, clientY: 100 })
+
+    fireEvent.click(screen.getByRole('button', { name: 'play map animation' }))
+
+    expect(
+      screen.getByRole('button', { name: 'pause map animation' }),
+    ).toBeTruthy()
   })
 
   it('ignores presses on the pause control', () => {

@@ -302,7 +302,8 @@ function clampSpin(speed: number): number {
  * on (not under reduced motion; direct manipulation itself stays). Grabbing
  * the globe calls `onGrab`, which pauses the tour until the viewer presses
  * play. A press that moves less than `DRAG_THRESHOLD_PX` stays a click, so
- * the card under it still opens; the click that ends a drag is swallowed.
+ * the card under it still opens; the pointer click that ends a drag is
+ * swallowed, keyboard clicks never are.
  * `held` is true from the drag's start until the flick has coasted out
  * (`DRAG_COAST_MS` after the release). Switching reduced motion on stops a
  * released flick at once.
@@ -377,9 +378,13 @@ function useGlobeDrag(
     }
   }
 
+  /**
+   * `released`: the pointer was lifted, so it may flick and a click follows.
+   * A cancelled or lost pointer gets no click, so none is swallowed.
+   */
   const endDrag = (
     event: ReactPointerEvent<HTMLDivElement>,
-    flick: boolean,
+    released: boolean,
   ) => {
     const drag = dragRef.current
     if (!drag || event.pointerId !== drag.pointerId) {
@@ -389,11 +394,11 @@ function useGlobeDrag(
     if (!drag.dragging) {
       return
     }
-    swallowClickRef.current = true
+    swallowClickRef.current = released
     const scene = sceneRef.current
     if (
       scene &&
-      flick &&
+      released &&
       !reducedMotionRef.current &&
       event.timeStamp - drag.lastTime < FLICK_WINDOW_MS
     ) {
@@ -508,8 +513,10 @@ function useGlobeDrag(
         endDrag(event, false)
       }
     },
+    // Only the pointer's own click ends a drag: a keyboard click (detail 0),
+    // such as Enter on play, always goes through.
     onClickCapture: (event: ReactMouseEvent<HTMLDivElement>) => {
-      if (swallowClickRef.current) {
+      if (swallowClickRef.current && event.detail > 0) {
         swallowClickRef.current = false
         event.preventDefault()
         event.stopPropagation()
