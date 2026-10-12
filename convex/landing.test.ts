@@ -2,6 +2,7 @@ import { convexTest, type TestConvex } from 'convex-test'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { api } from './_generated/api'
+import type { Id } from './_generated/dataModel'
 import schema from './schema'
 import { toPostExcerpt } from './landing'
 import {
@@ -42,6 +43,52 @@ describe('landing recent activity (D7)', () => {
 
   async function listActivity() {
     return await t.query(api.landing.listRecentActivity, {})
+  }
+
+  /**
+   * `count` copies of a seeded project, each its own repo, pushed at
+   * `lastCommitAt(index)`: quicker than seeding hundreds one by one.
+   */
+  async function copyProject(
+    projectId: Id<'projects'>,
+    count: number,
+    lastCommitAt: (index: number) => number,
+  ) {
+    await t.run(async (ctx) => {
+      const { _id, _creationTime, ...row } = (await ctx.db.get(projectId))!
+      for (let index = 0; index < count; index++) {
+        await ctx.db.insert('projects', {
+          ...row,
+          github: {
+            ...row.github,
+            repoId: row.github.repoId + index + 1,
+            name: `${row.github.name}-${index}`,
+            lastCommitAt: lastCommitAt(index),
+          },
+        })
+      }
+    })
+  }
+
+  /** Builders in Bengaluru who disclose it, each with one project. */
+  async function seedBuilders(prefix: string, count: number) {
+    const builders: Array<{ id: Id<'users'>; project: Id<'projects'> }> = []
+    for (let index = 0; index < count; index++) {
+      const id = await seedUser(t, {
+        username: `${prefix}${index}`,
+        cityId: cities.bengaluru,
+      })
+      builders.push({
+        id,
+        project: await seedProject(t, {
+          ownerId: id,
+          name: `${prefix}${index}-tool`,
+          addedAt: daysAgo(60),
+          lastCommitAt: daysAgo(30),
+        }),
+      })
+    }
+    return builders
   }
 
   it('is empty when nothing is public', async () => {
@@ -287,19 +334,7 @@ describe('landing recent activity (D7)', () => {
       addedAt: daysAgo(1),
       lastCommitAt: daysAgo(0.5),
     })
-    await t.run(async (ctx) => {
-      const { _id, _creationTime, ...row } = (await ctx.db.get(first))!
-      for (let index = 1; index < 410; index++) {
-        await ctx.db.insert('projects', {
-          ...row,
-          github: {
-            ...row.github,
-            repoId: row.github.repoId + index,
-            name: `r${index}`,
-          },
-        })
-      }
-    })
+    await copyProject(first, 409, () => daysAgo(0.5))
     // Only past every one of them.
     await seedProject(t, {
       ownerId: ada,
@@ -309,6 +344,38 @@ describe('landing recent activity (D7)', () => {
     })
 
     expect(await listActivity()).toEqual([])
+  })
+
+  it('fills the globe from one source while another has nothing to show', async () => {
+    const builders = await seedBuilders('b', 6)
+    // 410 shipped projects: the shared source reads only rows it skips.
+    for (const [index, { project }] of builders.entries()) {
+      await copyProject(project, 68, (copy) =>
+        daysAgo(0.001 * (copy * builders.length + index + 1)),
+      )
+    }
+
+    const activity = await listActivity()
+
+    expect(activity).toHaveLength(12)
+    expect(activity.every((item) => item.kind === 'push')).toBe(true)
+    expect(new Set(activity.map((item) => item.actor.handle)).size).toBe(6)
+  })
+
+  it('keeps newer posts when the project sources are all of one kind', async () => {
+    const posters = await seedBuilders('p', 12)
+    for (const [index, { id, project }] of posters.entries()) {
+      await seedPost(t, project, id, daysAgo(0.0001 * (index + 1)))
+    }
+    const [shipper] = await seedBuilders('s', 1)
+    await copyProject(shipper!.project, 410, (copy) =>
+      daysAgo(0.01 * (copy + 1)),
+    )
+
+    const activity = await listActivity()
+
+    expect(activity).toHaveLength(12)
+    expect(activity.every((item) => item.kind === 'post')).toBe(true)
   })
 
   it('is the same for visitors and members', async () => {

@@ -198,6 +198,27 @@ async function* newestFirst(
 }
 
 /**
+ * Whether a merged row is news: a release that is not a draft, and each
+ * project once, from the source its own timestamps choose. Pushed after it
+ * was shared, it is shipped (the last-commit source); otherwise it is shared
+ * (the added source).
+ */
+function isCandidateNews(candidate: Candidate): boolean {
+  switch (candidate.kind) {
+    case 'post':
+      return true
+    case 'release':
+      return !candidate.release.isDraft
+    case 'project':
+    case 'push': {
+      const { lastCommitAt } = candidate.project.github
+      const pushed = lastCommitAt > candidate.project.addedToLocaticAt
+      return candidate.kind === 'push' ? pushed : !pushed
+    }
+  }
+}
+
+/**
  * Public activity for the landing globe (plan item D7): the newest posts,
  * published releases, pushes ("shipped") and newly shared projects, newest
  * first, at most `LANDING_ACTIVITY_PER_ACTOR` per builder. There is no time
@@ -257,6 +278,10 @@ export const listRecentActivity = query({
         .order('desc'),
     )
 
+    // Each source yields every row it reads, one at a time, by its index
+    // timestamp: a source never reads ahead to find a row it wants, so none
+    // can spend the budget while the merge waits on it. Rows are judged
+    // after the merge picks them (`isCandidateNews`).
     async function* postCandidates(): AsyncGenerator<Candidate> {
       for await (const post of posts) {
         yield { kind: 'post', at: post.createdAt, post }
@@ -268,24 +293,17 @@ export const listRecentActivity = query({
         if (release.publishedAt === null) {
           return
         }
-        if (!release.isDraft) {
-          yield { kind: 'release', at: release.publishedAt, release }
-        }
+        yield { kind: 'release', at: release.publishedAt, release }
       }
     }
     async function* sharedCandidates(): AsyncGenerator<Candidate> {
       for await (const project of added) {
-        if (project.github.lastCommitAt <= project.addedToLocaticAt) {
-          yield { kind: 'project', at: project.addedToLocaticAt, project }
-        }
+        yield { kind: 'project', at: project.addedToLocaticAt, project }
       }
     }
     async function* shippedCandidates(): AsyncGenerator<Candidate> {
       for await (const project of pushed) {
-        // Pushed after it was shared: the push is the news.
-        if (project.github.lastCommitAt > project.addedToLocaticAt) {
-          yield { kind: 'push', at: project.github.lastCommitAt, project }
-        }
+        yield { kind: 'push', at: project.github.lastCommitAt, project }
       }
     }
 
@@ -356,6 +374,9 @@ export const listRecentActivity = query({
       sharedCandidates(),
       shippedCandidates(),
     ])) {
+      if (!isCandidateNews(candidate)) {
+        continue
+      }
       const item = await toItem(candidate)
       if (!item) {
         continue
