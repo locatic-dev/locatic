@@ -19,6 +19,8 @@ import {
   useUpdateProfile,
 } from '@/features/settings/mutations'
 import { AccountDangerZone } from '@/features/settings/account-danger-zone'
+import { LEGAL_CONTACT_EMAIL } from '@/features/legal/legal-contact'
+import { CONTENT_LIMITS } from '../../../convex/lib/content_limits'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { CityCombobox } from '@/components/ui/city-combobox'
@@ -58,6 +60,7 @@ import {
 import { useUnsavedChangesGuard } from '@/features/settings/use-unsaved-changes-guard'
 import { emailContactStatusQueryOptions } from '@/features/settings/queries'
 import { shouldPrefetchPrivateConvexQueries } from '@/lib/auth-routing'
+import { seo } from '@/lib/seo'
 
 export const Route = createFileRoute('/_app/settings')({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -89,6 +92,7 @@ export const Route = createFileRoute('/_app/settings')({
   pendingComponent: FormRoutePending,
   pendingMs: ROUTE_PENDING_MS,
   pendingMinMs: ROUTE_PENDING_MIN_MS,
+  head: () => seo({ title: 'settings', noindex: true }),
   component: SettingsPage,
 })
 
@@ -340,6 +344,7 @@ function SettingsPage() {
                       </label>
                       <Input
                         id="settings-display-name"
+                        maxLength={CONTENT_LIMITS.displayName}
                         value={displayName}
                         onChange={(event) => setDisplayName(event.target.value)}
                         className={fieldClassName}
@@ -351,14 +356,17 @@ function SettingsPage() {
                       <label htmlFor="settings-bio" className={labelClassName}>
                         bio{' '}
                         <span className="text-text-muted">
-                          ({bio.length}/140)
+                          ({bio.length}/{CONTENT_LIMITS.bio})
                         </span>
                       </label>
                       <Textarea
                         id="settings-bio"
+                        maxLength={CONTENT_LIMITS.bio}
                         value={bio}
                         onChange={(event) =>
-                          setBio(event.target.value.slice(0, 140))
+                          setBio(
+                            event.target.value.slice(0, CONTENT_LIMITS.bio),
+                          )
                         }
                         className={`${fieldClassName} resize-none font-sans`}
                         rows={3}
@@ -451,6 +459,7 @@ function SettingsPage() {
                       </label>
                       <Input
                         id="settings-twitter"
+                        maxLength={CONTENT_LIMITS.socialLink}
                         value={twitter}
                         onChange={(event) => setTwitter(event.target.value)}
                         className={fieldClassName}
@@ -466,6 +475,7 @@ function SettingsPage() {
                       </label>
                       <Input
                         id="settings-linkedin"
+                        maxLength={CONTENT_LIMITS.socialLink}
                         value={linkedin}
                         onChange={(event) => setLinkedin(event.target.value)}
                         className={fieldClassName}
@@ -481,6 +491,7 @@ function SettingsPage() {
                       </label>
                       <Input
                         id="settings-bluesky"
+                        maxLength={CONTENT_LIMITS.socialLink}
                         value={bluesky}
                         onChange={(event) => setBluesky(event.target.value)}
                         className={fieldClassName}
@@ -496,6 +507,7 @@ function SettingsPage() {
                       </label>
                       <Input
                         id="settings-website"
+                        maxLength={CONTENT_LIMITS.socialLink}
                         value={website}
                         onChange={(event) => setWebsite(event.target.value)}
                         className={fieldClassName}
@@ -528,6 +540,13 @@ function SettingsPage() {
                     >
                       terms of service
                     </Link>
+                    <a
+                      href={`mailto:${LEGAL_CONTACT_EMAIL}`}
+                      className="inline-flex min-h-11 items-center text-text-muted no-underline transition-colors hover:text-text"
+                      aria-label={`Email Locatic at ${LEGAL_CONTACT_EMAIL}`}
+                    >
+                      contact
+                    </a>
                   </nav>
                 </div>
               </div>

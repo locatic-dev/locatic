@@ -32,7 +32,13 @@ test.describe('public landing', () => {
     expect(pageErrors).toEqual([])
     expect(consoleErrors).toEqual([])
 
-    await page.goto('/not-a-real-route')
+    const notFound = await page.goto('/not-a-real-route')
+    expect(notFound?.status()).toBe(404)
+    await expect(page).toHaveTitle('page not found · Locatic')
+    await expect(page.locator('meta[name="robots"]')).toHaveAttribute(
+      'content',
+      /noindex/,
+    )
     const notFoundMain = page.locator('main#main-content')
     await expect(notFoundMain).toBeVisible()
     // The 404 page always draws the example pins, which ping; the landing
@@ -49,27 +55,42 @@ test.describe('public landing', () => {
     await expect(notFoundMain).toBeFocused()
   })
 
-  test('has no horizontal overflow at supported public breakpoints', async ({
-    page,
-  }) => {
-    // The hero globe may bleed past its column; it must never scroll the page.
-    for (const viewport of [
-      { width: 320, height: 640 },
-      { width: 375, height: 667 },
-      { width: 390, height: 844 },
-      { width: 768, height: 1024 },
-      { width: 1024, height: 768 },
-      { width: 1280, height: 900 },
-      { width: 1440, height: 1000 },
-      { width: 1920, height: 1080 },
-    ]) {
-      await page.setViewportSize(viewport)
-      await page.goto('/')
-      await expect
-        .poll(() => page.evaluate(() => document.documentElement.scrollWidth))
-        .toBeLessThanOrEqual(viewport.width)
-    }
-  })
+  // The hero globe may bleed past its column; it must never scroll the page.
+  // Explore has filter rows and cards; the legal pages carry tables and long
+  // words; the 404 page a wide map. One test per page keeps each browser page
+  // to a few navigations.
+  for (const path of [
+    '/',
+    '/explore',
+    '/privacy',
+    '/terms',
+    '/not-a-real-route',
+  ]) {
+    test(`${path} has no horizontal overflow at supported breakpoints`, async ({
+      page,
+    }) => {
+      for (const viewport of [
+        { width: 320, height: 640 },
+        { width: 375, height: 667 },
+        { width: 390, height: 844 },
+        { width: 768, height: 1024 },
+        { width: 1024, height: 768 },
+        { width: 1280, height: 900 },
+        { width: 1440, height: 1000 },
+        { width: 1920, height: 1080 },
+      ]) {
+        await page.setViewportSize(viewport)
+        await page.goto(path)
+        await expect(page.locator('main#main-content')).toBeVisible()
+        await expect
+          .poll(
+            () => page.evaluate(() => document.documentElement.scrollWidth),
+            { message: `${path} at ${viewport.width}px` },
+          )
+          .toBeLessThanOrEqual(viewport.width)
+      }
+    })
+  }
 
   test('shows real cities and activity cards, never examples (D7)', async ({
     page,

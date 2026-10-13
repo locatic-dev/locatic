@@ -31,10 +31,11 @@ describe('/c/$slug loader', () => {
     })
   })
 
-  it('loads the page title for a slug', async () => {
+  it('loads the page title and canonical slug for a slug', async () => {
     await expect(runLoader('mysuru-in', page)).resolves.toEqual({
       name: 'Mysuru',
       displayName: 'Mysuru, Karnataka, India',
+      slug: 'mysuru-in',
     })
   })
 })

@@ -14,8 +14,10 @@ import {
   useProjectSaveToggle,
 } from '@/features/projects/saves'
 import { Bookmark } from '@/lib/icons'
+import { seo } from '@/lib/seo'
 
 export const Route = createFileRoute('/_app/saved')({
+  head: () => seo({ title: 'saved', noindex: true }),
   component: SavedPage,
 })
 
