@@ -96,9 +96,12 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
     }
   },
   head: ({ matches }) => {
-    // An unknown URL renders NotFoundPage with a 404 status; keep it out of
-    // search results.
-    const notFound = matches.some((match) => match.globalNotFound)
+    // An unknown URL (global) or a missing city, profile or project (the
+    // route's own notFoundComponent) renders with a 404 status; keep it out
+    // of search results. Those routes add no head tags without loader data.
+    const notFound = matches.some(
+      (match) => match.globalNotFound || match.status === 'notFound',
+    )
     return {
       meta: [
         { charSet: 'utf-8' },
