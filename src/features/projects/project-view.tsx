@@ -79,6 +79,7 @@ import {
   stripProjectCommentSearch,
   type ProjectTab,
 } from '@/features/projects/deep-link'
+import { CONTENT_LIMITS } from '../../../convex/lib/content_limits'
 
 // Read search and navigation through the route API so this module does not
 // import the route file that renders it.
@@ -823,6 +824,7 @@ export function ProjectView({
                         />
                         <div className="min-w-0 flex-1">
                           <Textarea
+                            maxLength={CONTENT_LIMITS.comment}
                             value={comment}
                             onChange={(event) => setComment(event.target.value)}
                             placeholder="say something thoughtful…"

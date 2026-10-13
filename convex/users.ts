@@ -23,6 +23,8 @@ import {
   requireIdentity,
 } from './lib/auth'
 import { buildDiscoverabilitySearchText } from './lib/discoverability'
+import { assertProfileTextLimits } from './lib/content_limits'
+import { enforceRateLimit } from './lib/rate_limits'
 import { resolveProjectOwnerLogin } from './lib/project_route'
 import {
   buildProjectCardPreview,
@@ -56,7 +58,11 @@ import {
   getNextUserPostsCountBackfillCursor,
   shouldPatchUserPostsCount,
 } from './lib/post_counts'
-import { isContributionsVisibleOnPublicProfile } from './lib/privacy'
+import {
+  isContributionsVisibleOnPublicProfile,
+  isProfileGone,
+  isProfileOpenToSignedOutVisitors,
+} from './lib/privacy'
 import {
   getRegionLabel,
   isCityMember,
@@ -1035,7 +1041,7 @@ async function getAccessiblePublicProfileViewer(
     )
     .unique()
 
-  if (!viewer || viewer.deletedAt || viewer.deactivatedAt) {
+  if (!viewer || isProfileGone(viewer)) {
     return {
       requester,
       requesterIdentity,
@@ -1043,7 +1049,7 @@ async function getAccessiblePublicProfileViewer(
     }
   }
 
-  if (viewer.privacy.profileVisibility !== 'public' && !requesterIdentity) {
+  if (!isProfileOpenToSignedOutVisitors(viewer) && !requesterIdentity) {
     return {
       requester,
       requesterIdentity,
@@ -1820,10 +1826,12 @@ export const updateProfile = mutation({
     }),
   },
   handler: async (ctx, args) => {
+    assertProfileTextLimits(args)
     const viewer = await getOrCreateViewer(ctx)
     if (!viewer) {
       throw new ConvexError('Viewer not found')
     }
+    await enforceRateLimit(ctx, 'profileUpdate', String(viewer._id))
 
     const nextExploreCityIds = getExploreCityIdsAfterProfileCityChange({
       previousExploreCityIds: viewer.exploreConfig.cityIds,
@@ -2052,6 +2060,8 @@ export const completeOnboarding = mutation({
       throw new ConvexError('Viewer not found')
     }
 
+    assertProfileTextLimits(args)
+    await enforceRateLimit(ctx, 'profileUpdate', String(viewer._id))
     if (args.cityId && !(await ctx.db.get(args.cityId))) {
       throw new ConvexError('City not found')
     }
