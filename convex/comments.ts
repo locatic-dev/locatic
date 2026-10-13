@@ -42,6 +42,7 @@ import {
   isCommentPubliclyInteractable,
 } from './lib/project_access'
 import { enforceRateLimit } from './lib/rate_limits'
+import { assertMaxLength } from './lib/content_limits'
 import { countMetric } from './metrics'
 import {
   getCommentReactionCounts,
@@ -405,6 +406,10 @@ export const create = mutation({
   returns: v.union(commentPageItemValidator, v.null()),
   handler: async (ctx, args) => {
     const viewer = await getViewerOrThrow(ctx)
+    if (!args.content.trim()) {
+      throw new ConvexError('Comment cannot be empty')
+    }
+    assertMaxLength('comment', args.content)
     await enforceRateLimit(ctx, 'commentCreate', String(viewer._id))
     const actorSnapshot = await buildActorSnapshot(ctx.db, viewer)
     let projectTarget: Doc<'projects'> | null = null
@@ -725,12 +730,15 @@ export const report = mutation({
   },
   handler: async (ctx, args) => {
     const viewer = await getViewerOrThrow(ctx)
+    const details = args.details?.trim() || null
+    assertMaxLength('reportDetails', details)
+    await enforceRateLimit(ctx, 'contentReport', String(viewer._id))
     return await ctx.db.insert('reports', {
       reporterId: viewer._id,
       targetType: 'comment',
       targetId: args.commentId,
       reason: args.reason,
-      details: args.details,
+      details,
       status: 'open',
       createdAt: Date.now(),
       updatedAt: Date.now(),

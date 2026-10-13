@@ -49,6 +49,42 @@ const rateLimiter = new RateLimiter(components.rateLimiter, {
     period: HOUR,
     capacity: 8,
   },
+  contentReport: {
+    kind: 'token bucket',
+    rate: 10,
+    period: HOUR,
+    capacity: 5,
+  },
+  followWrite: {
+    kind: 'token bucket',
+    rate: 60,
+    period: MINUTE,
+    capacity: 20,
+  },
+  postEdit: {
+    kind: 'token bucket',
+    rate: 30,
+    period: HOUR,
+    capacity: 10,
+  },
+  postWrite: {
+    kind: 'token bucket',
+    rate: 10,
+    period: HOUR,
+    capacity: 5,
+  },
+  profileUpdate: {
+    kind: 'token bucket',
+    rate: 30,
+    period: HOUR,
+    capacity: 10,
+  },
+  saveWrite: {
+    kind: 'token bucket',
+    rate: 60,
+    period: MINUTE,
+    capacity: 20,
+  },
   emailTestSend: {
     kind: 'fixed window',
     rate: 5,
@@ -66,7 +102,9 @@ type RateLimitCtx = Pick<MutationCtx | ActionCtx, 'runQuery' | 'runMutation'>
 
 type RateLimitName =
   | 'commentCreate'
+  | 'contentReport'
   | 'conversationMessage'
+  | 'followWrite'
   | 'githubContributionSync'
   | 'githubMetadataRefresh'
   | 'githubProjectContributorSync'
@@ -74,7 +112,11 @@ type RateLimitName =
   | 'githubRepoImport'
   | 'githubRepoList'
   | 'emailTestSend'
+  | 'postEdit'
+  | 'postWrite'
+  | 'profileUpdate'
   | 'reactionWrite'
+  | 'saveWrite'
 
 export async function enforceRateLimit(
   ctx: RateLimitCtx,
