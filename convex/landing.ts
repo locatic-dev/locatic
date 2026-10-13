@@ -19,6 +19,14 @@ const LANDING_ACTIVITY_PER_ACTOR = 2
  * fills the globe; the budget keeps that bounded.
  */
 const LANDING_SCAN_BUDGET = 400
+/**
+ * Read headroom, in bytes, the scan keeps below Convex's per-transaction read
+ * limit (16 MiB). Project rows carry README previews, so 400 rows can exceed
+ * it. The scan stops before reading on with less than this left: room for the
+ * four sources' next index rows and the project, owner and city lookups they
+ * trigger, each document at most 1 MiB.
+ */
+const LANDING_READ_HEADROOM_BYTES = 8 * 1024 * 1024
 /** Longest post excerpt, in characters, before the ellipsis. */
 const POST_EXCERPT_LENGTH = 90
 
@@ -86,6 +94,13 @@ function createLoaders(ctx: QueryCtx) {
   }
 
   return {
+    /** Caches a project the scan already read from an index. */
+    prime: (project: Doc<'projects'>) => {
+      const key = String(project._id)
+      if (!cache.has(key)) {
+        cache.set(key, Promise.resolve(project))
+      }
+    },
     user: (id: Id<'users'>) => load<Doc<'users'>>(id),
     /**
      * A visible project whose live owner is discoverable and discloses an
@@ -230,8 +245,9 @@ function isCandidateNews(candidate: Candidate): boolean {
  * last push when it was pushed after it was shared, else shared when it was
  * added. The four indexes are read lazily and merged newest first, skipping
  * rows that fail the privacy checks or the builder cap, until the globe is
- * full or `LANDING_SCAN_BUDGET` rows have been read; project, owner and city
- * reads are cached. Public and viewer-independent: the landing never reads
+ * full, `LANDING_SCAN_BUDGET` rows have been read, or the bytes read near the
+ * transaction limit (`LANDING_READ_HEADROOM_BYTES`); project, owner and city
+ * reads are cached, and a project read from an index is not read again. Public and viewer-independent: the landing never reads
  * auth.
  */
 export const listRecentActivity = query({
@@ -240,15 +256,22 @@ export const listRecentActivity = query({
   handler: async (ctx) => {
     const loaders = createLoaders(ctx)
 
-    // Every index row read counts, including rows a source skips.
+    // Every index row read counts, including rows a source skips. Rows are
+    // bounded by count and by bytes: both are checked before the next read.
     let budget = LANDING_SCAN_BUDGET
+    async function hasReadHeadroom() {
+      const { bytesRead } = await ctx.meta.getTransactionMetrics()
+      return bytesRead.remaining > LANDING_READ_HEADROOM_BYTES
+    }
     async function* budgeted<T>(rows: AsyncIterable<T>): AsyncGenerator<T> {
-      for await (const row of rows) {
-        if (budget <= 0) {
+      const iterator = rows[Symbol.asyncIterator]()
+      while (budget > 0 && (await hasReadHeadroom())) {
+        const next = await iterator.next()
+        if (next.done) {
           return
         }
         budget--
-        yield row
+        yield next.value
       }
     }
 
@@ -298,11 +321,13 @@ export const listRecentActivity = query({
     }
     async function* sharedCandidates(): AsyncGenerator<Candidate> {
       for await (const project of added) {
+        loaders.prime(project)
         yield { kind: 'project', at: project.addedToLocaticAt, project }
       }
     }
     async function* shippedCandidates(): AsyncGenerator<Candidate> {
       for await (const project of pushed) {
+        loaders.prime(project)
         yield { kind: 'push', at: project.github.lastCommitAt, project }
       }
     }
