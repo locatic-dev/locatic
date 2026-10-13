@@ -81,6 +81,7 @@ import { reportActionError } from '@/lib/action-error'
 import { showUndoToast } from '@/lib/undo-toast'
 import { Pin } from '@/lib/icons'
 import { shouldPrefetchPrivateConvexQueries } from '@/lib/auth-routing'
+import { seo } from '@/lib/seo'
 
 const TAB_QUERY_STALE_TIME = 60_000
 const SOCIAL_PAGE_SIZE = 12
@@ -127,6 +128,7 @@ export const Route = createFileRoute('/_app/profile')({
   pendingComponent: ProfileRoutePending,
   pendingMs: ROUTE_PENDING_MS,
   pendingMinMs: ROUTE_PENDING_MIN_MS,
+  head: () => seo({ title: 'your profile', noindex: true }),
   component: ProfilePage,
 })
 

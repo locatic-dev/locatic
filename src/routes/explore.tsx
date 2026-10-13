@@ -28,6 +28,7 @@ import {
 } from '@/features/viewer/queries'
 import { shouldPrefetchPrivateConvexQueries } from '@/lib/auth-routing'
 import { toSafeRelativeUrl } from '@/lib/safe-redirect'
+import { seo } from '@/lib/seo'
 
 /**
  * The rail's city card reads one city's stats; prefetch them when exactly one
@@ -119,5 +120,12 @@ export const Route = createFileRoute('/explore')({
   pendingComponent: FeedRoutePending,
   pendingMs: ROUTE_PENDING_MS,
   pendingMinMs: ROUTE_PENDING_MIN_MS,
+  head: () =>
+    seo({
+      title: 'explore',
+      description:
+        'Browse public projects, releases and builders by city and tech stack, from your city to anywhere on the globe.',
+      path: '/explore',
+    }),
   component: ExplorePage,
 })

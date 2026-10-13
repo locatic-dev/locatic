@@ -5,20 +5,13 @@ import {
   LEGAL_EFFECTIVE_DATE,
   LEGAL_LAST_UPDATED,
 } from '@/features/legal/legal-dates'
+import { seo } from '@/lib/seo'
 
 const description =
   'The terms governing your use of Locatic, including eligibility, user content, prohibited conduct, and account deletion.'
 
 export const Route = createFileRoute('/terms')({
-  head: () => ({
-    meta: [
-      { title: 'Terms of Service · Locatic' },
-      { name: 'description', content: description },
-      { property: 'og:title', content: 'Terms of Service · Locatic' },
-      { property: 'og:description', content: description },
-    ],
-    links: [{ rel: 'canonical', href: 'https://locatic.dev/terms' }],
-  }),
+  head: () => seo({ title: 'Terms of Service', description, path: '/terms' }),
   component: TermsPage,
 })
 

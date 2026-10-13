@@ -44,6 +44,8 @@ import {
   type InboxTab,
 } from '@/features/inbox/navigation'
 import { shouldPrefetchPrivateConvexQueries } from '@/lib/auth-routing'
+import { seo } from '@/lib/seo'
+import { CONTENT_LIMITS } from '../../../convex/lib/content_limits'
 
 export const Route = createFileRoute('/_app/inbox')({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -79,6 +81,7 @@ export const Route = createFileRoute('/_app/inbox')({
   pendingComponent: InboxRoutePending,
   pendingMs: ROUTE_PENDING_MS,
   pendingMinMs: ROUTE_PENDING_MIN_MS,
+  head: () => seo({ title: 'inbox', noindex: true }),
   component: InboxPage,
 })
 
@@ -568,6 +571,7 @@ function DraftConversationPanel({
       <div className="shrink-0 border-t border-line px-[var(--lx-gutter)] pt-2 pb-[calc(var(--lx-mobile-tab-height)+0.75rem)] md:pt-4 md:pb-5">
         <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-1.5 rounded-card border border-line bg-surface p-1.5 transition-colors focus-within:border-line-strong md:gap-3 md:border-0 md:bg-transparent md:p-0">
           <Textarea
+            maxLength={CONTENT_LIMITS.message}
             ref={textareaRef}
             value={newMessage}
             onChange={(event) => setNewMessage(event.target.value)}
@@ -877,6 +881,7 @@ function SelectedConversationPanel({
       <div className="shrink-0 border-t border-line px-[var(--lx-gutter)] pt-2 pb-[calc(var(--lx-mobile-tab-height)+0.75rem)] md:pt-4 md:pb-5">
         <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-1.5 rounded-card border border-line bg-surface p-1.5 transition-colors focus-within:border-line-strong md:gap-3 md:border-0 md:bg-transparent md:p-0">
           <Textarea
+            maxLength={CONTENT_LIMITS.message}
             ref={textareaRef}
             value={newMessage}
             onChange={(event) => setNewMessage(event.target.value)}

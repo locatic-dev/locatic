@@ -335,6 +335,20 @@ describe('public profile page (C6)', () => {
     expect(mocks.toastError).not.toHaveBeenCalled()
   })
 
+  it('gives a profile its own title and canonical URL', async () => {
+    const { Route } = await import('@/routes/u.$username')
+    const head = Route.options.head as (args: {
+      loaderData: PublicProfileOverview
+    }) => { meta: Array<Record<string, string>>; links: unknown[] }
+
+    const publicHead = head({ loaderData: buildOverview() })
+    expect(publicHead.meta).toContainEqual({ title: 'Ada (@ada) · Locatic' })
+    expect(publicHead.links).toEqual([
+      { rel: 'canonical', href: 'https://locatic.dev/u/ada' },
+    ])
+    expect(publicHead.meta.some((tag) => tag.name === 'robots')).toBe(false)
+  })
+
   it('404s a missing builder and renders the not-found page in the public shell', async () => {
     const { Route } = await import('@/routes/u.$username')
     const { BuilderNotFound } =

@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as TermsRouteImport } from './routes/terms'
+import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as ExploreRouteImport } from './routes/explore'
@@ -31,6 +32,11 @@ import { Route as AppProjectOwnerRepoRouteImport } from './routes/_app/project.$
 const TermsRoute = TermsRouteImport.update({
   id: '/terms',
   path: '/terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
+  id: '/sitemap.xml',
+  path: '/sitemap.xml',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PrivacyRoute = PrivacyRouteImport.update({
@@ -123,6 +129,7 @@ export interface FileRoutesByFullPath {
   '/explore': typeof ExploreRoute
   '/onboarding': typeof OnboardingRoute
   '/privacy': typeof PrivacyRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/terms': typeof TermsRoute
   '/home': typeof AppHomeRoute
   '/inbox': typeof AppInboxRoute
@@ -142,6 +149,7 @@ export interface FileRoutesByTo {
   '/explore': typeof ExploreRoute
   '/onboarding': typeof OnboardingRoute
   '/privacy': typeof PrivacyRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/terms': typeof TermsRoute
   '/home': typeof AppHomeRoute
   '/inbox': typeof AppInboxRoute
@@ -163,6 +171,7 @@ export interface FileRoutesById {
   '/explore': typeof ExploreRoute
   '/onboarding': typeof OnboardingRoute
   '/privacy': typeof PrivacyRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/terms': typeof TermsRoute
   '/_app/home': typeof AppHomeRoute
   '/_app/inbox': typeof AppInboxRoute
@@ -184,6 +193,7 @@ export interface FileRouteTypes {
     | '/explore'
     | '/onboarding'
     | '/privacy'
+    | '/sitemap.xml'
     | '/terms'
     | '/home'
     | '/inbox'
@@ -203,6 +213,7 @@ export interface FileRouteTypes {
     | '/explore'
     | '/onboarding'
     | '/privacy'
+    | '/sitemap.xml'
     | '/terms'
     | '/home'
     | '/inbox'
@@ -223,6 +234,7 @@ export interface FileRouteTypes {
     | '/explore'
     | '/onboarding'
     | '/privacy'
+    | '/sitemap.xml'
     | '/terms'
     | '/_app/home'
     | '/_app/inbox'
@@ -244,6 +256,7 @@ export interface RootRouteChildren {
   ExploreRoute: typeof ExploreRoute
   OnboardingRoute: typeof OnboardingRoute
   PrivacyRoute: typeof PrivacyRoute
+  SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   TermsRoute: typeof TermsRoute
   CSlugRoute: typeof CSlugRoute
   SignInSplatRoute: typeof SignInSplatRoute
@@ -258,6 +271,13 @@ declare module '@tanstack/react-router' {
       path: '/terms'
       fullPath: '/terms'
       preLoaderRoute: typeof TermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sitemap.xml': {
+      id: '/sitemap.xml'
+      path: '/sitemap.xml'
+      fullPath: '/sitemap.xml'
+      preLoaderRoute: typeof SitemapDotxmlRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/privacy': {
@@ -412,6 +432,7 @@ const rootRouteChildren: RootRouteChildren = {
   ExploreRoute: ExploreRoute,
   OnboardingRoute: OnboardingRoute,
   PrivacyRoute: PrivacyRoute,
+  SitemapDotxmlRoute: SitemapDotxmlRoute,
   TermsRoute: TermsRoute,
   CSlugRoute: CSlugRoute,
   SignInSplatRoute: SignInSplatRoute,
