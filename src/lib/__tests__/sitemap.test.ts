@@ -44,7 +44,7 @@ describe('collectSitemapPages', () => {
     expect(fetchPage).toHaveBeenNthCalledWith(2, 'next')
   })
 
-  it('stops at the page cap', async () => {
+  it('stops at the page cap and reports the listing incomplete', async () => {
     const fetchPage = vi.fn(async () => ({
       entries: [entry('/a')],
       continueCursor: 'more',
@@ -53,6 +53,7 @@ describe('collectSitemapPages', () => {
     const result = await collectSitemapPages(fetchPage, 3)
     expect(fetchPage).toHaveBeenCalledTimes(3)
     expect(result.entries).toHaveLength(3)
+    expect(result.complete).toBe(false)
   })
 
   it('keeps earlier pages and reports a failed page', async () => {

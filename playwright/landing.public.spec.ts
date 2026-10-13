@@ -55,6 +55,24 @@ test.describe('public landing', () => {
     await expect(notFoundMain).toBeFocused()
   })
 
+  // Missing entities 404 through their route's own notFoundComponent, not the
+  // global one; the document head must still read as a 404.
+  for (const path of [
+    '/c/atlantis-nowhere',
+    '/u/no-such-builder-e2e-404',
+    '/project/no-such-owner-e2e/no-such-repo',
+  ]) {
+    test(`${path} is a noindex 404`, async ({ page }) => {
+      const response = await page.goto(path)
+      expect(response?.status()).toBe(404)
+      await expect(page).toHaveTitle('page not found · Locatic')
+      await expect(page.locator('meta[name="robots"]')).toHaveAttribute(
+        'content',
+        /noindex/,
+      )
+    })
+  }
+
   // The hero globe may bleed past its column; it must never scroll the page.
   // Explore has filter rows and cards; the legal pages carry tables and long
   // words; the 404 page a wide map. One test per page keeps each browser page

@@ -24,8 +24,9 @@ type SitemapPage = {
 const SITEMAP_MAX_PAGES = 50
 
 /**
- * Reads `fetchPage` until the listing is done or `maxPages` is reached. A
- * failed page keeps the entries read so far and reports `complete: false`.
+ * Reads `fetchPage` until the listing is done or `maxPages` is reached.
+ * Hitting the cap or a failed page keeps the entries read so far and reports
+ * `complete: false`.
  */
 export async function collectSitemapPages(
   fetchPage: (cursor: string | null) => Promise<SitemapPage>,
@@ -47,7 +48,7 @@ export async function collectSitemapPages(
     }
     cursor = page.continueCursor
   }
-  return { entries, complete: true }
+  return { entries, complete: false }
 }
 
 function escapeXml(value: string): string {
