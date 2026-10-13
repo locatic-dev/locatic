@@ -234,7 +234,7 @@ The stock utilities (`bg-background`, `bg-muted`, `text-muted-foreground`, `bg-p
 
 - The theme picker scopes `data-theme` to each swatch, so a swatch shows its own accent rather than the active one.
 - The logo is inline SVG painted with `currentColor` (`text-brand`), so it follows the theme. `public/favicon.svg` and `public/logo.svg` are static teal exports.
-- The browser `theme-color` is a fixed near-black matching the canvas (`#090a0b` in `__root.tsx`, `public/manifest.json` and the `public/favicon.svg` background), not the accent. `src/lib/__tests__/theme-browser-colour.test.ts` keeps the copies in step. `public/apple-touch-icon.png` is a raster export and is not checked.
+- The browser `theme-color` is a fixed near-black matching the canvas (`#090a0b` in `__root.tsx`, `public/manifest.json` and the `public/favicon.svg` background), not the accent. `src/lib/__tests__/theme-browser-colour.test.ts` keeps the copies in step. The raster icons (`favicon.ico`, `favicon-32.png`, `apple-touch-icon.png`, `icon-*.png`) and the social preview `og-image.png` are generated from `favicon.svg` and the tokens by `pnpm brand:images` (`scripts/generate-brand-images.mjs`); rerun it after changing the mark or the canvas colour.
 - Toasts use Sonner with `theme="dark"` whatever the accent.
 
 ## 4. Typography
