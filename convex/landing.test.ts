@@ -5,6 +5,7 @@ import { api } from './_generated/api'
 import type { Id } from './_generated/dataModel'
 import schema from './schema'
 import { toPostExcerpt } from './landing'
+import { normalizeGithubReadmePreview } from './lib/github'
 import {
   NOW,
   daysAgo,
@@ -344,6 +345,59 @@ describe('landing recent activity (D7)', () => {
     })
 
     expect(await listActivity()).toEqual([])
+  })
+
+  it('stays under the transaction read limit when rows carry large READMEs', async () => {
+    const limited = convexTest({ schema, modules, transactionLimits: true })
+    t = limited
+    cities = await seedCities(t)
+    const ada = await seedUser(t, { username: 'ada', cityId: cities.bengaluru })
+    const region = await seedUser(t, {
+      username: 'region',
+      cityId: cities.bengaluru,
+      cityVisibility: 'region_only',
+    })
+    // A 20,000-character CJK preview: about 60 KB of UTF-8 per row, so 396
+    // region-only rows read from both project indexes pass 16 MiB.
+    const readmePreview = normalizeGithubReadmePreview('界'.repeat(20000))
+    const first = await seedProject(t, {
+      ownerId: region,
+      name: 'r0',
+      addedAt: daysAgo(1),
+      lastCommitAt: daysAgo(0.5),
+    })
+    await t.run(async (ctx) => {
+      const row = (await ctx.db.get(first))!
+      await ctx.db.patch(first, { github: { ...row.github, readmePreview } })
+    })
+    // Batches keep each setup write under the limit too.
+    for (let batch = 0; batch < 5; batch++) {
+      await t.run(async (ctx) => {
+        const { _id, _creationTime, ...row } = (await ctx.db.get(first))!
+        for (let index = 0; index < (batch < 4 ? 80 : 75); index++) {
+          const copy = batch * 80 + index + 1
+          await ctx.db.insert('projects', {
+            ...row,
+            github: {
+              ...row.github,
+              repoId: row.github.repoId + copy,
+              name: `${row.github.name}-${copy}`,
+            },
+          })
+        }
+      })
+    }
+    // Newer than all of them, so the scan meets it before the byte budget.
+    const tool = await seedProject(t, {
+      ownerId: ada,
+      name: 'tool',
+      addedAt: daysAgo(0.1),
+      lastCommitAt: daysAgo(0.2),
+    })
+
+    const activity = await listActivity()
+
+    expect(activity.map((item) => item.key)).toEqual([`project:${tool}`])
   })
 
   it('fills the globe from one source while another has nothing to show', async () => {
