@@ -73,6 +73,25 @@ describe('MarkdownProse', () => {
     ).toBeDefined()
   })
 
+  it('gives document headings anchor ids without the section number', () => {
+    render(
+      <MarkdownProse demoteHeadings={false}>
+        {'## 7. Cookies\n\n### 2a. GitHub OAuth Data'}
+      </MarkdownProse>,
+    )
+
+    expect(screen.getByRole('heading', { level: 2 }).id).toBe('cookies')
+    expect(screen.getByRole('heading', { level: 3 }).id).toBe(
+      'github-oauth-data',
+    )
+  })
+
+  it('leaves embedded README headings without ids', () => {
+    render(<MarkdownProse>{'## Install'}</MarkdownProse>)
+
+    expect(screen.getByRole('heading', { name: 'Install' }).id).toBe('')
+  })
+
   it('opens external links safely in a new tab', () => {
     render(<MarkdownProse>{markdown}</MarkdownProse>)
 
