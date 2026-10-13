@@ -121,6 +121,7 @@ export function ProfileHeader({
           name={displayName}
           avatarUrl={avatarUrl}
           size={64}
+          eager
           className="shrink-0"
         />
         <div className="min-w-0 flex-1">
