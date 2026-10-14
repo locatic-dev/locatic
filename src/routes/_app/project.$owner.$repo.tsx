@@ -30,6 +30,7 @@ type ProjectSearch = {
   comment?: string
   commentPath?: string
   post?: string
+  release?: string
   thread?: string
 }
 
@@ -38,6 +39,7 @@ export const Route = createFileRoute('/_app/project/$owner/$repo')({
     const comment = normalizeProjectSearchParam(search.comment)
     const commentPath = normalizeProjectSearchParam(search.commentPath)
     const post = normalizeProjectSearchParam(search.post)
+    const release = normalizeProjectSearchParam(search.release)
     const thread = normalizeProjectSearchParam(search.thread)
 
     // Every key is set, even when invalid: the router merges the raw URL
@@ -46,6 +48,7 @@ export const Route = createFileRoute('/_app/project/$owner/$repo')({
       comment: comment ?? undefined,
       commentPath: commentPath ?? undefined,
       post: post ?? undefined,
+      release: release ?? undefined,
       thread: thread ?? undefined,
     }
   },
@@ -77,11 +80,13 @@ export const Route = createFileRoute('/_app/project/$owner/$repo')({
         comment?: string | null
         commentPath?: string
         post?: string
+        release?: string
         thread?: string
       }
       const comment = normalizeProjectSearchParam(search.comment)
       const commentPath = normalizeProjectSearchParam(search.commentPath)
       const post = normalizeProjectSearchParam(search.post)
+      const release = normalizeProjectSearchParam(search.release)
       const thread = normalizeProjectSearchParam(search.thread)
       throw redirect({
         hash: location.hash,
@@ -90,6 +95,7 @@ export const Route = createFileRoute('/_app/project/$owner/$repo')({
           ...(comment ? { comment } : {}),
           ...(commentPath ? { commentPath } : {}),
           ...(post ? { post } : {}),
+          ...(release ? { release } : {}),
           ...(thread ? { thread } : {}),
         },
         to: '/project/$owner/$repo',

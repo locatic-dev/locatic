@@ -64,7 +64,16 @@ function subscribeReducedMotion(onChange: () => void) {
   return () => query?.removeEventListener('change', onChange)
 }
 
-const readReducedMotion = () => reducedMotionQuery()?.matches ?? false
+/**
+ * `prefers-reduced-motion` right now, for one-off browser motion such as
+ * `scrollIntoView` from an effect. Unlike the hook, it never reads the
+ * server's value during hydration. False on the server.
+ */
+export function prefersReducedMotion(): boolean {
+  return reducedMotionQuery()?.matches ?? false
+}
+
+const readReducedMotion = prefersReducedMotion
 // The server cannot know the preference: it renders the full-motion markup,
 // and the client re-renders with the real value right after hydration.
 const readServerReducedMotion = () => false

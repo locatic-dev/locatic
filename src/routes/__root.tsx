@@ -101,7 +101,7 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
     meta: [
       { charSet: 'utf-8' },
       { name: 'viewport', content: 'width=device-width, initial-scale=1' },
-      { title: 'Locatic · GitHub with a map' },
+      { title: 'Locatic · github with a map' },
       {
         name: 'description',
         content:
@@ -111,7 +111,7 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
       { property: 'og:type', content: 'website' },
       { property: 'og:url', content: siteUrl },
       { property: 'og:site_name', content: 'Locatic' },
-      { property: 'og:title', content: 'Locatic · GitHub with a map' },
+      { property: 'og:title', content: 'Locatic · github with a map' },
       {
         property: 'og:description',
         content:
@@ -122,7 +122,10 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
       { property: 'og:image:width', content: '1200' },
       { property: 'og:image:height', content: '630' },
       { name: 'twitter:card', content: 'summary_large_image' },
-      { name: 'twitter:title', content: 'Locatic · GitHub with a map' },
+      {
+        name: 'twitter:title',
+        content: 'Locatic · github with a map',
+      },
       {
         name: 'twitter:description',
         content:

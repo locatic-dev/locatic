@@ -26,7 +26,7 @@ E2E_MODE=smoke pnpm e2e  # partial local run; missing external fixtures may skip
 Functions and shapes the branch adds or changes, from the implementation follow-ups:
 
 - `explore.listPublic*`, `explore.listNearbyBuildersPublic`, the `language`, `topic` and `openToCollab` arguments of `explore.list`
-- `projects.getProjectSignals`, `projects.listMoreFromOwnerCity`, `projects.listLandingShowcase`, `projects.save` and the saves queries
+- `projects.getProjectSignals`, `projects.listMoreFromOwnerCity`, `landing.listRecentActivity`, `projects.save` and the saves queries
 - `users.publicProfileOverview` (pinned projects, shipping log), `home.list` (`actorGithubUsername`)
 - `cities.listActiveForMap`, `cities.listNearby` (Explore rail) and the city page queries, `metrics.record`
 - the notifications internal backfill; `viewerInboxSummary` removed

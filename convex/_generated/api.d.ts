@@ -28,6 +28,7 @@ import type * as github_actions from "../github_actions.js";
 import type * as home from "../home.js";
 import type * as homeBackfill from "../homeBackfill.js";
 import type * as http from "../http.js";
+import type * as landing from "../landing.js";
 import type * as lib_account_deletion from "../lib/account_deletion.js";
 import type * as lib_activity from "../lib/activity.js";
 import type * as lib_auth from "../lib/auth.js";
@@ -108,6 +109,7 @@ declare const fullApi: ApiFromModules<{
   home: typeof home;
   homeBackfill: typeof homeBackfill;
   http: typeof http;
+  landing: typeof landing;
   "lib/account_deletion": typeof lib_account_deletion;
   "lib/activity": typeof lib_activity;
   "lib/auth": typeof lib_auth;
