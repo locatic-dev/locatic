@@ -1,3 +1,4 @@
+import rateLimiterTest from '@convex-dev/rate-limiter/test'
 import { convexTest, type TestConvex } from 'convex-test'
 import { describe, expect, it } from 'vitest'
 
@@ -29,6 +30,7 @@ function as(t: T, username: string) {
 
 async function seedWorld() {
   const t = convexTest(schema, modules)
+  rateLimiterTest.register(t)
   const ada = await seedUser(t, { username: 'ada' })
   const grace = await seedUser(t, { username: 'grace' })
   const owner = await seedUser(t, { username: 'linus' })

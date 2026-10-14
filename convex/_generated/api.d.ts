@@ -80,6 +80,7 @@ import type * as projects from "../projects.js";
 import type * as pulse from "../pulse.js";
 import type * as reactionConfigSeed from "../reactionConfigSeed.js";
 import type * as reactions from "../reactions.js";
+import type * as sitemap from "../sitemap.js";
 import type * as users from "../users.js";
 
 import type {
@@ -161,6 +162,7 @@ declare const fullApi: ApiFromModules<{
   pulse: typeof pulse;
   reactionConfigSeed: typeof reactionConfigSeed;
   reactions: typeof reactions;
+  sitemap: typeof sitemap;
   users: typeof users;
 }>;
 

@@ -6,6 +6,7 @@ import { viewerQueryOptions } from '@/features/viewer/queries'
 import { Logo } from '@/components/ui/logo'
 import { rememberDiscoveryReturn } from '@/integrations/convex/metrics'
 import { buildOnboardingUrl, validateSignInSearch } from '@/lib/safe-redirect'
+import { seo } from '@/lib/seo'
 
 export const Route = createFileRoute('/sign-in/$')({
   // Accepts our `redirect` and, failing that, a same-origin destination from
@@ -29,6 +30,7 @@ export const Route = createFileRoute('/sign-in/$')({
 
     throw redirect({ to: bootstrap.needsOnboarding ? '/onboarding' : '/home' })
   },
+  head: () => seo({ title: 'sign in', noindex: true }),
   component: SignInPage,
 })
 

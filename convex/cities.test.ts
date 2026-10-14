@@ -1,3 +1,4 @@
+import rateLimiterTest from '@convex-dev/rate-limiter/test'
 import { convexTest, type TestConvex } from 'convex-test'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -212,6 +213,7 @@ describe('city counters (A4)', () => {
   beforeEach(async () => {
     vi.useFakeTimers({ now: NOW })
     t = convexTest(schema, modules)
+    rateLimiterTest.register(t)
     fixture = await seedPopulatedCity(t)
   })
 
@@ -520,6 +522,7 @@ describe('cities.search (B10)', () => {
 
   beforeEach(async () => {
     t = convexTest(schema, modules)
+    rateLimiterTest.register(t)
     // Inserted fuzzy-first so insertion order cannot explain the ranking.
     for (const city of [
       BNEI_BRAK,
@@ -662,6 +665,7 @@ describe('location disclosure in lists built from other users (A2 follow-ups)', 
   beforeEach(async () => {
     vi.useFakeTimers({ now: NOW, toFake: ['Date'] })
     t = convexTest(schema, modules)
+    rateLimiterTest.register(t)
     fixture = await seedPopulatedCity(t)
   })
 
@@ -879,6 +883,7 @@ describe('city pages (D5)', () => {
   beforeEach(() => {
     vi.useFakeTimers({ now: NOW })
     t = convexTest(schema, modules)
+    rateLimiterTest.register(t)
   })
 
   afterEach(() => {
@@ -1168,6 +1173,7 @@ describe('landing map aggregate (D7)', () => {
   beforeEach(() => {
     vi.useFakeTimers({ now: NOW })
     t = convexTest(schema, modules)
+    rateLimiterTest.register(t)
   })
 
   afterEach(() => {
@@ -1302,6 +1308,7 @@ describe('cities.listNearby (Explore rail)', () => {
   beforeEach(() => {
     vi.useFakeTimers({ now: NOW })
     t = convexTest(schema, modules)
+    rateLimiterTest.register(t)
   })
 
   afterEach(() => {
