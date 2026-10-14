@@ -78,6 +78,14 @@ describe('project deep links', () => {
     ).toBe('posts')
     expect(
       getProjectDeepLinkTab({
+        commentId: null,
+        postId: null,
+        releaseId: 'release_1',
+        postsCount: 0,
+      }),
+    ).toBe('releases')
+    expect(
+      getProjectDeepLinkTab({
         commentId: 'comment_1',
         postId: null,
         postsCount: 3,
