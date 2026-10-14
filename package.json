@@ -37,6 +37,7 @@
     "cities:generate": "node scripts/geonames-to-cities-seed.mjs",
     "reactions:generate": "node scripts/reactions-to-seed.mjs",
     "geo:land-dots": "node scripts/generate-land-dots.mjs",
+    "brand:images": "node scripts/generate-brand-images.mjs",
     "readmes:backfill:development": "pnpm exec convex run --push github_actions:backfillProjectReadmes",
     "readmes:backfill:production": "pnpm exec convex run --prod github_actions:backfillProjectReadmes",
     "project-reactions:backfill:development": "pnpm exec convex run --push projects:backfillProjectReactionCounts",

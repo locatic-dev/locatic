@@ -1,3 +1,4 @@
+import rateLimiterTest from '@convex-dev/rate-limiter/test'
 import { convexTest, type TestConvex } from 'convex-test'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -80,6 +81,7 @@ describe('home activity path and retention (C5)', () => {
   beforeEach(async () => {
     vi.useFakeTimers({ now: NOW, toFake: ['Date'] })
     t = convexTest(schema, modules)
+    rateLimiterTest.register(t)
     viewerId = await seedUser(t, { username: 'viewer' })
     builderId = await seedUser(t, { username: 'builder' })
     projectId = await seedProject(t, { ownerId: builderId, name: 'mapkit' })
@@ -455,6 +457,7 @@ describe('profile targets and follow backfill (S1, S6)', () => {
   beforeEach(async () => {
     vi.useFakeTimers({ now: NOW, toFake: ['Date'] })
     t = convexTest(schema, modules)
+    rateLimiterTest.register(t)
     bengaluru = await seedCity(t, BENGALURU)
     viewerId = await seedUser(t, { username: 'viewer' })
     builderId = await seedUser(t, { username: 'builder' })

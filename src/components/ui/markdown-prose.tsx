@@ -175,10 +175,31 @@ const markdownHeadingClassNames: Partial<Record<HeadingTag, string>> = {
   h3: 'mt-5 mb-2 font-mono text-sm font-semibold text-text-muted wrap-anywhere',
 }
 
+type HastNode = { type: string; value?: string; children?: HastNode[] }
+
+function hastText(node: HastNode | undefined): string {
+  if (!node) return ''
+  if (node.type === 'text') return node.value ?? ''
+  return (node.children ?? []).map(hastText).join('')
+}
+
+/**
+ * Anchor id for a document heading: its text without the section number, so
+ * "## 7. Cookies" links as `#cookies` and survives renumbering.
+ */
+export function markdownHeadingId(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/^\s*\d+[a-z]?\.\s*/, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+}
+
 /**
  * Heading renderers that shift every markdown heading down `offset` levels
  * (capped at h6), so a document embedded under a page's own h1 cannot add a
- * second h1.
+ * second h1. Undemoted (document) headings also get anchor ids; embedded
+ * READMEs don't, so their ids cannot collide with the page's.
  */
 function markdownHeadingComponents(offset: 0 | 1): Components {
   return Object.fromEntries(
@@ -186,10 +207,16 @@ function markdownHeadingComponents(offset: 0 | 1): Components {
       const Rendered = headingTags[Math.min(index + offset, 5)]
       const MarkdownHeading: NonNullable<Components[HeadingTag]> = ({
         className,
-        node: _node,
+        node,
         ...props
       }) => (
         <Rendered
+          id={
+            offset === 0
+              ? markdownHeadingId(hastText(node as HastNode | undefined)) ||
+                undefined
+              : undefined
+          }
           {...props}
           className={cn(markdownHeadingClassNames[source], className)}
         />

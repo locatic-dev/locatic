@@ -41,6 +41,7 @@ import {
 import { getActionErrorMessage } from '@/lib/action-error'
 import { validateAuthDestinationSearch } from '@/lib/safe-redirect'
 import { getFreshExploreSearch } from '@/features/explore/state'
+import { seo } from '@/lib/seo'
 
 export const Route = createFileRoute('/onboarding')({
   validateSearch: validateAuthDestinationSearch,
@@ -64,6 +65,7 @@ export const Route = createFileRoute('/onboarding')({
       throw redirect({ to: '/home' })
     }
   },
+  head: () => seo({ title: 'welcome', noindex: true }),
   component: OnboardingPage,
 })
 

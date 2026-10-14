@@ -23,6 +23,7 @@ import { ArrowLeft } from '@/lib/icons'
 import { createClientRouteAuthStateGetter } from '@/lib/auth-routing'
 import { getUserFacingErrorCopy } from '@/lib/error-display'
 import { toSafeRelativeUrl } from '@/lib/safe-redirect'
+import { notFoundSeo, seo } from '@/lib/seo'
 import {
   enableSkipLinkKeyboardMode,
   isSkipLinkKeyboardTrigger,
@@ -46,9 +47,6 @@ const Toaster = lazy(() =>
     default: module.Toaster,
   })),
 )
-
-const siteUrl = 'https://locatic.dev'
-const socialImageUrl = `${siteUrl}/og-locatic.png`
 
 const fetchClerkAuth = createServerFn({ method: 'GET' }).handler(async () => {
   if (!process.env.CLERK_SECRET_KEY) {
@@ -97,67 +95,52 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
       auth: authState,
     }
   },
-  head: () => ({
-    meta: [
-      { charSet: 'utf-8' },
-      { name: 'viewport', content: 'width=device-width, initial-scale=1' },
-      { title: 'Locatic · github with a map' },
-      {
-        name: 'description',
-        content:
-          'Discover what developers are building from locally to globally. Like it, comment on it, follow them.',
-      },
-      { name: 'theme-color', content: '#090a0b' },
-      { property: 'og:type', content: 'website' },
-      { property: 'og:url', content: siteUrl },
-      { property: 'og:site_name', content: 'Locatic' },
-      { property: 'og:title', content: 'Locatic · github with a map' },
-      {
-        property: 'og:description',
-        content:
-          'Discover what developers are building from locally to globally. Like it, comment on it, follow them.',
-      },
-      { property: 'og:image', content: socialImageUrl },
-      { property: 'og:image:alt', content: 'Locatic social preview' },
-      { property: 'og:image:width', content: '1200' },
-      { property: 'og:image:height', content: '630' },
-      { name: 'twitter:card', content: 'summary_large_image' },
-      {
-        name: 'twitter:title',
-        content: 'Locatic · github with a map',
-      },
-      {
-        name: 'twitter:description',
-        content:
-          'Discover what developers are building from locally to globally. Like it, comment on it, follow them.',
-      },
-      { name: 'twitter:image', content: socialImageUrl },
-      { name: 'twitter:image:alt', content: 'Locatic social preview' },
-    ],
-    links: [
-      // Self-hosted fonts (@font-face in styles.css): one variable file per
-      // family, both used by the first paint, so preload them before layout
-      // settles.
-      ...[
-        '/fonts/geist-latin-wght.woff2',
-        '/fonts/geist-mono-latin-wght.woff2',
-      ].map((href) => ({
-        rel: 'preload',
-        href,
-        as: 'font',
-        type: 'font/woff2',
-        crossOrigin: 'anonymous' as const,
-      })),
-      { rel: 'stylesheet', href: appCss },
-      { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' },
-      {
-        rel: 'apple-touch-icon',
-        sizes: '180x180',
-        href: '/apple-touch-icon.png',
-      },
-      { rel: 'manifest', href: '/manifest.json' },
-    ],
-  }),
+  head: ({ matches }) => {
+    // An unknown URL renders the global 404; keep it out of search results.
+    // `matches` can be a stale snapshot (a child still `pending` after its
+    // loader threw notFound), so the city, profile and project routes set
+    // their own 404 head from their fresh match.
+    const notFound = matches.some(
+      (match) => match.globalNotFound || match.status === 'notFound',
+    )
+    return {
+      meta: [
+        { charSet: 'utf-8' },
+        { name: 'viewport', content: 'width=device-width, initial-scale=1' },
+        { name: 'theme-color', content: '#090a0b' },
+        ...(notFound ? notFoundSeo() : seo({})).meta,
+      ],
+      links: [
+        // Self-hosted fonts (@font-face in styles.css): one variable file per
+        // family, both used by the first paint, so preload them before layout
+        // settles.
+        ...[
+          '/fonts/geist-latin-wght.woff2',
+          '/fonts/geist-mono-latin-wght.woff2',
+        ].map((href) => ({
+          rel: 'preload',
+          href,
+          as: 'font',
+          type: 'font/woff2',
+          crossOrigin: 'anonymous' as const,
+        })),
+        { rel: 'stylesheet', href: appCss },
+        { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' },
+        {
+          rel: 'icon',
+          type: 'image/png',
+          sizes: '32x32',
+          href: '/favicon-32.png',
+        },
+        {
+          rel: 'apple-touch-icon',
+          sizes: '180x180',
+          href: '/apple-touch-icon.png',
+        },
+        { rel: 'manifest', href: '/manifest.json' },
+      ],
+    }
+  },
   errorComponent: RootErrorPage,
   notFoundComponent: NotFoundPage,
   shellComponent: RootDocument,
@@ -299,6 +282,15 @@ function NotFoundPage() {
   )
 }
 
+/**
+ * Cloudflare Web Analytics: cookieless page views and Web Vitals. Loaded only
+ * in production builds that set the public beacon token, so local and preview
+ * traffic is never counted. It follows client-side navigations on its own.
+ */
+const CF_BEACON_TOKEN: string | undefined = import.meta.env.PROD
+  ? import.meta.env.VITE_CF_BEACON_TOKEN || undefined
+  : undefined
+
 function RootDocument({ children }: { children: React.ReactNode }) {
   const router = useRouter()
 
@@ -336,6 +328,13 @@ function RootDocument({ children }: { children: React.ReactNode }) {
           </LazyMotion>
         </ThemeProvider>
         <Scripts />
+        {CF_BEACON_TOKEN ? (
+          <script
+            defer
+            src="https://static.cloudflareinsights.com/beacon.min.js"
+            data-cf-beacon={JSON.stringify({ token: CF_BEACON_TOKEN })}
+          />
+        ) : null}
       </body>
     </html>
   )

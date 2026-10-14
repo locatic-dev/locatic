@@ -19,6 +19,7 @@ import {
   landingActivityQueryOptions,
   landingMapCitiesQueryOptions,
 } from '@/integrations/convex/query-options'
+import { seo } from '@/lib/seo'
 
 export const Route = createFileRoute('/')({
   beforeLoad: async ({ context }) => {
@@ -40,6 +41,7 @@ export const Route = createFileRoute('/')({
       context.queryClient.prefetchQuery(landingActivityQueryOptions()),
     ])
   },
+  head: () => seo({ path: '/' }),
   component: LandingPage,
 })
 

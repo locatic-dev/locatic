@@ -25,6 +25,7 @@ import { removeReplyDraft } from '@/features/projects/comments/drafts'
 import { useCommentThreadState } from '@/features/projects/comments/use-comment-thread-state'
 import type { ProjectCommentView } from '@/features/projects/comments/types'
 import { ReactionBar } from '@/features/projects/reactions/reaction-bar'
+import { CONTENT_LIMITS } from '../../../../convex/lib/content_limits'
 
 type ProjectPost = Doc<'posts'> & {
   viewerHasLiked: boolean
@@ -384,6 +385,7 @@ export function ProjectPostCard({
       {editing ? (
         <div className="mb-3 rounded-card border border-line bg-canvas px-3 py-3">
           <Textarea
+            maxLength={CONTENT_LIMITS.post}
             value={editBody}
             onChange={(event) => setEditBody(event.target.value)}
             rows={4}
@@ -440,6 +442,7 @@ export function ProjectPostCard({
       {commentComposerOpen && isSignedIn && (
         <div className="mb-3 flex flex-wrap gap-3 rounded-card border border-line bg-canvas px-3 py-3">
           <Textarea
+            maxLength={CONTENT_LIMITS.comment}
             value={comment}
             onChange={(event) => setComment(event.target.value)}
             placeholder="reply to this repo post…"

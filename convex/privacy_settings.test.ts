@@ -1,3 +1,4 @@
+import rateLimiterTest from '@convex-dev/rate-limiter/test'
 import { convexTest, type TestConvex } from 'convex-test'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -45,6 +46,7 @@ describe('settings location and discovery controls (D8)', () => {
   beforeEach(async () => {
     vi.useFakeTimers({ now: NOW, toFake: ['Date'] })
     t = convexTest(schema, modules)
+    rateLimiterTest.register(t)
     bengaluru = await seedCity(t, BENGALURU)
     const maya = await seedUser(t, { username: 'maya', onboarded: false })
     // Onboarding through the real mutation maintains the city counters.

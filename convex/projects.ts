@@ -1259,6 +1259,7 @@ export const save = mutation({
     if (await getSavedRow(ctx, viewer._id, args.projectId)) {
       return null
     }
+    await enforceRateLimit(ctx, 'saveWrite', String(viewer._id))
 
     await ctx.db.insert('saved_projects', {
       userId: viewer._id,

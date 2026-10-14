@@ -59,6 +59,7 @@ import {
   getHomeFeedState,
 } from '@/features/home/render-state'
 import { fadeUp, listStagger } from '@/lib/motion'
+import { seo } from '@/lib/seo'
 
 export const Route = createFileRoute('/_app/home')({
   loader: async ({ context }) => {
@@ -78,6 +79,7 @@ export const Route = createFileRoute('/_app/home')({
   pendingMs: ROUTE_PENDING_MS,
   pendingMinMs: ROUTE_PENDING_MIN_MS,
   errorComponent: HomeErrorPage,
+  head: () => seo({ title: 'home', noindex: true }),
   component: HomePage,
 })
 

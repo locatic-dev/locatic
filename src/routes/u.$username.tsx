@@ -80,6 +80,7 @@ import { useSignInReturnHref } from '@/lib/return-href'
 import { viewerQueryOptions } from '@/features/viewer/queries'
 import { notificationsUnreadCountQueryOptions } from '@/features/notifications/queries'
 import { useOpenConversation } from '@/features/inbox/use-open-conversation'
+import { notFoundSeo, seo, truncateDescription } from '@/lib/seo'
 
 const TAB_QUERY_STALE_TIME = 60_000
 const SOCIAL_PAGE_SIZE = 12
@@ -123,6 +124,23 @@ export const Route = createFileRoute('/u/$username')({
 
     return overview
   },
+  // The root head sees a stale matches snapshot, so this route reports its
+  // own notFoundComponent from its fresh match.
+  head: ({ match, loaderData }) =>
+    match.status === 'notFound'
+      ? notFoundSeo()
+      : loaderData
+        ? seo({
+            title: `${loaderData.profile.displayName} (@${loaderData.githubUsername})`,
+            description: truncateDescription(
+              loaderData.profile.bio ||
+                `${loaderData.profile.displayName} on Locatic: public projects, releases and posts${loaderData.profile.city ? ` from ${loaderData.profile.city}` : ''}.`,
+            ),
+            // Members-only profiles 404 for signed-out visitors (crawlers and
+            // link previews included), so only public profiles are indexable.
+            path: `/u/${loaderData.githubUsername}`,
+          })
+        : {},
   // Each profile is its own page: remount on a new username so local state
   // (tabs, pending follow, open dialogs) never carries over to the next one.
   remountDeps: ({ params }) => params,
