@@ -24,7 +24,7 @@ import {
 import { normalizeProjectSearchParam } from '@/features/projects/deep-link'
 import { getFreshExploreSearch } from '@/features/explore/state'
 import { viewerQueryOptions } from '@/features/viewer/queries'
-import { seo, truncateDescription } from '@/lib/seo'
+import { notFoundSeo, seo, truncateDescription } from '@/lib/seo'
 
 /** Deep-link search: each key optional for links, always set by validation. */
 type ProjectSearch = {
@@ -110,17 +110,21 @@ export const Route = createFileRoute('/_app/project/$owner/$repo')({
       path: `/project/${params.owner}/${params.repo}`,
     }
   },
-  head: ({ loaderData }) =>
-    loaderData
-      ? seo({
-          title: loaderData.fullName,
-          description: truncateDescription(
-            loaderData.description ||
-              `${loaderData.fullName} by ${loaderData.ownerName} on Locatic: releases, posts and discussion.`,
-          ),
-          path: loaderData.path,
-        })
-      : {},
+  // The root head sees a stale matches snapshot, so this route reports its
+  // own notFoundComponent from its fresh match.
+  head: ({ match, loaderData }) =>
+    match.status === 'notFound'
+      ? notFoundSeo()
+      : loaderData
+        ? seo({
+            title: loaderData.fullName,
+            description: truncateDescription(
+              loaderData.description ||
+                `${loaderData.fullName} by ${loaderData.ownerName} on Locatic: releases, posts and discussion.`,
+            ),
+            path: loaderData.path,
+          })
+        : {},
   pendingComponent: ProjectRoutePending,
   pendingMs: ROUTE_PENDING_MS,
   pendingMinMs: ROUTE_PENDING_MIN_MS,

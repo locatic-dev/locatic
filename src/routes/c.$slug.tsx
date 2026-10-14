@@ -14,7 +14,7 @@ import { VisitorCityFrame } from '@/features/city/visitor-city-frame'
 import type { ViewerBootstrapPayload } from '@/features/contracts'
 import { viewerQueryOptions } from '@/features/viewer/queries'
 import { toSafeRelativeUrl } from '@/lib/safe-redirect'
-import { seo } from '@/lib/seo'
+import { notFoundSeo, seo } from '@/lib/seo'
 
 /**
  * Public city page (plan item D5). Visitors get the public header; members
@@ -60,14 +60,18 @@ export const Route = createFileRoute('/c/$slug')({
       slug: page.city.slug,
     }
   },
-  head: ({ loaderData }) =>
-    loaderData
-      ? seo({
-          title: loaderData.name,
-          description: `What builders in ${loaderData.displayName} are working on: recent public projects, builders and posts.`,
-          path: `/c/${loaderData.slug}`,
-        })
-      : {},
+  // The root head sees a stale matches snapshot, so this route reports its
+  // own notFoundComponent from its fresh match.
+  head: ({ match, loaderData }) =>
+    match.status === 'notFound'
+      ? notFoundSeo()
+      : loaderData
+        ? seo({
+            title: loaderData.name,
+            description: `What builders in ${loaderData.displayName} are working on: recent public projects, builders and posts.`,
+            path: `/c/${loaderData.slug}`,
+          })
+        : {},
   pendingComponent: FeedRoutePending,
   pendingMs: ROUTE_PENDING_MS,
   pendingMinMs: ROUTE_PENDING_MIN_MS,
