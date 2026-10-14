@@ -338,10 +338,14 @@ describe('public profile page (C6)', () => {
   it('gives a profile its own title and canonical URL', async () => {
     const { Route } = await import('@/routes/u.$username')
     const head = Route.options.head as (args: {
+      match: { status: string }
       loaderData: PublicProfileOverview
     }) => { meta: Array<Record<string, string>>; links: unknown[] }
 
-    const publicHead = head({ loaderData: buildOverview() })
+    const publicHead = head({
+      match: { status: 'success' },
+      loaderData: buildOverview(),
+    })
     expect(publicHead.meta).toContainEqual({ title: 'Ada (@ada) · Locatic' })
     expect(publicHead.links).toEqual([
       { rel: 'canonical', href: 'https://locatic.dev/u/ada' },

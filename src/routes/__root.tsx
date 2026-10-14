@@ -23,7 +23,7 @@ import { ArrowLeft } from '@/lib/icons'
 import { createClientRouteAuthStateGetter } from '@/lib/auth-routing'
 import { getUserFacingErrorCopy } from '@/lib/error-display'
 import { toSafeRelativeUrl } from '@/lib/safe-redirect'
-import { seo } from '@/lib/seo'
+import { notFoundSeo, seo } from '@/lib/seo'
 import {
   enableSkipLinkKeyboardMode,
   isSkipLinkKeyboardTrigger,
@@ -96,9 +96,10 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
     }
   },
   head: ({ matches }) => {
-    // An unknown URL (global) or a missing city, profile or project (the
-    // route's own notFoundComponent) renders with a 404 status; keep it out
-    // of search results. Those routes add no head tags without loader data.
+    // An unknown URL renders the global 404; keep it out of search results.
+    // `matches` can be a stale snapshot (a child still `pending` after its
+    // loader threw notFound), so the city, profile and project routes set
+    // their own 404 head from their fresh match.
     const notFound = matches.some(
       (match) => match.globalNotFound || match.status === 'notFound',
     )
@@ -107,7 +108,7 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
         { charSet: 'utf-8' },
         { name: 'viewport', content: 'width=device-width, initial-scale=1' },
         { name: 'theme-color', content: '#090a0b' },
-        ...seo(notFound ? { title: 'page not found', noindex: true } : {}).meta,
+        ...(notFound ? notFoundSeo() : seo({})).meta,
       ],
       links: [
         // Self-hosted fonts (@font-face in styles.css): one variable file per

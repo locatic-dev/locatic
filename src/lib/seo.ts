@@ -45,6 +45,15 @@ export function pageTitle(title?: string): string {
   return title ? `${title} · ${SITE_NAME}` : DEFAULT_TITLE
 }
 
+/**
+ * Head for a 404 page: a "page not found" title, kept out of search results.
+ * Used by the root for unknown URLs and by resource routes (city, profile,
+ * project) whose own notFoundComponent renders.
+ */
+export function notFoundSeo(): { meta: MetaTag[]; links: LinkTag[] } {
+  return seo({ title: 'page not found', noindex: true })
+}
+
 export function seo({
   title,
   description = DEFAULT_DESCRIPTION,
