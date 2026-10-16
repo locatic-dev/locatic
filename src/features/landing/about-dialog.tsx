@@ -49,20 +49,20 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   )
 }
 
-// "about" pill beside the logo; opens the founders' letter. Rendered through
-// PublicHeader's `aside` slot on the landing page.
-export function AboutDialog() {
+// The founders' letter. Pass a `children` trigger (landing nav), or drive it
+// with `open`/`onOpenChange` from a menu item (in-app account menu).
+export function AboutDialog({
+  children,
+  open,
+  onOpenChange,
+}: {
+  children?: ReactNode
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+}) {
   return (
-    <Dialog>
-      <DialogTrigger asChild>
-        <Button
-          variant="secondary"
-          size="touch"
-          className="border-brand/40 bg-brand-quiet text-brand hover:border-brand hover:text-brand"
-        >
-          about
-        </Button>
-      </DialogTrigger>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      {children && <DialogTrigger asChild>{children}</DialogTrigger>}
       <DialogContent className="max-h-[85dvh] max-w-xl overflow-y-auto">
         <DialogHeader>
           <p className="text-eyebrow text-brand">A note from the builders</p>

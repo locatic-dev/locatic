@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, redirect } from '@tanstack/react-router'
+import { Button } from '@/components/ui/button'
 import { PublicHeader } from '@/components/app-shell/public-header'
 import { PublicFooter } from '@/components/app-shell/public-footer'
 import { AboutDialog } from '@/features/landing/about-dialog'
@@ -58,7 +59,15 @@ function LandingPage() {
 
   return (
     <div className="min-h-dvh overflow-x-clip bg-canvas text-text">
-      <PublicHeader aside={<AboutDialog />} />
+      <PublicHeader
+        navStart={
+          <AboutDialog>
+            <Button variant="ghost" size="touch">
+              about
+            </Button>
+          </AboutDialog>
+        }
+      />
 
       <main id="main-content" tabIndex={-1}>
         {/* Two columns from lg: the copy beside the globe. Below lg the globe
