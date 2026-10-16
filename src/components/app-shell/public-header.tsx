@@ -4,6 +4,7 @@ import {
   useRouteContext,
   useRouterState,
 } from '@tanstack/react-router'
+import type { ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import { Logo } from '@/components/ui/logo'
 import { getFreshExploreSearch } from '@/features/explore/state'
@@ -23,7 +24,7 @@ export function getPublicAuthRedirect(pathname: string, href: string) {
 // Top bar shared by public pages (landing, legal, public Explore). Entrance
 // runs on CSS (`lx-hero-up`) — above-the-fold chrome must never wait on
 // hydration to become visible.
-export function PublicHeader() {
+export function PublicHeader({ aside }: { aside?: ReactNode }) {
   // Root route context through the router, so this shared component never
   // imports the root route module.
   const isAuthenticated = useRouteContext({
@@ -40,10 +41,16 @@ export function PublicHeader() {
 
   return (
     <header className="lx-hero-up relative z-2 flex min-h-16 flex-wrap items-center justify-between gap-4 border-b border-line px-(--lx-gutter) py-4 [--hero-step:0]">
-      <Link to="/" className="flex items-center gap-2.5 text-text no-underline">
-        <Logo size={32} />
-        <span className="text-title font-bold">locatic</span>
-      </Link>
+      <div className="flex items-center gap-3">
+        <Link
+          to="/"
+          className="flex items-center gap-2.5 text-text no-underline"
+        >
+          <Logo size={32} />
+          <span className="text-title font-bold">locatic</span>
+        </Link>
+        {aside}
+      </div>
       <nav
         aria-label="Site"
         className="flex flex-wrap items-center gap-2 font-mono text-label text-text-muted"
