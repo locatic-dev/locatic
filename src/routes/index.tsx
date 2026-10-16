@@ -1,7 +1,9 @@
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, redirect } from '@tanstack/react-router'
+import { Button } from '@/components/ui/button'
 import { PublicHeader } from '@/components/app-shell/public-header'
 import { PublicFooter } from '@/components/app-shell/public-footer'
+import { AboutDialog } from '@/features/landing/about-dialog'
 import { HeroActivityList } from '@/features/landing/hero-activity-list'
 import { HeroCopy } from '@/features/landing/hero-copy'
 import { HeroMapCaption } from '@/features/landing/hero-map-caption'
@@ -19,6 +21,7 @@ import {
   landingActivityQueryOptions,
   landingMapCitiesQueryOptions,
 } from '@/integrations/convex/query-options'
+import { GITHUB_REPO_URL } from '@/lib/site-links'
 import { seo } from '@/lib/seo'
 
 export const Route = createFileRoute('/')({
@@ -57,7 +60,27 @@ function LandingPage() {
 
   return (
     <div className="min-h-dvh overflow-x-clip bg-canvas text-text">
-      <PublicHeader />
+      <PublicHeader
+        navStart={
+          <>
+            <AboutDialog>
+              <Button variant="ghost" size="touch">
+                about
+              </Button>
+            </AboutDialog>
+            <Button asChild variant="ghost" size="touch">
+              <a
+                href={GITHUB_REPO_URL}
+                target="_blank"
+                rel="noreferrer noopener"
+                aria-label="Locatic on GitHub (opens in a new tab)"
+              >
+                github
+              </a>
+            </Button>
+          </>
+        }
+      />
 
       <main id="main-content" tabIndex={-1}>
         {/* Two columns from lg: the copy beside the globe. Below lg the globe
