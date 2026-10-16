@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { BrandIcon } from '@/components/ui/brand-icon'
+import { GITHUB_REPO_URL } from '@/lib/site-links'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -10,7 +11,6 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 
-const REPO_URL = 'https://github.com/locatic-dev/locatic'
 const CONTACT_EMAIL = 'contact@locatic.dev'
 
 const FOUNDERS = [
@@ -171,7 +171,11 @@ export function AboutDialog({
             </p>
             <div>
               <Button asChild variant="secondary" size="touch">
-                <a href={REPO_URL} target="_blank" rel="noreferrer noopener">
+                <a
+                  href={GITHUB_REPO_URL}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                >
                   <BrandIcon name="github" size={14} />
                   star locatic on github
                 </a>
