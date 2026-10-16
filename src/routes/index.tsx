@@ -1,6 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, redirect } from '@tanstack/react-router'
-import { BrandIcon } from '@/components/ui/brand-icon'
 import { Button } from '@/components/ui/button'
 import { PublicHeader } from '@/components/app-shell/public-header'
 import { PublicFooter } from '@/components/app-shell/public-footer'
@@ -76,7 +75,6 @@ function LandingPage() {
                 rel="noreferrer noopener"
                 aria-label="Locatic on GitHub (opens in a new tab)"
               >
-                <BrandIcon name="github" size={14} />
                 github
               </a>
             </Button>
