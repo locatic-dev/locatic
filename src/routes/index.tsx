@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, redirect } from '@tanstack/react-router'
+import { BrandIcon } from '@/components/ui/brand-icon'
 import { Button } from '@/components/ui/button'
 import { PublicHeader } from '@/components/app-shell/public-header'
 import { PublicFooter } from '@/components/app-shell/public-footer'
@@ -21,6 +22,7 @@ import {
   landingActivityQueryOptions,
   landingMapCitiesQueryOptions,
 } from '@/integrations/convex/query-options'
+import { GITHUB_REPO_URL } from '@/lib/site-links'
 import { seo } from '@/lib/seo'
 
 export const Route = createFileRoute('/')({
@@ -61,11 +63,24 @@ function LandingPage() {
     <div className="min-h-dvh overflow-x-clip bg-canvas text-text">
       <PublicHeader
         navStart={
-          <AboutDialog>
-            <Button variant="ghost" size="touch">
-              about
+          <>
+            <AboutDialog>
+              <Button variant="ghost" size="touch">
+                about
+              </Button>
+            </AboutDialog>
+            <Button asChild variant="ghost" size="touch">
+              <a
+                href={GITHUB_REPO_URL}
+                target="_blank"
+                rel="noreferrer noopener"
+                aria-label="Locatic on GitHub (opens in a new tab)"
+              >
+                <BrandIcon name="github" size={14} />
+                github
+              </a>
             </Button>
-          </AboutDialog>
+          </>
         }
       />
 
