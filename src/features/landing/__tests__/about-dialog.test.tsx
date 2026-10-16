@@ -6,7 +6,11 @@ import { AboutDialog } from '../about-dialog'
 
 describe('AboutDialog', () => {
   it('opens the letter with GitHub links to the founders and the repo', async () => {
-    render(<AboutDialog />)
+    render(
+      <AboutDialog>
+        <button type="button">about</button>
+      </AboutDialog>,
+    )
     expect(screen.queryByRole('dialog')).toBeNull()
 
     await userEvent.click(screen.getByRole('button', { name: 'about' }))

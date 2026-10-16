@@ -27,7 +27,8 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { useClerk } from '@clerk/tanstack-react-start'
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
+import { AboutDialog } from '@/features/landing/about-dialog'
 import { useResumeExploreSearch } from '@/features/explore/state'
 
 interface NavItem {
@@ -306,36 +307,46 @@ export function SidebarNav({
 
 function AccountMenu() {
   const { signOut } = useClerk()
+  const [aboutOpen, setAboutOpen] = useState(false)
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button
-          className="flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-md border-0 bg-transparent p-0 text-text-muted transition-colors hover:bg-surface-alt hover:text-text"
-          aria-label="Account menu"
-          type="button"
-        >
-          <MoreHorizontal size={15} />
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent side="right" align="end" sideOffset={8}>
-        <DropdownMenuItem asChild>
-          <Link
-            to="/settings"
-            search={{ tab: 'account' }}
-            preload={false}
-            className="text-inherit no-underline"
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            className="flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-md border-0 bg-transparent p-0 text-text-muted transition-colors hover:bg-surface-alt hover:text-text"
+            aria-label="Account menu"
+            type="button"
           >
-            settings
-          </Link>
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem
-          onClick={() => void signOut({ redirectUrl: '/' })}
-          className="cursor-pointer text-danger"
-        >
-          sign out
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+            <MoreHorizontal size={15} />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent side="right" align="end" sideOffset={8}>
+          <DropdownMenuItem asChild>
+            <Link
+              to="/settings"
+              search={{ tab: 'account' }}
+              preload={false}
+              className="text-inherit no-underline"
+            >
+              settings
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onSelect={() => setAboutOpen(true)}
+            className="cursor-pointer"
+          >
+            about
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            onClick={() => void signOut({ redirectUrl: '/' })}
+            className="cursor-pointer text-danger"
+          >
+            sign out
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <AboutDialog open={aboutOpen} onOpenChange={setAboutOpen} />
+    </>
   )
 }
