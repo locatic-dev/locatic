@@ -1,5 +1,7 @@
 import { Link } from '@tanstack/react-router'
 import * as m from 'motion/react-m'
+import { BrandIcon } from '@/components/ui/brand-icon'
+import { GITHUB_REPO_URL } from '@/lib/site-links'
 import { fadeUp, viewportOnce } from '@/lib/motion'
 
 const footerLinkClassName =
@@ -17,6 +19,16 @@ export function PublicFooter() {
       viewport={viewportOnce}
     >
       <nav className="flex flex-wrap items-center justify-center gap-x-5 gap-y-1">
+        <a
+          href={GITHUB_REPO_URL}
+          target="_blank"
+          rel="noreferrer noopener"
+          className={`${footerLinkClassName} gap-1.5`}
+          aria-label="Locatic on GitHub (opens in a new tab)"
+        >
+          <BrandIcon name="github" size={14} />
+          github
+        </a>
         <a
           href="mailto:contact@locatic.dev"
           className={footerLinkClassName}
