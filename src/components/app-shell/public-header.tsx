@@ -37,7 +37,6 @@ export function PublicHeader({ navStart }: { navStart?: ReactNode }) {
     useHydrationSafeHref(location.href),
   )
   const onExplore = location.pathname.startsWith('/explore')
-  const onLanding = location.pathname === '/'
 
   return (
     <header className="lx-hero-up relative z-2 flex min-h-16 flex-wrap items-center justify-between gap-4 border-b border-line px-(--lx-gutter) py-4 [--hero-step:0]">
@@ -58,14 +57,7 @@ export function PublicHeader({ navStart }: { navStart?: ReactNode }) {
           <>
             {/* Explore is public: visitors can look before they sign in. */}
             {!onExplore && (
-              // On phones the landing keeps one row (its hero links to
-              // Explore); every other public page keeps the link.
-              <Button
-                asChild
-                variant="ghost"
-                size="touch"
-                className={onLanding ? 'max-sm:hidden' : undefined}
-              >
+              <Button asChild variant="ghost" size="touch">
                 <Link to="/explore" search={getFreshExploreSearch()}>
                   explore
                 </Link>

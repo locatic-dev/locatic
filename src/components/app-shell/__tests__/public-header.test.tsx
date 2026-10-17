@@ -86,14 +86,8 @@ describe('PublicHeader', () => {
     expect(screen.queryByRole('navigation', { name: 'Account' })).toBeNull()
   })
 
-  it('hides explore on phones only on the landing page, whose hero links to it', () => {
-    const { unmount } = render(<PublicHeader />)
-    expect(screen.getByRole('link', { name: 'explore' }).className).toContain(
-      'max-sm:hidden',
-    )
-    unmount()
-
-    for (const path of ['/privacy', '/u/ada', '/c/bengaluru']) {
+  it('keeps explore visible on phones on every public page, landing included', () => {
+    for (const path of ['/', '/privacy', '/u/ada', '/c/bengaluru']) {
       location.pathname = path
       location.href = path
       const { unmount: unmountPage } = render(<PublicHeader />)
