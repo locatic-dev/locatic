@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { render, screen } from '@testing-library/react'
+import { renderToString } from 'react-dom/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { ContributionGraph } from '../contribution-graph'
@@ -80,6 +81,17 @@ describe('ContributionGraph', () => {
     expect(titles).toContain('3 contributions on May 1, 2026')
     expect(titles).toContain('No contributions')
     expect(titles).toContain('1 contribution on May 3, 2026')
+  })
+
+  it('leaves tooltips out of server HTML', () => {
+    const html = renderToString(
+      <ContributionGraph
+        weeks={[{ days: [{ count: 3, date: '2026-05-01' }] }]}
+        totalContributions={3}
+      />,
+    )
+    expect(html).not.toContain('<title>')
+    expect(html).not.toContain('contributions on')
   })
 
   it('wraps the graph in a labelled, keyboard-focusable scroll region', () => {

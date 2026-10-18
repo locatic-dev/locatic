@@ -244,6 +244,9 @@ function FeedMoreButton({
         size="touch"
         onClick={onClick}
         disabled={pending}
+        // Also set while a server-rendered first page waits for the live
+        // feed (first-page.ts), so "load more" never looks ready too early.
+        aria-busy={pending || undefined}
       >
         {pending ? 'loading…' : label}
       </Button>
@@ -484,7 +487,6 @@ function ExploreFeedBody({
   onFollowUser,
   onLoadMore,
   onMessageUser,
-  onOpenBuilderProfile,
   onResetExplore,
   orderingCopy,
   pendingFollows,
@@ -513,7 +515,6 @@ function ExploreFeedBody({
   /** Loads the next page; also the "keep looking" continuation action. */
   onLoadMore: () => void
   onMessageUser: (userId: Id<'users'>) => void
-  onOpenBuilderProfile: (builder: BuilderPreview) => void
   onResetExplore?: () => void
   /** How the browse feed is ordered, shown beside the list heading. */
   orderingCopy?: string | null
@@ -543,7 +544,6 @@ function ExploreFeedBody({
   const renderBuilderRow = (builder: BuilderPreview) => (
     <NearbyBuilderRow
       builder={builder}
-      onOpenProfile={() => onOpenBuilderProfile(builder)}
       onFollow={() =>
         onFollowUser(
           builder.userId,

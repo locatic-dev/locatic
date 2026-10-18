@@ -3,7 +3,8 @@
   "name": "locatic",
   "compatibility_date": "2025-09-02",
   "compatibility_flags": ["nodejs_compat"],
-  "main": "@tanstack/react-start/server-entry",
+  // src/server.ts wraps TanStack Start's entry with the edge cache.
+  "main": "./src/server.ts",
   "workers_dev": false,
   "preview_urls": true,
   "env": {

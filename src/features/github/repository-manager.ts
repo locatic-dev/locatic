@@ -254,8 +254,10 @@ function getOptimisticOwnerLocation(
 
   const cityId = privateOverview?.viewer.profile.cityId ?? null
   const cityName = privateOverview?.cityName ?? null
+  // The private overview carries no slug; the city page redirects an id to
+  // its slug, and this preview is only ever seen by the owner.
   return cityId && cityName
-    ? { kind: 'city', cityId, cityName, regionLabel: null }
+    ? { kind: 'city', cityId, cityName, citySlug: cityId, regionLabel: null }
     : { kind: 'none' }
 }
 

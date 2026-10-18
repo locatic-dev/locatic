@@ -12,6 +12,11 @@ interface CityPillProps {
    * labels render.
    */
   cityId?: string | null
+  /**
+   * The city page's URL segment. Links use it when known, so crawlers and
+   * people skip the id → slug redirect; stored snapshots only carry the id.
+   */
+  citySlug?: string | null
   onRemove?: () => void
   className?: string
   truncate?: boolean
@@ -28,7 +33,7 @@ interface CityPillProps {
  * free of Convex imports.
  */
 export type CityPillLocation =
-  | { kind: 'city'; cityId: string; cityName: string }
+  | { kind: 'city'; cityId: string; cityName: string; citySlug?: string }
   | { kind: 'region'; regionLabel: string }
   | { kind: 'none' }
 
@@ -41,6 +46,7 @@ export function CityPill({
   city,
   label = city,
   cityId,
+  citySlug,
   onRemove,
   className,
   truncate = true,
@@ -64,11 +70,11 @@ export function CityPill({
 
   if (cityId && !onRemove) {
     return (
-      // The city page (plan item D5) resolves a city id and redirects to the
-      // city's slug; location payloads carry the id, not the slug.
+      // The city page (plan item D5) also resolves a city id, redirecting it
+      // to the slug.
       <Link
         to="/c/$slug"
-        params={{ slug: cityId }}
+        params={{ slug: citySlug || cityId }}
         title={`${city} city page`}
         className={cn(
           baseClassName,
@@ -125,6 +131,7 @@ export function LocationPill({
         <CityPill
           city={location.cityName}
           cityId={location.cityId}
+          citySlug={location.citySlug}
           className={className}
           truncate={truncate}
         />

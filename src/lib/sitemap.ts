@@ -8,7 +8,13 @@ export type SitemapEntry = {
 }
 
 /** Public pages that are always listed, ahead of the data-driven ones. */
-export const STATIC_SITEMAP_PATHS = ['/', '/explore', '/privacy', '/terms']
+export const STATIC_SITEMAP_PATHS = [
+  '/',
+  '/about',
+  '/explore',
+  '/privacy',
+  '/terms',
+]
 
 /** One page of entries from a paginated `convex/sitemap.ts` query. */
 type SitemapPage = {

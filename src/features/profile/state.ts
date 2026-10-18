@@ -34,6 +34,15 @@ export function isProfileContributionsPublic(
   return privacy.contributionsVisibility !== 'private'
 }
 
+/**
+ * What a bare profile URL normalizes to. The route strips these values from
+ * every href, so `/u/{username}` is its own canonical URL.
+ */
+export const PROFILE_SEARCH_DEFAULTS: Readonly<Required<ProfileSearch>> = {
+  network: 'followers',
+  tab: 'projects',
+}
+
 export function normalizeProfileSearch(
   search: Record<string, unknown>,
 ): ProfileSearch {

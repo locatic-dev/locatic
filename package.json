@@ -27,6 +27,7 @@
     "format": "pnpm exec oxfmt . --ignore-path .oxfmtignore && pnpm exec oxlint --fix",
     "contrast:check": "node scripts/check-contrast.mjs",
     "bundle:check": "node scripts/check-bundle-size.mjs",
+    "seo:check": "node scripts/check-seo-live.mjs",
     "check:arbitrary": "node scripts/check-arbitrary-values.mjs",
     "check:collect": "node scripts/check-collect-calls.mjs",
     "design:tokens": "node scripts/generate-design-tokens.mjs",

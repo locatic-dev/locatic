@@ -1,6 +1,10 @@
 import type { QueryClient } from '@tanstack/react-query'
-import { createFileRoute, redirect } from '@tanstack/react-router'
-import type { Id } from '../../convex/_generated/dataModel'
+import {
+  createFileRoute,
+  redirect,
+  stripSearchParams,
+} from '@tanstack/react-router'
+import type { Doc, Id } from '../../convex/_generated/dataModel'
 import {
   FeedRoutePending,
   ROUTE_PENDING_MIN_MS,
@@ -12,11 +16,16 @@ import {
   type ViewerExplorePrefsPayload,
 } from '@/features/contracts'
 import { ExplorePage } from '@/features/explore/explore-page'
+import { prefetchVisitorFirstPage } from '@/features/explore/first-page'
 import {
+  EXPLORE_SEARCH_DEFAULTS,
   deriveDefaultExploreCityIds,
+  getCanonicalExploreCityIds,
   getExploreLoaderDeps,
   getExploreProjectCityIds,
+  getNearbyBuilderCityIds,
   normalizeExploreSearch,
+  type ExploreSearch,
 } from '@/features/explore/state'
 import { citiesByIdsQueryOptions } from '@/features/cities/queries'
 import { cityStatsQueryOptions } from '@/features/explore/queries'
@@ -52,6 +61,13 @@ function prefetchRailCityStats(
  */
 export const Route = createFileRoute('/explore')({
   validateSearch: normalizeExploreSearch,
+  // Default values stay out of hrefs, so /explore renders at its canonical
+  // URL instead of redirecting to a parameterized copy of itself.
+  search: {
+    middlewares: [
+      stripSearchParams<ExploreSearch, ExploreSearch>(EXPLORE_SEARCH_DEFAULTS),
+    ],
+  },
   loaderDeps: ({ search }) => getExploreLoaderDeps(search),
   beforeLoad: async ({ context, location }) => {
     if (!context.auth.isAuthenticated) {
@@ -78,14 +94,37 @@ export const Route = createFileRoute('/explore')({
       const selectedCityIds = getExploreProjectCityIds(deps, []) as Array<
         Id<'cities'>
       >
+      let cityIds = selectedCityIds
       if (selectedCityIds.length > 0) {
-        await Promise.all([
+        const [cities] = await Promise.all([
           context.queryClient.ensureQueryData(
             citiesByIdsQueryOptions(selectedCityIds),
           ),
           prefetchRailCityStats(context.queryClient, selectedCityIds),
         ])
+        // The page queries the canonical ids once the cities have loaded;
+        // the first page must use the same arguments to be picked up.
+        cityIds = getCanonicalExploreCityIds(
+          selectedCityIds,
+          cities as Array<Doc<'cities'>>,
+          { dropUnresolved: true },
+        ) as Array<Id<'cities'>>
       }
+      // The visitor feed's first page, so server HTML lists real projects,
+      // builders or posts (first-page.ts). A failure leaves the feed to load
+      // on the client.
+      await prefetchVisitorFirstPage(context.queryClient, {
+        cityIds:
+          deps.mode === 'builders'
+            ? (getNearbyBuilderCityIds({
+                scope: deps.scope,
+                selectedCityIds: cityIds,
+              }) as Array<Id<'cities'>>)
+            : cityIds,
+        filters: deps.filters,
+        mode: deps.mode,
+        scope: deps.scope,
+      })
       return
     }
 
@@ -122,7 +161,7 @@ export const Route = createFileRoute('/explore')({
   pendingMinMs: ROUTE_PENDING_MIN_MS,
   head: () =>
     seo({
-      title: 'explore',
+      title: 'Explore developer projects by city',
       description:
         'Browse public projects, releases and builders by city and tech stack, from your city to anywhere on the globe.',
       path: '/explore',

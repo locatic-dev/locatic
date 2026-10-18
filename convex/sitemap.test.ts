@@ -80,7 +80,11 @@ describe('sitemap entries', () => {
   }
 
   it('lists visible projects and their public owners', async () => {
-    const ada = await seedUser(t, { username: 'ada', cityId: cities.bengaluru })
+    const ada = await seedUser(t, {
+      username: 'ada',
+      cityId: cities.bengaluru,
+      projectsCount: 1,
+    })
     await seedProject(t, { ownerId: ada, name: 'engine' })
 
     const result = await paths()
@@ -89,9 +93,11 @@ describe('sitemap entries', () => {
     await expectProfilesOpenSignedOut(result.profiles)
   })
 
-  it('lists public builders without a project and skips unfinished onboarding', async () => {
-    await seedUser(t, { username: 'lin' })
-    await seedUser(t, { username: 'new', onboarded: false })
+  it('skips unfinished onboarding and builders without a visible project', async () => {
+    await seedUser(t, { username: 'lin', projectsCount: 1 })
+    await seedUser(t, { username: 'new', onboarded: false, projectsCount: 1 })
+    // Thin: a public profile with nothing to show stays out of the index.
+    await seedUser(t, { username: 'empty' })
 
     expect((await paths()).profiles).toEqual(['/u/lin'])
   })
@@ -110,11 +116,12 @@ describe('sitemap entries', () => {
   })
 
   it('leaves out hidden projects and members-only profiles', async () => {
-    const ada = await seedUser(t, { username: 'ada' })
+    const ada = await seedUser(t, { username: 'ada', projectsCount: 1 })
     await seedProject(t, { ownerId: ada, name: 'hidden', isVisible: false })
     const grace = await seedUser(t, {
       username: 'grace',
       profileVisibility: 'locatic_only',
+      projectsCount: 1,
     })
     await seedProject(t, { ownerId: grace, name: 'compiler' })
 
@@ -138,19 +145,24 @@ describe('sitemap entries', () => {
     expect(await paths()).toMatchObject({ projects: [], profiles: [] })
   })
 
-  it('lists active cities with builders', async () => {
+  it('lists active cities with three or more builders, dated by activity', async () => {
     // City counters are maintained by mutations; set them as a recount would.
     await t.run(async (ctx) => {
-      const berlin = (await ctx.db.get(cities.berlin))!
-      const stats = { builderCount: 1, projectCount: 0, lastActivityAt: null }
-      await ctx.db.patch(cities.berlin, {
-        stats,
-        activityCell: getCityActivityCell(berlin, stats),
-      })
+      for (const [cityId, builderCount] of [
+        [cities.berlin, 3],
+        [cities.hyderabad, 2],
+      ] as const) {
+        const city = (await ctx.db.get(cityId))!
+        const stats = { builderCount, projectCount: 0, lastActivityAt: NOW }
+        await ctx.db.patch(cityId, {
+          stats,
+          activityCell: getCityActivityCell(city, stats),
+        })
+      }
     })
 
-    const result = await paths()
-    expect(result.cities).toContain('/c/berlin-de')
-    expect(result.cities).not.toContain('/c/bengaluru-in')
+    const entries = await t.query(api.sitemap.cities, {})
+    // Hyderabad is thin; Bengaluru has no builders at all.
+    expect(entries).toEqual([{ path: '/c/berlin-de', updatedAt: NOW }])
   })
 })

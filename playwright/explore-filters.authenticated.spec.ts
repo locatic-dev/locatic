@@ -127,10 +127,10 @@ test('open to collab chip filters builders and survives a reload', async ({
   ).toHaveAttribute('aria-pressed', 'true')
 
   // Every listed builder shows a collaboration status, which is also the
-  // description of its profile button.
+  // description of its profile link.
   const rows = page
     .locator('#main-content')
-    .getByRole('button', { name: /^Open .+'s profile$/ })
+    .getByRole('link', { name: /^Open .+'s profile$/ })
   await expectSettled(
     page,
     rows

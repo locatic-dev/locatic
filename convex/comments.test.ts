@@ -79,12 +79,19 @@ describe('comment author location (B2)', () => {
       })
     }
 
+    const roots = await listRoots(t, aliceApp)
     const byAuthor = new Map(
-      (await listRoots(t, aliceApp)).map((comment) => [
+      roots.map((comment) => [String(comment.authorId), locationOf(comment)]),
+    )
+    // City members' pills link to the city's slug; others carry none.
+    const slugByAuthor = new Map(
+      roots.map((comment) => [
         String(comment.authorId),
-        locationOf(comment),
+        comment.authorSnapshot.citySlug,
       ]),
     )
+    expect(slugByAuthor.get(String(fixture.users.alice))).toBe('bengaluru-in')
+    expect(slugByAuthor.get(String(fixture.users.dev))).toBeUndefined()
 
     expect(byAuthor.get(String(fixture.users.alice))).toEqual({
       cityId: fixture.cities.bengaluru,
