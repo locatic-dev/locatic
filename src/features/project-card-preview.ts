@@ -60,6 +60,10 @@ export function toProjectCardData(
       project.ownerLocation?.kind === 'city'
         ? String(project.ownerLocation.cityId)
         : null,
+    citySlug:
+      project.ownerLocation?.kind === 'city'
+        ? project.ownerLocation.citySlug
+        : null,
     buildStatus: project.ownerBuildStatus,
     latestUpdate: project.latestUpdate,
     syncStatus: project.syncStatus,

@@ -8,20 +8,24 @@ import {
   ROUTE_PENDING_MS,
 } from '@/components/app-shell/route-pending'
 import { CityNotFoundContent } from '@/features/city/city-not-found'
+import { describeCityPage } from '@/features/city/city-summary'
 import { CityPageView } from '@/features/city/city-sections'
 import { cityPageQueryOptions } from '@/features/city/queries'
 import { VisitorCityFrame } from '@/features/city/visitor-city-frame'
 import type { ViewerBootstrapPayload } from '@/features/contracts'
 import { viewerQueryOptions } from '@/features/viewer/queries'
 import { toSafeRelativeUrl } from '@/lib/safe-redirect'
-import { notFoundSeo, seo } from '@/lib/seo'
+import { notFoundSeo, seo, truncateDescription } from '@/lib/seo'
+import { cityPageNode } from '@/lib/structured-data'
+import { JsonLd } from '@/components/ui/json-ld'
+import { isCityIndexable } from '../../convex/lib/seo_thresholds'
 
 /**
  * Public city page (plan item D5). Visitors get the public header; members
  * get the app shell, and members who still need onboarding go there first
  * with this URL as the destination, as on Explore. Unknown and inactive
- * cities are a real 404. A city id in the address (city pills link by id)
- * redirects to the city's slug.
+ * cities are a real 404. A city id in the address (stored snapshots only
+ * carry the id) redirects permanently to the city's slug.
  */
 export const Route = createFileRoute('/c/$slug')({
   beforeLoad: async ({ context, location }) => {
@@ -48,16 +52,27 @@ export const Route = createFileRoute('/c/$slug')({
       throw notFound()
     }
     if (page.city.slug !== params.slug) {
+      // Permanent: the slug is the city's canonical address, so search
+      // engines should move any id link they found onto it.
       throw redirect({
         to: '/c/$slug',
         params: { slug: page.city.slug },
         replace: true,
+        statusCode: 301,
       })
     }
     return {
       name: page.city.name,
       displayName: page.city.displayName,
       slug: page.city.slug,
+      location: page.city.location,
+      builderCount: page.stats.builderCount,
+      summary: describeCityPage(page),
+      projects: page.recentWork.projects.map(({ owner, repo, fullName }) => ({
+        owner,
+        repo,
+        fullName,
+      })),
     }
   },
   // The root head sees a stale matches snapshot, so this route reports its
@@ -66,11 +81,7 @@ export const Route = createFileRoute('/c/$slug')({
     match.status === 'notFound'
       ? notFoundSeo()
       : loaderData
-        ? seo({
-            title: loaderData.name,
-            description: `What builders in ${loaderData.displayName} are working on: recent public projects, builders and posts.`,
-            path: `/c/${loaderData.slug}`,
-          })
+        ? cityHead(loaderData)
         : {},
   pendingComponent: FeedRoutePending,
   pendingMs: ROUTE_PENDING_MS,
@@ -78,6 +89,20 @@ export const Route = createFileRoute('/c/$slug')({
   notFoundComponent: CityNotFound,
   component: CityRoute,
 })
+
+function cityHead(city: {
+  builderCount: number
+  name: string
+  slug: string
+  summary: string
+}) {
+  return seo({
+    title: `Developers and projects in ${city.name}`,
+    description: truncateDescription(city.summary),
+    path: `/c/${city.slug}`,
+    thin: !isCityIndexable(city),
+  })
+}
 
 function CityFrame({ children }: { children: ReactNode }) {
   const { auth } = Route.useRouteContext()
@@ -94,12 +119,16 @@ function CityFrame({ children }: { children: ReactNode }) {
 
 function CityRoute() {
   const { slug } = Route.useParams()
+  const loaderData = Route.useLoaderData()
   const { data: page } = useSuspenseQuery(cityPageQueryOptions(slug))
 
   return (
     <CityFrame>
       {/* The loader 404s; this covers a city that goes inactive while open. */}
       {page ? <CityPageView page={page} /> : <CityNotFoundContent />}
+      {page && isCityIndexable(loaderData) && (
+        <JsonLd nodes={cityPageNode(loaderData)} />
+      )}
     </CityFrame>
   )
 }

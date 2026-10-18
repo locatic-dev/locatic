@@ -79,6 +79,7 @@ test.describe('public landing', () => {
   // to a few navigations.
   for (const path of [
     '/',
+    '/about',
     '/explore',
     '/privacy',
     '/terms',

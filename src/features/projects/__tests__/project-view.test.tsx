@@ -29,6 +29,20 @@ vi.mock('@tanstack/react-router', () => ({
     <TOptions,>(options: TOptions) => ({
       options,
       useParams: () => ({ owner: 'ada', repo: 'engine' }),
+      useLoaderData: () => ({
+        structuredData: {
+          owner: 'ada',
+          repo: 'engine',
+          fullName: 'ada/engine',
+          description: null,
+          primaryLanguage: null,
+          topics: [],
+          lastCommitAt: 0,
+          ownerName: 'Ada',
+          ownerUsername: 'ada',
+          city: null,
+        },
+      }),
     }),
   getRouteApi: () => ({
     useNavigate: () => vi.fn(),

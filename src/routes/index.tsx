@@ -1,9 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
-import { createFileRoute, redirect } from '@tanstack/react-router'
+import { Link, createFileRoute, redirect } from '@tanstack/react-router'
 import { Button } from '@/components/ui/button'
 import { PublicHeader } from '@/components/app-shell/public-header'
 import { PublicFooter } from '@/components/app-shell/public-footer'
-import { AboutDialog } from '@/features/landing/about-dialog'
 import { HeroActivityList } from '@/features/landing/hero-activity-list'
 import { HeroCopy } from '@/features/landing/hero-copy'
 import { HeroMapCaption } from '@/features/landing/hero-map-caption'
@@ -15,14 +14,17 @@ import {
 } from '@/features/landing/landing-content'
 import { PingGlobe } from '@/features/landing/ping-globe'
 import { FeatureRow } from '@/features/landing/feature-row'
+import { WhatIsLocatic } from '@/features/landing/what-is-locatic'
 import { viewerQueryOptions } from '@/features/viewer/queries'
 import type { ViewerBootstrapPayload } from '@/features/contracts'
 import {
   landingActivityQueryOptions,
   landingMapCitiesQueryOptions,
 } from '@/integrations/convex/query-options'
-import { GITHUB_REPO_URL } from '@/lib/site-links'
+import { GITHUB_URL } from '@/lib/site-links'
 import { seo } from '@/lib/seo'
+import { organizationNode, websiteNode } from '@/lib/structured-data'
+import { JsonLd } from '@/components/ui/json-ld'
 
 export const Route = createFileRoute('/')({
   beforeLoad: async ({ context }) => {
@@ -63,14 +65,12 @@ function LandingPage() {
       <PublicHeader
         navStart={
           <>
-            <AboutDialog>
-              <Button variant="ghost" size="touch">
-                about
-              </Button>
-            </AboutDialog>
+            <Button asChild variant="ghost" size="touch">
+              <Link to="/about">about</Link>
+            </Button>
             <Button asChild variant="ghost" size="touch">
               <a
-                href={GITHUB_REPO_URL}
+                href={GITHUB_URL}
                 target="_blank"
                 rel="noreferrer noopener"
                 aria-label="Locatic on GitHub (opens in a new tab)"
@@ -101,9 +101,11 @@ function LandingPage() {
         </div>
 
         <FeatureRow />
+        <WhatIsLocatic />
       </main>
 
       <PublicFooter />
+      <JsonLd nodes={[organizationNode(), websiteNode()]} />
     </div>
   )
 }

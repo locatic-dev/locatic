@@ -90,6 +90,11 @@ function manualChunks(id: string) {
 }
 
 const config = defineConfig({
+  // Names this build; the edge cache keys pages by it, so HTML stored by one
+  // deployment never outlives that deployment's hashed assets.
+  define: {
+    __LOCATIC_BUILD_ID__: JSON.stringify(Date.now().toString(36)),
+  },
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),

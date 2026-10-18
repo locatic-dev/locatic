@@ -22,6 +22,7 @@ import {
 import {
   resolveLocationDisclosure,
   toSnapshotLocation,
+  type LocationDisclosure,
   type SnapshotLocation,
 } from './lib/visibility'
 import {
@@ -61,7 +62,11 @@ const commentPageItemValidator = v.object({
   likesCount: v.number(),
   reactionCounts: v.optional(v.record(v.string(), v.number())),
   isDeleted: v.boolean(),
-  authorSnapshot: actorSnapshotValidator,
+  // The stored snapshot plus the live city's slug (`loadAuthorLocations`).
+  authorSnapshot: v.object({
+    ...actorSnapshotValidator.fields,
+    citySlug: v.optional(v.string()),
+  }),
   targetSnapshot: commentTargetSnapshotValidator,
   createdAt: v.number(),
   viewerHasLiked: v.boolean(),
@@ -90,7 +95,16 @@ async function getRequester(ctx: QueryCtx) {
     .unique()
 }
 
-const UNDISCLOSED_LOCATION: SnapshotLocation = { cityId: null, cityName: null }
+/** A live author location: the snapshot encoding plus the city's slug. */
+type AuthorLocation = SnapshotLocation & { citySlug?: string }
+
+const UNDISCLOSED_LOCATION: AuthorLocation = { cityId: null, cityName: null }
+
+function toAuthorLocation(disclosure: LocationDisclosure): AuthorLocation {
+  return disclosure.kind === 'city'
+    ? { ...toSnapshotLocation(disclosure), citySlug: disclosure.citySlug }
+    : toSnapshotLocation(disclosure)
+}
 
 /**
  * Current location of each distinct author under the visibility policy: one
@@ -101,7 +115,7 @@ const UNDISCLOSED_LOCATION: SnapshotLocation = { cityId: null, cityName: null }
 async function loadAuthorLocations(
   ctx: QueryCtx,
   authorIds: Array<Id<'users'>>,
-): Promise<Map<string, SnapshotLocation>> {
+): Promise<Map<string, AuthorLocation>> {
   const distinctIds = [
     ...new Map(
       authorIds.map((authorId) => [String(authorId), authorId]),
@@ -133,7 +147,7 @@ async function loadAuthorLocations(
       return [
         String(authorId),
         author && !author.deletedAt && !author.deactivatedAt
-          ? toSnapshotLocation(resolveLocationDisclosure(author, city))
+          ? toAuthorLocation(resolveLocationDisclosure(author, city))
           : UNDISCLOSED_LOCATION,
       ]
     }),
@@ -143,7 +157,10 @@ async function loadAuthorLocations(
 /** The comment with its author's current location (`loadAuthorLocations`). */
 function withAuthorLocation<
   T extends Pick<Doc<'comments'>, 'authorId' | 'authorSnapshot'>,
->(comment: T, authorLocations: Map<string, SnapshotLocation>): T {
+>(
+  comment: T,
+  authorLocations: Map<string, AuthorLocation>,
+): T & { authorSnapshot: AuthorLocation } {
   return {
     ...comment,
     authorSnapshot: {

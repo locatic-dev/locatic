@@ -170,6 +170,7 @@ describe('project signals', () => {
       kind: 'city',
       cityId: cities.bengaluru,
       cityName: 'Bengaluru, Karnataka, India',
+      citySlug: 'bengaluru-in',
       regionLabel: 'Karnataka, India',
     })
 
@@ -357,6 +358,7 @@ describe('more from the owner city', () => {
       kind: 'city',
       cityId: cities.bengaluru,
       cityName: 'Bengaluru, Karnataka, India',
+      citySlug: 'bengaluru-in',
       regionLabel: 'Karnataka, India',
     })
     expect(preview).not.toHaveProperty('email')

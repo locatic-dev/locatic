@@ -61,6 +61,15 @@ import {
   writeStoredExploreSearch,
   type ExploreFilters,
 } from '@/features/explore/state'
+import {
+  getBuilderFeedArgs,
+  getPostFeedArgs,
+  getProjectFeedArgs,
+  publicBuildersFirstPageQueryOptions,
+  publicPostsFirstPageQueryOptions,
+  publicProjectsFirstPageQueryOptions,
+  useFirstPageSeed,
+} from '@/features/explore/first-page'
 import { ExploreHeader } from '@/features/explore/components/explore-header'
 import { ExploreFilterSheet } from '@/features/explore/components/explore-filter-sheet'
 import {
@@ -315,43 +324,53 @@ function ExploreView({ viewer }: { viewer: ExploreViewer | null }) {
   })
 
   // Members read their personal feeds, visitors the public ones (C1); the
-  // unused query of each pair is skipped.
+  // unused query of each pair is skipped. Visitors' feeds start from the
+  // first page the route loader rendered on the server (first-page.ts).
   const projectFeedArgs =
     currentMode === 'projects' && !isProjectSearchActive
-      ? {
+      ? getProjectFeedArgs({
+          cityIds: queryCityIds,
+          filters: modeFilters,
           scope: currentScope,
-          selectedCityIds: queryCityIds,
-          ...(modeFilters.language ? { language: modeFilters.language } : {}),
-          ...(modeFilters.topic ? { topic: modeFilters.topic } : {}),
-        }
+        })
       : 'skip'
   const viewerProjectsPaged = usePaginatedQuery(
     api.explore.list,
     isVisitor ? 'skip' : projectFeedArgs,
     { initialNumItems: EXPLORE_PAGINATED_PAGE_SIZE },
   )
-  const publicProjectsPaged = usePaginatedQuery(
-    api.explore.listPublic,
-    isVisitor ? projectFeedArgs : 'skip',
-    { initialNumItems: EXPLORE_PAGINATED_PAGE_SIZE },
+  const publicProjectsPaged = useFirstPageSeed(
+    usePaginatedQuery(
+      api.explore.listPublic,
+      isVisitor ? projectFeedArgs : 'skip',
+      { initialNumItems: EXPLORE_PAGINATED_PAGE_SIZE },
+    ),
+    isVisitor && projectFeedArgs !== 'skip'
+      ? publicProjectsFirstPageQueryOptions(projectFeedArgs)
+      : null,
   )
   const scopedFeedPaged = isVisitor ? publicProjectsPaged : viewerProjectsPaged
   const builderFeedArgs =
     currentMode === 'builders' && !isBuilderSearchActive
-      ? {
+      ? getBuilderFeedArgs({
           cityIds: nearbyBuilderCityIds,
-          ...(modeFilters.openToCollab ? { openToCollab: true } : {}),
-        }
+          filters: modeFilters,
+        })
       : 'skip'
   const viewerBuildersPaged = usePaginatedQuery(
     api.explore.listNearbyBuilders,
     isVisitor ? 'skip' : builderFeedArgs,
     { initialNumItems: EXPLORE_PAGINATED_PAGE_SIZE },
   )
-  const publicBuildersPaged = usePaginatedQuery(
-    api.explore.listNearbyBuildersPublic,
-    isVisitor ? builderFeedArgs : 'skip',
-    { initialNumItems: EXPLORE_PAGINATED_PAGE_SIZE },
+  const publicBuildersPaged = useFirstPageSeed(
+    usePaginatedQuery(
+      api.explore.listNearbyBuildersPublic,
+      isVisitor ? builderFeedArgs : 'skip',
+      { initialNumItems: EXPLORE_PAGINATED_PAGE_SIZE },
+    ),
+    isVisitor && builderFeedArgs !== 'skip'
+      ? publicBuildersFirstPageQueryOptions(builderFeedArgs)
+      : null,
   )
   const nearbyBuildersPaged = isVisitor
     ? publicBuildersPaged
@@ -401,17 +420,22 @@ function ExploreView({ viewer }: { viewer: ExploreViewer | null }) {
       : postSearchQueryOptions({ q: '' }),
   )
   const postFeedArgs = isPostBrowseActive
-    ? { scope: currentScope, selectedCityIds: queryCityIds }
+    ? getPostFeedArgs({ cityIds: queryCityIds, scope: currentScope })
     : 'skip'
   const viewerPostsPaged = usePaginatedQuery(
     api.explore.listPosts,
     isVisitor ? 'skip' : postFeedArgs,
     { initialNumItems: EXPLORE_PAGINATED_PAGE_SIZE },
   )
-  const publicPostsPaged = usePaginatedQuery(
-    api.explore.listPostsPublic,
-    isVisitor ? postFeedArgs : 'skip',
-    { initialNumItems: EXPLORE_PAGINATED_PAGE_SIZE },
+  const publicPostsPaged = useFirstPageSeed(
+    usePaginatedQuery(
+      api.explore.listPostsPublic,
+      isVisitor ? postFeedArgs : 'skip',
+      { initialNumItems: EXPLORE_PAGINATED_PAGE_SIZE },
+    ),
+    isVisitor && postFeedArgs !== 'skip'
+      ? publicPostsFirstPageQueryOptions(postFeedArgs)
+      : null,
   )
   const postListPaged = isVisitor ? publicPostsPaged : viewerPostsPaged
   const postSearchQueryKey = postSearchQueryOptions({
@@ -970,15 +994,6 @@ function ExploreView({ viewer }: { viewer: ExploreViewer | null }) {
               onFollowUser={handleFollow}
               onLoadMore={handleLoadMore}
               onMessageUser={(userId) => void openConversation(userId)}
-              onOpenBuilderProfile={(builder) =>
-                void navigate({
-                  to: '/u/$username',
-                  params: {
-                    username: builder.githubUsername,
-                  },
-                  search: { tab: 'projects' },
-                })
-              }
               onResetExplore={isVisitor ? undefined : handleResetExplore}
               orderingCopy={getExploreOrderingCopy({
                 isVisitor,

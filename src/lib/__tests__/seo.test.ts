@@ -47,6 +47,39 @@ describe('seo', () => {
     ])
   })
 
+  it('leads the default title and description with what Locatic is for', () => {
+    expect(DEFAULT_TITLE).toBe(
+      'Locatic: find developers and projects in your city',
+    )
+    expect(DEFAULT_DESCRIPTION).toMatch(
+      /^Locatic is a social network for developers/,
+    )
+    expect(DEFAULT_DESCRIPTION.length).toBeLessThanOrEqual(160)
+  })
+
+  it('marks profiles with og:type profile and the username', () => {
+    const { meta } = seo({
+      title: 'x',
+      path: '/u/x',
+      type: 'profile',
+      username: 'x',
+    })
+    expect(metaContent(meta, 'og:type')).toBe('profile')
+    expect(metaContent(meta, 'profile:username')).toBe('x')
+    expect(metaContent(seo({ path: '/' }).meta, 'og:type')).toBe('website')
+    expect(metaContent(seo({ path: '/' }).meta, 'profile:username')).toBe(
+      undefined,
+    )
+  })
+
+  it('keeps thin pages out of the index but follows their links', () => {
+    const { meta, links } = seo({ title: 'x', path: '/c/x', thin: true })
+    expect(meta).toContainEqual({ name: 'robots', content: 'noindex, follow' })
+    // Link previews still work.
+    expect(metaContent(meta, 'og:title')).toBe('x · Locatic')
+    expect(links).toEqual([])
+  })
+
   it('declares the social image with its real size', () => {
     const { meta } = seo({ path: '/' })
     expect(metaContent(meta, 'og:image')).toBe(SOCIAL_IMAGE.url)

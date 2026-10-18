@@ -3,6 +3,7 @@ import { v } from 'convex/values'
 import { query } from './_generated/server'
 import { readActiveMapCities } from './cities'
 import { isProfileGone, isProfileOpenToSignedOutVisitors } from './lib/privacy'
+import { isCityIndexable, isProfileIndexable } from './lib/seo_thresholds'
 import { resolveProjectOwnerLogin } from './lib/project_route'
 
 /**
@@ -33,18 +34,21 @@ function boundedPage(paginationOpts: {
   }
 }
 
-// /sitemap.xml lists only pages a signed-out visitor can open; the route in
+// /sitemap.xml lists only pages a signed-out visitor can open and search
+// engines may index (lib/seo_thresholds.ts); the route in
 // src/routes/sitemap[.]xml.ts walks these pages.
 
-/** Active cities with builders. */
+/** Active cities with enough builders to be indexed, dated by activity. */
 export const cities = query({
   args: {},
   returns: v.array(sitemapEntryValidator),
   handler: async (ctx) =>
-    (await readActiveMapCities(ctx.db)).map((city) => ({
-      path: `/c/${city.slug}`,
-      updatedAt: null,
-    })),
+    (await readActiveMapCities(ctx.db))
+      .filter((city) => isCityIndexable(city))
+      .map((city) => ({
+        path: `/c/${city.slug}`,
+        updatedAt: city.lastActivityAt,
+      })),
 })
 
 /**
@@ -86,7 +90,8 @@ export const projects = query({
 
 /**
  * Onboarded builders whose profile a signed-out visitor can open
- * (`getAccessiblePublicProfileViewer`); `locatic_only` profiles stay out.
+ * (`getAccessiblePublicProfileViewer`) and that show at least one project;
+ * `locatic_only` profiles stay out.
  */
 export const profiles = query({
   args: { paginationOpts: paginationOptsValidator },
@@ -102,7 +107,8 @@ export const profiles = query({
         .filter(
           (user) =>
             user.onboardingCompletedAt &&
-            isProfileOpenToSignedOutVisitors(user),
+            isProfileOpenToSignedOutVisitors(user) &&
+            isProfileIndexable(user.stats),
         )
         .map((user) => ({
           path: `/u/${user.github.username}`,
