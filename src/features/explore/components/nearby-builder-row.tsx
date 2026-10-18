@@ -1,7 +1,9 @@
+import { Link } from '@tanstack/react-router'
 import { useId, type ReactNode } from 'react'
 import { PersonRow } from '@/components/ui/person-row'
 import { isCollaborationStatus, StatusPill } from '@/components/ui/status-pill'
 import { MessageSquare } from '@/lib/icons'
+import { cn } from '@/lib/utils'
 import type { BuilderPreview } from '@/features/explore/types'
 import { SignInLink } from './sign-in-link'
 
@@ -13,7 +15,6 @@ const messageIconButtonClass =
 export function NearbyBuilderRow({
   builder,
   compact = false,
-  onOpenProfile,
   onFollow,
   onMessage,
   followed,
@@ -24,7 +25,6 @@ export function NearbyBuilderRow({
 }: {
   builder: BuilderPreview
   compact?: boolean
-  onOpenProfile: () => void
   onFollow: () => void
   onMessage?: () => void
   followed: boolean
@@ -42,9 +42,9 @@ export function NearbyBuilderRow({
       {builder.isNewBuilder ? ' · new builder' : ''}
     </>
   )
-  // Collaboration intent (D3) beside the handle. The identity button's
+  // Collaboration intent (D3) beside the handle. The identity link's
   // `aria-label` hides its content from assistive tech, so the pill is also
-  // the button's description.
+  // the link's description.
   const statusId = useId()
   const collaborationStatus = isCollaborationStatus(builder.buildStatus)
     ? builder.buildStatus
@@ -60,15 +60,17 @@ export function NearbyBuilderRow({
     handle
   )
   const renderIdentity = (content: ReactNode, className: string) => (
-    <button
-      type="button"
-      onClick={onOpenProfile}
+    // A real link, so the profile is reachable without JavaScript too.
+    <Link
+      to="/u/$username"
+      params={{ username: builder.githubUsername }}
+      search={{ tab: 'projects' }}
       aria-label={`Open ${builder.displayName}'s profile`}
       aria-describedby={collaborationStatus ? statusId : undefined}
-      className={className}
+      className={cn(className, 'no-underline')}
     >
       {content}
-    </button>
+    </Link>
   )
 
   // Trailing actions: a message icon-button + a follow button, side by side, so

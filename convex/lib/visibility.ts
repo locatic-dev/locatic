@@ -25,7 +25,7 @@ export type LocationPolicyUser = {
 
 export type DisclosureCity = Pick<
   Doc<'cities'>,
-  '_id' | 'name' | 'displayName' | 'region' | 'country'
+  '_id' | 'name' | 'displayName' | 'slug' | 'region' | 'country'
 >
 
 export type LocationDisclosure =
@@ -33,6 +33,8 @@ export type LocationDisclosure =
       kind: 'city'
       cityId: Id<'cities'>
       cityName: string
+      /** The city page's URL segment, so links skip the id → slug redirect. */
+      citySlug: string
       regionLabel: string | null
     }
   | { kind: 'region'; regionLabel: string }
@@ -145,6 +147,7 @@ export function resolveLocationDisclosure(
         kind: 'city',
         cityId,
         cityName: city.displayName,
+        citySlug: city.slug,
         regionLabel: getRegionLabel(city),
       }
     case 'region_only': {

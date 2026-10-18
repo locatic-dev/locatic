@@ -205,6 +205,8 @@ describe('optimistic preview helpers', () => {
       kind: 'city',
       cityId: 'city_blr',
       cityName: 'Bengaluru, Karnataka, India',
+      // No slug in the private overview; the city page redirects the id.
+      citySlug: 'city_blr',
       regionLabel: null,
     })
     expect(publicPreview.cityLabel).toBe('Karnataka, India')

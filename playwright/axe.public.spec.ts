@@ -21,6 +21,7 @@ const CLERK_WIDGET = '.cl-rootBox'
 const STATIC_ROUTES: Array<{ name: string; path: string; exclude?: string[] }> =
   [
     { name: 'landing', path: '/' },
+    { name: 'about', path: '/about' },
     { name: 'explore projects', path: '/explore' },
     { name: 'explore builders', path: '/explore?mode=builders&scope=global' },
     { name: 'explore posts', path: '/explore?mode=posts&scope=global' },

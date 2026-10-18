@@ -200,7 +200,9 @@ export type PublicProfilePayload = {
 /** `users.publicProfileOverview`, as the profile feature types it. */
 export type PublicProfileOverviewPayload = PublicProfileOverview
 
-export type ThreadedProjectComment = Doc<'comments'> & {
+export type ThreadedProjectComment = Omit<Doc<'comments'>, 'authorSnapshot'> & {
+  /** The stored snapshot with the author's live location and city slug. */
+  authorSnapshot: Doc<'comments'>['authorSnapshot'] & { citySlug?: string }
   viewerHasLiked: boolean
   viewerReactionTypes: string[]
   reactionCounts?: Record<string, number>

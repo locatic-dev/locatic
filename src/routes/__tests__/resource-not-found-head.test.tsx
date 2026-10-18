@@ -89,6 +89,28 @@ describe('resource 404 head', () => {
     },
   )
 
+  it('keeps a thin city out of the index but follows its links', async () => {
+    const html = await renderHead(
+      '/c/$slug',
+      '/c/mysuru-in',
+      CityRoute.options,
+      {
+        city: {
+          cityId: 'city_mysuru',
+          slug: 'mysuru-in',
+          name: 'Mysuru',
+          displayName: 'Mysuru, Karnataka, India',
+          location: { lat: 12.3, lng: 76.6 },
+        },
+        stats: { builderCount: 2, projectCount: 1, lastActivityAt: null },
+        recentWork: { projects: [], hasMore: false },
+      },
+    )
+
+    expect(html).toContain('content="noindex, follow"')
+    expect(html).not.toContain('rel="canonical"')
+  })
+
   it('keeps the page head for a city that exists', async () => {
     const html = await renderHead(
       '/c/$slug',
@@ -100,11 +122,16 @@ describe('resource 404 head', () => {
           slug: 'mysuru-in',
           name: 'Mysuru',
           displayName: 'Mysuru, Karnataka, India',
+          location: { lat: 12.3, lng: 76.6 },
         },
+        stats: { builderCount: 3, projectCount: 1, lastActivityAt: null },
+        recentWork: { projects: [], hasMore: false },
       },
     )
 
-    expect(html).toContain('<title>Mysuru · Locatic</title>')
+    expect(html).toContain(
+      '<title>Developers and projects in Mysuru · Locatic</title>',
+    )
     expect(html).toContain('https://locatic.dev/c/mysuru-in')
     expect(html).not.toContain('noindex')
   })

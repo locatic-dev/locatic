@@ -272,6 +272,7 @@ export const locationDisclosureValidator = v.union(
     kind: v.literal('city'),
     cityId: v.id('cities'),
     cityName: v.string(),
+    citySlug: v.string(),
     regionLabel: optionalStringValidator,
   }),
   v.object({

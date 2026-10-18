@@ -93,6 +93,7 @@ describe('settings location and discovery controls (D8)', () => {
       kind: 'city',
       cityId: bengaluru,
       cityName: 'Bengaluru, Karnataka, India',
+      citySlug: 'bengaluru-in',
       regionLabel: 'Karnataka, India',
     })
     expect(await inCityFeed()).toBe(true)

@@ -24,6 +24,9 @@ export function PublicFooter() {
         >
           contact
         </a>
+        <Link to="/about" className={footerLinkClassName}>
+          about
+        </Link>
         <Link to="/privacy" className={footerLinkClassName}>
           privacy
         </Link>

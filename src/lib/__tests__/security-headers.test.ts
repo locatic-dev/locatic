@@ -31,6 +31,23 @@ describe('securityHeaders', () => {
     }
   })
 
+  it('marks non-production hosts noindex', () => {
+    for (const url of [
+      'https://development.locatic.dev/',
+      'https://locatic.example.workers.dev/',
+      'http://localhost:3000/',
+      'http://locatic.dev/',
+    ]) {
+      expect(headersFor(url)['X-Robots-Tag']).toBe('noindex, nofollow')
+    }
+  })
+
+  it('lets the production host be indexed', () => {
+    expect(headersFor('https://locatic.dev/')).not.toHaveProperty(
+      'X-Robots-Tag',
+    )
+  })
+
   it('blocks framing, sniffing and unused device APIs', () => {
     const headers = headersFor('https://locatic.dev/')
     expect(headers['X-Frame-Options']).toBe('DENY')
