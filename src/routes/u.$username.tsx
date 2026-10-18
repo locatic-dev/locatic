@@ -9,6 +9,7 @@ import {
   Link,
   createFileRoute,
   notFound,
+  stripSearchParams,
   useRouterState,
 } from '@tanstack/react-router'
 import type { Id } from '../../convex/_generated/dataModel'
@@ -44,8 +45,10 @@ import {
   isProfileContributionsPublic,
   mergeSocialItems,
   normalizeProfileSearch,
+  PROFILE_SEARCH_DEFAULTS,
   type ProfileContentTab,
   type ProfileNetworkTab,
+  type ProfileSearch,
 } from '@/features/profile/state'
 import type { PublicProfileOverview } from '@/features/profile/types'
 import { ProfileContentTabs } from '@/features/profile/content-tabs'
@@ -81,12 +84,22 @@ import { viewerQueryOptions } from '@/features/viewer/queries'
 import { notificationsUnreadCountQueryOptions } from '@/features/notifications/queries'
 import { useOpenConversation } from '@/features/inbox/use-open-conversation'
 import { notFoundSeo, seo, truncateDescription } from '@/lib/seo'
+import { profilePageNode } from '@/lib/structured-data'
+import { JsonLd } from '@/components/ui/json-ld'
+import { isProfileIndexable } from '../../convex/lib/seo_thresholds'
 
 const TAB_QUERY_STALE_TIME = 60_000
 const SOCIAL_PAGE_SIZE = 12
 
 export const Route = createFileRoute('/u/$username')({
   validateSearch: normalizeProfileSearch,
+  // Default tabs stay out of hrefs, so /u/{username} renders at its
+  // canonical URL instead of redirecting to ?network=followers&tab=projects.
+  search: {
+    middlewares: [
+      stripSearchParams<ProfileSearch, ProfileSearch>(PROFILE_SEARCH_DEFAULTS),
+    ],
+  },
   loaderDeps: ({ search }) => ({
     network: search.network ?? 'followers',
   }),
@@ -130,16 +143,7 @@ export const Route = createFileRoute('/u/$username')({
     match.status === 'notFound'
       ? notFoundSeo()
       : loaderData
-        ? seo({
-            title: `${loaderData.profile.displayName} (@${loaderData.githubUsername})`,
-            description: truncateDescription(
-              loaderData.profile.bio ||
-                `${loaderData.profile.displayName} on Locatic: public projects, releases and posts${loaderData.profile.city ? ` from ${loaderData.profile.city}` : ''}.`,
-            ),
-            // Members-only profiles 404 for signed-out visitors (crawlers and
-            // link previews included), so only public profiles are indexable.
-            path: `/u/${loaderData.githubUsername}`,
-          })
+        ? profileHead(loaderData)
         : {},
   // Each profile is its own page: remount on a new username so local state
   // (tabs, pending follow, open dialogs) never carries over to the next one.
@@ -150,6 +154,26 @@ export const Route = createFileRoute('/u/$username')({
   notFoundComponent: BuilderNotFound,
   component: PublicProfilePage,
 })
+
+/**
+ * Members-only profiles 404 for signed-out visitors (crawlers and link
+ * previews included), so only public profiles reach this head; they are
+ * indexable once they show a project (and then also carry structured data,
+ * rendered with the page).
+ */
+function profileHead(overview: PublicProfileOverview) {
+  return seo({
+    title: `${overview.profile.displayName} (@${overview.githubUsername})`,
+    description: truncateDescription(
+      overview.profile.bio ||
+        `${overview.profile.displayName} on Locatic: public projects, releases and posts${overview.profile.city ? ` from ${overview.profile.city}` : ''}.`,
+    ),
+    path: `/u/${overview.githubUsername}`,
+    thin: !isProfileIndexable(overview.stats),
+    type: 'profile',
+    username: overview.githubUsername,
+  })
+}
 
 function PublicProfilePage() {
   const { username } = Route.useParams()
@@ -174,11 +198,16 @@ function PublicProfilePage() {
   }
 
   const content = (
-    <PublicProfileContent
-      isOwnProfile={viewer?.githubUsername === overview.githubUsername}
-      overview={overview}
-      username={username}
-    />
+    <>
+      <PublicProfileContent
+        isOwnProfile={viewer?.githubUsername === overview.githubUsername}
+        overview={overview}
+        username={username}
+      />
+      {isProfileIndexable(overview.stats) && (
+        <JsonLd nodes={profilePageNode(overview)} />
+      )}
+    </>
   )
 
   if (!viewer) {

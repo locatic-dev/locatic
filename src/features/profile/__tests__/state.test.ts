@@ -6,6 +6,7 @@ import {
   mergeSocialItems,
   normalizeProfileSearch,
   PROFILE_CONTENT_TAB_VALUES,
+  PROFILE_SEARCH_DEFAULTS,
   summarizeProfileLanguages,
 } from '../state'
 
@@ -134,5 +135,11 @@ describe('profile state helpers', () => {
       { userId: 'u2', name: 'two' },
       { userId: 'u3', name: 'three' },
     ])
+  })
+})
+
+describe('PROFILE_SEARCH_DEFAULTS', () => {
+  it('is what a bare profile URL normalizes to', () => {
+    expect(normalizeProfileSearch({})).toEqual(PROFILE_SEARCH_DEFAULTS)
   })
 })

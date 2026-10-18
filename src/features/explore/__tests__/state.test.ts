@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/status-pill'
 
 import {
+  EXPLORE_SEARCH_DEFAULTS,
   areExploreCityIdsEqual,
   dedupeExploreCities,
   dedupeExploreCityIds,
@@ -634,5 +635,12 @@ describe('explore filters in the URL (D2, D3)', () => {
 
   it('uses the client new-builder window for the server label', () => {
     expect(NEW_BUILDER_WINDOW_MS).toBe(CLIENT_NEW_BUILDER_WINDOW_MS)
+  })
+})
+
+describe('EXPLORE_SEARCH_DEFAULTS', () => {
+  it('is what an empty Explore URL normalizes to', () => {
+    expect(normalizeExploreSearch({})).toMatchObject(EXPLORE_SEARCH_DEFAULTS)
+    expect(getFreshExploreSearch()).toEqual(EXPLORE_SEARCH_DEFAULTS)
   })
 })

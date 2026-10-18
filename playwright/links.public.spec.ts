@@ -6,7 +6,7 @@ import { expect, test } from './fixtures/test'
  * social preview image are served.
  */
 
-const PUBLIC_PAGES = ['/', '/explore', '/privacy', '/terms']
+const PUBLIC_PAGES = ['/', '/about', '/explore', '/privacy', '/terms']
 
 test.describe('public links and crawler files', () => {
   test('every same-origin link on the public pages resolves', async ({
@@ -56,14 +56,20 @@ test.describe('public links and crawler files', () => {
     }
   })
 
-  test('robots.txt points to the sitemap and keeps private pages out', async ({
+  test('robots.txt opens production and closes every other host', async ({
     request,
+    baseURL,
   }) => {
     const response = await request.get('/robots.txt')
     expect(response.status()).toBe(200)
+    expect(response.headers()['content-type']).toContain('text/plain')
     const robots = await response.text()
-    expect(robots).toContain('Sitemap: https://locatic.dev/sitemap.xml')
-    expect(robots).toContain('Disallow: /settings')
+    if (new URL(baseURL!).origin === 'https://locatic.dev') {
+      expect(robots).toContain('Sitemap: https://locatic.dev/sitemap.xml')
+      expect(robots).toContain('Disallow: /settings')
+    } else {
+      expect(robots).toBe('User-agent: *\nDisallow: /\n')
+    }
   })
 
   test('declares a social preview image that is served', async ({

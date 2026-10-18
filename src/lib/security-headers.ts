@@ -57,18 +57,25 @@ const CONTENT_SECURITY_POLICY = Object.entries(CSP_DIRECTIVES)
   .map(([directive, sources]) => `${directive} ${sources.join(' ')}`)
   .join('; ')
 
+/** True only for https://locatic.dev: the one host search engines may index. */
+export function isProductionHost(url: URL): boolean {
+  return url.protocol === 'https:' && url.host === PRODUCTION_HOST
+}
+
 /**
- * HSTS is sent only for the production host over HTTPS: browsers ignore it on
- * plain HTTP, and preview and development hosts should not be pinned. The
- * policy is report-only until the browser console shows no violations in
- * production; then rename the header to `Content-Security-Policy`.
+ * Both host-dependent headers key off `isProductionHost`. HSTS is sent only
+ * there: browsers ignore it on plain HTTP, and preview and development hosts
+ * should not be pinned. Every other host gets `X-Robots-Tag: noindex`, because
+ * development and preview deployments mirror production and must never
+ * compete with locatic.dev in search results. The policy is report-only until
+ * the browser console shows no violations in production; then rename the
+ * header to `Content-Security-Policy`.
  */
 export function securityHeaders(url: URL): Record<string, string> {
-  const hsts = url.protocol === 'https:' && url.host === PRODUCTION_HOST
   return {
-    ...(hsts
+    ...(isProductionHost(url)
       ? { 'Strict-Transport-Security': 'max-age=31536000; includeSubDomains' }
-      : {}),
+      : { 'X-Robots-Tag': 'noindex, nofollow' }),
     'X-Content-Type-Options': 'nosniff',
     'Referrer-Policy': 'strict-origin-when-cross-origin',
     'X-Frame-Options': 'DENY',

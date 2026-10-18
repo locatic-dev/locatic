@@ -77,7 +77,10 @@ export function getExploreModeFilters(
 export type ExploreLoaderDeps = Pick<
   ExploreSearch,
   'mode' | 'scope' | 'selectedCityIds'
->
+> & {
+  /** The filters of the active mode, for the visitor feed's first page. */
+  filters: ExploreFilters
+}
 
 type ExplorePrefsLike = {
   exploreConfig: {
@@ -265,13 +268,22 @@ export function getExploreResultSetKey({
   ])
 }
 
+/**
+ * What an unfiltered Explore URL normalizes to. The route strips these values
+ * from every href, so `/explore` is its own canonical URL instead of
+ * redirecting to a parameterized copy of itself.
+ */
+export const EXPLORE_SEARCH_DEFAULTS: Readonly<
+  Pick<ExploreSearch, 'mode' | 'q' | 'scope' | 'selectedCityIds'>
+> = {
+  mode: 'projects',
+  q: '',
+  scope: 'default',
+  selectedCityIds: [],
+}
+
 export function getFreshExploreSearch(): ExploreSearch {
-  return {
-    mode: 'projects',
-    q: '',
-    scope: 'default',
-    selectedCityIds: [],
-  }
+  return { ...EXPLORE_SEARCH_DEFAULTS, selectedCityIds: [] }
 }
 
 /**
@@ -446,6 +458,7 @@ export function getExploreLoaderDeps(
     mode: normalizedSearch.mode,
     scope: normalizedSearch.scope,
     selectedCityIds: normalizedSearch.selectedCityIds,
+    filters: getExploreModeFilters(normalizedSearch, normalizedSearch.mode),
   }
 }
 

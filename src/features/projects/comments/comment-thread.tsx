@@ -149,6 +149,7 @@ export function CommentThread({
                 <CityPill
                   city={comment.authorSnapshot.cityName}
                   cityId={comment.authorSnapshot.cityId}
+                  citySlug={comment.authorSnapshot.citySlug}
                 />
               )}
               <span className="font-mono text-meta text-text-muted">

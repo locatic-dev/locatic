@@ -57,6 +57,7 @@ vi.mock('@tanstack/react-router', () => ({
     </a>
   ),
   notFound: () => ({ isNotFound: true }),
+  stripSearchParams: () => () => ({}),
   useRouter: () => ({ navigate: vi.fn() }),
   useRouterState: ({
     select,

@@ -14,6 +14,7 @@ import {
 } from 'react'
 import { Link } from '@tanstack/react-router'
 import { LxAvatar } from '@/components/ui/lx-avatar'
+import { useHydrated } from '@/lib/use-hydrated'
 import type { LatLng } from '@/lib/geo'
 import { easeOutExpo, usePrefersReducedMotion } from '@/lib/motion'
 import { relativeTime } from '@/lib/time'
@@ -83,9 +84,6 @@ const MAX_SPIN = 720
 // Client-only facts read through useSyncExternalStore: the server snapshot is
 // what the server rendered, so hydration always matches, and React re-renders
 // with the browser's value right after.
-const subscribeNever = () => () => {}
-const readHydrated = () => true
-const readServerHydrated = () => false
 
 function subscribeVisibility(onChange: () => void) {
   document.addEventListener('visibilitychange', onChange)
@@ -571,11 +569,7 @@ export function PingGlobe({
   const boxRef = useRef<HTMLDivElement>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const hydrated = useSyncExternalStore(
-    subscribeNever,
-    readHydrated,
-    readServerHydrated,
-  )
+  const hydrated = useHydrated()
   const pageVisible = useSyncExternalStore(
     subscribeVisibility,
     readPageVisible,
