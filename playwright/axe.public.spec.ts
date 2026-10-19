@@ -27,6 +27,7 @@ const STATIC_ROUTES: Array<{ name: string; path: string; exclude?: string[] }> =
     { name: 'explore posts', path: '/explore?mode=posts&scope=global' },
     { name: 'privacy', path: '/privacy' },
     { name: 'terms', path: '/terms' },
+    { name: 'unsubscribe', path: '/unsubscribe?t=invalid' },
     { name: 'sign in', path: '/sign-in', exclude: [CLERK_WIDGET] },
     { name: 'unknown city', path: '/c/atlantis-nowhere' },
     { name: 'not found', path: '/this-route-does-not-exist' },

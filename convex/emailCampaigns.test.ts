@@ -1,20 +1,30 @@
-import { convexTest } from 'convex-test'
+import { convexTest, type TestConvex } from 'convex-test'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { fixtureClerkId, seedUser } from './__tests__/fixtures.helpers'
-import { campaignContentFingerprint } from './lib/email_campaigns'
-import { emailRefs } from './lib/email_function_refs'
+import {
+  BENGALURU,
+  DAY_MS,
+  fixtureClerkId,
+  NOW,
+  seedCity,
+  seedProject,
+  seedUser,
+} from './__tests__/fixtures.helpers'
+import { api } from './_generated/api'
+import type { Id } from './_generated/dataModel'
+import { createDefaultViewerProfile } from './lib/viewer'
 import schema from './schema'
 
 const modules = import.meta.glob('./**/*.ts')
 
-const content = {
+const draft = {
   subject: 'what builders shipped',
   preheader: 'a fortnight of public work',
-  introduction: 'A short look at what the Locatic community shipped.',
-  projects: [],
-  discussions: [],
-  shippingUpdate: '',
+  content: {
+    kind: 'announcement' as const,
+    body: 'A short look at what the Locatic community shipped.',
+    cta: null,
+  },
 }
 
 afterEach(() => {
@@ -29,7 +39,7 @@ describe('email campaigns', () => {
     await seedUser(t, { username: 'ada' })
 
     await expect(
-      t.mutation(emailRefs.campaigns.createDraft, {
+      t.mutation(api.emailCampaigns.createDraft, {
         kind: 'announcement',
         title: 'shipping update',
       }),
@@ -37,7 +47,7 @@ describe('email campaigns', () => {
     await expect(
       t
         .withIdentity({ subject: fixtureClerkId('ada') })
-        .mutation(emailRefs.campaigns.createDraft, {
+        .mutation(api.emailCampaigns.createDraft, {
           kind: 'announcement',
           title: 'shipping update',
         }),
@@ -45,7 +55,7 @@ describe('email campaigns', () => {
     await expect(
       t
         .withIdentity({ subject: fixtureClerkId('ada') })
-        .query(emailRefs.campaigns.list, {}),
+        .query(api.emailCampaigns.list, {}),
     ).rejects.toThrow('Email admin access required')
   })
 
@@ -58,7 +68,7 @@ describe('email campaigns', () => {
     await expect(
       t
         .withIdentity({ subject: fixtureClerkId('admin') })
-        .mutation(emailRefs.campaigns.createDraft, {
+        .mutation(api.emailCampaigns.createDraft, {
           kind: 'announcement',
           title: 'shipping update',
         }),
@@ -70,24 +80,24 @@ describe('email campaigns', () => {
     const t = convexTest(schema, modules)
     await seedUser(t, { username: 'admin' })
     const admin = t.withIdentity({ subject: fixtureClerkId('admin') })
-    const campaignId = await admin.mutation(emailRefs.campaigns.createDraft, {
-      kind: 'digest',
-      title: 'fortnightly digest',
+    const campaignId = await admin.mutation(api.emailCampaigns.createDraft, {
+      kind: 'announcement',
+      title: 'shipping update',
     })
 
-    const revision = await admin.mutation(emailRefs.campaigns.saveDraft, {
+    const revision = await admin.mutation(api.emailCampaigns.saveDraft, {
       campaignId,
       expectedRevision: 1,
-      title: 'fortnightly digest',
-      content,
+      title: 'shipping update',
+      ...draft,
     })
     expect(revision).toBe(2)
     await expect(
-      admin.mutation(emailRefs.campaigns.saveDraft, {
+      admin.mutation(api.emailCampaigns.saveDraft, {
         campaignId,
         expectedRevision: 1,
         title: 'stale title',
-        content,
+        ...draft,
       }),
     ).rejects.toThrow('Campaign changed')
   })
@@ -97,143 +107,330 @@ describe('email campaigns', () => {
     const t = convexTest(schema, modules)
     await seedUser(t, { username: 'admin' })
     const admin = t.withIdentity({ subject: fixtureClerkId('admin') })
-    const campaignId = await admin.mutation(emailRefs.campaigns.createDraft, {
+    const campaignId = await admin.mutation(api.emailCampaigns.createDraft, {
       kind: 'announcement',
       title: 'shipping update',
     })
 
     await expect(
-      admin.mutation(emailRefs.campaigns.saveDraft, {
+      admin.mutation(api.emailCampaigns.saveDraft, {
         campaignId,
         expectedRevision: 1,
         title: 'shipping update',
-        content: { ...content, subject: 'x'.repeat(141) },
+        ...draft,
+        subject: 'x'.repeat(141),
       }),
     ).rejects.toThrow('Subject is too long')
   })
 
-  it('records one send intent when an operator repeats the same request', async () => {
+  it('edits only drafts and never changes the campaign kind', async () => {
     vi.stubEnv('EMAIL_ADMIN_CLERK_IDS', fixtureClerkId('admin'))
-    vi.stubEnv('EMAIL_SENDING_ENABLED', 'true')
     const t = convexTest(schema, modules)
-    const adminId = await seedUser(t, { username: 'admin' })
-    const subscriberId = await seedUser(t, { username: 'reader' })
-    const { campaignId, runId } = await t.run(async (ctx) => {
-      const subscriber = await ctx.db.get(subscriberId)
-      if (!subscriber) throw new Error('subscriber fixture missing')
-      await ctx.db.patch(subscriberId, {
-        notificationPrefs: {
-          ...subscriber.notificationPrefs,
-          weeklyDigest: true,
-        },
-        emailSubscription: {
-          primaryEmailVerified: true,
-          primaryEmailVerifiedAt: Date.now(),
-          preferenceVersion: 1,
-          preferenceUpdatedAt: Date.now(),
-          preferenceSource: 'settings',
-        },
-      })
-      const contactId = await ctx.db.insert('email_contacts', {
-        userId: subscriberId,
-        email: subscriber.email,
-        normalizedEmail: subscriber.email,
-        emailVerified: true,
-        desiredSubscribed: true,
-        preferenceVersion: 1,
-        acknowledgedVersion: 1,
-        syncStatus: 'synced',
-        providerContactId: 'contact_1',
-        syncedEmail: subscriber.email,
-        providerUnsubscribed: false,
-        suppression: 'none',
-        lastError: null,
-        lastSyncAttemptedAt: Date.now(),
-        lastSyncedAt: Date.now(),
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-      })
-      const now = Date.now()
-      const campaignId = await ctx.db.insert('email_campaigns', {
-        kind: 'announcement',
-        title: 'shipping update',
-        periodKey: null,
-        periodStart: null,
-        periodEnd: null,
-        revision: 1,
-        templateVersion: 1,
-        content: { ...content, subject: 'Shipping update' },
-        state: 'review_ready',
-        preparationDiagnostics: [],
-        createdBy: adminId,
-        updatedBy: adminId,
-        createdAt: now,
-        updatedAt: now,
-      })
-      const storedCampaign = await ctx.db.get(campaignId)
-      if (!storedCampaign) throw new Error('campaign fixture missing')
-      const runId = await ctx.db.insert('email_campaign_runs', {
+    await seedUser(t, { username: 'admin' })
+    const admin = t.withIdentity({ subject: fixtureClerkId('admin') })
+    const campaignId = await admin.mutation(api.emailCampaigns.createDraft, {
+      kind: 'announcement',
+      title: 'shipping update',
+    })
+
+    await expect(
+      admin.mutation(api.emailCampaigns.saveDraft, {
         campaignId,
-        campaignRevision: 1,
-        requestId: `${campaignId}:1`,
-        stage: 'ready',
-        subject: 'Shipping update',
-        html: '<p>Shipping update</p>',
-        text: 'Shipping update',
-        contentFingerprint: campaignContentFingerprint(storedCampaign.content),
-        sourceFingerprint: '',
-        audienceCutoffAt: now,
-        audienceSummary: {
-          eligible: 1,
-          excludedDisabled: 1,
-          excludedInactive: 0,
-          excludedUnverified: 0,
-          excludedSuppressed: 0,
-          excludedDuplicate: 0,
-          pendingSync: 0,
+        expectedRevision: 1,
+        title: 'shipping update',
+        subject: 'News',
+        preheader: '',
+        content: {
+          kind: 'digest',
+          body: 'Hello',
+          cta: null,
+          periodKey: 'manual:x',
+          periodStart: 0,
+          periodEnd: 0,
+          projects: [],
+          discussions: [],
         },
-        approvedBy: adminId,
-        approvedAt: now,
-        providerBroadcastId: null,
-        metrics: {
-          sent: 0,
-          delivered: 0,
-          bounced: 0,
-          complained: 0,
-          failed: 0,
-          suppressed: 0,
-        },
-        retryCount: 0,
-        lastError: null,
-        createdAt: now,
-        updatedAt: now,
-      })
-      await ctx.db.insert('email_campaign_recipients', {
-        runId,
-        contactId,
-        normalizedEmail: subscriber.email,
-        stateVersion: 1,
-        providerContactId: 'contact_1',
-        createdAt: now,
-      })
-      return { campaignId, runId }
+      }),
+    ).rejects.toThrow('Campaign type cannot change')
+
+    await t.run((ctx) => ctx.db.patch(campaignId, { state: 'sending' }))
+    await expect(
+      admin.mutation(api.emailCampaigns.saveDraft, {
+        campaignId,
+        expectedRevision: 1,
+        title: 'shipping update',
+        ...draft,
+      }),
+    ).rejects.toThrow('Campaign can only be edited as a draft')
+  })
+
+  it('creates digests with a manual period and empty selections', async () => {
+    vi.stubEnv('EMAIL_ADMIN_CLERK_IDS', fixtureClerkId('admin'))
+    vi.stubEnv('EMAIL_SENDING_ENABLED', '')
+    vi.stubEnv('EMAIL_TEST_SENDING_ENABLED', '')
+    vi.stubEnv('EMAIL_TEST_RECIPIENTS', '')
+    const t = convexTest(schema, modules)
+    await seedUser(t, { username: 'admin' })
+    const admin = t.withIdentity({ subject: fixtureClerkId('admin') })
+    const campaignId = await admin.mutation(api.emailCampaigns.createDraft, {
+      kind: 'digest',
+      title: 'hand-made digest',
+    })
+
+    let campaign = await admin.query(api.emailCampaigns.get, { campaignId })
+    expect(campaign?.content).toMatchObject({
+      kind: 'digest',
+      body: '',
+      cta: null,
+      periodKey: expect.stringMatching(/^manual:/),
+      projects: [],
+      discussions: [],
+    })
+    expect(campaign?.state).toBe('draft')
+    expect(campaign).toMatchObject({
+      sendingEnabled: false,
+      testSendingEnabled: false,
+      testRecipients: [],
+      defaultTestRecipient: null,
+      sending: null,
+      results: null,
+    })
+
+    vi.stubEnv('EMAIL_TEST_RECIPIENTS', 'ADMIN@example.test,qa@example.test')
+    campaign = await admin.query(api.emailCampaigns.get, { campaignId })
+    expect(campaign?.testRecipients).toEqual([
+      'ADMIN@example.test',
+      'qa@example.test',
+    ])
+    expect(campaign?.defaultTestRecipient).toBe('admin@example.test')
+  })
+})
+
+async function setPrefs(
+  t: TestConvex<typeof schema>,
+  userId: Id<'users'>,
+  patch: {
+    emailVerified?: boolean
+    productUpdates?: boolean
+    weeklyDigest?: boolean
+    deactivatedAt?: number
+  },
+) {
+  await t.run(async (ctx) => {
+    const user = await ctx.db.get(userId)
+    if (!user) throw new Error('missing fixture user')
+    await ctx.db.patch(userId, {
+      ...(patch.emailVerified === undefined
+        ? {}
+        : { emailVerified: patch.emailVerified }),
+      ...(patch.deactivatedAt === undefined
+        ? {}
+        : { deactivatedAt: patch.deactivatedAt }),
+      notificationPrefs: {
+        ...user.notificationPrefs,
+        ...(patch.productUpdates === undefined
+          ? {}
+          : { productUpdates: patch.productUpdates }),
+        ...(patch.weeklyDigest === undefined
+          ? {}
+          : { weeklyDigest: patch.weeklyDigest }),
+      },
+    })
+  })
+}
+
+describe('email campaign preview', () => {
+  it('renders unsaved content for admins and echoes the request number', async () => {
+    vi.stubEnv('EMAIL_ADMIN_CLERK_IDS', fixtureClerkId('admin'))
+    vi.stubEnv('SITE_URL', 'https://locatic.test')
+    const t = convexTest(schema, modules)
+    await seedUser(t, { username: 'admin' })
+    await seedUser(t, { username: 'ada' })
+    const admin = t.withIdentity({ subject: fixtureClerkId('admin') })
+    const args = {
+      requestId: 7,
+      subject: 'Maps are live',
+      preheader: '',
+      content: {
+        kind: 'announcement' as const,
+        body: 'Hello **builders**',
+        cta: null,
+      },
+    }
+
+    const preview = await admin.action(api.emailRender.previewCampaign, args)
+    expect(preview.requestId).toBe(7)
+    expect(preview.html).toContain('<strong>builders</strong>')
+    expect(preview.html).toContain('https://locatic.test/settings')
+
+    await expect(
+      admin.action(api.emailRender.previewCampaign, {
+        ...args,
+        subject: 'x'.repeat(141),
+      }),
+    ).rejects.toThrow('Subject is too long')
+    await expect(
+      t
+        .withIdentity({ subject: fixtureClerkId('ada') })
+        .action(api.emailRender.previewCampaign, args),
+    ).rejects.toThrow('Email admin access required')
+  })
+
+  it('estimates the audience with a sample and skipped counts', async () => {
+    vi.stubEnv('EMAIL_ADMIN_CLERK_IDS', fixtureClerkId('admin'))
+    const t = convexTest(schema, modules)
+    await seedUser(t, { username: 'admin' })
+    const ada = await seedUser(t, { username: 'ada', displayName: 'Ada L' })
+    const bob = await seedUser(t, { username: 'bob' })
+    const carol = await seedUser(t, { username: 'carol' })
+    await seedUser(t, { username: 'dan' })
+    const eve = await seedUser(t, { username: 'eve' })
+    await setPrefs(t, ada, { emailVerified: true })
+    await setPrefs(t, bob, { emailVerified: true, weeklyDigest: true })
+    await setPrefs(t, carol, { emailVerified: true, productUpdates: false })
+    await setPrefs(t, eve, { emailVerified: true, deactivatedAt: 1 })
+    const admin = t.withIdentity({ subject: fixtureClerkId('admin') })
+    const announcement = await admin.mutation(api.emailCampaigns.createDraft, {
+      kind: 'announcement',
+      title: 'update',
+    })
+    const digest = await admin.mutation(api.emailCampaigns.createDraft, {
+      kind: 'digest',
+      title: 'digest',
+    })
+
+    await expect(
+      admin.query(api.emailCampaigns.getSendPreview, {
+        campaignId: announcement,
+      }),
+    ).resolves.toEqual({
+      estimatedCount: 2,
+      capped: false,
+      sample: [
+        { displayName: 'Ada L', githubUsername: 'ada' },
+        { displayName: 'bob', githubUsername: 'bob' },
+      ],
+      skipped: { unsubscribed: 1, unverified: 2, inactive: 1 },
+    })
+    await expect(
+      admin.query(api.emailCampaigns.getSendPreview, { campaignId: digest }),
+    ).resolves.toMatchObject({
+      estimatedCount: 1,
+      sample: [{ displayName: 'bob', githubUsername: 'bob' }],
+      skipped: { unsubscribed: 2, unverified: 2, inactive: 1 },
+    })
+    await expect(
+      t
+        .withIdentity({ subject: fixtureClerkId('ada') })
+        .query(api.emailCampaigns.getSendPreview, { campaignId: digest }),
+    ).rejects.toThrow('Email admin access required')
+  })
+
+  it('estimates from at most the first 100 members', async () => {
+    vi.stubEnv('EMAIL_ADMIN_CLERK_IDS', fixtureClerkId('admin'))
+    const t = convexTest(schema, modules)
+    await seedUser(t, { username: 'admin' })
+    await t.run(async (ctx) => {
+      for (let index = 0; index < 101; index += 1) {
+        await ctx.db.insert('users', {
+          ...createDefaultViewerProfile({
+            clerkId: `bulk_${index}`,
+            email: `bulk${index}@example.test`,
+            githubId: index,
+            githubUsername: `bulk${index}`,
+            githubUrl: `https://github.com/bulk${index}`,
+            avatarUrl: '',
+            displayName: `bulk ${index}`,
+          }),
+          emailVerified: true,
+        })
+      }
     })
     const admin = t.withIdentity({ subject: fixtureClerkId('admin') })
-    const args = { campaignId, reviewedRevision: 1, reviewId: runId }
+    const campaignId = await admin.mutation(api.emailCampaigns.createDraft, {
+      kind: 'announcement',
+      title: 'update',
+    })
 
-    const first = await admin.mutation(emailRefs.campaigns.requestSend, args)
-    const second = await admin.mutation(emailRefs.campaigns.requestSend, args)
-    expect(first).toBe(runId)
-    expect(second).toBe(runId)
-    expect(
-      await t.run((ctx) =>
-        ctx.db
-          .query('email_campaign_runs')
-          .withIndex('by_campaign_revision', (index) =>
-            index.eq('campaignId', campaignId).eq('campaignRevision', 1),
-          )
-          .collect(),
-      ),
-    ).toHaveLength(1)
+    const preview = await admin.query(api.emailCampaigns.getSendPreview, {
+      campaignId,
+    })
+    // The admin (unverified) and 99 members fill the first 100.
+    expect(preview.capped).toBe(true)
+    expect(preview.estimatedCount).toBe(99)
+    expect(preview.skipped.unverified).toBe(1)
+    expect(preview.sample).toHaveLength(5)
+  })
+})
+
+describe('email campaign project search', () => {
+  async function setupSearch() {
+    vi.stubEnv('EMAIL_ADMIN_CLERK_IDS', fixtureClerkId('admin'))
+    vi.stubEnv('SITE_URL', 'https://locatic.test')
+    const t = convexTest(schema, modules)
+    await seedUser(t, { username: 'admin' })
+    // Explore eligibility needs an owner with a profile city.
+    const cityId = await seedCity(t, BENGALURU)
+    const ownerId = await seedUser(t, { username: 'ada', cityId })
+    const mapkit = await seedProject(t, {
+      ownerId,
+      name: 'mapkit',
+      addedAt: NOW - 400 * DAY_MS,
+    })
+    for (let index = 0; index < 80; index += 1) {
+      await seedProject(t, {
+        ownerId,
+        name: `newer-${index}`,
+        addedAt: NOW - index * 1_000,
+      })
+    }
+    const hidden = await seedProject(t, {
+      ownerId,
+      name: 'mapkit-private',
+      isVisible: false,
+    })
+    return {
+      t,
+      mapkit,
+      hidden,
+      admin: t.withIdentity({ subject: fixtureClerkId('admin') }),
+    }
+  }
+
+  it('finds an older project by name behind many newer ones', async () => {
+    const { admin, mapkit } = await setupSearch()
+
+    const results = await admin.query(api.emailCampaigns.searchProjects, {
+      query: 'mapkit',
+    })
+    expect(results.map((project) => project.projectId)).toEqual([mapkit])
+  })
+
+  it.each([
+    'ada/mapkit',
+    'Ada/MapKit',
+    'https://github.com/ada/mapkit',
+    'https://locatic.test/project/ada/mapkit',
+  ])('ranks an exact match for %s first', async (query) => {
+    const { admin, mapkit } = await setupSearch()
+
+    const results = await admin.query(api.emailCampaigns.searchProjects, {
+      query,
+    })
+    expect(results[0]?.projectId).toBe(mapkit)
+    expect(new Set(results.map((project) => project.projectId)).size).toBe(
+      results.length,
+    )
+  })
+
+  it('never offers a hidden project, by name or exact reference', async () => {
+    const { admin, hidden } = await setupSearch()
+
+    for (const query of ['mapkit-private', 'ada/mapkit-private']) {
+      const results = await admin.query(api.emailCampaigns.searchProjects, {
+        query,
+      })
+      expect(results.map((project) => project.projectId)).not.toContain(hidden)
+    }
   })
 })

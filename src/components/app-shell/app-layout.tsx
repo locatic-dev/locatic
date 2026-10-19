@@ -18,6 +18,8 @@ interface AppLayoutProps {
   rightRail?: ReactNode
   unreadNotifications?: number
   unreadMessages?: number
+  /** Adds the email campaigns link to the account menu. */
+  isEmailAdmin?: boolean
 }
 
 export function AppLayout({
@@ -26,6 +28,7 @@ export function AppLayout({
   rightRail,
   unreadNotifications,
   unreadMessages,
+  isEmailAdmin = false,
 }: AppLayoutProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
@@ -60,6 +63,7 @@ export function AppLayout({
           viewer={viewer}
           unreadNotifications={unreadNotifications}
           unreadMessages={unreadMessages}
+          isEmailAdmin={isEmailAdmin}
           collapsed={sidebarCollapsed}
           onCollapsedChange={handleSidebarCollapsedChange}
         />

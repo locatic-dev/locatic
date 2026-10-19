@@ -156,6 +156,12 @@ export function StepNav({
           {!isLast && <ArrowRight size={13} strokeWidth={2} />}
         </Button>
       </div>
+      {isLast && (
+        <p className="m-0 basis-full text-right font-mono text-meta text-text-muted">
+          We'll email occasional Locatic updates. Turn them off any time in
+          Settings.
+        </p>
+      )}
     </div>
   )
 }

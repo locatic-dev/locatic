@@ -11,7 +11,7 @@ import {
   seedUser,
 } from './__tests__/fixtures.helpers'
 import { getLatestDueDigestPeriod } from './emailDigest'
-import { emailRefs } from './lib/email_function_refs'
+import { api, internal } from './_generated/api'
 import schema from './schema'
 
 const modules = import.meta.glob('./**/*.ts')
@@ -27,7 +27,7 @@ async function configuredTest() {
   const cityId = await seedCity(t, BENGALURU)
   await seedUser(t, { username: 'admin', cityId })
   const admin = t.withIdentity({ subject: fixtureClerkId('admin') })
-  await admin.mutation(emailRefs.digest.configure, {
+  await admin.mutation(api.emailDigest.configure, {
     anchorAt: ANCHOR,
     enabled: true,
   })
@@ -47,10 +47,10 @@ describe('fortnightly email digest preparation', () => {
 
     const { t } = await configuredTest()
     await expect(
-      t.mutation(emailRefs.digest.prepareDue, { now: NOW - 1 }),
+      t.mutation(internal.emailDigest.prepareDue, { now: NOW - 1 }),
     ).resolves.toEqual({ status: 'not_due', campaignId: null })
     await expect(
-      t.mutation(emailRefs.digest.prepareDue, { now: NOW }),
+      t.mutation(internal.emailDigest.prepareDue, { now: NOW }),
     ).resolves.toMatchObject({ status: 'created' })
   })
 
@@ -58,8 +58,8 @@ describe('fortnightly email digest preparation', () => {
     const { t } = await configuredTest()
     const lateNow = NOW + 6 * 14 * DAY_MS
     const [first, second] = await Promise.all([
-      t.mutation(emailRefs.digest.prepareDue, { now: lateNow }),
-      t.mutation(emailRefs.digest.prepareDue, { now: lateNow }),
+      t.mutation(internal.emailDigest.prepareDue, { now: lateNow }),
+      t.mutation(internal.emailDigest.prepareDue, { now: lateNow }),
     ])
     expect([first.status, second.status].sort()).toEqual(['created', 'exists'])
 
@@ -67,8 +67,11 @@ describe('fortnightly email digest preparation', () => {
       ctx.db.query('email_campaigns').collect(),
     )
     expect(campaigns).toHaveLength(1)
-    expect(campaigns[0]?.periodStart).toBe(NOW + 5 * 14 * DAY_MS)
-    expect(campaigns[0]?.periodEnd).toBe(lateNow)
+    expect(campaigns[0]?.content).toMatchObject({
+      kind: 'digest',
+      periodStart: NOW + 5 * 14 * DAY_MS,
+      periodEnd: lateNow,
+    })
   })
 
   it('selects bounded live-discoverable projects and deduplicates discussion threads', async () => {
@@ -152,40 +155,52 @@ describe('fortnightly email digest preparation', () => {
       })
     })
 
-    const prepared = await t.mutation(emailRefs.digest.prepareDue, { now: NOW })
+    const prepared = await t.mutation(internal.emailDigest.prepareDue, {
+      now: NOW,
+    })
     const campaign = prepared.campaignId
       ? await t.run((ctx) => ctx.db.get(prepared.campaignId!))
       : null
+    if (campaign?.content.kind !== 'digest') {
+      throw new Error('digest was not prepared')
+    }
     expect(
-      campaign?.content.projects.map((project) => project.fullName),
+      campaign.content.projects.map((project) => project.fullName),
     ).toEqual(['ada/mapkit', 'grace/location-private'])
-    expect(campaign?.content.discussions).toHaveLength(1)
-    expect(campaign?.content.discussions[0]?.summary).not.toContain(
+    expect(campaign.content.discussions).toHaveLength(1)
+    expect(campaign.content.discussions[0]?.summary).not.toContain(
       'Private words',
     )
   })
 
   it('does not replace editorial changes or regenerate an existing period', async () => {
     const { t, admin } = await configuredTest()
-    const prepared = await t.mutation(emailRefs.digest.prepareDue, { now: NOW })
+    const prepared = await t.mutation(internal.emailDigest.prepareDue, {
+      now: NOW,
+    })
     if (!prepared.campaignId) throw new Error('campaign was not prepared')
+    const before = await t.run((ctx) => ctx.db.get(prepared.campaignId!))
+    if (before?.content.kind !== 'digest') {
+      throw new Error('digest was not prepared')
+    }
     const content = {
-      subject: 'Edited by the operator',
-      preheader: '',
-      introduction: 'This edit must survive future cron invocations.',
+      ...before.content,
+      body: 'This edit must survive future cron invocations.',
       projects: [],
       discussions: [],
-      shippingUpdate: '',
     }
-    await admin.mutation(emailRefs.campaigns.saveDraft, {
+    await admin.mutation(api.emailCampaigns.saveDraft, {
       campaignId: prepared.campaignId,
       expectedRevision: 1,
       title: 'Operator edition',
-      content,
+      subject: 'Edited by the operator',
+      preheader: '',
+      // The period is fixed at creation; a client cannot move it.
+      content: { ...content, periodKey: 'manual:moved', periodStart: 1 },
     })
 
     await expect(
-      t.mutation(emailRefs.digest.prepareDue, { now: NOW }),
+      t.mutation(internal.emailDigest.prepareDue, { now: NOW }),
     ).resolves.toEqual({ status: 'exists', campaignId: prepared.campaignId })
     const campaign = await t.run((ctx) => ctx.db.get(prepared.campaignId!))
     expect(campaign?.title).toBe('Operator edition')
