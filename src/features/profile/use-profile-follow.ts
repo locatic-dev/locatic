@@ -1,3 +1,4 @@
+import { captureSessionCache } from '@/integrations/convex/session-cache'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import type { Id } from '../../../convex/_generated/dataModel'
 import { useFollowUser, useUnfollowUser } from '@/features/follows/mutations'
@@ -36,6 +37,7 @@ export function useProfileFollow({
   userId: Id<'users'>
 }) {
   const queryClient = useQueryClient()
+  const isCurrentSession = captureSessionCache(queryClient)
   const followUser = useFollowUser()
   const unfollowUser = useUnfollowUser()
 
@@ -50,6 +52,7 @@ export function useProfileFollow({
     onMutate: async ({ currentlyFollowed, username: targetUsername }) => {
       const queryKey = profileQueryKeyFor(targetUsername)
       await queryClient.cancelQueries({ queryKey })
+      if (!isCurrentSession()) return
       const previous = queryClient.getQueryData<PublicProfileOverview | null>(
         queryKey,
       )
@@ -78,12 +81,14 @@ export function useProfileFollow({
       return { previous }
     },
     onError: (_error, variables, context) => {
+      if (!isCurrentSession()) return
       queryClient.setQueryData(
         profileQueryKeyFor(variables.username),
         context?.previous ?? null,
       )
     },
     onSettled: async (_data, _error, variables) => {
+      if (!isCurrentSession()) return
       await queryClient.invalidateQueries({
         queryKey: profileQueryKeyFor(variables.username),
       })
@@ -99,6 +104,7 @@ export function useProfileFollow({
     try {
       await mutation.mutateAsync({ ...target, currentlyFollowed })
     } catch (error) {
+      if (!isCurrentSession()) return
       reportActionError(error, {
         title: currentlyFollowed ? "couldn't unfollow" : "couldn't follow",
         retry: () => toggleFollow(currentlyFollowed),
@@ -106,6 +112,7 @@ export function useProfileFollow({
       return
     }
 
+    if (!isCurrentSession()) return
     if (currentlyFollowed) {
       showUndoToast({
         message: `unfollowed @${githubUsername}`,

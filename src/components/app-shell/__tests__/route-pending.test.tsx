@@ -9,6 +9,8 @@ import {
   ProjectRoutePending,
   ROUTE_PENDING_MIN_MS,
   ROUTE_PENDING_MS,
+  SignOutPending,
+  signOutHoldMs,
 } from '../route-pending'
 
 afterEach(cleanup)
@@ -56,5 +58,20 @@ describe('route pending screens', () => {
 
     expect(screen.getByRole('status').textContent).toContain('loading profile')
     expect(screen.getByLabelText('loading content')).toBeTruthy()
+  })
+
+  it('holds the sign-out screen only once its delayed content is visible', () => {
+    expect(signOutHoldMs(null, 5000)).toBe(0)
+    expect(signOutHoldMs(1000, 1000)).toBe(ROUTE_PENDING_MIN_MS)
+    expect(signOutHoldMs(1000, 1100)).toBe(ROUTE_PENDING_MIN_MS - 100)
+    expect(signOutHoldMs(1000, 1000 + ROUTE_PENDING_MIN_MS)).toBe(0)
+    expect(signOutHoldMs(1000, 9000)).toBe(0)
+  })
+
+  it('announces sign-out with a decorative logo inside the main landmark', () => {
+    render(<SignOutPending />)
+    const main = screen.getByRole('main')
+    expect(within(main).getByRole('status').textContent).toBe('signing out…')
+    expect(main.querySelector('svg')?.getAttribute('aria-hidden')).toBe('true')
   })
 })
