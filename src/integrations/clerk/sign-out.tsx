@@ -12,6 +12,7 @@ import {
 import {
   ContentRoutePending,
   SignOutPending,
+  signOutHoldMs,
 } from '@/components/app-shell/route-pending'
 import { clearSessionCache } from '@/integrations/convex/session-cache'
 
@@ -27,10 +28,16 @@ export function SignOutProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient()
   const [isSigningOut, setIsSigningOut] = useState(false)
   const phase = useRef<'idle' | 'requested' | 'running'>('idle')
+  const visibleAt = useRef<number | null>(null)
   const requestSignOut = useCallback(() => {
     if (phase.current !== 'idle') return
     phase.current = 'requested'
+    visibleAt.current = null
     setIsSigningOut(true)
+  }, [])
+
+  const markVisible = useCallback(() => {
+    visibleAt.current ??= performance.now()
   }, [])
 
   useEffect(() => {
@@ -60,12 +67,14 @@ export function SignOutProvider({ children }: { children: ReactNode }) {
     // The Convex Query adapter retains watches until cache entries are removed;
     // cancelling requests or unmounting their observers alone is insufficient.
     async function finishSignOut() {
+      let signedOut = false
       try {
         await queryClient.cancelQueries()
         clearSessionCache(queryClient)
         // The Clerk TanStack adapter awaits navigation before resolving.
         await signOut({ redirectUrl: '/' })
         setCacheUserId(null)
+        signedOut = true
       } catch (error) {
         const { reportActionError } = await import('@/lib/action-error')
         reportActionError(error, {
@@ -73,15 +82,29 @@ export function SignOutProvider({ children }: { children: ReactNode }) {
           retry: requestSignOut,
         })
       } finally {
+        // Visible progress keeps its minimum on success and failure alike.
+        const holdMs = signOutHoldMs(visibleAt.current, performance.now())
+        if (holdMs > 0) {
+          await new Promise((resolve) => setTimeout(resolve, holdMs))
+        }
         phase.current = 'idle'
         setIsSigningOut(false)
+      }
+      // Confirm only after the landing page is revealed. Sonner stays out of
+      // the initial entry, and its Toaster outlives this provider's children.
+      // A missed confirmation is harmless: the session has already ended, so
+      // a failed chunk load must not report a sign-out failure or retry.
+      if (signedOut) {
+        import('sonner')
+          .then(({ toast }) => toast('signed out'))
+          .catch(() => {})
       }
     }
     void finishSignOut()
   }, [isSigningOut, queryClient, requestSignOut, signOut])
 
   let content = children
-  if (isSigningOut) content = <SignOutPending />
+  if (isSigningOut) content = <SignOutPending onVisible={markVisible} />
   else if (isChangingUser) content = <ContentRoutePending />
 
   return (
