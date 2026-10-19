@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { Id } from '../../../../../convex/_generated/dataModel'
 import type { ProjectDetailPayload } from '@/features/contracts'
@@ -30,7 +30,68 @@ function releaseFixture(
   }
 }
 
+function stubReducedMotion(matches: boolean) {
+  vi.stubGlobal(
+    'matchMedia',
+    vi.fn((media: string) => ({
+      matches: media === '(prefers-reduced-motion: reduce)' && matches,
+      media,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    })),
+  )
+}
+
 describe('ProjectReleasesSection', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('highlights the release a deep link names and scrolls it into view', () => {
+    stubReducedMotion(false)
+    const scrollIntoView = vi.fn()
+    Element.prototype.scrollIntoView = scrollIntoView
+    const { container } = render(
+      <ProjectReleasesSection
+        releases={[
+          releaseFixture(),
+          releaseFixture({
+            _id: 'release_2' as Id<'project_releases'>,
+            tagName: 'v0.9.0',
+            name: 'Beta',
+          }),
+        ]}
+        highlightedReleaseId="release_2"
+      />,
+    )
+
+    const highlighted = container.querySelector('[data-highlighted]')
+    expect(highlighted?.id).toBe('release-release_2')
+    expect(container.querySelector('#release-release_1')).toBeTruthy()
+    expect(scrollIntoView).toHaveBeenCalledTimes(1)
+    expect(scrollIntoView).toHaveBeenCalledWith({
+      behavior: 'smooth',
+      block: 'center',
+    })
+  })
+
+  it('jumps to the release without smooth scrolling under reduced motion', () => {
+    stubReducedMotion(true)
+    const scrollIntoView = vi.fn()
+    Element.prototype.scrollIntoView = scrollIntoView
+    render(
+      <ProjectReleasesSection
+        releases={[releaseFixture()]}
+        highlightedReleaseId="release_1"
+      />,
+    )
+
+    expect(scrollIntoView).toHaveBeenCalledWith({
+      behavior: 'instant',
+      block: 'center',
+    })
+  })
+
   it('renders release rows as full external GitHub links', () => {
     render(<ProjectReleasesSection releases={[releaseFixture()]} />)
 

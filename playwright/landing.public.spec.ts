@@ -32,7 +32,13 @@ test.describe('public landing', () => {
     expect(pageErrors).toEqual([])
     expect(consoleErrors).toEqual([])
 
-    await page.goto('/not-a-real-route')
+    const notFound = await page.goto('/not-a-real-route')
+    expect(notFound?.status()).toBe(404)
+    await expect(page).toHaveTitle('page not found · Locatic')
+    await expect(page.locator('meta[name="robots"]')).toHaveAttribute(
+      'content',
+      /noindex/,
+    )
     const notFoundMain = page.locator('main#main-content')
     await expect(notFoundMain).toBeVisible()
     // The 404 page always draws the example pins, which ping; the landing
@@ -49,60 +55,85 @@ test.describe('public landing', () => {
     await expect(notFoundMain).toBeFocused()
   })
 
-  test('has no horizontal overflow at supported public breakpoints', async ({
-    page,
-  }) => {
-    // The hero globe may bleed past its column; it must never scroll the page.
-    for (const viewport of [
-      { width: 320, height: 640 },
-      { width: 375, height: 667 },
-      { width: 390, height: 844 },
-      { width: 768, height: 1024 },
-      { width: 1024, height: 768 },
-      { width: 1280, height: 900 },
-      { width: 1440, height: 1000 },
-      { width: 1920, height: 1080 },
-    ]) {
-      await page.setViewportSize(viewport)
-      await page.goto('/')
-      await expect
-        .poll(() => page.evaluate(() => document.documentElement.scrollWidth))
-        .toBeLessThanOrEqual(viewport.width)
-    }
-  })
+  // Missing entities 404 through their route's own notFoundComponent, not the
+  // global one; the document head must still read as a 404.
+  for (const path of [
+    '/c/atlantis-nowhere',
+    '/u/no-such-builder-e2e-404',
+    '/project/no-such-owner-e2e/no-such-repo',
+  ]) {
+    test(`${path} is a noindex 404`, async ({ page }) => {
+      const response = await page.goto(path)
+      expect(response?.status()).toBe(404)
+      await expect(page).toHaveTitle('page not found · Locatic')
+      await expect(page.locator('meta[name="robots"]')).toHaveAttribute(
+        'content',
+        /noindex/,
+      )
+    })
+  }
 
-  test('shows real cities and ping cards, or labels the examples (D7)', async ({
+  // The hero globe may bleed past its column; it must never scroll the page.
+  // Explore has filter rows and cards; the legal pages carry tables and long
+  // words; the 404 page a wide map. One test per page keeps each browser page
+  // to a few navigations.
+  for (const path of [
+    '/',
+    '/about',
+    '/explore',
+    '/privacy',
+    '/terms',
+    '/not-a-real-route',
+  ]) {
+    test(`${path} has no horizontal overflow at supported breakpoints`, async ({
+      page,
+    }) => {
+      for (const viewport of [
+        { width: 320, height: 640 },
+        { width: 375, height: 667 },
+        { width: 390, height: 844 },
+        { width: 768, height: 1024 },
+        { width: 1024, height: 768 },
+        { width: 1280, height: 900 },
+        { width: 1440, height: 1000 },
+        { width: 1920, height: 1080 },
+      ]) {
+        await page.setViewportSize(viewport)
+        await page.goto(path)
+        await expect(page.locator('main#main-content')).toBeVisible()
+        await expect
+          .poll(
+            () => page.evaluate(() => document.documentElement.scrollWidth),
+            { message: `${path} at ${viewport.width}px` },
+          )
+          .toBeLessThanOrEqual(viewport.width)
+      }
+    })
+  }
+
+  test('shows real cities and activity cards, never examples (D7)', async ({
     page,
   }) => {
     await page.goto('/')
     const main = page.locator('main#main-content')
+    await expect(main.getByText('EXAMPLE', { exact: true })).toHaveCount(0)
 
-    // Hero globe: real cities with builders as links to their pages, or the
-    // example label while fewer than five cities have builders.
+    // Hero globe: real cities with builders as links to their pages.
     const mapCaption = main.getByText(/^on the map: builders in /)
-    const exampleMap = main.getByText(
-      'the map pins are illustrative until more cities have builders',
-    )
-    await expect(mapCaption.or(exampleMap)).toBeVisible()
     if (await mapCaption.isVisible()) {
-      await expect(exampleMap).toHaveCount(0)
       const cityLinks = mapCaption.getByRole('link')
       await expect(cityLinks).toHaveCount(3)
       await expect(cityLinks.first()).toHaveAttribute('href', /^\/c\/[\w-]+$/)
     }
 
-    // Ping globe: the attached card is up on first paint. Its copy is
-    // labelled EXAMPLE exactly when the map is the example.
-    const pingGlobe = main.getByRole('region', { name: 'builders on the map' })
+    // Ping globe: the card, when one is up, links to what it describes. The
+    // globe is aria-hidden, so its link is found by tag, not role.
+    const pingGlobe = main.getByRole('region', {
+      name: 'recent activity on the map',
+    })
     await expect(pingGlobe).toBeVisible()
     await expect(pingGlobe.locator('canvas')).toBeVisible()
-    const card = pingGlobe.locator('[data-ping-card]')
-    await expect(card).toHaveCount(1)
-    if (await mapCaption.isVisible()) {
-      await expect(card).not.toContainText('EXAMPLE')
-    } else {
-      await expect(card).toContainText('EXAMPLE')
-    }
+    await expect(main.getByText('recently on the map')).toHaveCount(0)
   })
 
   test('shows a still frame of three pinged cities under reduced motion', async ({
@@ -112,9 +143,13 @@ test.describe('public landing', () => {
     await page.goto('/')
     const pingGlobe = page
       .locator('main#main-content')
-      .getByRole('region', { name: 'builders on the map' })
+      .getByRole('region', { name: 'recent activity on the map' })
     const pinged = pingGlobe.locator('[data-ping-key][data-active="true"]')
     const card = pingGlobe.locator('[data-ping-card]')
+    requireE2EPrerequisite(
+      (await pinged.count()) >= 3,
+      'Needs at least three recent activity items in the deployment.',
+    )
 
     await expect(pinged).toHaveCount(3)
     const pingedKeys = await pinged.evaluateAll((nodes) =>

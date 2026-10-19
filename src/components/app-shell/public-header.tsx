@@ -4,6 +4,7 @@ import {
   useRouteContext,
   useRouterState,
 } from '@tanstack/react-router'
+import type { ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import { Logo } from '@/components/ui/logo'
 import { getFreshExploreSearch } from '@/features/explore/state'
@@ -23,7 +24,7 @@ export function getPublicAuthRedirect(pathname: string, href: string) {
 // Top bar shared by public pages (landing, legal, public Explore). Entrance
 // runs on CSS (`lx-hero-up`) — above-the-fold chrome must never wait on
 // hydration to become visible.
-export function PublicHeader() {
+export function PublicHeader({ navStart }: { navStart?: ReactNode }) {
   // Root route context through the router, so this shared component never
   // imports the root route module.
   const isAuthenticated = useRouteContext({
@@ -48,6 +49,7 @@ export function PublicHeader() {
         aria-label="Site"
         className="flex flex-wrap items-center gap-2 font-mono text-label text-text-muted"
       >
+        {navStart}
         {isAuthenticated ? (
           <Button asChild variant="secondary" size="touch">
             <Link to="/home">home</Link>

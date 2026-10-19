@@ -22,6 +22,7 @@ const bengaluru: DisclosureCity = {
   _id: bengaluruId,
   name: 'Bengaluru',
   displayName: 'Bengaluru, Karnataka, India',
+  slug: 'bengaluru-in',
   region: 'Karnataka',
   country: 'India',
 }
@@ -30,6 +31,7 @@ const berlin: DisclosureCity = {
   _id: berlinId,
   name: 'Berlin',
   displayName: 'Berlin, State of Berlin, Germany',
+  slug: 'berlin-de',
   region: 'State of Berlin',
   country: 'Germany',
 }
@@ -74,6 +76,7 @@ describe('visibility policy', () => {
             kind: 'city',
             cityId: bengaluruId,
             cityName: 'Bengaluru, Karnataka, India',
+            citySlug: 'bengaluru-in',
             regionLabel: 'Karnataka, India',
           })
           expect(isCityMember(user)).toBe(true)
@@ -150,6 +153,7 @@ describe('visibility policy', () => {
     _id: `cities_${slug}` as Id<'cities'>,
     name,
     displayName: [name, region, country].filter(Boolean).join(', '),
+    slug,
     region,
     country,
   })

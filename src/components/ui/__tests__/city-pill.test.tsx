@@ -26,7 +26,26 @@ vi.mock('@tanstack/react-router', () => ({
 import { CityPill, LocationPill } from '../city-pill'
 
 describe('LocationPill', () => {
-  it('links an exact-city member to the city page', () => {
+  it('links an exact-city member to the city page by slug', () => {
+    render(
+      <LocationPill
+        location={{
+          kind: 'city',
+          cityId: 'city_blr',
+          cityName: 'Bengaluru, Karnataka, India',
+          citySlug: 'bengaluru-in',
+        }}
+      />,
+    )
+
+    expect(
+      screen
+        .getByRole('link', { name: 'Bengaluru, Karnataka, India' })
+        .getAttribute('href'),
+    ).toBe('/c/bengaluru-in')
+  })
+
+  it('falls back to the city id when no slug is known', () => {
     render(
       <LocationPill
         location={{
@@ -40,7 +59,8 @@ describe('LocationPill', () => {
     const link = screen.getByRole('link', {
       name: 'Bengaluru, Karnataka, India',
     })
-    // The city id resolves on the city page, which redirects to the slug.
+    // Stored snapshots carry only the id; the city page redirects it to the
+    // slug.
     expect(link.getAttribute('href')).toBe('/c/city_blr')
     expect(link.getAttribute('title')).toBe(
       'Bengaluru, Karnataka, India city page',

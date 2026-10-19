@@ -1,16 +1,54 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import {
+  act,
+  cleanup,
+  createEvent,
+  fireEvent,
+  render,
+  screen,
+} from '@testing-library/react'
 import { renderToString } from 'react-dom/server'
+import type { AnchorHTMLAttributes, ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+vi.mock('@tanstack/react-router', () => ({
+  Link: ({
+    children,
+    params,
+    search,
+    to,
+    ...props
+  }: AnchorHTMLAttributes<HTMLAnchorElement> & {
+    children: ReactNode
+    params?: Record<string, string>
+    search?: Record<string, string>
+    to: string
+  }) => {
+    const path = to.replace(
+      /\$(\w+)/g,
+      (_match, key: string) => params?.[key] ?? '',
+    )
+    const query = new URLSearchParams(search).toString()
+    return (
+      <a href={query ? `${path}?${query}` : path} {...props}>
+        {children}
+      </a>
+    )
+  },
+}))
+
 import {
-  EXAMPLE_PINGS,
   PING_CARD_MS,
   PING_INTERVAL_MS,
   type PingItem,
 } from '../landing-content'
 
-import { anchorVariables, faceRotation, projectToGlobe } from '../globe'
+import {
+  anchorVariables,
+  dragDegreesPerPixel,
+  faceRotation,
+  projectToGlobe,
+} from '../globe'
 import { PingGlobe, pickStaticPings } from '../ping-globe'
 
 /**
@@ -61,12 +99,14 @@ const HERE = { lat: 12.97, lng: 77.59 }
 function item(key: string, overrides: Partial<PingItem> = {}): PingItem {
   return {
     key,
+    kind: 'project',
     ...HERE,
-    headline: `${key} pushed ${key}-repo`,
+    headline: `${key} shared ${key}-repo`,
+    detail: null,
     place: `${key}-city`,
-    at: null,
+    at: 0,
     avatarUrl: null,
-    example: false,
+    link: { owner: key, repo: `${key}-repo`, search: {} },
     ...overrides,
   }
 }
@@ -75,6 +115,13 @@ const HYDERABAD = { lat: 17.39, lng: 78.49 }
 const KOLKATA = { lat: 22.57, lng: 88.36 }
 
 const ITEMS = [item('a'), item('b'), item('c'), item('d')]
+
+// A tour round the world: Berlin starts well round the globe from Bengaluru.
+const TOUR = [
+  item('blr', { lat: 12.97, lng: 77.59 }),
+  item('ber', { lat: 52.52, lng: 13.4 }),
+  item('ldn', { lat: 51.51, lng: -0.13 }),
+]
 
 function activeKeys(container: HTMLElement) {
   return [...container.querySelectorAll('[data-ping-key][data-active="true"]')]
@@ -252,18 +299,14 @@ describe('PingGlobe', () => {
     expect(activeKeys(container)).toEqual(['a', 'b', 'c'])
   })
 
-  it('labels example cards EXAMPLE, and real cards not', () => {
-    const example = render(<PingGlobe items={EXAMPLE_PINGS} />)
-    expect(
-      example.container.querySelector('[data-ping-card]')?.textContent,
-    ).toContain('EXAMPLE')
-    example.unmount()
-
+  it('shows what happened, its kind, place and age on the card', () => {
     const real = render(
       <PingGlobe
         items={[
           item('saroj', {
-            headline: 'Saroj pushed portfolio',
+            kind: 'post',
+            headline: 'Saroj posted in portfolio',
+            detail: 'shipped dark mode',
             place: 'Hyderabad',
             at: Date.now() - 2 * 60 * 1000,
           }),
@@ -271,9 +314,49 @@ describe('PingGlobe', () => {
       />,
     )
     const card = real.container.querySelector('[data-ping-card]')
-    expect(card?.textContent).toContain('Saroj pushed portfolio')
-    expect(card?.textContent).toContain('Hyderabad · 2m ago')
-    expect(card?.textContent).not.toContain('EXAMPLE')
+    expect(card?.textContent).toContain('Saroj posted in portfolio')
+    expect(card?.textContent).toContain('shipped dark mode')
+    expect(card?.textContent).toContain('POST · Hyderabad · 2m ago')
+  })
+
+  it('links the card to what it describes', () => {
+    const { container } = render(
+      <PingGlobe
+        items={[
+          item('release', {
+            kind: 'release',
+            link: {
+              owner: 'bob',
+              repo: 'cli',
+              search: { release: 'release_1' },
+            },
+          }),
+        ]}
+      />,
+    )
+    const link = container.querySelector('[data-ping-card] a')
+    expect(link?.getAttribute('href')).toBe(
+      '/project/bob/cli?release=release_1',
+    )
+    // It moves on its own, so it stays out of the tab order.
+    expect(link?.getAttribute('tabindex')).toBe('-1')
+    expect(container.querySelector('[data-ping-card]')?.textContent).toContain(
+      'RELEASE',
+    )
+  })
+
+  it('holds the cycle while the pointer is on the card', () => {
+    const { container } = render(<PingGlobe items={ITEMS} />)
+    const card = () => container.querySelector('[data-ping-card]')
+
+    fireEvent.pointerEnter(card()!)
+    advance(PING_INTERVAL_MS * 3)
+    expect(cardKey(container)).toBe('a')
+    expect(frames.size).toBe(0)
+
+    fireEvent.pointerLeave(card()!)
+    advance(PING_INTERVAL_MS)
+    expect(activeKeys(container)).toEqual(['b'])
   })
 
   it('server-renders frame 0 whatever the motion preference, with no clock-based age', () => {
@@ -338,11 +421,23 @@ describe('PingGlobe', () => {
     expect(activeKeys(container)).toEqual(['c'])
   })
 
-  it('renders only the globe, with no timers or frames, when there is nothing to ping', () => {
+  it('keeps turning with no cards or timers when there is nothing to ping', () => {
     const { container } = render(<PingGlobe items={[]} />)
 
     expect(container.querySelectorAll('[data-ping-key]')).toHaveLength(0)
     expect(cardKey(container)).toBeNull()
+    expect(vi.getTimerCount()).toBe(0)
+    // The frame loop drifts the globe, and it can be paused.
+    flushFrames(30)
+    expect(frames.size).toBe(1)
+    fireEvent.click(screen.getByRole('button', { name: 'pause map animation' }))
+    expect(frames.size).toBe(0)
+  })
+
+  it('stays still with nothing to ping under reduced motion', () => {
+    reducedMotionQuery.matches = true
+    render(<PingGlobe items={[]} />)
+
     expect(vi.getTimerCount()).toBe(0)
     expect(frames.size).toBe(0)
   })
@@ -377,9 +472,295 @@ function readVariable(element: HTMLElement | null, name: string) {
   return element?.style.getPropertyValue(name) ?? ''
 }
 
+/** How long a flick coasts after a drag (`DRAG_COAST_MS`). */
+const DRAG_COAST_MS = 2_000
+
+function globeBox(container: ParentNode) {
+  return container.querySelector<HTMLElement>('.aspect-square')!
+}
+
+/**
+ * Drags from `target` by `dx`, `dy` pixels: past the threshold first, then
+ * the rest, then releases. Returns whether the click that follows went
+ * through.
+ */
+function dragBy(target: Element, dx: number, dy = 0) {
+  const pointer = { pointerId: 1, isPrimary: true, button: 0 }
+  fireEvent.pointerDown(target, { ...pointer, clientX: 100, clientY: 100 })
+  fireEvent.pointerMove(target, { ...pointer, clientX: 106, clientY: 100 })
+  fireEvent.pointerMove(target, {
+    ...pointer,
+    clientX: 106 + dx,
+    clientY: 100 + dy,
+  })
+  fireEvent.pointerUp(target, {
+    ...pointer,
+    clientX: 106 + dx,
+    clientY: 100 + dy,
+  })
+  // A pointer click: `detail` counts clicks, and is 0 for keyboard ones.
+  return fireEvent.click(target, { detail: 1 })
+}
+
+/** A pointer event at `timeStamp` ms, so the drag can measure a flick. */
+function pointerAt(
+  type: 'pointerDown' | 'pointerMove' | 'pointerUp',
+  target: Element,
+  clientX: number,
+  timeStamp: number,
+) {
+  const event = createEvent[type](target, {
+    pointerId: 1,
+    isPrimary: true,
+    button: 0,
+    clientX,
+    clientY: 100,
+  })
+  Object.defineProperty(event, 'timeStamp', { value: timeStamp })
+  fireEvent(target, event)
+}
+
+/** A quick drag by `dx` pixels, released while still moving. */
+function flick(target: Element, dx: number) {
+  pointerAt('pointerDown', target, 100, 0)
+  pointerAt('pointerMove', target, 106, 10)
+  pointerAt('pointerMove', target, 106 + dx, 26)
+  pointerAt('pointerUp', target, 106 + dx, 30)
+}
+
+const MOUSE = {
+  pointerId: 1,
+  isPrimary: true,
+  button: 0,
+  pointerType: 'mouse',
+}
+
+describe('PingGlobe drag', () => {
+  beforeEach(() => {
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(420)
+  })
+
+  it('follows the pointer and pauses the tour until play', () => {
+    const { container } = render(<PingGlobe items={ITEMS} />)
+    const before = Number.parseFloat(
+      readVariable(cardAnchor(container), '--gx'),
+    )
+
+    dragBy(globeBox(container), 40)
+
+    // Dragging right moves places right.
+    const after = Number.parseFloat(readVariable(cardAnchor(container), '--gx'))
+    expect(after).toBeGreaterThan(before + 3)
+    // Grabbing the globe pauses it, so the control offers play...
+    const play = screen.getByRole('button', { name: 'play map animation' })
+    expect(play.textContent).toBe('play')
+    // ...the flick coasts out, then nothing moves until the viewer plays.
+    advance(DRAG_COAST_MS - 1)
+    expect(frames.size).toBe(1)
+    advance(1)
+    expect(frames.size).toBe(0)
+    advance(PING_INTERVAL_MS * 3)
+    expect(cardKey(container)).toBe('a')
+
+    fireEvent.click(play)
+    advance(PING_INTERVAL_MS)
+    expect(activeKeys(container)).toEqual(['b'])
+  })
+
+  it('swallows the click that ends a drag, but not a plain press', () => {
+    const { container } = render(
+      <PingGlobe
+        items={[
+          item('a', { link: { owner: 'ada', repo: 'tool', search: {} } }),
+        ]}
+      />,
+    )
+    const link = container.querySelector('[data-ping-card] a')!
+
+    fireEvent.pointerDown(link, { pointerId: 1, isPrimary: true, button: 0 })
+    fireEvent.pointerUp(link, { pointerId: 1, isPrimary: true, button: 0 })
+    expect(fireEvent.click(link)).toBe(true)
+
+    expect(dragBy(link, 40)).toBe(false)
+    // Only that one click.
+    expect(fireEvent.click(link, { detail: 1 })).toBe(true)
+  })
+
+  it('turns under reduced motion too, and keeps the turn', () => {
+    reducedMotionQuery.matches = true
+    const { container, rerender } = render(<PingGlobe items={ITEMS} />)
+    const marker = () =>
+      container.querySelector<HTMLElement>('[data-ping-key="a"]')
+    const before = readVariable(marker(), '--gx')
+
+    dragBy(globeBox(container), 40, 20)
+    const turned = readVariable(marker(), '--gx')
+    expect(turned).not.toBe(before)
+    // No flick spin, and no tour once the drag ends.
+    flushFrames(30)
+    expect(readVariable(marker(), '--gx')).toBe(turned)
+    advance(DRAG_COAST_MS)
+    expect(frames.size).toBe(0)
+    rerender(<PingGlobe items={ITEMS} />)
+    expect(readVariable(marker(), '--gx')).toBe(turned)
+  })
+
+  it('forgets a press released outside the globe before it became a drag', () => {
+    const { container } = render(<PingGlobe items={ITEMS} />)
+    const box = globeBox(container)
+    const before = readVariable(cardAnchor(container), '--gx')
+
+    fireEvent.pointerDown(box, { ...MOUSE, buttons: 1, clientX: 100 })
+    fireEvent.pointerMove(box, { ...MOUSE, buttons: 1, clientX: 103 })
+    // Released off the globe: only the window hears it.
+    fireEvent.pointerUp(window, { ...MOUSE, buttons: 0, clientX: 104 })
+    // Back over the globe with no button held: hovering never drags.
+    fireEvent.pointerMove(box, { ...MOUSE, buttons: 0, clientX: 160 })
+
+    expect(readVariable(cardAnchor(container), '--gx')).toBe(before)
+    expect(
+      screen.getByRole('button', { name: 'pause map animation' }),
+    ).toBeTruthy()
+    // The next press still turns the globe.
+    dragBy(box, 40)
+    expect(readVariable(cardAnchor(container), '--gx')).not.toBe(before)
+  })
+
+  it('treats a buttonless mouse move as a release it missed', () => {
+    const { container } = render(<PingGlobe items={ITEMS} />)
+    const box = globeBox(container)
+    const before = readVariable(cardAnchor(container), '--gx')
+
+    fireEvent.pointerDown(box, { ...MOUSE, buttons: 1, clientX: 100 })
+    fireEvent.pointerMove(box, { ...MOUSE, buttons: 0, clientX: 160 })
+    fireEvent.pointerMove(box, { ...MOUSE, buttons: 0, clientX: 200 })
+
+    expect(readVariable(cardAnchor(container), '--gx')).toBe(before)
+    expect(
+      screen.getByRole('button', { name: 'pause map animation' }),
+    ).toBeTruthy()
+  })
+
+  it('stops listening for a pending release on unmount', () => {
+    const removeListener = vi.spyOn(window, 'removeEventListener')
+    const { container, unmount } = render(<PingGlobe items={ITEMS} />)
+    fireEvent.pointerDown(globeBox(container), { ...MOUSE, buttons: 1 })
+
+    unmount()
+
+    expect(removeListener).toHaveBeenCalledWith(
+      'pointerup',
+      expect.any(Function),
+    )
+    expect(removeListener).toHaveBeenCalledWith(
+      'pointercancel',
+      expect.any(Function),
+    )
+  })
+
+  it('ends a drag whose pointer capture is lost', () => {
+    const { container } = render(<PingGlobe items={ITEMS} />)
+    const box = globeBox(container)
+    const pointer = { pointerId: 1, isPrimary: true, button: 0 }
+    fireEvent.pointerDown(box, { ...pointer, clientX: 100, clientY: 100 })
+    fireEvent.pointerMove(box, { ...pointer, clientX: 120, clientY: 100 })
+    const dragged = readVariable(cardAnchor(container), '--gx')
+
+    fireEvent.lostPointerCapture(box, pointer)
+    fireEvent.pointerMove(box, { ...pointer, clientX: 200, clientY: 100 })
+
+    expect(readVariable(cardAnchor(container), '--gx')).toBe(dragged)
+  })
+
+  it('keeps dragging when a touch hands its capture from a child to the globe', () => {
+    const { container } = render(<PingGlobe items={ITEMS} />)
+    const box = globeBox(container)
+    const canvas = container.querySelector('canvas')!
+    const pointer = { pointerId: 1, isPrimary: true, button: 0 }
+    fireEvent.pointerDown(canvas, { ...pointer, clientX: 100, clientY: 100 })
+    fireEvent.pointerMove(canvas, { ...pointer, clientX: 120, clientY: 100 })
+    const dragged = readVariable(cardAnchor(container), '--gx')
+
+    // The canvas held the touch's implicit capture; the box takes it over.
+    fireEvent.lostPointerCapture(canvas, pointer)
+    fireEvent.pointerMove(box, { ...pointer, clientX: 200, clientY: 100 })
+
+    expect(readVariable(cardAnchor(container), '--gx')).not.toBe(dragged)
+  })
+
+  it('hides a card turned to the far side, so it takes no clicks', () => {
+    const { container } = render(<PingGlobe items={ITEMS} />)
+    expect(cardAnchor(container)?.style.visibility).toBe('visible')
+
+    dragBy(globeBox(container), 180 / dragDegreesPerPixel(420))
+
+    const anchor = cardAnchor(container)
+    expect(readVariable(anchor, '--gv')).toBe('0.00')
+    expect(anchor?.style.visibility).toBe('hidden')
+  })
+
+  it('stops a released flick at once when reduced motion is switched on', () => {
+    const { container } = render(<PingGlobe items={ITEMS} />)
+    flick(globeBox(container), 60)
+    flushFrames(3)
+    const coasting = readVariable(cardAnchor(container), '--gx')
+    flushFrames(3)
+    expect(readVariable(cardAnchor(container), '--gx')).not.toBe(coasting)
+
+    act(() => reducedMotionQuery.set(true))
+    const stopped = readVariable(cardAnchor(container), '--gx')
+    flushFrames(30)
+
+    expect(readVariable(cardAnchor(container), '--gx')).toBe(stopped)
+    expect(frames.size).toBe(0)
+  })
+
+  it('lets a keyboard press play after a drag the browser cancelled', () => {
+    const { container } = render(<PingGlobe items={ITEMS} />)
+    const box = globeBox(container)
+    const pointer = { pointerId: 1, isPrimary: true, button: 0 }
+    fireEvent.pointerDown(box, { ...pointer, clientX: 100, clientY: 100 })
+    fireEvent.pointerMove(box, { ...pointer, clientX: 106, clientY: 100 })
+    // A vertical swipe hands the touch to page scrolling: no click follows.
+    fireEvent.pointerCancel(box, pointer)
+    advance(DRAG_COAST_MS)
+
+    // Enter on the focused control: a click with detail 0.
+    fireEvent.click(screen.getByRole('button', { name: 'play map animation' }))
+
+    expect(
+      screen.getByRole('button', { name: 'pause map animation' }),
+    ).toBeTruthy()
+  })
+
+  it('lets a keyboard click through even while a drag click is pending', () => {
+    const { container } = render(<PingGlobe items={ITEMS} />)
+    const box = globeBox(container)
+    const pointer = { pointerId: 1, isPrimary: true, button: 0 }
+    fireEvent.pointerDown(box, { ...pointer, clientX: 100, clientY: 100 })
+    fireEvent.pointerMove(box, { ...pointer, clientX: 140, clientY: 100 })
+    fireEvent.pointerUp(box, { ...pointer, clientX: 140, clientY: 100 })
+
+    fireEvent.click(screen.getByRole('button', { name: 'play map animation' }))
+
+    expect(
+      screen.getByRole('button', { name: 'pause map animation' }),
+    ).toBeTruthy()
+  })
+
+  it('ignores presses on the pause control', () => {
+    const { container } = render(<PingGlobe items={ITEMS} />)
+    const before = readVariable(cardAnchor(container), '--gx')
+
+    dragBy(screen.getByRole('button', { name: 'pause map animation' }), 40)
+
+    expect(readVariable(cardAnchor(container), '--gx')).toBe(before)
+  })
+})
+
 describe('PingGlobe globe', () => {
   it('server-renders the card at item 0 as projected with the globe facing it', () => {
-    const items = [...EXAMPLE_PINGS]
+    const items = TOUR
     const markup = renderToString(<PingGlobe items={items} />)
     // Deterministic: the same props give the same markup.
     expect(renderToString(<PingGlobe items={items} />)).toBe(markup)
@@ -409,9 +790,8 @@ describe('PingGlobe globe', () => {
   })
 
   it('turns to the next city once the card closes, so it arrives facing the viewer', () => {
-    const items = [...EXAMPLE_PINGS]
+    const items = TOUR
     const { container } = render(<PingGlobe items={items} />)
-    // Berlin starts well round the globe from Bengaluru.
     const berlin = items[1]
     expect(projectToGlobe(berlin, faceRotation(items[0])).z).toBeLessThan(0.5)
 

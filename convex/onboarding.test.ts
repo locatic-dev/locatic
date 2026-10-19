@@ -1,3 +1,4 @@
+import rateLimiterTest from '@convex-dev/rate-limiter/test'
 import { convexTest, type TestConvex } from 'convex-test'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -68,6 +69,7 @@ describe('onboarding builder suggestions (D7, D8)', () => {
   beforeEach(async () => {
     vi.useFakeTimers({ now: NOW, toFake: ['Date'] })
     t = convexTest(schema, modules)
+    rateLimiterTest.register(t)
     fixture = await seedPopulatedCity(t)
     await seedUser(t, { username: 'newbie', onboarded: false })
   })
@@ -239,6 +241,7 @@ describe('completeOnboarding (U5)', () => {
   beforeEach(() => {
     vi.useFakeTimers({ now: NOW, toFake: ['Date'] })
     t = convexTest(schema, modules)
+    rateLimiterTest.register(t)
   })
 
   afterEach(() => {

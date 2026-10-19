@@ -6,6 +6,8 @@ import { ConvexError, v } from 'convex/values'
 
 import { internalMutation, mutation, query } from './_generated/server'
 import { getViewerFromAuth, getViewerOrThrow } from './lib/auth'
+import { assertMaxLength } from './lib/content_limits'
+import { enforceRateLimit } from './lib/rate_limits'
 import { recordProjectActivity } from './lib/cityStats'
 import {
   raiseLastPublicActivity,
@@ -204,6 +206,8 @@ export const create = mutation({
     if (body.length < 1) {
       throw new ConvexError('Post body is required')
     }
+    assertMaxLength('post', body)
+    await enforceRateLimit(ctx, 'postWrite', String(viewer._id))
 
     const now = Date.now()
     const actorSnapshot = await buildActorSnapshot(ctx.db, viewer)
@@ -309,6 +313,8 @@ export const update = mutation({
     if (body.length < 1) {
       throw new ConvexError('Post body is required')
     }
+    assertMaxLength('post', body)
+    await enforceRateLimit(ctx, 'postEdit', String(viewer._id))
 
     await ctx.db.patch(post._id, {
       body,

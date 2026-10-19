@@ -91,7 +91,6 @@ function FilteredFeed() {
       onFollowUser={vi.fn()}
       onLoadMore={vi.fn()}
       onMessageUser={vi.fn()}
-      onOpenBuilderProfile={vi.fn()}
       pendingFollows={new Set()}
       pendingUserId={null}
       state={filtered ? exhausted : ready(2)}

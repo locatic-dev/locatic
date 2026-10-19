@@ -86,6 +86,27 @@ describe('SidebarNav', () => {
 describe('AccountMenu', () => {
   const viewer = { displayName: 'Ada', githubUsername: 'ada' }
 
+  it.each([false, true])(
+    'opens About from the account menu when isEmailAdmin is %s',
+    async (isEmailAdmin) => {
+      const user = userEvent.setup()
+      render(<SidebarNav viewer={viewer} isEmailAdmin={isEmailAdmin} />)
+
+      await user.click(screen.getByRole('button', { name: 'Account menu' }))
+      expect(screen.getByRole('menuitem', { name: 'settings' })).toBeTruthy()
+      expect(
+        screen.queryByRole('menuitem', { name: 'email campaigns' }) !== null,
+      ).toBe(isEmailAdmin)
+
+      await user.click(screen.getByRole('menuitem', { name: 'about' }))
+      expect(
+        await screen.findByRole('dialog', {
+          name: 'It started with a question',
+        }),
+      ).toBeTruthy()
+    },
+  )
+
   it('offers email campaigns to email admins only', async () => {
     const user = userEvent.setup()
     const { unmount } = render(<SidebarNav viewer={viewer} isEmailAdmin />)

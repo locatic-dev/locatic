@@ -1,3 +1,4 @@
+import rateLimiterTest from '@convex-dev/rate-limiter/test'
 import { convexTest, type TestConvex } from 'convex-test'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -132,6 +133,7 @@ describe('lastPublicActivityAt ranking signal (plan item D4)', () => {
   beforeEach(async () => {
     vi.useFakeTimers({ now: NOW })
     t = convexTest(schema, modules)
+    rateLimiterTest.register(t)
     bengaluru = await seedCity(t, BENGALURU)
   })
 
@@ -434,6 +436,7 @@ describe('internal.users.backfillLastPublicActivity', () => {
   it('pages through every user, scheduling itself, and clears stale values', async () => {
     vi.useFakeTimers({ now: NOW })
     const t = convexTest(schema, modules)
+    rateLimiterTest.register(t)
     const ada = await seedUser(t, { username: 'ada' })
     const project = await seedProject(t, {
       ownerId: ada,
@@ -489,6 +492,7 @@ describe('hourly metadata refresh targets', () => {
   it('refreshes discovery-visible projects first and keeps a share for the stalest', async () => {
     vi.useFakeTimers({ now: NOW })
     const t = convexTest(schema, modules)
+    rateLimiterTest.register(t)
     const bengaluru = await seedCity(t, BENGALURU)
     const hidden = await seedUser(t, {
       username: 'hidden',
@@ -549,6 +553,7 @@ describe('users.publicProfileShippingLog (plan item D6)', () => {
   beforeEach(async () => {
     vi.useFakeTimers({ now: NOW })
     t = convexTest(schema, modules)
+    rateLimiterTest.register(t)
     bengaluru = await seedCity(t, BENGALURU)
   })
 
@@ -652,6 +657,7 @@ describe('internal.users.scrubDeletedAccount', () => {
   it("deletes the purged user's saves, keeps others' and clears the signal", async () => {
     vi.useFakeTimers({ now: NOW })
     const t = convexTest(schema, modules)
+    rateLimiterTest.register(t)
     const ada = await seedUser(t, { username: 'ada' })
     const bob = await seedUser(t, { username: 'bob' })
     const adaProject = await seedProject(t, {

@@ -79,6 +79,7 @@ import {
   stripProjectCommentSearch,
   type ProjectTab,
 } from '@/features/projects/deep-link'
+import { CONTENT_LIMITS } from '../../../convex/lib/content_limits'
 
 // Read search and navigation through the route API so this module does not
 // import the route file that renders it.
@@ -105,10 +106,12 @@ export function ProjectView({
       : []
   const highlightedPostId =
     'post' in routeSearch ? (routeSearch.post ?? null) : null
+  const highlightedReleaseId =
+    'release' in routeSearch ? (routeSearch.release ?? null) : null
   const highlightedThreadId =
     'thread' in routeSearch ? (routeSearch.thread ?? null) : null
-  // Sign-in returns to this project with its deep link (?comment, ?post) and
-  // hash intact.
+  // Sign-in returns to this project with its deep link (?comment, ?post,
+  // ?release) and hash intact.
   const signInRedirect = useSignInReturnHref(
     buildProjectReturnHref({ owner, repo, search: routeSearch }),
   )
@@ -218,6 +221,7 @@ export function ProjectView({
   const defaultProjectTab = getProjectDeepLinkTab({
     commentId: highlightedCommentId,
     postId: highlightedPostId,
+    releaseId: highlightedReleaseId,
     postsCount: detail.project.locatic.postsCount ?? 0,
   })
   const isOwnProject = viewer?.id === String(detail.owner.userId)
@@ -453,7 +457,11 @@ export function ProjectView({
 
   useEffect(() => {
     const hasActiveDeepLinkTarget = Boolean(
-      highlightedCommentId ?? highlightedPostId ?? hashCommentId ?? hashPostId,
+      highlightedCommentId ??
+      highlightedPostId ??
+      highlightedReleaseId ??
+      hashCommentId ??
+      hashPostId,
     )
     if (
       shouldSyncProjectTab({
@@ -470,6 +478,7 @@ export function ProjectView({
     hashPostId,
     highlightedCommentId,
     highlightedPostId,
+    highlightedReleaseId,
   ])
 
   useEffect(() => {
@@ -792,7 +801,10 @@ export function ProjectView({
                 hidden={activeProjectTab !== 'releases'}
               >
                 {activeProjectTab === 'releases' && (
-                  <ProjectReleasesSection releases={detail.releases} />
+                  <ProjectReleasesSection
+                    releases={detail.releases}
+                    highlightedReleaseId={highlightedReleaseId}
+                  />
                 )}
               </TabsContent>
 
@@ -812,6 +824,7 @@ export function ProjectView({
                         />
                         <div className="min-w-0 flex-1">
                           <Textarea
+                            maxLength={CONTENT_LIMITS.comment}
                             value={comment}
                             onChange={(event) => setComment(event.target.value)}
                             placeholder="say something thoughtful…"

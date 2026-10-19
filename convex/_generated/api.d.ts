@@ -27,6 +27,7 @@ import type * as github_actions from "../github_actions.js";
 import type * as home from "../home.js";
 import type * as homeBackfill from "../homeBackfill.js";
 import type * as http from "../http.js";
+import type * as landing from "../landing.js";
 import type * as lib_account_deletion from "../lib/account_deletion.js";
 import type * as lib_activity from "../lib/activity.js";
 import type * as lib_auth from "../lib/auth.js";
@@ -84,6 +85,7 @@ import type * as projects from "../projects.js";
 import type * as pulse from "../pulse.js";
 import type * as reactionConfigSeed from "../reactionConfigSeed.js";
 import type * as reactions from "../reactions.js";
+import type * as sitemap from "../sitemap.js";
 import type * as users from "../users.js";
 
 import type {
@@ -112,6 +114,7 @@ declare const fullApi: ApiFromModules<{
   home: typeof home;
   homeBackfill: typeof homeBackfill;
   http: typeof http;
+  landing: typeof landing;
   "lib/account_deletion": typeof lib_account_deletion;
   "lib/activity": typeof lib_activity;
   "lib/auth": typeof lib_auth;
@@ -169,6 +172,7 @@ declare const fullApi: ApiFromModules<{
   pulse: typeof pulse;
   reactionConfigSeed: typeof reactionConfigSeed;
   reactions: typeof reactions;
+  sitemap: typeof sitemap;
   users: typeof users;
 }>;
 

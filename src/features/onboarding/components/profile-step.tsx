@@ -5,8 +5,9 @@ import {
   fieldLabelClass,
   fieldInputClass,
 } from './onboarding-shell'
+import { CONTENT_LIMITS } from '../../../../convex/lib/content_limits'
 
-export const BIO_MAX_LENGTH = 140
+export const BIO_MAX_LENGTH = CONTENT_LIMITS.bio
 
 export function ProfileStepFields({
   bio,
@@ -27,6 +28,7 @@ export function ProfileStepFields({
         </label>
         <Input
           id="onboarding-display-name"
+          maxLength={CONTENT_LIMITS.displayName}
           value={displayName}
           onChange={(event) => onDisplayNameChange(event.target.value)}
           placeholder="how you want to appear"
@@ -43,6 +45,7 @@ export function ProfileStepFields({
         </label>
         <Textarea
           id="onboarding-bio"
+          maxLength={BIO_MAX_LENGTH}
           value={bio}
           onChange={(event) =>
             onBioChange(event.target.value.slice(0, BIO_MAX_LENGTH))
