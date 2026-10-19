@@ -22,7 +22,7 @@ import {
   statusFromEvent,
 } from './lib/email_send_status'
 import { UNSUBSCRIBE_URL_PLACEHOLDER } from './lib/emails/placeholders'
-import { getResend } from './lib/resend'
+import { cancelIfWaiting, getResend } from './lib/resend'
 import type { Doc } from './lib/types'
 import { signUnsubscribeToken } from './lib/unsubscribe_token'
 import { emailCategoryValidator } from './lib/validators'
@@ -229,6 +229,37 @@ export const cleanupComponentEmails = internalMutation({
 })
 
 /**
+ * The next members to visit. Everyone: users in creation order, by Convex
+ * cursor. Named members: the listed ids in order, with the cursor holding
+ * the next index; accounts deleted since are left out (purged accounts take
+ * their send rows with them anyway).
+ */
+async function audiencePage(
+  ctx: MutationCtx,
+  campaign: Doc<'email_campaigns'>,
+  cursor: string | null,
+  numItems: number,
+): Promise<{ page: Doc<'users'>[]; continueCursor: string; isDone: boolean }> {
+  if (campaign.audience?.kind !== 'members') {
+    return await ctx.db
+      .query('users')
+      .order('asc')
+      .paginate({ numItems, cursor })
+  }
+  const userIds = campaign.audience.userIds
+  const start = cursor === null ? 0 : Number(cursor)
+  const end = Math.min(start + numItems, userIds.length)
+  const users = await Promise.all(
+    userIds.slice(start, end).map((userId) => ctx.db.get(userId)),
+  )
+  return {
+    page: users.filter((user) => user !== null),
+    continueCursor: String(end),
+    isDone: end >= userIds.length,
+  }
+}
+
+/**
  * One page of the send: visits up to `pageSize` users in creation order from
  * the stored cursor, enqueues an email for each eligible one and records an
  * `email_sends` row in the same transaction, then schedules the next page.
@@ -261,13 +292,12 @@ export const enqueueBatch = internalMutation({
     const resend = getResend()
     // Large emails get smaller pages, so a batch never nears the
     // per-transaction write limit (`enqueuePageSize`).
-    const page = await ctx.db
-      .query('users')
-      .order('asc')
-      .paginate({
-        numItems: enqueuePageSize(sent.html, sent.text, args.pageSize),
-        cursor: sent.cursor,
-      })
+    const page = await audiencePage(
+      ctx,
+      campaign,
+      sent.cursor,
+      enqueuePageSize(sent.html, sent.text, args.pageSize),
+    )
     const now = Date.now()
 
     for (const user of page.page) {
@@ -308,6 +338,7 @@ export const enqueueBatch = internalMutation({
         campaignId: campaign._id,
         userId: user._id,
         category,
+        to: user.email,
         emailId,
         status: 'queued',
         createdAt: now,
@@ -403,16 +434,9 @@ export const cancelWaitingSends = internalMutation({
       numItems: CANCEL_PAGE_SIZE,
       cursor: args.cursor ?? null,
     })
-    const resend = getResend()
     const now = Date.now()
     for (const row of page.page) {
-      const emailId = row.emailId as EmailId
-      // Read first: the component's cancelEmail throws for anything past
-      // `queued`, and a throw here would only fail this job, never the change
-      // that scheduled it.
-      const status = await resend.status(ctx, emailId)
-      if (status?.status !== 'waiting' && status?.status !== 'queued') continue
-      await resend.cancelEmail(ctx, emailId)
+      if (!(await cancelIfWaiting(ctx, row.emailId))) continue
       await ctx.db.patch(row._id, {
         status: 'cancelled',
         nextReconcileAt: undefined,

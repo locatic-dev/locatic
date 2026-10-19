@@ -161,6 +161,8 @@ export const emailPreferenceSourceValidator = v.union(
 
 export const emailCampaignStateValidator = v.union(
   v.literal('draft'),
+  // Waiting for its send time (Undo send / Send later).
+  v.literal('scheduled'),
   v.literal('sending'),
   v.literal('sent'),
   v.literal('cancelled'),
@@ -225,6 +227,33 @@ export const emailCampaignSentValidator = v.object({
   cursor: v.union(v.string(), v.null()),
   lastBatchAt: v.number(),
   enqueuedAt: v.optional(v.number()),
+  // The archive/admin copy's component email, so Stop sending cancels it too.
+  copyEmailId: v.optional(v.string()),
+})
+
+// Missing on a campaign means everyone in its category.
+export const emailCampaignAudienceValidator = v.union(
+  v.object({ kind: v.literal('everyone') }),
+  v.object({ kind: v.literal('members'), userIds: v.array(v.id('users')) }),
+)
+
+// Who gets a copy of a campaign when it starts sending.
+export const emailCopyChoiceValidator = v.union(
+  v.literal('archive'),
+  v.literal('me'),
+  v.literal('none'),
+)
+
+/** The rendered send waiting for its time; moved to `sent` when it starts. */
+export const emailCampaignScheduledValidator = v.object({
+  sendAt: v.number(),
+  revision: v.number(),
+  html: v.string(),
+  text: v.string(),
+  scheduledBy: v.id('users'),
+  scheduledAt: v.number(),
+  jobId: v.id('_scheduled_functions'),
+  copyTo: v.union(v.string(), v.null()),
 })
 
 export const cityReferenceValidator = v.union(v.id('cities'), v.null())

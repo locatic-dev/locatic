@@ -6,9 +6,12 @@ import type { Id } from '../../../convex/_generated/dataModel'
 export const emailCampaignListQueryOptions = () =>
   convexQuery(api.emailCampaigns.list, {})
 
-export const emailCampaignQueryOptions = (
-  campaignId: Id<'email_campaigns'> | null,
-) => convexQuery(api.emailCampaigns.get, campaignId ? { campaignId } : 'skip')
+/**
+ * Takes the raw route param; the server reads a bad id as not found. Null
+ * (an unsaved New draft) reads nothing.
+ */
+export const emailCampaignQueryOptions = (campaignId: string | null) =>
+  convexQuery(api.emailCampaigns.get, campaignId ? { campaignId } : 'skip')
 
 /** Only while the send dialog is open: it reads up to 100 members. */
 export const emailSendPreviewQueryOptions = (
@@ -24,4 +27,13 @@ export const emailProjectSearchQueryOptions = (query: string) =>
   convexQuery(
     api.emailCampaigns.searchProjects,
     query.trim() ? { query } : 'skip',
+  )
+
+export const emailMemberSearchQueryOptions = (
+  query: string,
+  kind: 'announcement' | 'digest',
+) =>
+  convexQuery(
+    api.emailCampaigns.searchMembers,
+    query.trim() ? { query, kind } : 'skip',
   )

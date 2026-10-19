@@ -44,6 +44,16 @@ describe('CampaignResults', () => {
         id: 'send_1' as EmailRecipient['id'],
         displayName: 'Ada L',
         githubUsername: 'ada',
+        to: 'ada@example.test',
+        status: 'delivered',
+        updatedAt: NOW,
+      },
+      {
+        id: 'send_2' as EmailRecipient['id'],
+        displayName: 'Bob',
+        githubUsername: 'bob',
+        // Sent before addresses were recorded.
+        to: null,
         status: 'delivered',
         updatedAt: NOW,
       },
@@ -80,6 +90,8 @@ describe('CampaignResults', () => {
     const table = screen.getByRole('table')
     expect(within(table).getByText('Ada L')).toBeTruthy()
     expect(within(table).getByText('@ada')).toBeTruthy()
+    expect(within(table).getByText('ada@example.test')).toBeTruthy()
+    expect(within(table).getByText('—')).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Resume sending' })).toBeNull()
   })
 
