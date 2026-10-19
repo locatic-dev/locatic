@@ -1,4 +1,13 @@
-import { createFileRoute, Outlet, redirect } from '@tanstack/react-router'
+import { useEffect } from 'react'
+import { useAuth } from '@clerk/tanstack-react-start'
+import { ContentRoutePending } from '@/components/app-shell/route-pending'
+import {
+  createFileRoute,
+  Outlet,
+  redirect,
+  useRouterState,
+  useRouter,
+} from '@tanstack/react-router'
 import { MemberShell } from '@/components/app-shell/member-shell'
 import type { ViewerBootstrapPayload } from '@/features/contracts'
 import { viewerQueryOptions } from '@/features/viewer/queries'
@@ -41,14 +50,32 @@ export const Route = createFileRoute('/_app')({
   component: AuthenticatedApp,
 })
 
-/**
- * Unauthenticated viewers only reach here on public project-detail browsing
- * (other `_app` routes redirect to sign-in in `beforeLoad`); they get a bare
- * Outlet with no shell.
- */
+/** Public project browsing is the only visitor outlet in this route group. */
 function AuthenticatedApp() {
+  const { isLoaded, isSignedIn } = useAuth()
+  const location = useRouterState({ select: (state) => state.location })
+  const isPublicProject = isProjectDetailPath(location.pathname)
+
+  const router = useRouter()
+  const needsSignIn = !isPublicProject && isLoaded && !isSignedIn
+
+  // A mounted route must also react to session loss. Depend on stable values:
+  // a newly-created <Navigate> prop object can restart an in-flight redirect.
+  useEffect(() => {
+    if (!needsSignIn) return
+    void router.navigate({
+      to: '/sign-in/$',
+      search: { redirect: toSafeRelativeUrl(location.href) ?? undefined },
+      replace: true,
+    })
+  }, [location.href, needsSignIn, router])
+
+  if (needsSignIn) return <ContentRoutePending />
+
   return (
-    <MemberShell withoutViewer={<Outlet />}>
+    <MemberShell
+      withoutViewer={isPublicProject ? <Outlet /> : <ContentRoutePending />}
+    >
       <Outlet />
     </MemberShell>
   )

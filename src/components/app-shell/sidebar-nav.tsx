@@ -26,7 +26,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { useClerk } from '@clerk/tanstack-react-start'
+import { useSignOut } from '@/integrations/clerk/sign-out'
 import { useState, type ReactNode } from 'react'
 import { AboutDialog } from '@/features/landing/about-dialog'
 import { useResumeExploreSearch } from '@/features/explore/state'
@@ -309,7 +309,7 @@ export function SidebarNav({
 }
 
 function AccountMenu({ isEmailAdmin }: { isEmailAdmin: boolean }) {
-  const { signOut } = useClerk()
+  const signOut = useSignOut()
   const [aboutOpen, setAboutOpen] = useState(false)
   return (
     <>
@@ -353,7 +353,7 @@ function AccountMenu({ isEmailAdmin }: { isEmailAdmin: boolean }) {
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem
-            onClick={() => void signOut({ redirectUrl: '/' })}
+            onClick={signOut}
             className="cursor-pointer text-danger"
           >
             sign out

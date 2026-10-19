@@ -15,6 +15,7 @@ import { ThemeProvider } from 'next-themes'
 import { Suspense, lazy, useEffect } from 'react'
 import { THEME_IDS, DEFAULT_THEME_ID } from '@/lib/theme'
 import ClerkProvider from '../integrations/clerk/provider'
+import { SignOutProvider } from '@/integrations/clerk/sign-out'
 import ConvexProvider from '../integrations/convex/provider'
 import { DiscoveryReturnMetric } from '@/integrations/convex/metrics'
 import { Logo } from '@/components/ui/logo'
@@ -317,8 +318,10 @@ function RootDocument({ children }: { children: React.ReactNode }) {
                 <ConvexProvider
                   queryClient={router.options.context.queryClient}
                 >
-                  {children}
-                  <DiscoveryReturnMetric />
+                  <SignOutProvider>
+                    {children}
+                    <DiscoveryReturnMetric />
+                  </SignOutProvider>
                   <Suspense fallback={null}>
                     <Toaster />
                   </Suspense>

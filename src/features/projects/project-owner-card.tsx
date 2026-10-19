@@ -1,3 +1,4 @@
+import { captureSessionCache } from '@/integrations/convex/session-cache'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import type { FunctionReturnType } from 'convex/server'
@@ -51,6 +52,7 @@ export function ProjectOwnerCard({
   signInRedirect: string | undefined
 }) {
   const queryClient = useQueryClient()
+  const isCurrentSession = captureSessionCache(queryClient)
   const followUser = useFollowUser()
   const unfollowUser = useUnfollowUser()
   const { openConversation, pendingUserId } = useOpenConversation()
@@ -72,6 +74,7 @@ export function ProjectOwnerCard({
         : followUser({ targetUserId: userId }),
     onMutate: async ({ currentlyFollowed }) => {
       await queryClient.cancelQueries({ queryKey: projectDetailQueryKey })
+      if (!isCurrentSession()) return
       const previous = queryClient.getQueryData<ProjectDetailPayload | null>(
         projectDetailQueryKey,
       )
@@ -85,9 +88,11 @@ export function ProjectOwnerCard({
       return { previous }
     },
     onError: (_error, _variables, context) => {
+      if (!isCurrentSession()) return
       queryClient.setQueryData(projectDetailQueryKey, context?.previous ?? null)
     },
     onSettled: async () => {
+      if (!isCurrentSession()) return
       await queryClient.invalidateQueries({ queryKey: projectDetailQueryKey })
     },
   })
@@ -121,6 +126,7 @@ export function ProjectOwnerCard({
     try {
       await followMutation.mutateAsync({ currentlyFollowed: followed, userId })
     } catch (error) {
+      if (!isCurrentSession()) return
       reportActionError(error, {
         title: followed ? "couldn't unfollow" : "couldn't follow",
         retry: handleFollow,
@@ -128,6 +134,7 @@ export function ProjectOwnerCard({
       return
     }
 
+    if (!isCurrentSession()) return
     if (followed) {
       showUndoToast({
         message: `unfollowed @${detail.owner.githubUsername}`,

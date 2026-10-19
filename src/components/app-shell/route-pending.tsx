@@ -37,6 +37,21 @@ export function ContentRoutePending() {
   return <QuietRoutePending label="loading" />
 }
 
+/** A single responsive, announced transition while the session ends. */
+export function SignOutPending() {
+  return (
+    <main
+      id="main-content"
+      tabIndex={-1}
+      className="flex min-h-dvh items-center justify-center bg-canvas px-6 text-text"
+    >
+      <p role="status" className="font-mono text-body text-text-muted">
+        signing out…
+      </p>
+    </main>
+  )
+}
+
 /** Route pending for list pages that render their own list skeleton. */
 export function FeedRoutePending() {
   return <QuietRoutePending label="loading feed" />

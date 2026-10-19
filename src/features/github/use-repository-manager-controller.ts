@@ -1,3 +1,4 @@
+import { captureSessionCache } from '@/integrations/convex/session-cache'
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 
@@ -45,6 +46,7 @@ export function useRepositoryManagerController({
   profileUsername: string
 }) {
   const queryClient = useQueryClient()
+  const isCurrentSession = captureSessionCache(queryClient)
   const mineProjectsQuery = useQuery(mineProjectsQueryOptions())
   const listGithubRepositories = useListGithubRepositories()
   const importSelectedRepositories = useImportSelectedRepositories()
@@ -141,6 +143,7 @@ export function useRepositoryManagerController({
     pinnedIds?: Array<Id<'projects'>>
     projectsCount?: number
   }) => {
+    if (!isCurrentSession()) return
     queryClient.setQueryData<PrivateProfileOverviewPayload | undefined>(
       privateProfileOverviewQueryKey,
       (current) => {
@@ -187,6 +190,7 @@ export function useRepositoryManagerController({
   }
 
   const invalidateRepositoryViews = async () => {
+    if (!isCurrentSession()) return
     await Promise.all(
       getRepositoryViewQueryKeys({
         mineProjectsQueryKey,
@@ -295,6 +299,7 @@ export function useRepositoryManagerController({
       queryClient.cancelQueries({ queryKey: publicProfileProjectsQueryKey }),
     ])
 
+    if (!isCurrentSession()) return
     queryClient.setQueryData<Array<Doc<'projects'>> | undefined>(
       mineProjectsQueryKey,
       (current) =>
@@ -351,6 +356,7 @@ export function useRepositoryManagerController({
       await invalidateRepositoryViews()
     } catch (error) {
       console.error(error)
+      if (!isCurrentSession()) return
       queryClient.setQueryData(mineProjectsQueryKey, previousMineProjects)
       queryClient.setQueryData(
         privateProfileOverviewQueryKey,
@@ -406,6 +412,7 @@ export function useRepositoryManagerController({
       queryClient.cancelQueries({ queryKey: publicProfileProjectsQueryKey }),
     ])
 
+    if (!isCurrentSession()) return
     updateOverviewCaches({ pinnedIds: nextPinnedIds })
     queryClient.setQueryData<Array<ProjectCardPreview> | undefined>(
       privateProfileProjectsQueryKey,
@@ -426,6 +433,7 @@ export function useRepositoryManagerController({
       updateOverviewCaches({ pinnedIds: result })
       await invalidateRepositoryViews()
     } catch (error) {
+      if (!isCurrentSession()) return
       queryClient.setQueryData(
         privateProfileOverviewQueryKey,
         previousPrivateOverview,
@@ -459,6 +467,7 @@ export function useRepositoryManagerController({
     try {
       await setProjectPinned(pinnedItem, !unpinning)
     } catch (error) {
+      if (!isCurrentSession()) return
       reportActionError(error, {
         title: unpinning ? "couldn't unpin" : "couldn't pin",
         retry: () => handleTogglePin(item),
@@ -466,6 +475,7 @@ export function useRepositoryManagerController({
       return
     }
 
+    if (!isCurrentSession()) return
     if (unpinning) {
       showUndoToast({
         message: `unpinned ${item.fullName}`,
