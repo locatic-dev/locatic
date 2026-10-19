@@ -1,5 +1,5 @@
 import { useNavigate } from '@tanstack/react-router'
-import { useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import type { Id } from '../../../../convex/_generated/dataModel'
 
@@ -7,7 +7,11 @@ import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { reportActionError } from '@/lib/action-error'
 import { useUnsavedChangesGuard } from '@/features/settings/use-unsaved-changes-guard'
-import { type CampaignDraft, type EmailCampaignDetail } from '../contracts'
+import {
+  audienceSkipReasons,
+  type CampaignDraft,
+  type EmailCampaignDetail,
+} from '../contracts'
 import { useRequestEmailSend, useUnscheduleEmailSend } from '../mutations'
 import { useCampaignPreview } from '../use-campaign-preview'
 import { type AutosaveStatus, useDraftAutosave } from '../use-draft-autosave'
@@ -89,6 +93,15 @@ export function DraftPanel({
     content: draft.content,
   })
   const stored = detail !== null || saved.campaignId !== null
+  const [discarding, setDiscarding] = useState(false)
+  // A Discard that finishes after the admin left must not pull them back.
+  const mounted = useRef(true)
+  useEffect(() => {
+    mounted.current = true
+    return () => {
+      mounted.current = false
+    }
+  }, [])
 
   useUnsavedChangesGuard(isDirty, allowNextNavigation)
 
@@ -101,7 +114,11 @@ export function DraftPanel({
     ) {
       return
     }
-    if (!(await autosave.discard())) return
+    setDiscarding(true)
+    const discarded = await autosave.discard()
+    if (!mounted.current) return
+    setDiscarding(false)
+    if (!discarded) return
     if (stored) toast.success('Draft discarded.')
     allowNextNavigation.current = true
     await navigate({ to: '/admin/emails', replace: true })
@@ -131,8 +148,13 @@ export function DraftPanel({
             hasStoredDraft={stored}
             onRetry={() => void autosave.saveNow()}
           />
-          <Button type="button" size="sm" onClick={() => void discard()}>
-            Discard draft
+          <Button
+            type="button"
+            size="sm"
+            disabled={discarding}
+            onClick={() => void discard()}
+          >
+            {discarding ? 'Discarding…' : 'Discard draft'}
           </Button>
         </div>
       </div>
@@ -167,6 +189,7 @@ export function DraftPanel({
                 onSaveNow={() => void autosave.saveNow()}
                 onReload={autosave.reload}
                 isStale={autosave.isStale}
+                skipReasons={audienceSkipReasons(detail)}
               />
             </TabsContent>
             <TabsContent

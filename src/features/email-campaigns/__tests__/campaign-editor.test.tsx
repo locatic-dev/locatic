@@ -5,14 +5,21 @@ import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { Id } from '../../../../convex/_generated/dataModel'
-import type { CampaignDraft } from '../contracts'
+import type { CampaignDraft, SkipReason } from '../contracts'
 import { announcementDraft } from './fixtures'
 
-const mocks = vi.hoisted(() => ({ searchResults: [] as unknown[] }))
+const mocks = vi.hoisted(() => ({
+  searchResults: [] as unknown[] | undefined,
+  searchError: null as Error | null,
+}))
 
 vi.mock('@tanstack/react-query', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@tanstack/react-query')>()),
-  useQuery: () => ({ data: mocks.searchResults, isLoading: false }),
+  useQuery: () => ({
+    data: mocks.searchError ? undefined : mocks.searchResults,
+    error: mocks.searchError,
+    refetch: vi.fn(),
+  }),
 }))
 
 import { CampaignEditor } from '../components/campaign-editor'
@@ -23,8 +30,10 @@ function Harness({
   onChange = vi.fn(),
   onSaveNow = vi.fn(),
   onReload = vi.fn(),
+  skipReasons = new Map(),
 }: {
   initial?: CampaignDraft
+  skipReasons?: ReadonlyMap<string, SkipReason>
   isStale?: boolean
   onChange?: (draft: CampaignDraft) => void
   onSaveNow?: () => void
@@ -41,6 +50,7 @@ function Harness({
       onSaveNow={onSaveNow}
       onReload={onReload}
       isStale={isStale}
+      skipReasons={skipReasons}
     />
   )
 }
@@ -136,10 +146,12 @@ describe('CampaignEditor', () => {
     render(<Harness onChange={onChange} />)
 
     expect(
-      screen
-        .getByRole('radio', { name: 'All members who get updates' })
-        .getAttribute('aria-checked'),
-    ).toBe('true')
+      (
+        screen.getByRole('radio', {
+          name: 'All members who get updates',
+        }) as HTMLInputElement
+      ).checked,
+    ).toBe(true)
     await user.click(screen.getByRole('radio', { name: 'Specific members' }))
     expect(screen.getByText('Add at least one member to send.')).toBeTruthy()
     await user.type(screen.getByLabelText('Add a member'), 'ada')
@@ -157,6 +169,71 @@ describe('CampaignEditor', () => {
     )
     await user.click(screen.getByRole('button', { name: 'Remove Ada L' }))
     expect(screen.queryByRole('list', { name: 'Chosen members' })).toBeNull()
+    mocks.searchResults = []
+  })
+
+  it('moves between To options with the arrow keys, as radios do', async () => {
+    // jsdom lacks CSS.escape, which user-event uses to find a radio group.
+    vi.stubGlobal('CSS', {
+      escape: (value: string) => value.replace(/[^\w-]/g, '\\$&'),
+    })
+    const user = userEvent.setup()
+    render(<Harness />)
+
+    const everyone = screen.getByRole('radio', {
+      name: 'All members who get updates',
+    })
+    everyone.focus()
+    await user.keyboard('{ArrowRight}')
+    const members = screen.getByRole('radio', { name: 'Specific members' })
+    expect(document.activeElement).toBe(members)
+    expect((members as HTMLInputElement).checked).toBe(true)
+    vi.unstubAllGlobals()
+  })
+
+  it('shows live skip reasons for members already chosen', () => {
+    const draft: CampaignDraft = {
+      ...announcementDraft,
+      audience: {
+        kind: 'members',
+        members: [
+          {
+            userId: 'user_ada' as never,
+            displayName: 'Ada L',
+            githubUsername: 'ada',
+          },
+        ],
+      },
+    }
+    const { rerender } = render(<Harness initial={draft} />)
+    expect(screen.queryByText(/will be skipped/)).toBeNull()
+
+    // Ada opts out: no new revision, but the live reason changes.
+    rerender(
+      <Harness
+        initial={draft}
+        skipReasons={new Map([['user_ada', 'unsubscribed' as const]])}
+      />,
+    )
+    expect(
+      screen.getByText('turned updates off · will be skipped'),
+    ).toBeTruthy()
+  })
+
+  it('says when member search is loading or failed', async () => {
+    const user = userEvent.setup()
+    mocks.searchResults = undefined
+    const { rerender } = render(<Harness />)
+    await user.click(screen.getByRole('radio', { name: 'Specific members' }))
+    await user.type(screen.getByLabelText('Add a member'), 'ad')
+    expect(screen.getByText('Searching…')).toBeTruthy()
+
+    mocks.searchError = new Error('network')
+    rerender(<Harness />)
+    expect(screen.getByRole('alert').textContent).toContain(
+      "Couldn't search members.",
+    )
+    mocks.searchError = null
     mocks.searchResults = []
   })
 

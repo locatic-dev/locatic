@@ -63,7 +63,7 @@ export const requestSend = action({
   // Annotated: the result comes from `internal`, whose types include this
   // module.
   handler: async (ctx, args): Promise<{ sendAt: number }> => {
-    const campaign = await ctx.runQuery(internal.emailCampaigns.getForSend, {
+    const campaign = await ctx.runQuery(internal.emailSchedule.getForSend, {
       campaignId: args.campaignId,
       expectedRevision: args.expectedRevision,
     })
@@ -80,7 +80,7 @@ export const requestSend = action({
     const html = await renderCampaignHtml(props)
     const text = await renderCampaignText(props)
     assertEmailSize(html, text)
-    return await ctx.runMutation(internal.emailCampaigns.scheduleSend, {
+    return await ctx.runMutation(internal.emailSchedule.scheduleSend, {
       ...args,
       html,
       text,

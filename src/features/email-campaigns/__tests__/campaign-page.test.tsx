@@ -271,6 +271,69 @@ describe('New draft sessions (review regressions)', () => {
   })
 })
 
+describe('autosave and Discard lifecycles (review regressions)', () => {
+  beforeEach(() => {
+    resetMocks()
+    mocks.detail = makeDetail()
+  })
+
+  it('does not retry a rejected snapshot until it is edited', async () => {
+    const user = userEvent.setup()
+    mocks.save.mockRejectedValue(new Error('Button label is required'))
+    render(<CampaignPage campaignId={CAMPAIGN_ID} kind="update" />)
+
+    await user.type(screen.getByLabelText('Subject'), '!')
+    await screen.findByText("Couldn't save", {}, AUTOSAVE_WAIT)
+    await new Promise((resolve) => setTimeout(resolve, AUTOSAVE_DELAY_MS * 2))
+    expect(mocks.save).toHaveBeenCalledTimes(1)
+
+    await user.type(screen.getByLabelText('Subject'), '?')
+    await waitFor(
+      () => expect(mocks.save).toHaveBeenCalledTimes(2),
+      AUTOSAVE_WAIT,
+    )
+  })
+
+  it('does not navigate when a Discard finishes after the page was left', async () => {
+    const user = userEvent.setup()
+    let finishDelete!: () => void
+    mocks.remove.mockReturnValue(
+      new Promise<null>((resolve) => {
+        finishDelete = () => resolve(null)
+      }),
+    )
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const { unmount } = render(
+      <CampaignPage campaignId={CAMPAIGN_ID} kind="update" />,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Discard draft' }))
+    expect(
+      (screen.getByRole('button', { name: 'Discarding…' }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(true)
+    unmount()
+    finishDelete()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(mocks.navigate).not.toHaveBeenCalled()
+  })
+
+  it("keeps Undo available past the browser clock's send time", () => {
+    mocks.detail = makeDetail({
+      state: 'scheduled',
+      scheduled: { sendAt: Date.now() - 5_000, copyTo: null },
+    })
+    render(<CampaignPage campaignId={CAMPAIGN_ID} kind="update" />)
+
+    expect(screen.getByRole('heading', { name: 'Starting…' })).toBeTruthy()
+    expect(
+      (screen.getByRole('button', { name: 'Undo' }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(false)
+  })
+})
+
 describe('a stored campaign', () => {
   beforeEach(() => {
     resetMocks()

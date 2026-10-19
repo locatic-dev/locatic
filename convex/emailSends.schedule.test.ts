@@ -69,7 +69,7 @@ async function schedule(
     copy?: 'archive' | 'me' | 'none'
   } = {},
 ) {
-  return await asAdmin(t).mutation(internal.emailCampaigns.scheduleSend, {
+  return await asAdmin(t).mutation(internal.emailSchedule.scheduleSend, {
     campaignId,
     expectedRevision: extra.expectedRevision ?? 3,
     ...ARTIFACT,
@@ -98,7 +98,7 @@ describe('undo send', () => {
     const scheduled = await campaign(t, campaignId)
     expect(scheduled).toMatchObject({ state: 'scheduled', revision: 4 })
     expect((await pendingJobs(t)).map((job) => job.name)).toEqual([
-      'emailCampaigns:startScheduledSend',
+      'emailSchedule:startScheduledSend',
     ])
     await expect(
       asAdmin(t).mutation(api.emailCampaigns.saveDraft, {
@@ -113,12 +113,12 @@ describe('undo send', () => {
 
     // An Undo from a page showing an older revision is refused.
     await expect(
-      asAdmin(t).mutation(api.emailCampaigns.unscheduleSend, {
+      asAdmin(t).mutation(api.emailSchedule.unscheduleSend, {
         campaignId,
         expectedRevision: 3,
       }),
     ).rejects.toThrow('Campaign changed')
-    await asAdmin(t).mutation(api.emailCampaigns.unscheduleSend, {
+    await asAdmin(t).mutation(api.emailSchedule.unscheduleSend, {
       campaignId,
       expectedRevision: 4,
     })
@@ -131,13 +131,32 @@ describe('undo send', () => {
     expect(await sends(t, campaignId)).toEqual([])
   })
 
+  it('starts on its own when the scheduler reaches the send time', async () => {
+    const t = setup()
+    const adminId = await seedAdmin(t)
+    await seedMembers(t, 2)
+    const campaignId = await seedCampaign(t, adminId)
+
+    await schedule(t, campaignId)
+    vi.advanceTimersByTime(SEND_DELAY_MS - 1)
+    await t.finishInProgressScheduledFunctions()
+    expect((await campaign(t, campaignId))?.state).toBe('scheduled')
+
+    // The real job, not a direct call: it runs at its time.
+    vi.advanceTimersByTime(1)
+    await t.finishInProgressScheduledFunctions()
+    await drain(t)
+    expect((await campaign(t, campaignId))?.state).toBe('sent')
+    expect(await sends(t, campaignId)).toHaveLength(2)
+  })
+
   it('refuses a request rendered before an Undo', async () => {
     const t = setup()
     const adminId = await seedAdmin(t)
     const campaignId = await seedCampaign(t, adminId)
 
     await schedule(t, campaignId)
-    await asAdmin(t).mutation(api.emailCampaigns.unscheduleSend, {
+    await asAdmin(t).mutation(api.emailSchedule.unscheduleSend, {
       campaignId,
       expectedRevision: 4,
     })
@@ -154,7 +173,7 @@ describe('undo send', () => {
 
     await schedule(t, campaignId)
     const first = (await campaign(t, campaignId))!.scheduled!
-    await asAdmin(t).mutation(api.emailCampaigns.unscheduleSend, {
+    await asAdmin(t).mutation(api.emailSchedule.unscheduleSend, {
       campaignId,
       expectedRevision: 4,
     })
@@ -162,7 +181,7 @@ describe('undo send', () => {
     await schedule(t, campaignId, { expectedRevision: 4 })
 
     // A late run of the first job does nothing.
-    await t.mutation(internal.emailCampaigns.startScheduledSend, {
+    await t.mutation(internal.emailSchedule.startScheduledSend, {
       campaignId,
       scheduledAt: first.scheduledAt,
     })
@@ -171,7 +190,7 @@ describe('undo send', () => {
     await fireScheduledSend(t, campaignId)
     expect((await campaign(t, campaignId))?.state).toBe('sending')
     await expect(
-      asAdmin(t).mutation(api.emailCampaigns.unscheduleSend, {
+      asAdmin(t).mutation(api.emailSchedule.unscheduleSend, {
         campaignId,
         expectedRevision: 5,
       }),

@@ -17,6 +17,7 @@ export function makeDetail(
   return {
     id: CAMPAIGN_ID,
     ...announcementDraft,
+    audience: { kind: 'everyone' },
     revision: 2,
     templateVersion: 2,
     state: 'draft',

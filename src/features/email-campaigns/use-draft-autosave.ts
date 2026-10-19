@@ -85,8 +85,9 @@ export function useDraftAutosave({
   const onCreatedRef = useRef(onCreated)
   onCreatedRef.current = onCreated
   const discarded = useRef(false)
-  // Report a failing save once, not on every retry.
-  const failing = useRef(false)
+  // The snapshot the last save failed on. Autosave does not retry it (a
+  // validation or permission error would fail again); an edit or Retry does.
+  const [failedDraft, setFailedDraft] = useState<CampaignDraft | null>(null)
   const isDirty = !sameDraft(draft, saved.draft)
 
   const saveNow = useCallback(async (): Promise<void> => {
@@ -118,7 +119,7 @@ export function useDraftAutosave({
           })
           setSaved({ campaignId: base.campaignId, revision, draft: submitted })
         }
-        failing.current = false
+        setFailedDraft(null)
         setStatus({ kind: 'saved', at: Date.now() })
       } catch (error) {
         if (isStaleDraftError(getActionErrorMessage(error))) {
@@ -126,10 +127,8 @@ export function useDraftAutosave({
           setStatus({ kind: 'idle' })
         } else {
           setStatus({ kind: 'error' })
-          if (!failing.current) {
-            reportActionError(error, { title: "couldn't save the draft" })
-          }
-          failing.current = true
+          setFailedDraft(submitted)
+          reportActionError(error, { title: "couldn't save the draft" })
         }
       }
     })()
@@ -141,13 +140,14 @@ export function useDraftAutosave({
     }
   }, [createCampaign, saveCampaign, setSaved])
 
-  // Autosave after a pause in typing (after a failure too: the next pause
-  // retries), never while stale.
+  // Autosave after a pause in typing, never while stale, and not again for
+  // a snapshot that just failed.
   useEffect(() => {
     if (!isDirty || isStale || status.kind === 'saving') return
+    if (failedDraft && sameDraft(draft, failedDraft)) return
     const timer = setTimeout(() => void saveNow(), AUTOSAVE_DELAY_MS)
     return () => clearTimeout(timer)
-  }, [draft, isDirty, isStale, saveNow, status.kind])
+  }, [draft, failedDraft, isDirty, isStale, saveNow, status.kind])
 
   // Someone else saved: follow along when clean, pause when there are
   // edits. Ignored while our own save is in flight; its result catches up.

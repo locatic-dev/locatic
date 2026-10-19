@@ -89,3 +89,13 @@ An adversarial review of this plan found these, all addressed in the implementat
 - **Discard during a create** waits for the save in flight and deletes what it created.
 - **Visible failures:** `preparationDiagnostics` show on the draft; scheduled campaigns have their own panel (countdown and Undo, or time and Cancel); the list shows their send time.
 - **Digest cron:** deleting a cron-prepared digest draft lets the next enabled run prepare it again. Digest preparation is off (D4), so no tombstone is added.
+
+## Code review follow-ups (PR #41)
+
+- Scheduling, start, undo and the copy moved to `convex/emailSchedule.ts`; `returnToDraft` (`lib/email_schedule.ts`) is shared with Stop sending, and the job's own failure path does not cancel itself.
+- Autosave does not retry a snapshot the server rejected; an edit or Retry does.
+- Undo stays available while the server says scheduled; the browser clock only changes the label.
+- Discard is disabled while pending and does not navigate after the editor is gone.
+- Drafts hold who was chosen; skip warnings come from the live campaign query (or search, for members just added), since opt-outs do not change the campaign revision.
+- The To options are native radios (arrow keys, one tab stop); member search shows loading and errors; touch targets are 44 px on coarse pointers.
+- A test lets the real scheduled job fire on the fake clock. Router integration is left to the Playwright spec.

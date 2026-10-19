@@ -134,7 +134,8 @@ Send records store the member's ID and the address the email went to, for the se
 | To change                       | Look in                                                                                                              |
 | ------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
 | Admin pages                     | `src/routes/_app/admin/emails.tsx` (admin check) and `emails/`, `src/features/email-campaigns/`                      |
-| Drafts, send start, cancel      | `convex/emailCampaigns.ts`                                                                                           |
+| Drafts, audiences, log, cancel  | `convex/emailCampaigns.ts`                                                                                           |
+| Schedule, undo, start, copy     | `convex/emailSchedule.ts`, `convex/lib/email_schedule.ts`                                                            |
 | Rendering, preview, test sends  | `convex/emailRender.ts` (Node), `convex/lib/emails/`                                                                 |
 | Batches, delivery events, purge | `convex/emailSends.ts`, `convex/lib/email_send_status.ts`, `convex/lib/resend.ts`                                    |
 | Who receives what               | `convex/lib/email_audience.ts`, `convex/lib/email_campaigns.ts` (content limits)                                     |

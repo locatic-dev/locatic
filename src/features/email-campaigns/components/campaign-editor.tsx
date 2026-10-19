@@ -10,6 +10,7 @@ import {
   formatCount,
   type CampaignDraft,
   type EmailCampaignContent,
+  type SkipReason,
 } from '../contracts'
 import { emailProjectSearchQueryOptions } from '../queries'
 import { AudienceField } from './audience-field'
@@ -185,6 +186,8 @@ export interface CampaignEditorProps {
   onReload: () => void
   /** Someone else saved a newer version while this one has local edits. */
   isStale: boolean
+  /** Live skip reasons for named members (see AudienceField). */
+  skipReasons: ReadonlyMap<string, SkipReason>
 }
 
 export function CampaignEditor({
@@ -193,6 +196,7 @@ export function CampaignEditor({
   onSaveNow,
   onReload,
   isStale,
+  skipReasons,
 }: CampaignEditorProps) {
   const ctaLabelId = useId()
   const ctaUrlId = useId()
@@ -251,6 +255,7 @@ export function CampaignEditor({
         kind={content.kind}
         audience={draft.audience}
         onChange={(audience) => onChange({ ...draft, audience })}
+        skipReasons={skipReasons}
       />
       <Field label="Subject" value={draft.subject} limit={EMAIL_LIMITS.subject}>
         {(props) => (
