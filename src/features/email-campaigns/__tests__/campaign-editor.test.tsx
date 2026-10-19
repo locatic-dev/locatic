@@ -19,17 +19,15 @@ import { CampaignEditor } from '../components/campaign-editor'
 
 function Harness({
   initial = announcementDraft,
-  isDirty = true,
   isStale = false,
   onChange = vi.fn(),
-  onSave = vi.fn(),
+  onSaveNow = vi.fn(),
   onReload = vi.fn(),
 }: {
   initial?: CampaignDraft
-  isDirty?: boolean
   isStale?: boolean
   onChange?: (draft: CampaignDraft) => void
-  onSave?: () => void
+  onSaveNow?: () => void
   onReload?: () => void
 }) {
   const [draft, setDraft] = useState(initial)
@@ -40,10 +38,8 @@ function Harness({
         setDraft(next)
         onChange(next)
       }}
-      onSave={onSave}
+      onSaveNow={onSaveNow}
       onReload={onReload}
-      isDirty={isDirty}
-      isSaving={false}
       isStale={isStale}
     />
   )
@@ -115,16 +111,53 @@ describe('CampaignEditor', () => {
     )
   })
 
-  it('saves only when something changed', async () => {
+  it('saves now on ⌘S or Ctrl+S', async () => {
     const user = userEvent.setup()
-    const onSave = vi.fn()
-    const { rerender } = render(<Harness isDirty={false} onSave={onSave} />)
-    const save = screen.getByRole('button', { name: 'Save draft' })
-    expect((save as HTMLButtonElement).disabled).toBe(true)
+    const onSaveNow = vi.fn()
+    render(<Harness onSaveNow={onSaveNow} />)
 
-    rerender(<Harness isDirty onSave={onSave} />)
-    await user.click(screen.getByRole('button', { name: 'Save draft' }))
-    expect(onSave).toHaveBeenCalledTimes(1)
+    await user.click(screen.getByLabelText('Subject'))
+    await user.keyboard('{Meta>}s{/Meta}')
+    await user.keyboard('{Control>}S{/Control}')
+    expect(onSaveNow).toHaveBeenCalledTimes(2)
+  })
+
+  it('switches the To field between everyone and named members', async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    mocks.searchResults = [
+      {
+        userId: 'user_ada',
+        displayName: 'Ada L',
+        githubUsername: 'ada',
+        skipReason: 'unsubscribed',
+      },
+    ]
+    render(<Harness onChange={onChange} />)
+
+    expect(
+      screen
+        .getByRole('radio', { name: 'All members who get updates' })
+        .getAttribute('aria-checked'),
+    ).toBe('true')
+    await user.click(screen.getByRole('radio', { name: 'Specific members' }))
+    expect(screen.getByText('Add at least one member to send.')).toBeTruthy()
+    await user.type(screen.getByLabelText('Add a member'), 'ada')
+    await user.click(screen.getByRole('button', { name: /Ada L/ }))
+
+    const chips = screen.getByRole('list', { name: 'Chosen members' })
+    expect(chips.textContent).toContain('turned updates off · will be skipped')
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        audience: {
+          kind: 'members',
+          members: [expect.objectContaining({ userId: 'user_ada' })],
+        },
+      }),
+    )
+    await user.click(screen.getByRole('button', { name: 'Remove Ada L' }))
+    expect(screen.queryByRole('list', { name: 'Chosen members' })).toBeNull()
+    mocks.searchResults = []
   })
 
   it('tells the admin when someone else changed the draft', async () => {

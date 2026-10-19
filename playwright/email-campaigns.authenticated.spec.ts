@@ -5,12 +5,13 @@ import {
   test,
 } from './fixtures/test'
 
-// Writes and tests an update without ever sending it. Needs the populated
+// Writes (autosaved) and tests an update without ever sending it, then
+// discards the draft so runs leave nothing behind. Needs the populated
 // user on the email admin allowlist and test sending on, with
 // delivered@resend.dev allowlisted (playwright/fixtures/fixtures.md).
 const TEST_ADDRESS = 'delivered@resend.dev'
 
-test('writes, previews and tests an update, then stops at the send confirmation', async ({
+test('writes, previews and tests an update, stops at the send confirmation, then discards it', async ({
   page,
 }) => {
   await page.goto('/home')
@@ -27,7 +28,11 @@ test('writes, previews and tests an update, then stops at the send confirmation'
     page.getByRole('heading', { name: 'email campaigns' }),
   )
 
-  await page.getByRole('button', { name: 'New update' }).click()
+  await page.getByRole('link', { name: 'New update' }).click()
+  // Nothing is stored until the draft has content.
+  await expect(page).toHaveURL(/\/admin\/emails\/new\?kind=update$/)
+  await expect(page.getByText('Saves as you type')).toBeVisible()
+  await expect(page.getByRole('tab', { name: 'Test' })).toBeDisabled()
   const subject = `E2E update ${Date.now()}`
   await page.getByLabel('Subject').fill(subject)
   await page
@@ -36,8 +41,11 @@ test('writes, previews and tests an update, then stops at the send confirmation'
   await expect(
     page.frameLocator('iframe[title="Email preview"]').getByText('never sent'),
   ).toBeVisible({ timeout: 15_000 })
-  await page.getByRole('button', { name: 'Save draft' }).click()
-  await expect(page.getByText('Draft saved.')).toBeVisible()
+  // The first autosave creates the campaign and moves to its URL.
+  await expect(page).toHaveURL(/\/admin\/emails\/(?!new)[^/?]+$/, {
+    timeout: 10_000,
+  })
+  await expect(page.getByText(/^Saved/)).toBeVisible()
 
   await page.getByRole('tab', { name: 'Test' }).click()
   const recipient = page.getByLabel('Send a test to')
@@ -53,7 +61,9 @@ test('writes, previews and tests an update, then stops at the send confirmation'
   )
   await recipient.fill(TEST_ADDRESS)
   await page.getByRole('button', { name: 'Send test' }).click()
-  await expect(page.getByText(`Test sent to ${TEST_ADDRESS}.`)).toBeVisible()
+  await expect(
+    page.getByText(`Test email queued for ${TEST_ADDRESS}.`),
+  ).toBeVisible()
 
   await page.getByRole('tab', { name: 'Send' }).click()
   const review = page.getByRole('button', { name: 'Review and send' })
@@ -68,4 +78,12 @@ test('writes, previews and tests an update, then stops at the send confirmation'
   await dialog.getByRole('button', { name: 'Cancel' }).click()
   await expect(dialog).toBeHidden()
   await expect(review).toBeFocused()
+
+  page.once('dialog', (confirm) => void confirm.accept())
+  await page.getByRole('button', { name: 'Discard draft' }).click()
+  await expect(page).toHaveURL(/\/admin\/emails\/?$/)
+  await expect(page.getByRole('link', { name: subject })).toHaveCount(0)
+
+  await page.getByRole('link', { name: 'sent log' }).click()
+  await expect(page.getByRole('heading', { name: 'sent emails' })).toBeVisible()
 })

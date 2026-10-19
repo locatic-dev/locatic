@@ -10,6 +10,7 @@ import {
   componentEmail,
   drain as drainScheduled,
   EMAIL_SEND_TEST_ENV,
+  fireScheduledSend,
   seedAdmin,
   seedCampaign,
   seedMembers,
@@ -71,15 +72,18 @@ describe('requestSend', () => {
     const campaignId = await seedCampaign(t, adminId)
 
     await asAdmin(t).action(api.emailRender.requestSend, {
+      copy: 'none',
       campaignId,
       expectedRevision: 3,
     })
+    await fireScheduledSend(t, campaignId)
     await drain(t)
 
     const stored = await campaign(t, campaignId)
     expect(stored?.state).toBe('sent')
     expect(stored?.sent).toMatchObject({
-      revision: 3,
+      // Scheduling takes a new revision, so older requests cannot resend.
+      revision: 4,
       startedBy: adminId,
       enqueuedAt: expect.any(Number),
     })
@@ -93,6 +97,8 @@ describe('requestSend', () => {
 
     const email = await componentEmail(t, rows[0]!.emailId)
     expect(email?.to).toEqual([`member0@example.test`])
+    // The send log keeps the address each email went to.
+    expect(rows[0]!.to).toBe('member0@example.test')
     expect(email?.subject).toBe('Maps are live')
     expect(email?.replyTo).toEqual(['hello@locatic.test'])
     const listUnsubscribe = email?.headers?.find(
@@ -133,11 +139,13 @@ describe('requestSend', () => {
     expect((await campaign(t, campaignId))?.state).toBe('draft')
 
     await asAdmin(t).action(api.emailRender.requestSend, {
+      copy: 'none',
       campaignId,
       expectedRevision: 3,
     })
     await expect(
       asAdmin(t).action(api.emailRender.requestSend, {
+        copy: 'none',
         campaignId,
         expectedRevision: 3,
       }),
@@ -145,6 +153,7 @@ describe('requestSend', () => {
     await expect(startDirect(t, campaignId)).rejects.toThrow(
       'Campaign is not a draft',
     )
+    await fireScheduledSend(t, campaignId)
     await drain(t)
     expect(await sends(t, campaignId)).toHaveLength(1)
   })
@@ -159,6 +168,7 @@ describe('requestSend', () => {
       t
         .withIdentity({ subject: fixtureClerkId('ada') })
         .action(api.emailRender.requestSend, {
+          copy: 'none',
           campaignId,
           expectedRevision: 3,
         }),
@@ -172,6 +182,7 @@ describe('requestSend', () => {
     vi.stubEnv('EMAIL_SENDING_ENABLED', '')
     await expect(
       asAdmin(t).action(api.emailRender.requestSend, {
+        copy: 'none',
         campaignId,
         expectedRevision: 3,
       }),
@@ -254,6 +265,7 @@ describe('email size and batch writes', () => {
 
     await expect(
       asAdmin(t).action(api.emailRender.requestSend, {
+        copy: 'none',
         campaignId,
         expectedRevision: 3,
       }),
@@ -289,9 +301,11 @@ describe('email size and batch writes', () => {
     const campaignId = await withBody(t, adminId, body)
 
     await asAdmin(t).action(api.emailRender.requestSend, {
+      copy: 'none',
       campaignId,
       expectedRevision: 3,
     })
+    await fireScheduledSend(t, campaignId)
     await drain(t)
 
     expect((await campaign(t, campaignId))?.state).toBe('sent')
@@ -500,7 +514,7 @@ describe('campaign results', () => {
     })
   })
 
-  it('counts sends by status and lists recipients without addresses', async () => {
+  it('counts sends by status and lists recipients with their send address', async () => {
     const t = setup()
     const adminId = await seedAdmin(t)
     await seedMembers(t, 3)
@@ -543,9 +557,10 @@ describe('campaign results', () => {
       id: expect.any(String),
       displayName: expect.any(String),
       githubUsername: expect.any(String),
+      // The address recorded when the email was sent (admin-only view).
+      to: expect.stringMatching(/^member\d@example\.test$/),
       status: expect.any(String),
       updatedAt: expect.any(Number),
     })
-    expect(JSON.stringify(page)).not.toContain('@example.test')
   })
 })

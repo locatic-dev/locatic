@@ -16,7 +16,10 @@ import { settingsUrl } from './lib/emails/community_update'
 import { UNSUBSCRIBE_URL_PLACEHOLDER } from './lib/emails/placeholders'
 import { renderCampaignHtml, renderCampaignText } from './lib/emails/render'
 import { enforceRateLimit } from './lib/rate_limits'
-import { emailCampaignContentValidator } from './lib/validators'
+import {
+  emailCampaignContentValidator,
+  emailCopyChoiceValidator,
+} from './lib/validators'
 
 // Live preview of unsaved editor content. Nothing is stored; the client
 // ignores any response older than its latest request number.
@@ -46,16 +49,24 @@ export const previewCampaign = action({
 
 /**
  * Renders the saved version once, with an unsubscribe placeholder, and hands
- * it to startSend, which re-checks everything in one transaction.
+ * it to scheduleSend, which re-checks everything in one transaction.
  */
 export const requestSend = action({
-  args: { campaignId: v.id('email_campaigns'), expectedRevision: v.number() },
-  returns: v.null(),
-  handler: async (ctx, args) => {
-    const campaign = await ctx.runQuery(
-      internal.emailCampaigns.getForSend,
-      args,
-    )
+  args: {
+    campaignId: v.id('email_campaigns'),
+    expectedRevision: v.number(),
+    // Send later; absent for Send (the 30-second undo window).
+    sendAt: v.optional(v.number()),
+    copy: emailCopyChoiceValidator,
+  },
+  returns: v.object({ sendAt: v.number() }),
+  // Annotated: the result comes from `internal`, whose types include this
+  // module.
+  handler: async (ctx, args): Promise<{ sendAt: number }> => {
+    const campaign = await ctx.runQuery(internal.emailCampaigns.getForSend, {
+      campaignId: args.campaignId,
+      expectedRevision: args.expectedRevision,
+    })
     if (!isCampaignSendingEnabled()) {
       throw new ConvexError('Email sending is disabled in this environment')
     }
@@ -69,12 +80,11 @@ export const requestSend = action({
     const html = await renderCampaignHtml(props)
     const text = await renderCampaignText(props)
     assertEmailSize(html, text)
-    await ctx.runMutation(internal.emailCampaigns.startSend, {
+    return await ctx.runMutation(internal.emailCampaigns.scheduleSend, {
       ...args,
       html,
       text,
     })
-    return null
   },
 })
 

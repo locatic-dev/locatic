@@ -8,6 +8,7 @@ export const announcementDraft: CampaignDraft = {
   subject: 'Maps',
   preheader: '',
   content: { kind: 'announcement', body: 'Hello', cta: null },
+  audience: { kind: 'everyone' },
 }
 
 export function makeDetail(
@@ -26,6 +27,8 @@ export function makeDetail(
     testSendingEnabled: true,
     testRecipients: ['admin@example.test'],
     defaultTestRecipient: 'admin@example.test',
+    copyAddresses: { archive: 'contact@locatic.dev', me: 'admin@example.test' },
+    scheduled: null,
     updatedAt: 0,
     sending: null,
     results: null,

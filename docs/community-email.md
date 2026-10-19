@@ -68,6 +68,20 @@ The footer says who sent the email and why, links to Settings and the unsubscrib
 
 Only Clerk users listed in the Convex variable `EMAIL_ADMIN_CLERK_IDS` are admins. They see an "email campaigns" item in the account menu at the foot of the sidebar, and an "Email campaigns" link in Settings → Notifications (the way in on phones). Everyone else is redirected from `/admin/emails` to Home, and Convex checks admin rights on every request.
 
+The admin pages:
+
+- **`/admin/emails`** lists drafts and sent campaigns separately. Tick drafts (or select all) to delete several at once; campaigns that are scheduled or started sending are kept as a record and can't be deleted.
+- **`/admin/emails/new?kind=update`** (or `kind=digest`) is a blank draft. Nothing is stored until it has content; then it saves about a second after you stop typing (⌘S / Ctrl+S saves at once) and the URL moves to the campaign's own page. **Discard draft** deletes it. Test and Send unlock once it is stored.
+- **`/admin/emails/<id>`** is one campaign: Write, Test and Send while it is a draft, a countdown while it is scheduled, then its results and recipients (with the address each email went to).
+- **`/admin/emails/log`** is the sent log: every campaign email, newest first, with the recipient, the address used, the campaign, its status and any error. `?status=failed` (or another status) filters it.
+
+Composing:
+
+- **To** is either everyone who gets that kind of email or up to 50 named members. Named members still follow their settings: a chip says when one would be skipped (turned updates off, unverified, inactive).
+- **Send** waits 30 seconds so it can be undone (a toast and the page both offer Undo). **Later** picks a date and time in your browser's time zone, between a minute and 30 days ahead; **Cancel and edit** takes it back to draft. A scheduled campaign can't be edited. When its time comes the send re-checks that sending is on, the configuration is complete, the admin who scheduled it still is one, and a digest's picks are still public. If any check fails the campaign returns to draft and the reason shows on its page.
+- **Send a copy to** sends one extra copy when sending starts: to `EMAIL_COPY_ADDRESS` (default `contact@locatic.dev`), to your own address, or nowhere. The copy's unsubscribe link points to Settings, it is not counted in the results, and **Stop sending** cancels it if it has not gone out.
+- There is no CC or BCC: CC would show members each other's addresses, and a shared BCC copy can't carry each member's own unsubscribe link.
+
 | Variable                                   | Effect                                                                                                                                                                                                                                                           |
 | ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `EMAIL_SENDING_ENABLED`                    | Must be `true` for campaigns to send. Also an emergency stop: switching it off stops a running send at its next batch (the campaign stays "sending" and shows as stalled; press Stop sending to cancel emails already waiting). Resume works once it is back on. |
@@ -75,6 +89,7 @@ Only Clerk users listed in the Convex variable `EMAIL_ADMIN_CLERK_IDS` are admin
 | `EMAIL_TEST_RECIPIENTS`                    | The only addresses test sends may go to.                                                                                                                                                                                                                         |
 | `EMAIL_UNSUBSCRIBE_SECRET`                 | Signs unsubscribe links. When rotating, keep the old value in `EMAIL_UNSUBSCRIBE_SECRET_PREVIOUS` for at least 30 days.                                                                                                                                          |
 | `EMAIL_POSTAL_ADDRESS`                     | Optional address shown in the footer.                                                                                                                                                                                                                            |
+| `EMAIL_COPY_ADDRESS`                       | Where **Send a copy to** goes by default. Defaults to `contact@locatic.dev`.                                                                                                                                                                                     |
 | `RESEND_API_KEY`, `RESEND_WEBHOOK_SECRET`  | Connect the component to Resend. Point the Resend webhook at `https://<deployment>.convex.site/resend-webhook` with `email.sent`, `email.delivered`, `email.delivery_delayed`, `email.bounced`, `email.complained` and `email.failed`.                           |
 | `EMAIL_FROM`, `EMAIL_REPLY_TO`, `SITE_URL` | Sender identity and the base URL for links.                                                                                                                                                                                                                      |
 
@@ -112,13 +127,13 @@ These are documented by Convex but not yet verified on a deployment (they pass i
 
 ## Data kept
 
-Send records store the member's ID, not their address. The component's own copies, which include addresses, are deleted 30 days after they finish, or after 60 days if they never finished. When an account is purged, its send records and preference log go with it, and old unsubscribe links for it no longer record anything.
+Send records store the member's ID and the address the email went to, for the sent log (sends from before this was recorded show no address). The component's own copies, which include addresses, are deleted 30 days after they finish, or after 60 days if they never finished. When an account is purged, its send records and preference log go with it, and old unsubscribe links for it no longer record anything.
 
 ## Where to look in the code
 
 | To change                       | Look in                                                                                                              |
 | ------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| Admin page                      | `src/routes/_app/admin/emails.tsx`, `src/features/email-campaigns/`                                                  |
+| Admin pages                     | `src/routes/_app/admin/emails.tsx` (admin check) and `emails/`, `src/features/email-campaigns/`                      |
 | Drafts, send start, cancel      | `convex/emailCampaigns.ts`                                                                                           |
 | Rendering, preview, test sends  | `convex/emailRender.ts` (Node), `convex/lib/emails/`                                                                 |
 | Batches, delivery events, purge | `convex/emailSends.ts`, `convex/lib/email_send_status.ts`, `convex/lib/resend.ts`                                    |

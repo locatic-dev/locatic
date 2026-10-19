@@ -6,7 +6,10 @@ import { gzipSync } from 'node:zlib'
 const BUNDLE_BUDGETS = [
   {
     label: 'initial client entry',
-    maxGzipBytes: 85 * 1024,
+    // 86 KiB: the admin email pages (list, new, campaign, sent log) added
+    // four route definitions to the route tree, +0.47 KiB from 84.72 KiB.
+    // Their components are split into their own chunks.
+    maxGzipBytes: 86 * 1024,
     pattern: /^index-[\w-]+\.js$/,
   },
   {
