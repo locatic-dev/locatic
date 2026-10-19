@@ -27,6 +27,22 @@ const draft = {
   },
 }
 
+// The client sends placeholder period fields; the server sets its own.
+const digestDraft = {
+  subject: '',
+  preheader: '',
+  content: {
+    kind: 'digest' as const,
+    body: '',
+    cta: null,
+    periodKey: 'client:ignored',
+    periodStart: 0,
+    periodEnd: 0,
+    projects: [],
+    discussions: [],
+  },
+}
+
 afterEach(() => {
   vi.unstubAllEnvs()
 })
@@ -40,16 +56,16 @@ describe('email campaigns', () => {
 
     await expect(
       t.mutation(api.emailCampaigns.createDraft, {
-        kind: 'announcement',
         title: 'shipping update',
+        ...draft,
       }),
     ).rejects.toThrow('Unauthorized')
     await expect(
       t
         .withIdentity({ subject: fixtureClerkId('ada') })
         .mutation(api.emailCampaigns.createDraft, {
-          kind: 'announcement',
           title: 'shipping update',
+          ...draft,
         }),
     ).rejects.toThrow('Email admin access required')
     await expect(
@@ -69,8 +85,8 @@ describe('email campaigns', () => {
       t
         .withIdentity({ subject: fixtureClerkId('admin') })
         .mutation(api.emailCampaigns.createDraft, {
-          kind: 'announcement',
           title: 'shipping update',
+          ...draft,
         }),
     ).rejects.toThrow('Email admin account is inactive')
   })
@@ -81,8 +97,8 @@ describe('email campaigns', () => {
     await seedUser(t, { username: 'admin' })
     const admin = t.withIdentity({ subject: fixtureClerkId('admin') })
     const campaignId = await admin.mutation(api.emailCampaigns.createDraft, {
-      kind: 'announcement',
       title: 'shipping update',
+      ...draft,
     })
 
     const revision = await admin.mutation(api.emailCampaigns.saveDraft, {
@@ -108,8 +124,8 @@ describe('email campaigns', () => {
     await seedUser(t, { username: 'admin' })
     const admin = t.withIdentity({ subject: fixtureClerkId('admin') })
     const campaignId = await admin.mutation(api.emailCampaigns.createDraft, {
-      kind: 'announcement',
       title: 'shipping update',
+      ...draft,
     })
 
     await expect(
@@ -129,8 +145,8 @@ describe('email campaigns', () => {
     await seedUser(t, { username: 'admin' })
     const admin = t.withIdentity({ subject: fixtureClerkId('admin') })
     const campaignId = await admin.mutation(api.emailCampaigns.createDraft, {
-      kind: 'announcement',
       title: 'shipping update',
+      ...draft,
     })
 
     await expect(
@@ -173,8 +189,8 @@ describe('email campaigns', () => {
     await seedUser(t, { username: 'admin' })
     const admin = t.withIdentity({ subject: fixtureClerkId('admin') })
     const campaignId = await admin.mutation(api.emailCampaigns.createDraft, {
-      kind: 'digest',
       title: 'hand-made digest',
+      ...digestDraft,
     })
 
     let campaign = await admin.query(api.emailCampaigns.get, { campaignId })
@@ -291,12 +307,12 @@ describe('email campaign preview', () => {
     await setPrefs(t, eve, { emailVerified: true, deactivatedAt: 1 })
     const admin = t.withIdentity({ subject: fixtureClerkId('admin') })
     const announcement = await admin.mutation(api.emailCampaigns.createDraft, {
-      kind: 'announcement',
       title: 'update',
+      ...draft,
     })
     const digest = await admin.mutation(api.emailCampaigns.createDraft, {
-      kind: 'digest',
       title: 'digest',
+      ...digestDraft,
     })
 
     await expect(
@@ -348,8 +364,8 @@ describe('email campaign preview', () => {
     })
     const admin = t.withIdentity({ subject: fixtureClerkId('admin') })
     const campaignId = await admin.mutation(api.emailCampaigns.createDraft, {
-      kind: 'announcement',
       title: 'update',
+      ...draft,
     })
 
     const preview = await admin.query(api.emailCampaigns.getSendPreview, {
@@ -432,5 +448,183 @@ describe('email campaign project search', () => {
       })
       expect(results.map((project) => project.projectId)).not.toContain(hidden)
     }
+  })
+})
+
+describe('email campaign drafts', () => {
+  async function setupAdmin() {
+    vi.stubEnv('EMAIL_ADMIN_CLERK_IDS', fixtureClerkId('admin'))
+    const t = convexTest(schema, modules)
+    await seedUser(t, { username: 'admin' })
+    await seedUser(t, { username: 'ada' })
+    return { t, admin: t.withIdentity({ subject: fixtureClerkId('admin') }) }
+  }
+
+  it('creates a draft with its first content in one write', async () => {
+    const { admin } = await setupAdmin()
+
+    const campaignId = await admin.mutation(api.emailCampaigns.createDraft, {
+      title: '  Maps launch  ',
+      ...draft,
+    })
+
+    const campaign = await admin.query(api.emailCampaigns.get, { campaignId })
+    expect(campaign).toMatchObject({
+      title: 'Maps launch',
+      subject: draft.subject,
+      preheader: draft.preheader,
+      content: draft.content,
+      revision: 1,
+      state: 'draft',
+    })
+    await expect(
+      admin.mutation(api.emailCampaigns.createDraft, {
+        ...draft,
+        title: 'x',
+        subject: 'x'.repeat(141),
+      }),
+    ).rejects.toThrow('Subject is too long')
+    await expect(
+      admin.mutation(api.emailCampaigns.createDraft, { ...draft, title: ' ' }),
+    ).rejects.toThrow('Campaign title must be between 1 and 160 characters')
+  })
+
+  it('reads a malformed or deleted campaign id as not found', async () => {
+    const { admin } = await setupAdmin()
+    const campaignId = await admin.mutation(api.emailCampaigns.createDraft, {
+      title: 'gone soon',
+      ...draft,
+    })
+    await admin.mutation(api.emailCampaigns.deleteDraft, { campaignId })
+
+    await expect(
+      admin.query(api.emailCampaigns.get, { campaignId }),
+    ).resolves.toBeNull()
+    await expect(
+      admin.query(api.emailCampaigns.get, { campaignId: 'not-an-id' }),
+    ).resolves.toBeNull()
+  })
+
+  it('deletes only drafts, and only for admins', async () => {
+    const { t, admin } = await setupAdmin()
+    const campaignId = await admin.mutation(api.emailCampaigns.createDraft, {
+      title: 'keep me',
+      ...draft,
+    })
+
+    await expect(
+      t
+        .withIdentity({ subject: fixtureClerkId('ada') })
+        .mutation(api.emailCampaigns.deleteDraft, { campaignId }),
+    ).rejects.toThrow('Email admin access required')
+
+    await t.run((ctx) => ctx.db.patch(campaignId, { state: 'sent' }))
+    await expect(
+      admin.mutation(api.emailCampaigns.deleteDraft, { campaignId }),
+    ).rejects.toThrow('Only drafts can be deleted')
+
+    await t.run((ctx) => ctx.db.patch(campaignId, { state: 'draft' }))
+    await admin.mutation(api.emailCampaigns.deleteDraft, { campaignId })
+    expect(await admin.query(api.emailCampaigns.list, {})).toEqual([])
+    // Deleting twice (two tabs) is a no-op.
+    await expect(
+      admin.mutation(api.emailCampaigns.deleteDraft, { campaignId }),
+    ).resolves.toBeNull()
+  })
+})
+
+describe('email send log', () => {
+  it('lists every send newest first, with address, campaign and status', async () => {
+    vi.stubEnv('EMAIL_ADMIN_CLERK_IDS', fixtureClerkId('admin'))
+    const t = convexTest(schema, modules)
+    await seedUser(t, { username: 'admin' })
+    const ada = await seedUser(t, { username: 'ada', displayName: 'Ada L' })
+    const bob = await seedUser(t, { username: 'bob' })
+    const admin = t.withIdentity({ subject: fixtureClerkId('admin') })
+    const first = await admin.mutation(api.emailCampaigns.createDraft, {
+      title: 'Maps launch',
+      ...draft,
+    })
+    const second = await admin.mutation(api.emailCampaigns.createDraft, {
+      title: 'Profiles',
+      ...draft,
+    })
+    await t.run(async (ctx) => {
+      const send = (
+        campaignId: Id<'email_campaigns'>,
+        userId: Id<'users'>,
+        status: 'delivered' | 'failed',
+        createdAt: number,
+        extra: { to?: string; errorMessage?: string } = {},
+      ) =>
+        ctx.db.insert('email_sends', {
+          campaignId,
+          userId,
+          category: 'product_updates',
+          emailId: `email_${createdAt}`,
+          status,
+          createdAt,
+          updatedAt: createdAt,
+          ...extra,
+        })
+      // A send from before addresses were recorded has no `to`.
+      await send(first, ada, 'delivered', 1)
+      await send(second, ada, 'delivered', 3, { to: 'ada@example.test' })
+      await send(second, bob, 'failed', 2, {
+        to: 'bob@example.test',
+        errorMessage: 'Invalid address',
+      })
+    })
+
+    const all = await admin.query(api.emailCampaigns.listSendLog, {
+      paginationOpts: { numItems: 10, cursor: null },
+    })
+    expect(
+      all.page.map(({ campaignTitle, githubUsername, to, status }) => ({
+        campaignTitle,
+        githubUsername,
+        to,
+        status,
+      })),
+    ).toEqual([
+      {
+        campaignTitle: 'Profiles',
+        githubUsername: 'ada',
+        to: 'ada@example.test',
+        status: 'delivered',
+      },
+      {
+        campaignTitle: 'Profiles',
+        githubUsername: 'bob',
+        to: 'bob@example.test',
+        status: 'failed',
+      },
+      {
+        campaignTitle: 'Maps launch',
+        githubUsername: 'ada',
+        to: null,
+        status: 'delivered',
+      },
+    ])
+
+    const failed = await admin.query(api.emailCampaigns.listSendLog, {
+      status: 'failed',
+      paginationOpts: { numItems: 10, cursor: null },
+    })
+    expect(failed.page).toEqual([
+      expect.objectContaining({
+        campaignId: second,
+        displayName: 'bob',
+        errorMessage: 'Invalid address',
+      }),
+    ])
+
+    await expect(
+      t
+        .withIdentity({ subject: fixtureClerkId('ada') })
+        .query(api.emailCampaigns.listSendLog, {
+          paginationOpts: { numItems: 10, cursor: null },
+        }),
+    ).rejects.toThrow('Email admin access required')
   })
 })

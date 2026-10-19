@@ -57,3 +57,10 @@ export function isTestRecipient(address: string) {
     (allowed) => allowed.toLowerCase() === normalized,
   )
 }
+
+const DEFAULT_COPY_ADDRESS = 'contact@locatic.dev'
+
+/** Where "Send a copy to" goes by default: EMAIL_COPY_ADDRESS. */
+export function getCopyAddress() {
+  return process.env.EMAIL_COPY_ADDRESS?.trim() || DEFAULT_COPY_ADDRESS
+}

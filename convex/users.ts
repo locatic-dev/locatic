@@ -2557,8 +2557,8 @@ export const scrubDeletedAccount = internalMutation({
       return null
     }
 
-    // Send records and the consent log hold user ids, not addresses; they
-    // go with the account, in bounded pages.
+    // Send records (with the address each went to) and the consent log go
+    // with the account, in bounded pages.
     await ctx.scheduler.runAfter(0, internal.emailSends.purgeUserEmailRecords, {
       userId: user._id,
     })

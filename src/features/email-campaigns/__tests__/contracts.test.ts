@@ -3,12 +3,14 @@ import { describe, expect, it } from 'vitest'
 import { LIMITS } from '../../../../convex/lib/email_campaigns'
 import {
   audienceLabel,
+  emptyDraft,
   formatBoundedCount,
   EMAIL_LIMITS,
   isStalled,
   resultsSummary,
   skippedSummary,
   STALLED_AFTER_MS,
+  titleForSave,
 } from '../contracts'
 
 describe('email campaign contracts', () => {
@@ -84,5 +86,30 @@ describe('email campaign contracts', () => {
       ),
     ).toBe(false)
     expect(isStalled({ state: 'sent', sending }, now)).toBe(false)
+  })
+})
+
+describe('new drafts', () => {
+  it('starts empty, with digest period placeholders the server replaces', () => {
+    expect(emptyDraft('update').content).toEqual({
+      kind: 'announcement',
+      body: '',
+      cta: null,
+    })
+    expect(emptyDraft('digest').content).toMatchObject({
+      kind: 'digest',
+      projects: [],
+      discussions: [],
+    })
+  })
+
+  it('saves a typed title, else the subject, else "Untitled"', () => {
+    const draft = emptyDraft('update')
+    expect(titleForSave({ ...draft, title: ' Launch ' })).toBe('Launch')
+    expect(titleForSave({ ...draft, subject: ' Maps ' })).toBe('Maps')
+    // A subject always fits: its limit is below the title's.
+    expect(EMAIL_LIMITS.subject).toBeLessThan(EMAIL_LIMITS.title)
+    expect(titleForSave(draft)).toBe('Untitled update')
+    expect(titleForSave(emptyDraft('digest'))).toBe('Untitled digest')
   })
 })

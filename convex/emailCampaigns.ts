@@ -10,21 +10,31 @@ import {
   internalMutation,
   internalQuery,
   mutation,
+  type MutationCtx,
   query,
   type QueryCtx,
 } from './_generated/server'
-import { requireEmailAdmin } from './lib/email_admin'
+import { isEmailAdminViewer, requireEmailAdmin } from './lib/email_admin'
 import { categoryForKind, getSkipReason } from './lib/email_audience'
 import type { Doc } from './lib/types'
 import {
+  assertAudience,
   assertCampaignDraft,
   assertDigestSelectionsPublic,
   assertEmailSize,
   assertSendableCampaign,
   EMAIL_TEMPLATE_VERSION,
   LIMITS,
+  SEND_DELAY_MS,
+  SEND_LATER_MAX_MS,
+  SEND_LATER_MIN_MS,
 } from './lib/email_campaigns'
 import {
+  settingsUrl,
+  UNSUBSCRIBE_URL_PLACEHOLDER,
+} from './lib/emails/placeholders'
+import {
+  getCopyAddress,
   getEmailConfig,
   getSiteUrl,
   getTestRecipients,
@@ -33,13 +43,16 @@ import {
   isTestSendingEnabled,
 } from './lib/email_provider'
 import { isProjectPubliclyInteractable } from './lib/project_access'
+import { cancelIfWaiting, getResend } from './lib/resend'
 import {
   normalizeProjectRouteKey,
   parseProjectReference,
 } from './lib/project_route'
 import {
+  emailCampaignAudienceValidator,
   emailCampaignContentValidator,
   emailCampaignStateValidator,
+  emailCopyChoiceValidator,
   emailProjectSelectionValidator,
   emailSendStatusValidator,
   optionalStringValidator,
@@ -49,6 +62,31 @@ const campaignKindValidator = v.union(
   v.literal('announcement'),
   v.literal('digest'),
 )
+
+// A member chip in the To field, with why they would be skipped, if at all.
+const audienceMemberValidator = v.object({
+  userId: v.id('users'),
+  displayName: v.string(),
+  githubUsername: v.string(),
+  skipReason: v.union(
+    v.literal('inactive'),
+    v.literal('unverified'),
+    v.literal('unsubscribed'),
+    v.null(),
+  ),
+})
+
+function toAudienceMember(
+  userId: Id<'users'>,
+  user: Doc<'users'> | null,
+  category: ReturnType<typeof categoryForKind>,
+) {
+  return {
+    userId,
+    ...recipientOf(user),
+    skipReason: user ? getSkipReason(user, category) : ('inactive' as const),
+  }
+}
 
 // A bounded count: `capped` means there are more than `count`, shown "N+".
 const countValidator = v.object({ count: v.number(), capped: v.boolean() })
@@ -65,6 +103,8 @@ const campaignSummaryValidator = v.object({
   revision: v.number(),
   state: emailCampaignStateValidator,
   updatedAt: v.number(),
+  // When a scheduled campaign sends.
+  sendAt: v.union(v.number(), v.null()),
   // "sent to N · M delivered" for campaigns that started sending.
   results: v.union(
     v.object({ total: countValidator, delivered: countValidator }),
@@ -94,6 +134,19 @@ const campaignDetailValidator = v.object({
   testRecipients: v.array(v.string()),
   // The admin's own address when it is allowlisted for test sends.
   defaultTestRecipient: optionalStringValidator,
+  audience: v.union(
+    v.object({ kind: v.literal('everyone') }),
+    v.object({
+      kind: v.literal('members'),
+      members: v.array(audienceMemberValidator),
+    }),
+  ),
+  // "Send a copy to" choices: the archive address and the admin's own.
+  copyAddresses: v.object({ archive: v.string(), me: v.string() }),
+  scheduled: v.union(
+    v.object({ sendAt: v.number(), copyTo: optionalStringValidator }),
+    v.null(),
+  ),
   updatedAt: v.number(),
   sending: v.union(
     v.object({
@@ -165,6 +218,7 @@ async function toCampaignSummary(
     revision: campaign.revision,
     state: campaign.state,
     updatedAt: campaign.updatedAt,
+    sendAt: campaign.scheduled?.sendAt ?? null,
     results,
   }
 }
@@ -177,10 +231,17 @@ function assertTitle(value: string) {
   return title
 }
 
+/**
+ * Creates a draft from the composer's first save, so opening "New" writes
+ * nothing. A digest's period is set here; the cron deduplicates on it.
+ */
 export const createDraft = mutation({
   args: {
-    kind: campaignKindValidator,
     title: v.string(),
+    subject: v.string(),
+    preheader: v.string(),
+    content: emailCampaignContentValidator,
+    audience: v.optional(emailCampaignAudienceValidator),
   },
   returns: v.id('email_campaigns'),
   handler: async (ctx, args) => {
@@ -188,22 +249,21 @@ export const createDraft = mutation({
     const title = assertTitle(args.title)
     const now = Date.now()
     const content: Doc<'email_campaigns'>['content'] =
-      args.kind === 'digest'
+      args.content.kind === 'digest'
         ? {
-            kind: 'digest',
-            body: '',
-            cta: null,
+            ...args.content,
             periodKey: `manual:${new Date(now).toISOString()}`,
             periodStart: now,
             periodEnd: now,
-            projects: [],
-            discussions: [],
           }
-        : { kind: 'announcement', body: '', cta: null }
+        : args.content
+    assertCampaignDraft({ ...args, content })
+    assertAudience(args.audience)
     return await ctx.db.insert('email_campaigns', {
       title,
-      subject: '',
-      preheader: '',
+      subject: args.subject,
+      preheader: args.preheader,
+      audience: args.audience ?? { kind: 'everyone' },
       revision: 1,
       templateVersion: EMAIL_TEMPLATE_VERSION,
       state: 'draft',
@@ -217,6 +277,49 @@ export const createDraft = mutation({
   },
 })
 
+/**
+ * Deletes a draft. Drafts have no send rows; anything that started sending
+ * is kept as a record of what went out.
+ */
+export const deleteDraft = mutation({
+  args: { campaignId: v.id('email_campaigns') },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await requireEmailAdmin(ctx)
+    const campaign = await ctx.db.get(args.campaignId)
+    if (!campaign) return null
+    if (campaign.state !== 'draft') {
+      throw new ConvexError('Only drafts can be deleted')
+    }
+    await ctx.db.delete(campaign._id)
+    return null
+  },
+})
+
+const BULK_DELETE_LIMIT = 50
+
+/** Deletes the given campaigns that are still drafts; skips the rest. */
+export const deleteDrafts = mutation({
+  args: { campaignIds: v.array(v.id('email_campaigns')) },
+  returns: v.object({ deleted: v.number() }),
+  handler: async (ctx, args) => {
+    await requireEmailAdmin(ctx)
+    if (args.campaignIds.length > BULK_DELETE_LIMIT) {
+      throw new ConvexError(
+        `Delete at most ${BULK_DELETE_LIMIT} drafts at a time`,
+      )
+    }
+    let deleted = 0
+    for (const campaignId of new Set(args.campaignIds)) {
+      const campaign = await ctx.db.get(campaignId)
+      if (campaign?.state !== 'draft') continue
+      await ctx.db.delete(campaign._id)
+      deleted += 1
+    }
+    return { deleted }
+  },
+})
+
 export const saveDraft = mutation({
   args: {
     campaignId: v.id('email_campaigns'),
@@ -225,6 +328,7 @@ export const saveDraft = mutation({
     subject: v.string(),
     preheader: v.string(),
     content: emailCampaignContentValidator,
+    audience: v.optional(emailCampaignAudienceValidator),
   },
   returns: v.number(),
   handler: async (ctx, args) => {
@@ -252,12 +356,14 @@ export const saveDraft = mutation({
           }
         : args.content
     assertCampaignDraft({ ...args, content })
+    assertAudience(args.audience)
     const revision = campaign.revision + 1
     await ctx.db.patch(campaign._id, {
       title,
       subject: args.subject,
       preheader: args.preheader,
       content,
+      ...(args.audience ? { audience: args.audience } : {}),
       revision,
       updatedBy: admin._id,
       updatedAt: Date.now(),
@@ -354,12 +460,14 @@ export const searchProjects = query({
   },
 })
 
+// Takes the raw route param: a malformed or deleted id is "not found".
 export const get = query({
-  args: { campaignId: v.id('email_campaigns') },
+  args: { campaignId: v.string() },
   returns: v.union(campaignDetailValidator, v.null()),
   handler: async (ctx, args) => {
     const admin = await requireEmailAdmin(ctx)
-    const campaign = await ctx.db.get(args.campaignId)
+    const campaignId = ctx.db.normalizeId('email_campaigns', args.campaignId)
+    const campaign = campaignId ? await ctx.db.get(campaignId) : null
     if (!campaign) return null
     return {
       id: campaign._id,
@@ -377,6 +485,14 @@ export const get = query({
       testSendingEnabled: isTestSendingEnabled(),
       testRecipients: getTestRecipients(),
       defaultTestRecipient: isTestRecipient(admin.email) ? admin.email : null,
+      audience: await describeAudience(ctx, campaign),
+      copyAddresses: { archive: getCopyAddress(), me: admin.email },
+      scheduled: campaign.scheduled
+        ? {
+            sendAt: campaign.scheduled.sendAt,
+            copyTo: campaign.scheduled.copyTo,
+          }
+        : null,
       updatedAt: campaign.updatedAt,
       sending: campaign.sent
         ? {
@@ -389,6 +505,22 @@ export const get = query({
     }
   },
 })
+
+async function describeAudience(
+  ctx: QueryCtx,
+  campaign: Doc<'email_campaigns'>,
+) {
+  const audience = campaign.audience
+  if (!audience || audience.kind === 'everyone') {
+    return { kind: 'everyone' as const }
+  }
+  const category = categoryForKind(campaign.content.kind)
+  const members = []
+  for (const userId of audience.userIds) {
+    members.push(toAudienceMember(userId, await ctx.db.get(userId), category))
+  }
+  return { kind: 'members' as const, members }
+}
 
 // Counted from email_sends by index; @convex-dev/aggregate is the upgrade
 // path if this gets slow.
@@ -425,6 +557,7 @@ export const listRecipients = query({
       id: v.id('email_sends'),
       displayName: v.string(),
       githubUsername: v.string(),
+      to: optionalStringValidator,
       status: emailSendStatusValidator,
       updatedAt: v.number(),
     }),
@@ -442,13 +575,124 @@ export const listRecipients = query({
       const user = await ctx.db.get(row.userId)
       page.push({
         id: row._id,
-        displayName: user?.profile.displayName ?? 'Deleted user',
-        githubUsername: user?.github.username ?? '',
+        ...recipientOf(user),
+        to: row.to ?? null,
         status: row.status,
         updatedAt: row.updatedAt,
       })
     }
     return { ...result, page }
+  },
+})
+
+function recipientOf(user: Doc<'users'> | null) {
+  return {
+    displayName: user?.profile.displayName ?? 'Deleted user',
+    githubUsername: user?.github.username ?? '',
+  }
+}
+
+/**
+ * Every campaign email, newest first, optionally one status: who it went
+ * to, at which address, from which campaign, and what happened to it.
+ */
+export const listSendLog = query({
+  args: {
+    status: v.optional(emailSendStatusValidator),
+    paginationOpts: paginationOptsValidator,
+  },
+  returns: paginationResultValidator(
+    v.object({
+      id: v.id('email_sends'),
+      campaignId: v.id('email_campaigns'),
+      campaignTitle: v.string(),
+      displayName: v.string(),
+      githubUsername: v.string(),
+      // Recorded at send time; null for sends from before it was kept.
+      to: optionalStringValidator,
+      status: emailSendStatusValidator,
+      errorMessage: optionalStringValidator,
+      createdAt: v.number(),
+      updatedAt: v.number(),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    await requireEmailAdmin(ctx)
+    const { status } = args
+    const result = await (
+      status
+        ? ctx.db
+            .query('email_sends')
+            .withIndex('by_status_and_created_at', (q) =>
+              q.eq('status', status),
+            )
+        : ctx.db.query('email_sends').withIndex('by_created_at')
+    )
+      .order('desc')
+      .paginate(args.paginationOpts)
+    // A page usually comes from one or two campaigns; read each once.
+    const titles = new Map<Id<'email_campaigns'>, string>()
+    const page = []
+    for (const row of result.page) {
+      if (!titles.has(row.campaignId)) {
+        const campaign = await ctx.db.get(row.campaignId)
+        titles.set(row.campaignId, campaign?.title ?? 'Deleted campaign')
+      }
+      const user = await ctx.db.get(row.userId)
+      page.push({
+        id: row._id,
+        campaignId: row.campaignId,
+        campaignTitle: titles.get(row.campaignId)!,
+        ...recipientOf(user),
+        to: row.to ?? null,
+        status: row.status,
+        errorMessage: row.errorMessage ?? null,
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt,
+      })
+    }
+    return { ...result, page }
+  },
+})
+
+const MEMBER_RESULT_LIMIT = 8
+
+/**
+ * Members for the To field: an exact GitHub username first, then display
+ * name and username matches. Each says why a campaign of `kind` would skip
+ * them, so the admin sees it before sending.
+ */
+export const searchMembers = query({
+  args: {
+    query: v.string(),
+    kind: v.union(v.literal('announcement'), v.literal('digest')),
+  },
+  returns: v.array(audienceMemberValidator),
+  handler: async (ctx, args) => {
+    await requireEmailAdmin(ctx)
+    const text = args.query.trim().replace(/^@/, '').toLowerCase()
+    if (!text) return []
+    const category = categoryForKind(args.kind)
+    const exactMatch = await ctx.db
+      .query('users')
+      .withIndex('by_github_username', (q) => q.eq('github.username', text))
+      .first()
+    // Deleted accounts are left out, as in the text search.
+    const exact = exactMatch?.deletedAt == null ? exactMatch : null
+    const matches = await ctx.db
+      .query('users')
+      .withSearchIndex('search_identity', (q) =>
+        q.search('discoverability.searchText', text).eq('deletedAt', null),
+      )
+      .take(MEMBER_RESULT_LIMIT)
+    const seen = new Set<Id<'users'>>()
+    const results = []
+    for (const user of exact ? [exact, ...matches] : matches) {
+      if (seen.has(user._id) || results.length >= MEMBER_RESULT_LIMIT) continue
+      seen.add(user._id)
+      results.push(toAudienceMember(user._id, user, category))
+    }
+    return results
   },
 })
 
@@ -487,20 +731,28 @@ export const getSendPreview = query({
     const campaign = await ctx.db.get(args.campaignId)
     if (!campaign) throw new ConvexError('Campaign not found')
     const category = categoryForKind(campaign.content.kind)
-    const users = await ctx.db
-      .query('users')
-      .take(LIMITS.sendPreviewMembers + 1)
+    // Named members are counted exactly; everyone is estimated from the
+    // first members.
+    const memberIds =
+      campaign.audience?.kind === 'members' ? campaign.audience.userIds : null
+    const named = memberIds !== null
+    const users = memberIds
+      ? await Promise.all(memberIds.map((userId) => ctx.db.get(userId)))
+      : await ctx.db.query('users').take(LIMITS.sendPreviewMembers + 1)
     const skipped = { unsubscribed: 0, unverified: 0, inactive: 0 }
     const sample: Array<{ displayName: string; githubUsername: string }> = []
     let estimatedCount = 0
-    for (const user of users.slice(0, LIMITS.sendPreviewMembers)) {
-      const reason = getSkipReason(user, category)
+    for (const user of named
+      ? users
+      : users.slice(0, LIMITS.sendPreviewMembers)) {
+      // A named member whose account is gone counts as inactive.
+      const reason = user ? getSkipReason(user, category) : 'inactive'
       if (reason) {
         skipped[reason] += 1
         continue
       }
       estimatedCount += 1
-      if (sample.length < SEND_PREVIEW_SAMPLE) {
+      if (user && sample.length < SEND_PREVIEW_SAMPLE) {
         sample.push({
           displayName: user.profile.displayName,
           githubUsername: user.github.username,
@@ -509,7 +761,7 @@ export const getSendPreview = query({
     }
     return {
       estimatedCount,
-      capped: users.length > LIMITS.sendPreviewMembers,
+      capped: !named && users.length > LIMITS.sendPreviewMembers,
       sample,
       skipped,
     }
@@ -552,57 +804,255 @@ export const getForSend = internalQuery({
 })
 
 /**
- * Commits the rendered artifact and starts the batch chain. Everything the
- * action checked is checked again here, in one transaction, so a save made
- * while the action rendered rejects the send.
+ * Schedules the rendered artifact: in 30 s for Send (the undo window), or at
+ * the chosen time for Send later. Everything the action checked is checked
+ * again here, in one transaction, so a save made while the action rendered
+ * rejects it. Editing is locked while scheduled.
  */
-export const startSend = internalMutation({
+export const scheduleSend = internalMutation({
   args: {
     campaignId: v.id('email_campaigns'),
     expectedRevision: v.number(),
     html: v.string(),
     text: v.string(),
+    // Absent for Send: now plus the undo window.
+    sendAt: v.optional(v.number()),
+    copy: emailCopyChoiceValidator,
   },
-  returns: v.null(),
+  returns: v.object({ sendAt: v.number() }),
   handler: async (ctx, args) => {
     const admin = await requireEmailAdmin(ctx)
-    if (!isCampaignSendingEnabled()) {
-      throw new ConvexError('Email sending is disabled in this environment')
-    }
-    if (
-      !getEmailConfig() ||
-      !process.env.EMAIL_UNSUBSCRIBE_SECRET?.trim() ||
-      !process.env.CONVEX_SITE_URL ||
-      !process.env.RESEND_API_KEY
-    ) {
-      throw new ConvexError('Email configuration is incomplete')
-    }
+    assertSendingConfigured()
     const campaign = await ctx.db.get(args.campaignId)
     assertCanStart(campaign, args.expectedRevision)
     assertSendableCampaign(campaign)
     assertEmailSize(args.html, args.text)
     await assertDigestSelectionsPublic(ctx, campaign.content)
     const now = Date.now()
+    const sendAt = args.sendAt ?? now + SEND_DELAY_MS
+    if (
+      args.sendAt !== undefined &&
+      (!Number.isFinite(sendAt) ||
+        sendAt < now + SEND_LATER_MIN_MS ||
+        sendAt > now + SEND_LATER_MAX_MS)
+    ) {
+      throw new ConvexError(
+        'Pick a time at least a minute from now and within 30 days',
+      )
+    }
+    const copyTo =
+      args.copy === 'archive'
+        ? getCopyAddress()
+        : args.copy === 'me'
+          ? admin.email
+          : null
+    const jobId: Id<'_scheduled_functions'> = await ctx.scheduler.runAt(
+      sendAt,
+      internal.emailCampaigns.startScheduledSend,
+      // Identifies this schedule, so a job left over from an undone one
+      // never starts a later schedule early.
+      { campaignId: campaign._id, scheduledAt: now },
+    )
+    // A new revision: another request rendered from the old one (a second
+    // tab, or a slow action) can no longer schedule after an Undo.
+    const revision = campaign.revision + 1
     await ctx.db.patch(campaign._id, {
-      state: 'sending',
-      sent: {
-        revision: campaign.revision,
+      state: 'scheduled',
+      revision,
+      scheduled: {
+        sendAt,
+        revision,
         html: args.html,
         text: args.text,
-        startedAt: now,
-        startedBy: admin._id,
-        cursor: null,
-        lastBatchAt: now,
+        scheduledBy: admin._id,
+        scheduledAt: now,
+        jobId,
+        copyTo,
       },
+      preparationDiagnostics: [],
       updatedBy: admin._id,
       updatedAt: now,
     })
+    return { sendAt }
+  },
+})
+
+function assertSendingConfigured() {
+  if (!isCampaignSendingEnabled()) {
+    throw new ConvexError('Email sending is disabled in this environment')
+  }
+  if (!sendingConfigProblem()) return
+  throw new ConvexError('Email configuration is incomplete')
+}
+
+function sendingConfigProblem() {
+  return (
+    !getEmailConfig() ||
+    !process.env.EMAIL_UNSUBSCRIBE_SECRET?.trim() ||
+    !process.env.CONVEX_SITE_URL ||
+    !process.env.RESEND_API_KEY
+  )
+}
+
+/** Returns a scheduled campaign to draft and cancels its job. */
+async function unschedule(
+  ctx: MutationCtx,
+  campaign: Doc<'email_campaigns'>,
+  updatedBy: Id<'users'>,
+  diagnostic?: string,
+) {
+  if (campaign.scheduled) {
+    // Cancelling a job that already ran is a no-op; the job also checks
+    // `scheduledAt` itself.
+    await ctx.scheduler.cancel(campaign.scheduled.jobId)
+  }
+  await ctx.db.patch(campaign._id, {
+    state: 'draft',
+    scheduled: undefined,
+    preparationDiagnostics: diagnostic ? [diagnostic] : [],
+    updatedBy,
+    updatedAt: Date.now(),
+  })
+}
+
+/** Undo send / cancel a scheduled send: back to an editable draft. */
+export const unscheduleSend = mutation({
+  // The revision the page showed, so an Undo from an old tab cannot cancel
+  // a schedule made after it.
+  args: { campaignId: v.id('email_campaigns'), expectedRevision: v.number() },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const admin = await requireEmailAdmin(ctx)
+    const campaign = await ctx.db.get(args.campaignId)
+    if (!campaign) throw new ConvexError('Campaign not found')
+    if (campaign.state !== 'scheduled') {
+      throw new ConvexError(
+        campaign.state === 'draft'
+          ? 'This campaign is not scheduled'
+          : 'Already sending; it can no longer be undone',
+      )
+    }
+    if (campaign.revision !== args.expectedRevision) {
+      throw new ConvexError('Campaign changed. Reload before undoing.')
+    }
+    await unschedule(ctx, campaign, admin._id)
+    return null
+  },
+})
+
+/**
+ * The scheduled job. Runs without a signed-in admin, so it checks that the
+ * admin who scheduled it still is one. A check that fails returns the
+ * campaign to draft with the reason, rather than sending it later.
+ */
+export const startScheduledSend = internalMutation({
+  args: { campaignId: v.id('email_campaigns'), scheduledAt: v.number() },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const campaign = await ctx.db.get(args.campaignId)
+    const scheduled = campaign?.scheduled
+    if (
+      !campaign ||
+      campaign.state !== 'scheduled' ||
+      !scheduled ||
+      scheduled.scheduledAt !== args.scheduledAt
+    ) {
+      return null
+    }
+    const admin = await ctx.db.get(scheduled.scheduledBy)
+    const problem =
+      campaign.revision !== scheduled.revision
+        ? 'The draft changed after it was scheduled.'
+        : !admin || !isEmailAdminViewer(admin.clerkId, admin)
+          ? 'The admin who scheduled it no longer has access.'
+          : !isCampaignSendingEnabled()
+            ? 'Email sending was turned off before the send time.'
+            : sendingConfigProblem()
+              ? 'Email configuration was incomplete at the send time.'
+              : await digestSelectionProblem(ctx, campaign)
+    if (problem) {
+      await unschedule(
+        ctx,
+        campaign,
+        scheduled.scheduledBy,
+        `Not sent: ${problem}`,
+      )
+      return null
+    }
+    const now = Date.now()
+    await ctx.db.patch(campaign._id, {
+      state: 'sending',
+      scheduled: undefined,
+      sent: {
+        revision: scheduled.revision,
+        html: scheduled.html,
+        text: scheduled.text,
+        startedAt: now,
+        startedBy: scheduled.scheduledBy,
+        cursor: null,
+        lastBatchAt: now,
+      },
+      updatedAt: now,
+    })
+    const copyEmailId = await enqueueCampaignCopy(ctx, campaign, scheduled)
+    if (copyEmailId) {
+      const started = await ctx.db.get(campaign._id)
+      if (started?.sent) {
+        await ctx.db.patch(campaign._id, {
+          sent: { ...started.sent, copyEmailId },
+        })
+      }
+    }
     await ctx.scheduler.runAfter(0, internal.emailSends.enqueueBatch, {
       campaignId: campaign._id,
     })
     return null
   },
 })
+
+/** A digest pick that went private while scheduled, as a reason. */
+async function digestSelectionProblem(
+  ctx: MutationCtx,
+  campaign: Doc<'email_campaigns'>,
+) {
+  try {
+    await assertDigestSelectionsPublic(ctx, campaign.content)
+    return null
+  } catch (error) {
+    if (error instanceof ConvexError) return `${String(error.data)}.`
+    throw error
+  }
+}
+
+/**
+ * One copy for the archive or the admin, as members will see it but with
+ * the unsubscribe link pointing at Settings. Not an `email_sends` row, so it
+ * never counts as a member send; its events are ignored.
+ */
+async function enqueueCampaignCopy(
+  ctx: MutationCtx,
+  campaign: Doc<'email_campaigns'>,
+  scheduled: NonNullable<Doc<'email_campaigns'>['scheduled']>,
+) {
+  const config = getEmailConfig()
+  if (!config || !scheduled.copyTo) return null
+  const unsubscribeUrl = settingsUrl(config.siteUrl)
+  return await getResend().sendEmail(ctx, {
+    from: config.from,
+    replyTo: [config.replyTo],
+    to: scheduled.copyTo,
+    subject: `[copy] ${campaign.subject}`,
+    html: scheduled.html.replaceAll(
+      UNSUBSCRIBE_URL_PLACEHOLDER,
+      unsubscribeUrl,
+    ),
+    text: scheduled.text.replaceAll(
+      UNSUBSCRIBE_URL_PLACEHOLDER,
+      unsubscribeUrl,
+    ),
+    idempotencyKey: `campaign:${campaign._id}:copy`,
+  })
+}
 
 /**
  * Stops further batches and cancels emails still waiting in the component.
@@ -618,6 +1068,10 @@ export const cancelSend = mutation({
     if (campaign.state === 'draft') {
       throw new ConvexError('Only a campaign that is sending can be cancelled')
     }
+    if (campaign.state === 'scheduled') {
+      await unschedule(ctx, campaign, admin._id)
+      return null
+    }
     if (campaign.state === 'sending') {
       await ctx.db.patch(campaign._id, {
         state: 'cancelled',
@@ -628,6 +1082,9 @@ export const cancelSend = mutation({
     await ctx.scheduler.runAfter(0, internal.emailSends.cancelWaitingSends, {
       campaignId: campaign._id,
     })
+    if (campaign.sent?.copyEmailId) {
+      await cancelIfWaiting(ctx, campaign.sent.copyEmailId)
+    }
     return null
   },
 })

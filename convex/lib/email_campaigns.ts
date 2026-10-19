@@ -28,7 +28,14 @@ export const LIMITS = {
   sendPreviewMembers: 100,
   projects: 5,
   discussions: 2,
+  // Named members in one campaign's audience.
+  audienceMembers: 50,
 } as const
+
+/** Undo window for Send, and the range Send later accepts. */
+export const SEND_DELAY_MS = 30_000
+export const SEND_LATER_MIN_MS = 60_000
+export const SEND_LATER_MAX_MS = 30 * 24 * 60 * 60_000
 
 /** Room for one personal unsubscribe URL replacing each placeholder. */
 export const UNSUBSCRIBE_URL_HEADROOM_BYTES = 512
@@ -79,6 +86,7 @@ export type EmailCampaignContent = Doc<'email_campaigns'>['content']
 export type DigestContent = Extract<EmailCampaignContent, { kind: 'digest' }>
 
 type Draft = Pick<Doc<'email_campaigns'>, 'subject' | 'preheader' | 'content'>
+export type EmailAudience = NonNullable<Doc<'email_campaigns'>['audience']>
 type DbCtx = Pick<QueryCtx | MutationCtx, 'db'>
 
 function tooLong(value: string, label: string, max: number) {
@@ -120,8 +128,28 @@ export function assertCampaignDraft(draft: Draft) {
   }
 }
 
-export function assertSendableCampaign(draft: Draft) {
+/** A named-member audience: no duplicates, at most `audienceMembers`. */
+export function assertAudience(audience: EmailAudience | undefined) {
+  if (!audience || audience.kind === 'everyone') return
+  if (audience.userIds.length > LIMITS.audienceMembers) {
+    throw new ConvexError(`Choose at most ${LIMITS.audienceMembers} members`)
+  }
+  if (new Set(audience.userIds).size !== audience.userIds.length) {
+    throw new ConvexError('A member is listed twice')
+  }
+}
+
+export function assertSendableCampaign(
+  draft: Draft & { audience?: EmailAudience },
+) {
   assertCampaignDraft(draft)
+  assertAudience(draft.audience)
+  if (
+    draft.audience?.kind === 'members' &&
+    draft.audience.userIds.length === 0
+  ) {
+    throw new ConvexError('Choose at least one member')
+  }
   if (!draft.subject.trim()) throw new ConvexError('Subject is required')
   if (!draft.content.body.trim()) throw new ConvexError('Body is required')
   if (draft.content.cta && !draft.content.cta.label.trim()) {

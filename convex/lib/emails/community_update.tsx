@@ -2,7 +2,7 @@ import type { CSSProperties, ReactNode } from 'react'
 import Markdown, { type Components } from 'react-markdown'
 
 import type { EmailCampaignContent } from '../email_campaigns'
-import { UNSUBSCRIBE_URL_PLACEHOLDER } from './placeholders'
+import { settingsUrl, UNSUBSCRIBE_URL_PLACEHOLDER } from './placeholders'
 
 export { UNSUBSCRIBE_URL_PLACEHOLDER }
 
@@ -151,9 +151,7 @@ export function EmailBody({ markdown }: { markdown: string }) {
   )
 }
 
-export function settingsUrl(siteUrl: string) {
-  return `${siteUrl}/settings?tab=notifications`
-}
+export { settingsUrl }
 
 export function footerReason(kind: EmailCampaignContent['kind']) {
   return kind === 'digest'
