@@ -27,11 +27,8 @@ vi.mock('@tanstack/react-router', () => ({
   }),
 }))
 
-vi.mock('@clerk/tanstack-react-start', () => ({
-  useClerk: () => ({
-    signOut: vi.fn(),
-  }),
-}))
+const signOut = vi.hoisted(() => vi.fn())
+vi.mock('@/integrations/clerk/sign-out', () => ({ useSignOut: () => signOut }))
 
 vi.mock('@/features/explore/state', () => ({
   useResumeExploreSearch: () => ({
@@ -126,4 +123,12 @@ describe('AccountMenu', () => {
       screen.queryByRole('menuitem', { name: 'email campaigns' }),
     ).toBeNull()
   })
+})
+
+it('uses the shared sign-out action from the desktop account menu', async () => {
+  const user = userEvent.setup()
+  render(<SidebarNav viewer={{ displayName: 'Ada', githubUsername: 'ada' }} />)
+  await user.click(screen.getByRole('button', { name: 'Account menu' }))
+  await user.click(screen.getByRole('menuitem', { name: 'sign out' }))
+  expect(signOut).toHaveBeenCalledOnce()
 })
