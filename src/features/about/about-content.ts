@@ -4,7 +4,7 @@
 // match what ships today.
 
 export const LOCATIC_DEFINITION =
-  'Locatic is a social network for developers that shows what people are building in each city. Builders sign in with GitHub, pick their city and the public repositories they want to show; anyone can browse projects, builders and posts by city or across the world, and members can follow, comment and message each other.'
+  'Locatic is a social network for developers to discover projects and builders in their city and around the world. Anyone can browse public projects, profiles and posts. Sign in with GitHub to share your public repositories, post updates, follow builders, comment and send messages.'
 
 export const CONTACT_EMAIL = 'contact@locatic.dev'
 
