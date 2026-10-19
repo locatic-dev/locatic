@@ -1,5 +1,7 @@
 # Community Email Implementation Plan
 
+> **Superseded (2026-10-11):** the subscription, review and delivery design below is replaced by [`2026-10-11-community-email-design.md`](2026-10-11-community-email-design.md). Keep this file as the record of the original plan and its implementation findings.
+
 > **For the implementing agent:** Use the executing-plans skill to implement this plan task by task. Follow the nearest AGENTS.md. Do not delegate, commit, deploy, synchronize production contacts, or send real emails without the user's authorization for that action.
 
 **Goal:** Let Locatic admins compose community/shipping updates and review automatically prepared fortnightly digests before sending them to eligible subscribers.

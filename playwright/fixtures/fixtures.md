@@ -44,7 +44,6 @@ Some stale contracts have no distinctive error. For example, an older `home.list
 | `E2E_EMPTY_CITY_NAME`             | empty-city user's city (default `Mysuru`)                | the default is used           |
 | `E2E_OTHER_CITY_NAME`             | a city with public builders (default `Bengaluru`)        | the default is used           |
 | `E2E_CLERK_ONBOARDING_USER_EMAIL` | a user that never finishes onboarding (`onboarding`, A6) | preflight fails               |
-| `E2E_EMAIL_CAMPAIGN_TITLE`        | reusable draft for the internal email workspace          | email workspace spec fails    |
 
 ## Personas
 
@@ -78,7 +77,7 @@ The shape mirrors the `alice` role in `seedPopulatedCity`. For strict release va
 - At least one unread notification (`notifications`). The notification click test marks one read, so a rerun needs a new unread notification.
 - Explore must list at least one project owned by someone else, so Save is offered (`saves`) and the DM failure toast has a builder to message (`inbox`).
 - The synced city catalogue must answer the prefix `ber` with at least one city (Berlin, Bern) for `explore-header`.
-- For `email-campaigns`, the same Clerk subject must be included in the development deployment's `EMAIL_ADMIN_CLERK_IDS`. `E2E_EMAIL_CAMPAIGN_TITLE` must name a reusable unsent announcement draft. Keep provider sending and test sending disabled; the browser spec stops after immutable review and never requests delivery.
+- For `email-campaigns`, the development deployment needs this user's Clerk id in `EMAIL_ADMIN_CLERK_IDS`, `EMAIL_TEST_SENDING_ENABLED=true`, `delivered@resend.dev` in `EMAIL_TEST_RECIPIENTS`, and the sender settings (`EMAIL_FROM`, `EMAIL_REPLY_TO`, `SITE_URL`, `RESEND_API_KEY`). Leave `EMAIL_SENDING_ENABLED` off. Each run creates one draft update and sends one test to Resend's `delivered@resend.dev` test address; it opens the send confirmation and closes it without sending.
 
 ### Empty-city user (`E2E_CLERK_EMPTY_CITY_USER_EMAIL`)
 

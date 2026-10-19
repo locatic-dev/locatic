@@ -71,6 +71,8 @@ interface SidebarNavProps {
   } | null
   unreadNotifications?: number
   unreadMessages?: number
+  /** Adds the email campaigns link to the account menu. */
+  isEmailAdmin?: boolean
   collapsed?: boolean
   onCollapsedChange?: (collapsed: boolean) => void
 }
@@ -79,6 +81,7 @@ export function SidebarNav({
   viewer,
   unreadNotifications,
   unreadMessages,
+  isEmailAdmin = false,
   collapsed = false,
   onCollapsedChange,
 }: SidebarNavProps) {
@@ -296,7 +299,7 @@ export function SidebarNav({
               )}
 
               {/* More icon — opens account menu */}
-              <AccountMenu />
+              <AccountMenu isEmailAdmin={isEmailAdmin} />
             </div>
           </div>
         )}
@@ -305,7 +308,7 @@ export function SidebarNav({
   )
 }
 
-function AccountMenu() {
+function AccountMenu({ isEmailAdmin }: { isEmailAdmin: boolean }) {
   const { signOut } = useClerk()
   const [aboutOpen, setAboutOpen] = useState(false)
   return (
@@ -331,6 +334,17 @@ function AccountMenu() {
               settings
             </Link>
           </DropdownMenuItem>
+          {isEmailAdmin ? (
+            <DropdownMenuItem asChild>
+              <Link
+                to="/admin/emails"
+                preload={false}
+                className="text-inherit no-underline"
+              >
+                email campaigns
+              </Link>
+            </DropdownMenuItem>
+          ) : null}
           <DropdownMenuItem
             onSelect={() => setAboutOpen(true)}
             className="cursor-pointer"

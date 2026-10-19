@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { AnchorHTMLAttributes, ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -79,5 +80,50 @@ describe('SidebarNav', () => {
 
     expect(screen.getByRole('link', { name: 'notifications' })).toBeTruthy()
     expect(screen.queryByRole('link', { name: /unread/ })).toBeNull()
+  })
+})
+
+describe('AccountMenu', () => {
+  const viewer = { displayName: 'Ada', githubUsername: 'ada' }
+
+  it.each([false, true])(
+    'opens About from the account menu when isEmailAdmin is %s',
+    async (isEmailAdmin) => {
+      const user = userEvent.setup()
+      render(<SidebarNav viewer={viewer} isEmailAdmin={isEmailAdmin} />)
+
+      await user.click(screen.getByRole('button', { name: 'Account menu' }))
+      expect(screen.getByRole('menuitem', { name: 'settings' })).toBeTruthy()
+      expect(
+        screen.queryByRole('menuitem', { name: 'email campaigns' }) !== null,
+      ).toBe(isEmailAdmin)
+
+      await user.click(screen.getByRole('menuitem', { name: 'about' }))
+      expect(
+        await screen.findByRole('dialog', {
+          name: 'It started with a question',
+        }),
+      ).toBeTruthy()
+    },
+  )
+
+  it('offers email campaigns to email admins only', async () => {
+    const user = userEvent.setup()
+    const { unmount } = render(<SidebarNav viewer={viewer} isEmailAdmin />)
+
+    await user.click(screen.getByRole('button', { name: 'Account menu' }))
+    expect(
+      screen
+        .getByRole('menuitem', { name: 'email campaigns' })
+        .getAttribute('href'),
+    ).toBe('/admin/emails')
+    unmount()
+
+    render(<SidebarNav viewer={viewer} />)
+    await user.click(screen.getByRole('button', { name: 'Account menu' }))
+    expect(screen.getByRole('menuitem', { name: 'settings' })).toBeTruthy()
+    expect(
+      screen.queryByRole('menuitem', { name: 'email campaigns' }),
+    ).toBeNull()
   })
 })

@@ -28,7 +28,7 @@ type Loader = (args: {
 
 const routes: Array<[string, () => Promise<{ Route: unknown }>, number]> = [
   ['notifications', () => import('../_app/notifications'), 1],
-  ['settings', () => import('../_app/settings'), 1],
+  ['settings', () => import('../_app/settings'), 2],
   ['inbox', () => import('../_app/inbox'), 2],
   ['admin emails', () => import('../_app/admin/emails'), 1],
 ]

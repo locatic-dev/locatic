@@ -1,49 +1,59 @@
-export interface EmailProviderConfig {
-  apiKey: string
+export interface EmailConfig {
   from: string
   replyTo: string
-  segmentId: string
-  topicId: string
+  siteUrl: string
+  postalAddress: string | null
 }
 
-export function getEmailProviderConfig(): EmailProviderConfig | null {
-  const apiKey = process.env.RESEND_API_KEY?.trim()
+const DEFAULT_SITE_URL = 'https://locatic.dev'
+
+function configuredSiteUrl() {
+  return process.env.SITE_URL?.trim().replace(/\/+$/, '') || null
+}
+
+/** Base for links in email (footer, projects); production when unset. */
+export function getSiteUrl() {
+  return configuredSiteUrl() ?? DEFAULT_SITE_URL
+}
+
+export function getEmailConfig(): EmailConfig | null {
   const from = process.env.EMAIL_FROM?.trim()
   const replyTo = process.env.EMAIL_REPLY_TO?.trim()
-  const segmentId = process.env.RESEND_SEGMENT_ID?.trim()
-  const topicId = process.env.RESEND_TOPIC_ID?.trim()
-  if (!apiKey || !from || !replyTo || !segmentId || !topicId) {
-    return null
+  const siteUrl = configuredSiteUrl()
+  if (!from || !replyTo || !siteUrl) return null
+  return {
+    from,
+    replyTo,
+    siteUrl,
+    postalAddress: process.env.EMAIL_POSTAL_ADDRESS?.trim() || null,
   }
-  return { apiKey, from, replyTo, segmentId, topicId }
 }
 
-export function compactProviderError(error: unknown) {
-  if (!error || typeof error !== 'object') return 'provider request failed'
-  const value = error as {
-    message?: unknown
-    name?: unknown
-    statusCode?: unknown
-  }
-  const name = typeof value.name === 'string' ? value.name : 'provider_error'
-  const status =
-    typeof value.statusCode === 'number' ? ` (${value.statusCode})` : ''
-  const message =
-    typeof value.message === 'string'
-      ? value.message.replace(/re_[A-Za-z0-9_-]+/g, '[redacted]').slice(0, 300)
-      : 'request failed'
-  return `${name}${status}: ${message}`
+export function isCampaignSendingEnabled() {
+  return process.env.EMAIL_SENDING_ENABLED === 'true'
 }
 
-export function isTransientProviderError(error: unknown) {
-  if (!error || typeof error !== 'object') return false
-  const value = error as { name?: unknown; statusCode?: unknown }
-  return (
-    value.statusCode === 408 ||
-    value.statusCode === 409 ||
-    value.statusCode === 429 ||
-    (typeof value.statusCode === 'number' && value.statusCode >= 500) ||
-    (typeof value.name === 'string' &&
-      /rate_limit|timeout|temporar|connection/i.test(value.name))
+export function isTestSendingEnabled() {
+  return process.env.EMAIL_TEST_SENDING_ENABLED === 'true'
+}
+
+// The component's test mode only restricts recipients to Resend's test
+// addresses; it is not a mock. Leave it on unless a sending switch is on.
+export function isLiveDelivery() {
+  return isCampaignSendingEnabled() || isTestSendingEnabled()
+}
+
+/** EMAIL_TEST_RECIPIENTS: comma-separated, compared case-insensitively. */
+export function getTestRecipients() {
+  return (process.env.EMAIL_TEST_RECIPIENTS ?? '')
+    .split(',')
+    .map((address) => address.trim())
+    .filter(Boolean)
+}
+
+export function isTestRecipient(address: string) {
+  const normalized = address.trim().toLowerCase()
+  return getTestRecipients().some(
+    (allowed) => allowed.toLowerCase() === normalized,
   )
 }

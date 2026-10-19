@@ -145,74 +145,35 @@ export const reportStatusValidator = v.union(
 export const optionalTimestampValidator = v.union(v.number(), v.null())
 export const optionalStringValidator = v.union(v.string(), v.null())
 
-export const emailCampaignKindValidator = v.union(
-  v.literal('announcement'),
-  v.literal('digest'),
+export const emailCategoryValidator = v.union(
+  v.literal('product_updates'),
+  v.literal('weekly_digest'),
+)
+
+export const emailPreferenceSourceValidator = v.union(
+  v.literal('settings'),
+  v.literal('unsubscribe_link'),
+  v.literal('one_click'),
+  v.literal('complaint'),
+  v.literal('backfill'),
+  v.literal('signup_default'),
 )
 
 export const emailCampaignStateValidator = v.union(
   v.literal('draft'),
-  v.literal('review_ready'),
-  v.literal('dispatch_requested'),
   v.literal('sending'),
-  v.literal('accepted'),
-  v.literal('needs_attention'),
-  v.literal('failed'),
+  v.literal('sent'),
   v.literal('cancelled'),
 )
 
-export const emailCampaignRunStageValidator = v.union(
-  v.literal('preparing'),
-  v.literal('ready'),
-  v.literal('dispatch_requested'),
-  v.literal('creating'),
-  v.literal('sending'),
-  v.literal('accepted'),
-  v.literal('needs_attention'),
+export const emailSendStatusValidator = v.union(
+  v.literal('queued'),
+  v.literal('sent'),
+  v.literal('delivered'),
+  v.literal('bounced'),
+  v.literal('complained'),
   v.literal('failed'),
   v.literal('cancelled'),
-)
-
-export const emailSegmentPhaseValidator = v.union(
-  v.literal('not_started'),
-  v.literal('creating'),
-  v.literal('unknown'),
-  v.literal('reconciling'),
-  v.literal('ready'),
-  v.literal('cleanup_pending'),
-  v.literal('cleaned'),
-)
-
-export const emailBroadcastPhaseValidator = v.union(
-  v.literal('not_started'),
-  v.literal('creating'),
-  v.literal('unknown'),
-  v.literal('reconciling'),
-  v.literal('ready'),
-  v.literal('sending'),
-  v.literal('accepted'),
-  v.literal('cancelled'),
-)
-
-export const emailSuppressionValidator = v.union(
-  v.literal('none'),
-  v.literal('provider_unsubscribed'),
-  v.literal('hard_bounce'),
-  v.literal('complaint'),
-  v.literal('provider_suppressed'),
-)
-
-export const emailContactSyncStatusValidator = v.union(
-  v.literal('pending'),
-  v.literal('syncing'),
-  v.literal('synced'),
-  v.literal('failed'),
-)
-
-export const emailContactCleanupStatusValidator = v.union(
-  v.literal('pending'),
-  v.literal('processing'),
-  v.literal('failed'),
 )
 
 export const emailProjectSelectionValidator = v.object({
@@ -232,13 +193,38 @@ export const emailDiscussionSelectionValidator = v.object({
   summary: v.string(),
 })
 
-export const emailCampaignContentValidator = v.object({
-  subject: v.string(),
-  preheader: v.string(),
-  introduction: v.string(),
-  projects: v.array(emailProjectSelectionValidator),
-  discussions: v.array(emailDiscussionSelectionValidator),
-  shippingUpdate: v.string(),
+export const emailCtaValidator = v.union(
+  v.object({ label: v.string(), url: v.string() }),
+  v.null(),
+)
+
+export const emailCampaignContentValidator = v.union(
+  v.object({
+    kind: v.literal('announcement'),
+    body: v.string(),
+    cta: emailCtaValidator,
+  }),
+  v.object({
+    kind: v.literal('digest'),
+    body: v.string(),
+    cta: emailCtaValidator,
+    periodKey: v.string(),
+    periodStart: v.number(),
+    periodEnd: v.number(),
+    projects: v.array(emailProjectSelectionValidator),
+    discussions: v.array(emailDiscussionSelectionValidator),
+  }),
+)
+
+export const emailCampaignSentValidator = v.object({
+  revision: v.number(),
+  html: v.string(),
+  text: v.string(),
+  startedAt: v.number(),
+  startedBy: v.id('users'),
+  cursor: v.union(v.string(), v.null()),
+  lastBatchAt: v.number(),
+  enqueuedAt: v.optional(v.number()),
 })
 
 export const cityReferenceValidator = v.union(v.id('cities'), v.null())

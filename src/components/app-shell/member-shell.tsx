@@ -62,6 +62,7 @@ export function MemberShell({
           : 0
       }
       unreadMessages={viewer.unreadMessagesCount ?? 0}
+      isEmailAdmin={bootstrap.isEmailAdmin}
     >
       <ConvexAuthReadyBoundary
         fallback={<ContentRoutePending />}

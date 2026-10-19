@@ -1,378 +1,234 @@
 // @vitest-environment jsdom
-import { act, cleanup, render, screen, within } from '@testing-library/react'
-import { ConvexError } from 'convex/values'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { ReactNode } from 'react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { EmailCampaignDetail, EmailCampaignSummary } from '../contracts'
+import { CAMPAIGN_ID, makeDetail } from './fixtures'
+
+type QueryOptions = { queryKey: [string, string, unknown] }
 
 const mocks = vi.hoisted(() => ({
-  campaigns: [
-    {
-      id: 'campaign_1',
-      kind: 'digest',
-      title: 'September digest',
-      periodStart: 1,
-      periodEnd: 2,
-      revision: 2,
-      state: 'review_ready',
-      updatedAt: 2,
-    },
-    {
-      id: 'campaign_2',
-      kind: 'announcement',
-      title: 'Product launch',
-      periodStart: null,
-      periodEnd: null,
-      revision: 1,
-      state: 'draft',
-      updatedAt: 1,
-    },
-  ],
-  detail: {} as Record<string, unknown>,
-  projects: [] as unknown[],
+  campaigns: [] as EmailCampaignSummary[],
+  detail: null as EmailCampaignDetail | null,
   create: vi.fn(),
   save: vi.fn(),
-  review: vi.fn(),
   sendTest: vi.fn(),
-  send: vi.fn(),
-  recover: vi.fn(),
-  cancel: vi.fn(),
-  retryFailedContacts: vi.fn(),
+  requestSend: vi.fn(),
+  detailError: null as Error | null,
+  refetchDetail: vi.fn(),
+}))
+
+vi.mock('@tanstack/react-router', () => ({
+  useBlocker: () => undefined,
+  Link: ({ children }: { children: ReactNode }) => <a>{children}</a>,
 }))
 
 vi.mock('@tanstack/react-query', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@tanstack/react-query')>()),
-  useSuspenseQuery: () => ({ data: mocks.campaigns }),
-  useQuery: ({ queryKey }: { queryKey: [string, string] }) => {
-    const functionName = queryKey[1]
-    return functionName === 'emailCampaigns:get'
-      ? { data: mocks.detail, isLoading: false }
-      : { data: mocks.projects, isLoading: false }
+  useSuspenseQuery: ({ queryKey: [, name] }: QueryOptions) => {
+    if (name === 'emailCampaigns:list') return { data: mocks.campaigns }
+    throw new Error(`unexpected suspense query ${name}`)
   },
+  useQuery: ({ queryKey: [, name] }: QueryOptions) =>
+    name === 'emailCampaigns:get'
+      ? {
+          data: mocks.detailError ? undefined : mocks.detail,
+          error: mocks.detailError,
+          isLoading: false,
+          refetch: mocks.refetchDetail,
+        }
+      : { data: undefined, isLoading: false },
 }))
 
-vi.mock('@/features/settings/use-unsaved-changes-guard', () => ({
-  useUnsavedChangesGuard: vi.fn(),
+vi.mock('convex/react', () => ({
+  usePaginatedQuery: () => ({
+    results: [],
+    status: 'Exhausted',
+    loadMore: vi.fn(),
+  }),
 }))
 
 vi.mock('../mutations', () => ({
   useCreateEmailCampaign: () => mocks.create,
   useSaveEmailCampaign: () => mocks.save,
-  usePrepareEmailCampaignReview: () => mocks.review,
-  useSendEmailCampaignTest: () => mocks.sendTest,
-  useRequestEmailCampaignSend: () => mocks.send,
-  useRecoverEmailCampaignDelivery: () => mocks.recover,
-  useCancelEmailCampaignDelivery: () => mocks.cancel,
-  useRetryFailedEmailContacts: () => mocks.retryFailedContacts,
+  usePreviewEmailCampaign: () =>
+    vi.fn(async ({ requestId }: { requestId: number }) => ({
+      requestId,
+      html: '<p>preview</p>',
+    })),
+  useSendEmailTest: () => mocks.sendTest,
+  useRequestEmailSend: () => mocks.requestSend,
+  useCancelEmailSend: () => vi.fn(),
+  useResumeEmailSend: () => vi.fn(),
 }))
+
+vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
+
+import { toast } from 'sonner'
 
 import { CampaignWorkspace } from '../components/campaign-workspace'
 
-function campaignDetail(overrides: Record<string, unknown> = {}) {
-  return {
-    id: 'campaign_1',
-    kind: 'digest',
-    title: 'September digest',
-    periodStart: 1,
-    periodEnd: 2,
-    revision: 2,
-    templateVersion: 1,
-    state: 'review_ready',
-    preparationDiagnostics: [],
-    sender: 'Locatic <news@locatic.dev>',
-    replyTo: 'hello@locatic.dev',
-    updatedAt: 2,
-    content: {
-      subject: 'What builders shipped',
-      preheader: 'A fortnight on Locatic',
-      introduction: 'A concise community update.',
-      projects: [
-        {
-          projectId: 'project_1',
-          name: 'mapkit',
-          fullName: 'ada/mapkit',
-          description: 'Maps for builders',
-          url: 'https://locatic.dev/project/ada/mapkit',
-          activityAt: 1,
-          activityLabel: 'Latest known public activity on 1 Sep 2026',
-        },
-        {
-          projectId: 'project_2',
-          name: 'compiler',
-          fullName: 'grace/compiler',
-          description: null,
-          url: 'https://locatic.dev/project/grace/compiler',
-          activityAt: 1,
-          activityLabel: 'Latest known public activity on 2 Sep 2026',
-        },
-      ],
-      discussions: [],
-      shippingUpdate: '',
-    },
-    latestRun: {
-      id: 'run_1',
-      revision: 2,
-      stage: 'ready',
-      audienceSummary: {
-        eligible: 12,
-        excludedDisabled: 3,
-        excludedInactive: 1,
-        excludedUnverified: 2,
-        excludedSuppressed: 1,
-        excludedDuplicate: 0,
-        pendingSync: 0,
-      },
-      html: '<p>reviewed artifact</p>',
-      text: 'reviewed artifact',
-      providerBroadcastId: null,
-      canCancel: true,
-      lastError: null,
-      updatedAt: 2,
-    },
-    ...overrides,
-  }
+const summary: EmailCampaignSummary = {
+  id: CAMPAIGN_ID,
+  kind: 'announcement',
+  title: 'Maps launch',
+  revision: 2,
+  state: 'draft',
+  updatedAt: 0,
+  results: null,
 }
 
 describe('CampaignWorkspace', () => {
   beforeEach(() => {
-    mocks.detail = campaignDetail()
-    mocks.projects = []
-    mocks.create.mockReset().mockResolvedValue('campaign_new')
-    mocks.save.mockReset().mockResolvedValue(3)
-    mocks.review.mockReset().mockResolvedValue('run_1')
-    mocks.sendTest.mockReset().mockResolvedValue('email_1')
-    mocks.send.mockReset().mockResolvedValue('run_1')
-    mocks.recover.mockReset().mockResolvedValue('scheduled')
-    mocks.cancel.mockReset().mockResolvedValue('cancelled')
-    mocks.retryFailedContacts.mockReset().mockResolvedValue({ retried: 2 })
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    mocks.campaigns = [summary]
+    mocks.detail = makeDetail()
+    mocks.detailError = null
+    mocks.refetchDetail.mockReset()
+    for (const fn of [
+      mocks.create,
+      mocks.save,
+      mocks.sendTest,
+      mocks.requestSend,
+    ]) {
+      fn.mockReset()
+    }
   })
 
-  afterEach(() => {
-    cleanup()
-    vi.restoreAllMocks()
-  })
-
-  it('shows the reviewed artifact and audience separately from editable fields', async () => {
+  it('lists campaigns with their type, state and results', () => {
+    mocks.campaigns = [
+      summary,
+      {
+        ...summary,
+        id: 'campaign_2' as EmailCampaignSummary['id'],
+        title: 'September',
+        kind: 'digest',
+        state: 'sent',
+        results: {
+          total: { count: 3, capped: false },
+          delivered: { count: 1, capped: false },
+        },
+      },
+    ]
     render(<CampaignWorkspace />)
 
+    const list = screen.getByRole('list', { name: 'Campaigns' })
+    const sent = within(list).getByRole('button', { name: /September/ })
+    expect(sent.textContent).toContain('digest')
+    expect(sent.textContent).toContain('3 recipients · 1 delivered')
     expect(
-      await screen.findByDisplayValue('What builders shipped'),
-    ).toBeTruthy()
-    expect(
-      screen.getByTitle('reviewed campaign preview').getAttribute('sandbox'),
-    ).toBe('')
-    expect(screen.getByText('12')).toBeTruthy()
-    expect(
-      (
-        screen.getByRole('button', {
-          name: 'send to 12 subscribers',
-        }) as HTMLButtonElement
-      ).disabled,
-    ).toBe(false)
+      within(list)
+        .getByRole('button', { name: /Maps launch/ })
+        .getAttribute('aria-pressed'),
+    ).toBe('true')
   })
 
-  it('saves controlled edits against the loaded revision and disables stale review actions while dirty', async () => {
+  it('creates updates and digests', async () => {
+    const user = userEvent.setup()
+    mocks.create.mockResolvedValue('campaign_3')
+    render(<CampaignWorkspace />)
+
+    await user.click(screen.getByRole('button', { name: 'New update' }))
+    await user.click(screen.getByRole('button', { name: 'New digest' }))
+    expect(mocks.create.mock.calls.map(([args]) => args.kind)).toEqual([
+      'announcement',
+      'digest',
+    ])
+  })
+
+  it('opens a draft on Write with a live preview, and moves between tabs', async () => {
     const user = userEvent.setup()
     render(<CampaignWorkspace />)
-    const subject = await screen.findByLabelText('subject')
 
-    await user.clear(subject)
-    await user.type(subject, 'A revised subject')
     expect(
-      (
-        screen.getByRole('button', {
-          name: 'send to 12 subscribers',
-        }) as HTMLButtonElement
-      ).disabled,
-    ).toBe(true)
-    await user.click(screen.getByRole('button', { name: 'save draft' }))
+      screen.getByRole('tab', { name: 'Write' }).getAttribute('aria-selected'),
+    ).toBe('true')
+    expect(screen.getByLabelText('Subject')).toBeTruthy()
+    expect(await screen.findByTitle('Email preview')).toBeTruthy()
+
+    await user.click(screen.getByRole('tab', { name: 'Test' }))
+    expect(
+      (screen.getByLabelText('Send a test to') as HTMLInputElement).value,
+    ).toBe('admin@example.test')
+
+    await user.keyboard('{ArrowRight}')
+    expect(
+      screen.getByRole('tab', { name: 'Send' }).getAttribute('aria-selected'),
+    ).toBe('true')
+    expect(screen.getByRole('button', { name: 'Review and send' })).toBeTruthy()
+  })
+
+  it('saves edits with the version it started from', async () => {
+    const user = userEvent.setup()
+    mocks.save.mockResolvedValue(3)
+    render(<CampaignWorkspace />)
+
+    await user.type(screen.getByLabelText('Subject'), '!')
+    await user.click(screen.getByRole('button', { name: 'Save draft' }))
 
     expect(mocks.save).toHaveBeenCalledWith(
       expect.objectContaining({
-        campaignId: 'campaign_1',
+        campaignId: CAMPAIGN_ID,
         expectedRevision: 2,
-        content: expect.objectContaining({ subject: 'A revised subject' }),
+        subject: 'Maps!',
       }),
     )
   })
 
-  it('reorders and removes selected projects with labeled keyboard controls', async () => {
+  it('sends a test of the unsaved draft', async () => {
     const user = userEvent.setup()
+    mocks.sendTest.mockResolvedValue(null)
     render(<CampaignWorkspace />)
-    await screen.findByText('ada/mapkit')
 
-    const projectSection = screen
-      .getByRole('heading', { name: 'selected projects' })
-      .closest('section')!
-    const rows = within(projectSection).getAllByRole('listitem')
-    await user.click(
-      within(rows[1]!).getByRole('button', { name: 'move project up' }),
+    await user.type(screen.getByLabelText('Subject'), '!')
+    await user.click(screen.getByRole('tab', { name: 'Test' }))
+    await user.click(screen.getByRole('button', { name: 'Send test' }))
+
+    expect(mocks.sendTest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        recipient: 'admin@example.test',
+        subject: 'Maps!',
+      }),
     )
-    expect(
-      within(projectSection).getAllByRole('listitem')[0]?.textContent,
-    ).toContain('grace/compiler')
-    await user.click(
-      within(within(projectSection).getAllByRole('listitem')[0]!).getByRole(
-        'button',
-        {
-          name: 'remove project',
-        },
-      ),
+    // Queued, not sent: the component delivers it a moment later.
+    expect(toast.success).toHaveBeenCalledWith(
+      'Test email queued for admin@example.test.',
     )
-    expect(screen.queryByText('grace/compiler')).toBeNull()
   })
 
-  it('surfaces save conflicts inline and keeps the local edit', async () => {
+  it('shows a failed campaign load with Retry instead of the empty state', async () => {
     const user = userEvent.setup()
-    mocks.save.mockRejectedValue(
-      new ConvexError('Campaign changed. Reload before saving again.'),
-    )
+    mocks.detailError = new Error('network')
     render(<CampaignWorkspace />)
-    const title = await screen.findByLabelText('internal title')
-    await user.clear(title)
-    await user.type(title, 'Local operator edit')
-    await user.click(screen.getByRole('button', { name: 'save draft' }))
 
-    expect((await screen.findByRole('alert')).textContent).toContain(
-      'campaign changed',
-    )
-    expect(screen.getByDisplayValue('Local operator edit')).toBeTruthy()
+    const alert = screen.getByRole('alert')
+    expect(alert.textContent).toContain("Couldn't load this campaign.")
+    expect(screen.queryByText('Pick a campaign or start a new one.')).toBeNull()
+    await user.click(within(alert).getByRole('button', { name: 'Retry' }))
+    expect(mocks.refetchDetail).toHaveBeenCalledTimes(1)
   })
 
-  it('blocks sending when contact synchronization is pending', async () => {
-    mocks.detail = campaignDetail({
-      latestRun: {
-        ...(campaignDetail().latestRun as Record<string, unknown>),
-        audienceSummary: {
-          eligible: 12,
-          excludedDisabled: 3,
-          excludedInactive: 1,
-          excludedUnverified: 2,
-          excludedSuppressed: 1,
-          excludedDuplicate: 0,
-          pendingSync: 2,
+  it('opens a campaign that has started sending on its results', () => {
+    mocks.detail = makeDetail({
+      state: 'sent',
+      sending: { startedAt: 0, lastBatchAt: 0, enqueuedAt: 0 },
+      results: {
+        counts: {
+          queued: { count: 0, capped: false },
+          sent: { count: 1, capped: false },
+          delivered: { count: 0, capped: false },
+          bounced: { count: 0, capped: false },
+          complained: { count: 0, capped: false },
+          failed: { count: 0, capped: false },
+          cancelled: { count: 0, capped: false },
         },
+        total: { count: 1, capped: false },
       },
     })
     render(<CampaignWorkspace />)
 
-    expect(
-      (
-        await screen.findByRole('button', {
-          name: 'send to 12 subscribers',
-        })
-      ).hasAttribute('disabled'),
-    ).toBe(true)
-  })
-
-  it('lets an operator retry failed contact synchronization without sending', async () => {
-    const user = userEvent.setup()
-    mocks.detail = campaignDetail({
-      latestRun: {
-        ...(campaignDetail().latestRun as Record<string, unknown>),
-        audienceSummary: {
-          eligible: 12,
-          excludedDisabled: 3,
-          excludedInactive: 1,
-          excludedUnverified: 2,
-          excludedSuppressed: 1,
-          excludedDuplicate: 0,
-          pendingSync: 2,
-        },
-      },
-    })
-    render(<CampaignWorkspace />)
-
-    await user.click(
-      await screen.findByRole('button', { name: 'retry failed contacts' }),
-    )
-
-    expect(mocks.retryFailedContacts).toHaveBeenCalledWith({ limit: 25 })
-    expect((await screen.findByRole('status')).textContent).toContain(
-      'Requeued 2 failed contacts.',
-    )
-  })
-
-  it('cancels an undispatched reviewed request without implying recall', async () => {
-    const user = userEvent.setup()
-    render(<CampaignWorkspace />)
-
-    await user.click(
-      await screen.findByRole('button', { name: 'cancel delivery request' }),
-    )
-
-    expect(mocks.cancel).toHaveBeenCalledWith({ runId: 'run_1' })
-    expect((await screen.findByRole('status')).textContent).toContain(
-      'Undispatched delivery request cancelled.',
-    )
-  })
-
-  it('hides cancellation once provider handoff may have started', async () => {
-    mocks.detail = campaignDetail({
-      latestRun: {
-        ...(campaignDetail().latestRun as Record<string, unknown>),
-        stage: 'needs_attention',
-        canCancel: false,
-        lastError: 'Broadcast creation outcome is unknown',
-      },
-    })
-
-    render(<CampaignWorkspace />)
-
-    expect(
-      screen.queryByRole('button', { name: 'cancel delivery request' }),
-    ).toBeNull()
-    expect(screen.getByText(/never presented as recall/i)).toBeTruthy()
-  })
-
-  it('asks before switching campaigns with unsaved changes', async () => {
-    const user = userEvent.setup()
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
-    render(<CampaignWorkspace />)
-    const subject = await screen.findByLabelText('subject')
-    await user.type(subject, ' changed')
-    await user.click(screen.getByRole('button', { name: /Product launch/ }))
-
-    expect(confirm).toHaveBeenCalled()
-    expect(
-      screen.getByDisplayValue('What builders shipped changed'),
-    ).toBeTruthy()
-  })
-
-  it('asks before creating a campaign with unsaved changes', async () => {
-    const user = userEvent.setup()
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
-    render(<CampaignWorkspace />)
-    await user.type(await screen.findByLabelText('subject'), ' changed')
-    await user.click(screen.getByRole('button', { name: 'new announcement' }))
-
-    expect(confirm).toHaveBeenCalled()
-    expect(mocks.create).not.toHaveBeenCalled()
-  })
-
-  it('preserves edits entered while a save request is in flight', async () => {
-    let finish!: (revision: number) => void
-    mocks.save.mockReset().mockImplementation(
-      () =>
-        new Promise<number>((resolve) => {
-          finish = resolve
-        }),
-    )
-    const user = userEvent.setup()
-    render(<CampaignWorkspace />)
-    const subject = await screen.findByLabelText('subject')
-
-    await user.type(subject, ' A')
-    await user.click(screen.getByRole('button', { name: 'save draft' }))
-    await user.type(subject, ' B')
-    await act(async () => finish(3))
-
-    expect((subject as HTMLInputElement).value).toBe(
-      'What builders shipped A B',
-    )
-    expect(
-      (screen.getByRole('button', { name: 'save draft' }) as HTMLButtonElement)
-        .disabled,
-    ).toBe(false)
+    expect(screen.queryByRole('tab', { name: 'Write' })).toBeNull()
+    expect(screen.getByRole('list', { name: 'Results by status' })).toBeTruthy()
   })
 })
