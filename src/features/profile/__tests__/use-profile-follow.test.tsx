@@ -6,6 +6,7 @@ import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Id } from '../../../../convex/_generated/dataModel'
 
+import { clearSessionCache } from '@/integrations/convex/session-cache'
 import { publicProfileOverviewQueryOptions } from '@/features/profile/queries'
 import type { PublicProfileOverview } from '@/features/profile/types'
 import { useProfileFollow } from '../use-profile-follow'
@@ -54,7 +55,7 @@ function setup() {
   )
   const cached = () => queryClient.getQueryData<PublicProfileOverview>(queryKey)
 
-  return { cached, result }
+  return { cached, result, queryClient }
 }
 
 describe('useProfileFollow', () => {
@@ -111,3 +112,37 @@ describe('useProfileFollow', () => {
     expect(mocks.toast).not.toHaveBeenCalled()
   })
 })
+
+it.each([false, true])(
+  'ignores an old-session rollback after cache reset (new account: %s)',
+  async (newAccount) => {
+    let reject!: (error: Error) => void
+    mocks.unfollowUser.mockImplementationOnce(
+      () =>
+        new Promise((_, rej) => {
+          reject = rej
+        }),
+    )
+    const { cached, result, queryClient } = setup()
+    let operation!: Promise<void>
+    act(() => {
+      operation = result.current.toggleFollow(true)
+    })
+    await waitFor(() => expect(cached()?.viewerFollowsProfile).toBe(false))
+    clearSessionCache(queryClient)
+    const key = publicProfileOverviewQueryOptions('ada').queryKey
+    const next = {
+      ...overview,
+      viewerFollowsProfile: false,
+      stats: { ...overview.stats, followersCount: 8 },
+    }
+    if (newAccount) queryClient.setQueryData(key, next)
+    await act(async () => {
+      reject(new Error('old session ended'))
+      await operation
+    })
+    expect(cached()).toEqual(newAccount ? next : undefined)
+    expect(mocks.toastError).not.toHaveBeenCalled()
+    queryClient.clear()
+  },
+)
