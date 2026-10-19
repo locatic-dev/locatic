@@ -1,3 +1,4 @@
+import rateLimiterTest from '@convex-dev/rate-limiter/test'
 import { convexTest, type TestConvex } from 'convex-test'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -40,6 +41,7 @@ describe('posts of owners outside discovery (B3)', () => {
   beforeEach(async () => {
     vi.useFakeTimers({ now: NOW, toFake: ['Date'] })
     t = convexTest(schema, modules)
+    rateLimiterTest.register(t)
     fixture = await seedPopulatedCity(t)
   })
 
@@ -168,6 +170,7 @@ describe('stale stored post fields (S7)', () => {
   beforeEach(async () => {
     vi.useFakeTimers({ now: NOW, toFake: ['Date'] })
     t = convexTest(schema, modules)
+    rateLimiterTest.register(t)
     fixture = await seedPopulatedCity(t)
   })
 

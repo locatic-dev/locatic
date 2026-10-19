@@ -18,7 +18,7 @@ export function HeroCopy() {
       </h1>
 
       <p className="lx-hero-up mt-5 mb-0 font-sans text-lg text-text-muted [--hero-step:2]">
-        find the people shipping in your city.
+        discover devs &amp; projects from your city to anywhere on the globe.
       </p>
 
       <div className="lx-hero-up mt-8 flex flex-wrap items-center gap-x-6 gap-y-3 [--hero-step:3]">

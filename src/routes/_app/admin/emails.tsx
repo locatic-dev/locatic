@@ -9,6 +9,7 @@ import { CampaignWorkspace } from '@/features/email-campaigns/components/campaig
 import { emailCampaignListQueryOptions } from '@/features/email-campaigns/queries'
 import { viewerQueryOptions } from '@/features/viewer/queries'
 import { shouldPrefetchPrivateConvexQueries } from '@/lib/auth-routing'
+import { seo } from '@/lib/seo'
 
 export const Route = createFileRoute('/_app/admin/emails')({
   // `_app` has already loaded the viewer bootstrap (after the Convex token is
@@ -31,5 +32,6 @@ export const Route = createFileRoute('/_app/admin/emails')({
   pendingComponent: FormRoutePending,
   pendingMs: ROUTE_PENDING_MS,
   pendingMinMs: ROUTE_PENDING_MIN_MS,
+  head: () => seo({ title: 'emails', noindex: true }),
   component: CampaignWorkspace,
 })

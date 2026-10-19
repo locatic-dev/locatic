@@ -31,6 +31,11 @@ const STATIC_ROUTES: Array<{
     mask: ['[data-ping-globe]', '[data-ping-card]'],
   },
   {
+    name: 'about',
+    path: '/about',
+    ready: (page) => page.getByRole('heading', { level: 1 }),
+  },
+  {
     name: 'privacy',
     path: '/privacy',
     ready: (page) => page.getByRole('heading', { level: 1 }),

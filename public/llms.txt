@@ -1,0 +1,20 @@
+# Locatic
+
+> Locatic is a social network for developers that shows what people are building in each city. Builders sign in with GitHub and show their public projects; anyone can browse projects, builders and posts by city or across the world.
+
+## Start here
+
+- [About Locatic](https://locatic.dev/about): what Locatic is, who builds it, and answers to common questions
+- [Explore](https://locatic.dev/explore): public projects, builders and posts, everywhere or by city
+- [Sitemap](https://locatic.dev/sitemap.xml): every indexed city, builder and project page
+
+## Page types
+
+- City pages, `https://locatic.dev/c/{city-slug}`: builders, recent projects and posts in one city
+- Builder profiles, `https://locatic.dev/u/{github-username}`: a builder's public projects, posts and activity
+- Project pages, `https://locatic.dev/project/{github-owner}/{repo}`: a project's README, releases, posts and discussion
+
+## Policies
+
+- [Privacy](https://locatic.dev/privacy): what Locatic stores and the location and visibility controls builders have
+- [Terms](https://locatic.dev/terms)

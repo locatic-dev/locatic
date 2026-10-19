@@ -55,6 +55,8 @@ export interface ProjectCardData {
   city?: string | null
   /** Set only for exact-city owners; the city pill then links to the city page. */
   cityId?: string | null
+  /** The owner city's slug, for the city link (see `CityPill`). */
+  citySlug?: string | null
   buildStatus?: string | null
   followed?: boolean
   isPinned?: boolean
@@ -331,6 +333,7 @@ export function ProjectCard({
             showFullCity ? project.city : project.city.split(',')[0]?.trim()
           }
           cityId={project.cityId ?? null}
+          citySlug={project.citySlug ?? null}
           truncate={!showFullCity}
           className={cn(aboveCover, 'min-w-0 max-w-full')}
         />

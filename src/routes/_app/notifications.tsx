@@ -40,6 +40,7 @@ import {
   publicProfileOverviewQueryOptions,
 } from '@/integrations/convex/query-options'
 import { shouldPrefetchPrivateConvexQueries } from '@/lib/auth-routing'
+import { seo } from '@/lib/seo'
 
 /** Matches the page `notificationsQueryOptions()` renders on the server. */
 const NOTIFICATIONS_PAGE_SIZE = 20
@@ -56,6 +57,7 @@ export const Route = createFileRoute('/_app/notifications')({
   pendingComponent: NotificationsRoutePending,
   pendingMs: ROUTE_PENDING_MS,
   pendingMinMs: ROUTE_PENDING_MIN_MS,
+  head: () => seo({ title: 'notifications', noindex: true }),
   component: NotificationsPage,
 })
 

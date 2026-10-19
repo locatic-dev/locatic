@@ -616,7 +616,7 @@ export async function readActiveMapCities(db: DatabaseReader) {
 
   return cities
     .flatMap((city) => {
-      const { builderCount } = readCityStats(city)
+      const { builderCount, lastActivityAt } = readCityStats(city)
       return city.isActive && builderCount > 0
         ? [
             {
@@ -625,6 +625,7 @@ export async function readActiveMapCities(db: DatabaseReader) {
               lat: city.location.lat,
               lng: city.location.lng,
               builderCount,
+              lastActivityAt,
             },
           ]
         : []
@@ -644,5 +645,9 @@ export async function readActiveMapCities(db: DatabaseReader) {
 export const listActiveForMap = query({
   args: {},
   returns: v.array(activeMapCityValidator),
-  handler: async (ctx) => await readActiveMapCities(ctx.db),
+  handler: async (ctx) =>
+    // `lastActivityAt` is for the sitemap; the map payload stays as it was.
+    (await readActiveMapCities(ctx.db)).map(
+      ({ lastActivityAt: _lastActivityAt, ...city }) => city,
+    ),
 })

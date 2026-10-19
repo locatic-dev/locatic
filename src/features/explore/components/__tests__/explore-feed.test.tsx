@@ -163,6 +163,7 @@ const builder = {
     kind: 'city',
     cityId: 'city_1' as Id<'cities'>,
     cityName: 'Bengaluru, Karnataka, India',
+    citySlug: 'bengaluru-in',
     regionLabel: 'Karnataka, India',
   },
   projectsCount: 4,
@@ -229,7 +230,6 @@ function renderFeed(
     onFollowUser: vi.fn(),
     onLoadMore: vi.fn(),
     onMessageUser: vi.fn(),
-    onOpenBuilderProfile: vi.fn(),
     onResetExplore: vi.fn(),
     pendingFollows: new Set<string>(),
     pendingUserId: null,
@@ -347,6 +347,7 @@ describe('ExploreFeed', () => {
         kind: 'city',
         cityId: 'city_1' as Id<'cities'>,
         cityName: 'Bengaluru, Karnataka, India',
+        citySlug: 'bengaluru-in',
         regionLabel: 'Karnataka, India',
       },
     } satisfies ProjectCardPreview
@@ -952,9 +953,9 @@ describe('ExploreFeed', () => {
       expect(screen.getByText('looking for cofounder')).toBeTruthy()
       expect(screen.getByText('hiring / building a team')).toBeTruthy()
       expect(screen.queryByText('building solo')).toBeNull()
-      // The profile button keeps its name; the status is its description.
+      // The profile link keeps its name; the status is its description.
       const describedBy = (name: string) =>
-        screen.getByRole('button', { name }).getAttribute('aria-describedby')
+        screen.getByRole('link', { name }).getAttribute('aria-describedby')
       const hiringStatusId = describedBy("Open Builder hiring's profile")
       expect(hiringStatusId).toBeTruthy()
       expect(document.getElementById(hiringStatusId!)?.textContent).toBe(

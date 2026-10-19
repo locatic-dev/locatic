@@ -8,6 +8,7 @@ import { StatusPill, isCollaborationStatus } from '@/components/ui/status-pill'
 import { LxAvatar } from '@/components/ui/lx-avatar'
 import { toProjectCardData } from '@/features/project-card-preview'
 import { relativeTime } from '@/lib/time'
+import { describeCityPage } from './city-summary'
 import {
   formatCityCounts,
   getCityExploreSearch,
@@ -65,9 +66,17 @@ function CityHeader({ page }: { page: CityPagePayload }) {
       {page.city.regionLabel && (
         <p className="m-0 text-body text-text-muted">{page.city.regionLabel}</p>
       )}
-      <p className="m-0 font-mono text-meta text-text-muted">
-        {formatCityCounts(page.stats)}
-      </p>
+      {page.stats.builderCount > 0 ? (
+        // A sentence crawlers and AI answers can quote; the empty state below
+        // already says when a city has no public work.
+        <p className="m-0 mt-2 max-w-(--lx-form-max) text-body text-text-muted">
+          {describeCityPage(page)}
+        </p>
+      ) : (
+        <p className="m-0 font-mono text-meta text-text-muted">
+          {formatCityCounts(page.stats)}
+        </p>
+      )}
     </header>
   )
 }

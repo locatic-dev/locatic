@@ -24,6 +24,9 @@ export function PublicFooter() {
         >
           contact
         </a>
+        <Link to="/about" className={footerLinkClassName}>
+          about
+        </Link>
         <Link to="/privacy" className={footerLinkClassName}>
           privacy
         </Link>
@@ -31,7 +34,7 @@ export function PublicFooter() {
           terms
         </Link>
       </nav>
-      <p className="mt-3 mb-0">locatic · GitHub with a map</p>
+      <p className="mt-3 mb-0">locatic · github with a map</p>
     </m.footer>
   )
 }

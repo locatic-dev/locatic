@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Link, useRouter } from '@tanstack/react-router'
+import { Link } from '@tanstack/react-router'
 import type { FunctionReturnType } from 'convex/server'
 import type { api } from '../../../convex/_generated/api'
 import { LxAvatar } from '@/components/ui/lx-avatar'
@@ -50,7 +50,6 @@ export function ProjectOwnerCard({
   /** Where sign-in returns a visitor who wants to follow the owner. */
   signInRedirect: string | undefined
 }) {
-  const router = useRouter()
   const queryClient = useQueryClient()
   const followUser = useFollowUser()
   const unfollowUser = useUnfollowUser()
@@ -110,6 +109,8 @@ export function ProjectOwnerCard({
           : detail.owner.city
   const ownerCityId =
     ownerLocation?.kind === 'city' ? String(ownerLocation.cityId) : null
+  const ownerCitySlug =
+    ownerLocation?.kind === 'city' ? ownerLocation.citySlug : null
 
   const handleFollow = async () => {
     if (followMutation.isPending || !isSignedIn || isOwnProject) {
@@ -140,18 +141,11 @@ export function ProjectOwnerCard({
     <div className="rounded-card border border-line p-4.5">
       <p className="m-0 mb-3 text-eyebrow text-text-muted">builder</p>
       <div className="mb-3.5 flex w-full items-center gap-2">
-        <button
-          type="button"
-          onClick={() =>
-            void router.navigate({
-              to: '/u/$username',
-              params: {
-                username: detail.owner.githubUsername,
-              },
-              search: { tab: 'projects' },
-            })
-          }
-          className="group flex min-w-0 flex-1 items-center gap-3 border-0 bg-transparent p-0 text-left"
+        <Link
+          to="/u/$username"
+          params={{ username: detail.owner.githubUsername }}
+          search={{ tab: 'projects' }}
+          className="group flex min-w-0 flex-1 items-center gap-3 text-left no-underline"
         >
           <LxAvatar
             name={detail.owner.displayName}
@@ -167,13 +161,17 @@ export function ProjectOwnerCard({
               @{detail.owner.githubUsername}
             </div>
           </div>
-        </button>
+        </Link>
       </div>
 
       <div className="mb-3.5 flex flex-wrap gap-2.5">
         <StatusPill status={detail.owner.buildStatus} size="md" />
         {ownerCityLabel && (
-          <CityPill city={ownerCityLabel} cityId={ownerCityId} />
+          <CityPill
+            city={ownerCityLabel}
+            cityId={ownerCityId}
+            citySlug={ownerCitySlug}
+          />
         )}
       </div>
 

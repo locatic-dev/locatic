@@ -12,6 +12,7 @@ import { relativeTime } from '@/lib/time'
 import { CommentActions } from './comment-actions'
 import { commentComposerTextareaClass } from './composer-styles'
 import type { ProjectCommentView } from './types'
+import { CONTENT_LIMITS } from '../../../../convex/lib/content_limits'
 
 function ReplySkeleton() {
   return (
@@ -148,6 +149,7 @@ export function CommentThread({
                 <CityPill
                   city={comment.authorSnapshot.cityName}
                   cityId={comment.authorSnapshot.cityId}
+                  citySlug={comment.authorSnapshot.citySlug}
                 />
               )}
               <span className="font-mono text-meta text-text-muted">
@@ -186,6 +188,7 @@ export function CommentThread({
             {replyDrafts[commentId] !== undefined && isSignedIn && (
               <div className="mt-3 flex flex-wrap gap-3 rounded-card border border-line bg-canvas px-3 py-3">
                 <Textarea
+                  maxLength={CONTENT_LIMITS.comment}
                   value={replyDrafts[commentId] ?? ''}
                   onChange={(event) =>
                     setReplyDrafts((current) => ({

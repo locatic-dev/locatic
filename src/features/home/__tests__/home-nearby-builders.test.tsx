@@ -58,6 +58,7 @@ const builder: HomeNearbyBuilder = {
     kind: 'city',
     cityId: 'city_blr' as Id<'cities'>,
     cityName: 'Bengaluru, Karnataka, India',
+    citySlug: 'bengaluru-in',
     regionLabel: 'Karnataka, India',
   },
   projectsCount: 2,
@@ -84,7 +85,7 @@ describe('HomeNearbyBuilders', () => {
       screen
         .getByRole('link', { name: 'Bengaluru, Karnataka, India' })
         .getAttribute('href'),
-    ).toBe('/c/city_blr')
+    ).toBe('/c/bengaluru-in')
 
     const toggle = screen.getByRole('button', { name: 'follow Mira' })
     expect(toggle.getAttribute('aria-pressed')).toBe('false')

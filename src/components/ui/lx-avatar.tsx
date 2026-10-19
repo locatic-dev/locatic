@@ -31,6 +31,12 @@ interface LxAvatarProps {
    * hide the avatar from assistive technology so the name is read once.
    */
   decorative?: boolean
+  /**
+   * Load the image right away. Avatars lazy-load by default because most sit
+   * in long lists; pass this for one that is above the fold on load, such as
+   * the profile header.
+   */
+  eager?: boolean
 }
 
 export function LxAvatar({
@@ -39,6 +45,7 @@ export function LxAvatar({
   size = 32,
   className,
   decorative = false,
+  eager = false,
 }: LxAvatarProps) {
   const initials = name
     .split(/[\s_.\-@/]+/)
@@ -61,6 +68,8 @@ export function LxAvatar({
         alt={decorative ? '' : name}
         width={size}
         height={size}
+        loading={eager ? 'eager' : 'lazy'}
+        decoding="async"
         onError={() => setFailedUrl(avatarUrl)}
         className={cn('shrink-0 rounded-full object-cover', className)}
         style={{

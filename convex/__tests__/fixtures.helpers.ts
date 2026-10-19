@@ -286,6 +286,8 @@ export interface SeedUserOptions {
   buildStatus?: BuildStatus
   /** Written to `stats.followersCount` only; no follows rows are created. */
   followersCount?: number
+  /** Written to `stats.projectsCount` only; seed the projects separately. */
+  projectsCount?: number
   /** Account creation time; use a recent value for "new builder" cases. */
   createdAt?: number
   /** When false, `onboardingCompletedAt` is null. Default true. */
@@ -343,6 +345,7 @@ export async function seedUser(
       stats: {
         ...base.stats,
         followersCount: opts.followersCount ?? 0,
+        projectsCount: opts.projectsCount ?? 0,
       },
       appearInExplore: opts.appearInExplore ?? true,
       privacy: {

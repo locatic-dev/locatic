@@ -16,14 +16,14 @@ async function settleFeed(page: Page, content: Locator) {
 }
 
 /**
- * Explore builder rows (the "Open X's profile" buttons) once the first page
+ * Explore builder rows (the "Open X's profile" links) once the first page
  * settles. Fails when the feed renders neither rows nor its empty state, so a
  * broken page never turns into a skip. Returns no rows only for a genuinely
  * empty deployment.
  */
 export async function settledBuilderRows(page: Page) {
   const main = page.locator('main#main-content')
-  const rows = main.getByRole('button', { name: /^Open .+'s profile$/ })
+  const rows = main.getByRole('link', { name: /^Open .+'s profile$/ })
   const empty = main.getByRole('heading', { name: /^no builders/ })
   await settleFeed(page, rows.first().or(empty))
   return rows
