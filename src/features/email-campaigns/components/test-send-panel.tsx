@@ -74,7 +74,11 @@ export function TestSendPanel({ detail, draft }: TestSendPanelProps) {
               : 'No addresses are allowed for tests yet.'}
         </p>
       </div>
-      <Button type="submit" disabled={disabled || sending || !recipient.trim()}>
+      <Button
+        type="submit"
+        className="pointer-coarse:h-11"
+        disabled={disabled || sending || !recipient.trim()}
+      >
         {sending ? 'Sending…' : 'Send test'}
       </Button>
     </form>

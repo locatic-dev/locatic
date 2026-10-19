@@ -13,6 +13,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { NativeSelect } from '@/components/ui/native-select'
 import { PersonRow } from '@/components/ui/person-row'
 import { getActionErrorMessage } from '@/lib/action-error'
 import {
@@ -43,6 +45,8 @@ export interface SendDialogProps {
 }
 
 const MINUTE_MS = 60_000
+const choiceClassName =
+  'flex min-h-8 cursor-pointer items-center gap-2 text-body text-text pointer-coarse:min-h-11'
 const SEND_LATER_MAX_MS = 30 * 24 * 60 * MINUTE_MS
 
 /** `datetime-local` value (the browser's time zone) for a timestamp. */
@@ -113,12 +117,12 @@ export function SendDialog({
     !sending &&
     !!preview &&
     (preview.capped || preview.estimatedCount > 0)
+  // The full send time is shown beside the picker; a button label that long
+  // would not fit a phone.
   const confirmLabel = sending
     ? 'Scheduling…'
     : when === 'later'
-      ? laterProblem
-        ? 'Schedule'
-        : `Schedule for ${formatSendTime(laterAt)}`
+      ? 'Schedule email'
       : !preview
         ? 'Send to …'
         : count
@@ -150,7 +154,7 @@ export function SendDialog({
       }}
     >
       <DialogTrigger asChild>
-        <Button type="button" variant="primary">
+        <Button type="button" variant="primary" className="pointer-coarse:h-11">
           Review and send
         </Button>
       </DialogTrigger>
@@ -213,7 +217,11 @@ export function SendDialog({
             className="flex flex-wrap items-center justify-between gap-3"
           >
             <p className="text-body text-text">Couldn't count recipients.</p>
-            <Button type="button" onClick={() => void previewQuery.refetch()}>
+            <Button
+              type="button"
+              className="pointer-coarse:h-11"
+              onClick={() => void previewQuery.refetch()}
+            >
               Retry
             </Button>
           </div>
@@ -227,16 +235,18 @@ export function SendDialog({
           <legend className="mb-1.5 font-mono text-label text-text-muted">
             When
           </legend>
-          <label className="flex items-center gap-2 text-body text-text">
+          <label className={choiceClassName}>
             <input
               type="radio"
               name={`${fieldId}-when`}
               checked={when === 'now'}
               onChange={() => setWhen('now')}
             />
-            Now <span className="text-text-muted">(30 seconds to undo)</span>
+            <span>
+              Now <span className="text-text-muted">(30 seconds to undo)</span>
+            </span>
           </label>
-          <label className="flex items-center gap-2 text-body text-text">
+          <label className={choiceClassName}>
             <input
               type="radio"
               name={`${fieldId}-when`}
@@ -255,16 +265,20 @@ export function SendDialog({
               <label htmlFor={`${fieldId}-at`} className="sr-only">
                 Send at
               </label>
-              <input
+              <Input
                 id={`${fieldId}-at`}
                 type="datetime-local"
                 value={laterValue}
                 onChange={(event) => setLaterValue(event.target.value)}
-                className="h-9 rounded-control border border-control bg-transparent px-2 font-mono text-label text-text"
+                aria-describedby={`${fieldId}-at-hint`}
+                className="max-w-64 pointer-coarse:h-11"
               />
-              <p className="mt-1 font-mono text-meta text-text-muted">
+              <p
+                id={`${fieldId}-at-hint`}
+                className="mt-1 font-mono text-meta text-text-muted"
+              >
                 {laterProblem ??
-                  `Your time zone: ${Intl.DateTimeFormat().resolvedOptions().timeZone}`}
+                  `Sends ${formatSendTime(laterAt)} (${Intl.DateTimeFormat().resolvedOptions().timeZone}).`}
               </p>
             </div>
           ) : null}
@@ -277,18 +291,17 @@ export function SendDialog({
           >
             Send a copy to
           </label>
-          <select
+          <NativeSelect
             id={`${fieldId}-copy`}
             value={copy}
             onChange={(event) => setCopy(event.target.value as EmailCopyChoice)}
-            className="h-9 w-full rounded-control border border-control bg-transparent px-2 font-mono text-label text-text"
           >
             <option value="archive">{copyAddresses.archive}</option>
             {copyAddresses.me !== copyAddresses.archive ? (
               <option value="me">{copyAddresses.me} (you)</option>
             ) : null}
             <option value="none">No copy</option>
-          </select>
+          </NativeSelect>
         </div>
 
         {blockedReason ? (
@@ -302,11 +315,14 @@ export function SendDialog({
 
         <DialogFooter>
           <DialogClose asChild>
-            <Button type="button">Cancel</Button>
+            <Button type="button" className="pointer-coarse:h-11">
+              Cancel
+            </Button>
           </DialogClose>
           <Button
             type="button"
             variant="primary"
+            className="pointer-coarse:h-11"
             disabled={!canSend}
             onClick={() => void confirm()}
           >

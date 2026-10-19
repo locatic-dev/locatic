@@ -321,9 +321,11 @@ Every control other than the title (author, city, reactions, comment, follow, sa
 - **Author placement.** `header` (default) puts the identity line first; `footer` moves it into the footer, where the age moves to its own line under the description; `none` drops it for lists where every card has the same author (profiles).
 - **Live ring.** When the latest update is under 24 hours old (`isLive`), the builder's avatar gets a `live` ring (titled "active in the last 24h"). Ages and the ring depend on the clock, so they appear only after hydration, in space reserved for them.
 
-### Inputs (`input.tsx`, `textarea.tsx`)
+### Inputs (`input.tsx`, `textarea.tsx`, `native-select.tsx`)
 
-`control` border, `canvas` fill, `rounded-control`, mono text, `text-muted` placeholder. Focus uses the global outline; the border does not change. 16px on touch, 15px from `md`. Search inputs carry a 14px search icon on the left.
+`control` border, `canvas` fill, `rounded-control`, mono text, `text-muted` placeholder. Focus uses the global outline; the border does not change. 16px on touch, 15px from `md`. Search inputs carry a 14px search icon on the left. Selects stay native (`NativeSelect`): the browser arrow is replaced by a 16px chevron 12px from the edge, with the text kept clear of it; forced-colors mode gets the native arrow back. They use the compact label size (12px) from `md` up, 16px on touch, and are 44px tall on coarse pointers.
+
+Dialogs (`dialog.tsx`) are never taller than the viewport less a 16px gutter; longer content scrolls inside the dialog.
 
 ### City combobox (`city-combobox.tsx`)
 

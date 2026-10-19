@@ -17,6 +17,7 @@ import {
 } from '../contracts'
 import { useDeleteEmailCampaigns } from '../mutations'
 import { emailCampaignListQueryOptions } from '../queries'
+import { headCellClassName, tableClassName } from './table'
 
 type CampaignId = Id<'email_campaigns'>
 
@@ -27,6 +28,13 @@ function formatDate(timestamp: number) {
   }).format(timestamp)
 }
 
+// The label around each checkbox is its hit area: 32px with a mouse, 44px
+// on touch (DESIGN.md §8).
+const checkCellClassName = 'w-8 py-0.5 pr-2 font-normal pointer-coarse:w-11'
+const checkLabelClassName =
+  'flex size-8 cursor-pointer items-center justify-center pointer-coarse:size-11'
+const checkboxClassName = 'size-4 cursor-pointer'
+
 /** The last column: when edited, when it sends, or how it went. */
 function campaignWhen(campaign: EmailCampaignSummary) {
   if (campaign.state === 'draft') return formatDate(campaign.updatedAt)
@@ -35,8 +43,6 @@ function campaignWhen(campaign: EmailCampaignSummary) {
     ? resultsSummary(campaign.results)
     : formatDate(campaign.updatedAt)
 }
-
-const headCellClassName = 'py-2 pr-4 font-normal'
 
 export interface CampaignTableProps {
   title: string
@@ -75,17 +81,20 @@ export function CampaignTable({
         <p className="mt-3 text-body text-text-muted">{emptyText}</p>
       ) : (
         <div className="mt-3 overflow-x-auto">
-          <table className="w-full text-left">
+          <table className={tableClassName}>
             <thead>
               <tr className="border-b border-line font-mono text-meta text-text-muted">
                 {selection ? (
-                  <th scope="col" className="w-8 py-2 pr-2 font-normal">
-                    <input
-                      type="checkbox"
-                      aria-label={`Select all ${title}`}
-                      checked={allSelected}
-                      onChange={selection.onToggleAll}
-                    />
+                  <th scope="col" className={checkCellClassName}>
+                    <label className={checkLabelClassName}>
+                      <input
+                        type="checkbox"
+                        aria-label={`Select all ${title}`}
+                        className={checkboxClassName}
+                        checked={allSelected}
+                        onChange={selection.onToggleAll}
+                      />
+                    </label>
                   </th>
                 ) : null}
                 <th scope="col" className={headCellClassName}>
@@ -106,16 +115,19 @@ export function CampaignTable({
               {campaigns.map((campaign) => (
                 <tr key={campaign.id} className="border-b border-line">
                   {selection ? (
-                    <td className="py-2.5 pr-2">
-                      <input
-                        type="checkbox"
-                        aria-label={`Select ${campaign.title}`}
-                        checked={selection.selected.has(campaign.id)}
-                        onChange={() => selection.onToggle(campaign.id)}
-                      />
+                    <td className={checkCellClassName}>
+                      <label className={checkLabelClassName}>
+                        <input
+                          type="checkbox"
+                          aria-label={`Select ${campaign.title}`}
+                          className={checkboxClassName}
+                          checked={selection.selected.has(campaign.id)}
+                          onChange={() => selection.onToggle(campaign.id)}
+                        />
+                      </label>
                     </td>
                   ) : null}
-                  <td className="max-w-80 py-2.5 pr-4">
+                  <td className="max-w-80 min-w-40 py-2.5 pr-4">
                     <Link
                       to="/admin/emails/$campaignId"
                       params={{ campaignId: campaign.id }}
@@ -124,10 +136,10 @@ export function CampaignTable({
                       {campaign.title}
                     </Link>
                   </td>
-                  <td className="py-2.5 pr-4 font-mono text-meta text-text-muted">
+                  <td className="py-2.5 pr-4 font-mono text-meta whitespace-nowrap text-text-muted">
                     {campaignKindLabel(campaign.kind)}
                   </td>
-                  <td className="py-2.5 pr-4">
+                  <td className="py-2.5 pr-4 whitespace-nowrap">
                     <StatusPill
                       status={CAMPAIGN_STATE_LABELS[campaign.state]}
                     />
@@ -211,6 +223,7 @@ export function CampaignIndex() {
             <Button
               type="button"
               size="sm"
+              className="pointer-coarse:h-11"
               disabled={deleting}
               onClick={() => void remove()}
             >

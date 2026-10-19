@@ -2,7 +2,7 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { Id } from '../../../../convex/_generated/dataModel'
 import type { CampaignDraft, SkipReason } from '../contracts'
@@ -11,6 +11,7 @@ import { announcementDraft } from './fixtures'
 const mocks = vi.hoisted(() => ({
   searchResults: [] as unknown[] | undefined,
   searchError: null as Error | null,
+  refetch: vi.fn(),
 }))
 
 vi.mock('@tanstack/react-query', async (importOriginal) => ({
@@ -18,7 +19,7 @@ vi.mock('@tanstack/react-query', async (importOriginal) => ({
   useQuery: () => ({
     data: mocks.searchError ? undefined : mocks.searchResults,
     error: mocks.searchError,
-    refetch: vi.fn(),
+    refetch: mocks.refetch,
   }),
 }))
 
@@ -54,6 +55,36 @@ function Harness({
     />
   )
 }
+
+const digestProject = {
+  projectId: 'project_1' as Id<'projects'>,
+  name: 'mapkit',
+  fullName: 'ada/mapkit',
+  description: null,
+  url: 'https://locatic.dev/project/ada/mapkit',
+  activityAt: 0,
+  activityLabel: 'recent',
+}
+
+const digestDraft: CampaignDraft = {
+  ...announcementDraft,
+  content: {
+    kind: 'digest',
+    body: 'Hello',
+    cta: null,
+    periodKey: 'manual:x',
+    periodStart: 0,
+    periodEnd: 0,
+    projects: [digestProject],
+    discussions: [],
+  },
+}
+
+afterEach(() => {
+  mocks.searchResults = []
+  mocks.searchError = null
+  mocks.refetch.mockClear()
+})
 
 describe('CampaignEditor', () => {
   it('labels every field, counts characters and explains the Markdown subset', () => {
@@ -233,8 +264,6 @@ describe('CampaignEditor', () => {
     expect(screen.getByRole('alert').textContent).toContain(
       "Couldn't search members.",
     )
-    mocks.searchError = null
-    mocks.searchResults = []
   })
 
   it('tells the admin when someone else changed the draft', async () => {
@@ -252,36 +281,11 @@ describe('CampaignEditor', () => {
   it('lets digest drafts pick and remove projects', async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
-    const project = {
-      projectId: 'project_1' as Id<'projects'>,
-      name: 'mapkit',
-      fullName: 'ada/mapkit',
-      description: null,
-      url: 'https://locatic.dev/project/ada/mapkit',
-      activityAt: 0,
-      activityLabel: 'recent',
-    }
+    const project = digestProject
     mocks.searchResults = [
       { ...project, projectId: 'project_2', fullName: 'bob/feeds' },
     ]
-    render(
-      <Harness
-        onChange={onChange}
-        initial={{
-          ...announcementDraft,
-          content: {
-            kind: 'digest',
-            body: 'Hello',
-            cta: null,
-            periodKey: 'manual:x',
-            periodStart: 0,
-            periodEnd: 0,
-            projects: [project],
-            discussions: [],
-          },
-        }}
-      />,
-    )
+    render(<Harness onChange={onChange} initial={digestDraft} />)
 
     await user.type(screen.getByLabelText('Find a project'), 'feeds')
     await user.click(screen.getByRole('button', { name: 'Add bob/feeds' }))
@@ -303,5 +307,34 @@ describe('CampaignEditor', () => {
         }),
       }),
     )
+  })
+
+  it('says when project search is loading, empty, already chosen or failed', async () => {
+    const user = userEvent.setup()
+    mocks.searchResults = undefined
+    const { rerender } = render(<Harness initial={digestDraft} />)
+    await user.type(screen.getByLabelText('Find a project'), 'map')
+    expect(screen.getByRole('status').textContent).toBe('Searching…')
+
+    mocks.searchResults = []
+    rerender(<Harness initial={digestDraft} />)
+    expect(screen.getByRole('status').textContent).toBe(
+      'No matching public projects.',
+    )
+
+    mocks.searchResults = [digestProject]
+    rerender(<Harness initial={digestDraft} />)
+    expect(screen.getByRole('status').textContent).toBe(
+      'Every matching project is already chosen.',
+    )
+    expect(screen.queryByRole('list', { name: 'Matching projects' })).toBeNull()
+
+    mocks.searchError = new Error('network')
+    rerender(<Harness initial={digestDraft} />)
+    expect(screen.getByRole('alert').textContent).toContain(
+      "Couldn't search projects.",
+    )
+    await user.click(screen.getByRole('button', { name: 'Retry' }))
+    expect(mocks.refetch).toHaveBeenCalledTimes(1)
   })
 })

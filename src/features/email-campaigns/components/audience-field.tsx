@@ -176,7 +176,7 @@ export function AudienceField({
                 Couldn't search members.{' '}
                 <button
                   type="button"
-                  className="underline"
+                  className="underline pointer-coarse:min-h-11 pointer-coarse:min-w-11"
                   onClick={() => void searchQuery.refetch()}
                 >
                   Retry

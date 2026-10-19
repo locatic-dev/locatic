@@ -26,7 +26,7 @@ vi.mock('@tanstack/react-query', async (importOriginal) => ({
   },
 }))
 
-import { SendDialog } from '../components/send-dialog'
+import { formatSendTime, SendDialog } from '../components/send-dialog'
 
 const preview: EmailSendPreview = {
   estimatedCount: 2,
@@ -130,13 +130,17 @@ describe('SendDialog', () => {
     await user.click(screen.getByRole('button', { name: 'Review and send' }))
     await user.click(screen.getByRole('radio', { name: 'Later' }))
     const at = screen.getByLabelText('Send at') as HTMLInputElement
-    expect(screen.getByText(/^Your time zone: /)).toBeTruthy()
+    // The default (an hour ahead) shows the full time and zone in the hint.
+    expect(screen.getByText(/^Sends .+\(.+\)\.$/)).toBeTruthy()
 
     await user.clear(at)
     expect(screen.getByText('Pick a date and time.')).toBeTruthy()
     expect(
-      (screen.getByRole('button', { name: 'Schedule' }) as HTMLButtonElement)
-        .disabled,
+      (
+        screen.getByRole('button', {
+          name: 'Schedule email',
+        }) as HTMLButtonElement
+      ).disabled,
     ).toBe(true)
 
     const later = new Date(Date.now() + 2 * 60 * 60_000)
@@ -146,7 +150,12 @@ describe('SendDialog', () => {
       at,
       `${later.getFullYear()}-${pad(later.getMonth() + 1)}-${pad(later.getDate())}T${pad(later.getHours())}:${pad(later.getMinutes())}`,
     )
-    await user.click(screen.getByRole('button', { name: /^Schedule for / }))
+    expect(
+      screen.getByText(`Sends ${formatSendTime(later.getTime())}`, {
+        exact: false,
+      }),
+    ).toBeTruthy()
+    await user.click(screen.getByRole('button', { name: 'Schedule email' }))
     expect(onSend).toHaveBeenCalledWith({
       copy: 'archive',
       sendAt: later.getTime(),
