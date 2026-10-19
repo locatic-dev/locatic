@@ -12,6 +12,7 @@ import {
   SEND_STATUS_LABELS,
   SEND_STATUS_ORDER,
 } from '../contracts'
+import { headCellClassName, tableClassName } from './table'
 
 const RECIPIENT_PAGE_SIZE = 25
 const sectionTitleClassName = 'text-eyebrow text-text-muted'
@@ -116,6 +117,7 @@ export function CampaignResults({
           <Button
             type="button"
             variant="primary"
+            className="pointer-coarse:h-11"
             disabled={busy !== null}
             onClick={() => void run('resume', onResume)}
           >
@@ -158,6 +160,7 @@ export function CampaignResults({
           </p>
           <Button
             type="button"
+            className="pointer-coarse:h-11"
             disabled={busy !== null}
             onClick={() => {
               if (!window.confirm(cancelCopy.confirm)) return
@@ -175,19 +178,19 @@ export function CampaignResults({
           <p className="mt-3 text-body text-text-muted">No recipients yet.</p>
         ) : (
           <div className="mt-3 overflow-x-auto">
-            <table className="w-full text-left">
+            <table className={tableClassName}>
               <thead>
                 <tr className="border-b border-line font-mono text-meta text-text-muted">
-                  <th scope="col" className="py-2 pr-4 font-normal">
+                  <th scope="col" className={headCellClassName}>
                     name
                   </th>
-                  <th scope="col" className="py-2 pr-4 font-normal">
+                  <th scope="col" className={headCellClassName}>
                     address
                   </th>
-                  <th scope="col" className="py-2 pr-4 font-normal">
+                  <th scope="col" className={headCellClassName}>
                     status
                   </th>
-                  <th scope="col" className="py-2 font-normal">
+                  <th scope="col" className={headCellClassName}>
                     updated
                   </th>
                 </tr>
@@ -195,7 +198,7 @@ export function CampaignResults({
               <tbody>
                 {recipients.results.map((recipient) => (
                   <tr key={recipient.id} className="border-b border-line">
-                    <td className="py-2 pr-4">
+                    <td className="min-w-36 py-2 pr-4">
                       <span className="block text-label text-text">
                         {recipient.displayName}
                       </span>
@@ -205,13 +208,13 @@ export function CampaignResults({
                         </span>
                       ) : null}
                     </td>
-                    <td className="py-2 pr-4 font-mono text-meta break-all text-text-muted">
+                    <td className="min-w-48 py-2 pr-4 font-mono text-meta break-all text-text-muted">
                       {recipient.to ?? '—'}
                     </td>
-                    <td className="py-2 pr-4 font-mono text-meta text-text">
+                    <td className="py-2 pr-4 font-mono text-meta whitespace-nowrap text-text">
                       {SEND_STATUS_LABELS[recipient.status]}
                     </td>
-                    <td className="py-2 font-mono text-meta text-text-muted">
+                    <td className="py-2 font-mono text-meta whitespace-nowrap text-text-muted">
                       {formatTime(recipient.updatedAt)}
                     </td>
                   </tr>
@@ -224,7 +227,7 @@ export function CampaignResults({
           <Button
             type="button"
             size="sm"
-            className="mt-3"
+            className="mt-3 pointer-coarse:h-11"
             onClick={() => recipients.loadMore(RECIPIENT_PAGE_SIZE)}
           >
             Show more

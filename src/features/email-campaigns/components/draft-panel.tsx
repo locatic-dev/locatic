@@ -50,7 +50,12 @@ function SaveStatus({
     >
       {text}
       {status.kind === 'error' ? (
-        <Button type="button" size="sm" onClick={onRetry}>
+        <Button
+          type="button"
+          size="sm"
+          className="pointer-coarse:h-11"
+          onClick={onRetry}
+        >
           Retry
         </Button>
       ) : null}
@@ -151,6 +156,7 @@ export function DraftPanel({
           <Button
             type="button"
             size="sm"
+            className="pointer-coarse:h-11"
             disabled={discarding}
             onClick={() => void discard()}
           >

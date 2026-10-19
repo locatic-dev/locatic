@@ -74,6 +74,7 @@ export function ScheduledPanel({ detail }: { detail: EmailCampaignDetail }) {
         <Button
           type="button"
           variant="primary"
+          className="pointer-coarse:h-11"
           // Only while the request runs: the server decides whether it is
           // still in time, whatever this browser's clock says.
           disabled={busy}

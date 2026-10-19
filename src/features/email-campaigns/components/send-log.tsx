@@ -5,15 +5,16 @@ import { useId } from 'react'
 import { api } from '../../../../convex/_generated/api'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
+import { NativeSelect } from '@/components/ui/native-select'
 import {
   type EmailSendStatus,
   SEND_STATUS_HINTS,
   SEND_STATUS_LABELS,
   SEND_STATUS_ORDER,
 } from '../contracts'
+import { headCellClassName, tableClassName } from './table'
 
 const LOG_PAGE_SIZE = 50
-const headCellClassName = 'py-2 pr-4 font-normal'
 
 function formatTime(timestamp: number) {
   return new Intl.DateTimeFormat('en', {
@@ -42,14 +43,14 @@ export function SendLog({ status, onStatusChange }: SendLogProps) {
         <h2 id={`${filterId}-title`} className="text-eyebrow text-text-muted">
           sent emails
         </h2>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <label
             htmlFor={filterId}
             className="font-mono text-label text-text-muted"
           >
             Status
           </label>
-          <select
+          <NativeSelect
             id={filterId}
             value={status ?? ''}
             onChange={(event) =>
@@ -57,7 +58,8 @@ export function SendLog({ status, onStatusChange }: SendLogProps) {
                 SEND_STATUS_ORDER.find((value) => value === event.target.value),
               )
             }
-            className="h-8 rounded-control border border-control bg-transparent px-2 font-mono text-label text-text"
+            // Sized by its longest option, so no label is clipped.
+            className="h-8 w-auto"
           >
             <option value="">all</option>
             {SEND_STATUS_ORDER.map((value) => (
@@ -65,7 +67,7 @@ export function SendLog({ status, onStatusChange }: SendLogProps) {
                 {SEND_STATUS_LABELS[value]}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </div>
       </div>
       {status ? (
@@ -84,7 +86,7 @@ export function SendLog({ status, onStatusChange }: SendLogProps) {
         </p>
       ) : (
         <div className="mt-4 overflow-x-auto">
-          <table className="w-full text-left">
+          <table className={tableClassName}>
             <thead>
               <tr className="border-b border-line font-mono text-meta text-text-muted">
                 <th scope="col" className={headCellClassName}>
@@ -107,7 +109,7 @@ export function SendLog({ status, onStatusChange }: SendLogProps) {
                   <td className="py-2 pr-4 font-mono text-meta whitespace-nowrap text-text-muted">
                     {formatTime(entry.createdAt)}
                   </td>
-                  <td className="py-2 pr-4">
+                  <td className="min-w-48 py-2 pr-4">
                     <span className="block text-label text-text">
                       {entry.displayName}
                       {entry.githubUsername ? (
@@ -120,7 +122,7 @@ export function SendLog({ status, onStatusChange }: SendLogProps) {
                       {entry.to ?? 'address not recorded'}
                     </span>
                   </td>
-                  <td className="max-w-60 py-2 pr-4">
+                  <td className="max-w-60 min-w-36 py-2 pr-4">
                     <Link
                       to="/admin/emails/$campaignId"
                       params={{ campaignId: entry.campaignId }}
@@ -129,8 +131,10 @@ export function SendLog({ status, onStatusChange }: SendLogProps) {
                       {entry.campaignTitle}
                     </Link>
                   </td>
-                  <td className="py-2 pr-4 font-mono text-meta text-text">
-                    {SEND_STATUS_LABELS[entry.status]}
+                  <td className="min-w-32 py-2 pr-4 font-mono text-meta text-text">
+                    <span className="block whitespace-nowrap">
+                      {SEND_STATUS_LABELS[entry.status]}
+                    </span>
                     {entry.status !== 'queued' &&
                     entry.updatedAt !== entry.createdAt ? (
                       <span className="block whitespace-nowrap text-text-muted">
@@ -153,7 +157,7 @@ export function SendLog({ status, onStatusChange }: SendLogProps) {
         <Button
           type="button"
           size="sm"
-          className="mt-3"
+          className="mt-3 pointer-coarse:h-11"
           disabled={log.status === 'LoadingMore'}
           onClick={() => log.loadMore(LOG_PAGE_SIZE)}
         >

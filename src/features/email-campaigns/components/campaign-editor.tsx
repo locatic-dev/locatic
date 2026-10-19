@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { Plus } from 'lucide-react'
 import { useId, useState, type ReactNode } from 'react'
 
 import { Button } from '@/components/ui/button'
@@ -68,9 +69,9 @@ function DigestPicks({
 }) {
   const [search, setSearch] = useState('')
   const searchId = useId()
-  const { data } = useQuery(emailProjectSearchQueryOptions(search))
+  const searchQuery = useQuery(emailProjectSearchQueryOptions(search))
   const chosen = new Set(content.projects.map((project) => project.projectId))
-  const results = (data ?? []).filter(
+  const results = (searchQuery.data ?? []).filter(
     (project) => !chosen.has(project.projectId),
   )
   const full = content.projects.length >= EMAIL_LIMITS.projects
@@ -93,6 +94,7 @@ function DigestPicks({
               type="button"
               size="sm"
               variant="ghost"
+              className="pointer-coarse:h-11"
               aria-label={`Remove ${project.fullName}`}
               onClick={() =>
                 onChange({
@@ -119,6 +121,7 @@ function DigestPicks({
               type="button"
               size="sm"
               variant="ghost"
+              className="pointer-coarse:h-11"
               aria-label={`Remove ${discussion.title}`}
               onClick={() =>
                 onChange({
@@ -150,15 +153,31 @@ function DigestPicks({
             ? `Up to ${EMAIL_LIMITS.projects} projects.`
             : 'Only public projects appear.'}
         </p>
-        {search.trim() && !full ? (
-          <ul className="mt-2 space-y-1">
+        {!search.trim() || full ? null : searchQuery.error ? (
+          <p role="alert" className={cn(hintClassName, 'text-danger')}>
+            Couldn't search projects.{' '}
+            <button
+              type="button"
+              className="underline pointer-coarse:min-h-11 pointer-coarse:min-w-11"
+              onClick={() => void searchQuery.refetch()}
+            >
+              Retry
+            </button>
+          </p>
+        ) : !searchQuery.data ? (
+          <p role="status" className={hintClassName}>
+            Searching…
+          </p>
+        ) : results.length > 0 ? (
+          <ul aria-label="Matching projects" className="mt-2 space-y-1">
             {results.map((project) => (
               <li key={project.projectId}>
-                <Button
+                {/* Full width and wrapping, so long owner/repo names that
+                    differ only at the end stay readable on a phone. */}
+                <button
                   type="button"
-                  size="sm"
-                  variant="ghost"
                   aria-label={`Add ${project.fullName}`}
+                  className="flex min-h-8 w-full min-w-0 items-start gap-2 rounded-control px-2 py-1.5 text-left font-mono text-label text-text-muted hover:bg-state-hover hover:text-text pointer-coarse:min-h-11 pointer-coarse:items-center"
                   onClick={() => {
                     onChange({
                       ...content,
@@ -167,12 +186,22 @@ function DigestPicks({
                     setSearch('')
                   }}
                 >
-                  + {project.fullName}
-                </Button>
+                  <Plus
+                    aria-hidden="true"
+                    className="mt-0.5 size-3.5 shrink-0 pointer-coarse:mt-0"
+                  />
+                  <span className="min-w-0 break-all">{project.fullName}</span>
+                </button>
               </li>
             ))}
           </ul>
-        ) : null}
+        ) : (
+          <p role="status" className={hintClassName}>
+            {searchQuery.data.length > 0
+              ? 'Every matching project is already chosen.'
+              : 'No matching public projects.'}
+          </p>
+        )}
       </div>
     </section>
   )
@@ -234,7 +263,12 @@ export function CampaignEditor({
           <p className="text-body text-text">
             Someone else changed this draft. Reload to see their version.
           </p>
-          <Button type="button" size="sm" onClick={onReload}>
+          <Button
+            type="button"
+            size="sm"
+            className="pointer-coarse:h-11"
+            onClick={onReload}
+          >
             Reload
           </Button>
         </div>

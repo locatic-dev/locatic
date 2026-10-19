@@ -141,7 +141,11 @@ export function CampaignPage({
           className="flex flex-col items-center gap-3 py-10 text-center"
         >
           <p className="text-body text-text">Couldn't load this campaign.</p>
-          <Button type="button" onClick={() => void query.refetch()}>
+          <Button
+            type="button"
+            className="pointer-coarse:h-11"
+            onClick={() => void query.refetch()}
+          >
             Retry
           </Button>
         </div>
