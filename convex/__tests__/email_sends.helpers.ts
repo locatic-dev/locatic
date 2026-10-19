@@ -107,18 +107,41 @@ export async function campaign(t: T, campaignId: Id<'email_campaigns'>) {
   return await t.run((ctx) => ctx.db.get(campaignId))
 }
 
-/** startSend with a fixed artifact; the action renders, these tests test the transaction. */
+/**
+ * Fires a campaign's scheduled start now, as the job would at its time: the
+ * job is cancelled and its mutation run directly, so tests need not advance
+ * the clock (which would also wake the component's delayed workers).
+ */
+export async function fireScheduledSend(
+  t: T,
+  campaignId: Id<'email_campaigns'>,
+) {
+  const scheduled = (await campaign(t, campaignId))?.scheduled
+  if (!scheduled) throw new Error('campaign is not scheduled')
+  await t.run((ctx) => ctx.scheduler.cancel(scheduled.jobId))
+  await t.mutation(internal.emailSchedule.startScheduledSend, {
+    campaignId,
+    scheduledAt: scheduled.scheduledAt,
+  })
+}
+
+/**
+ * Schedules a fixed artifact and starts it; the action renders, these tests
+ * test the transactions.
+ */
 export async function startDirect(
   t: T,
   campaignId: Id<'email_campaigns'>,
   revision = 3,
 ) {
-  await asAdmin(t).mutation(internal.emailCampaigns.startSend, {
+  await asAdmin(t).mutation(internal.emailSchedule.scheduleSend, {
     campaignId,
     expectedRevision: revision,
     html: '<p>Hello</p><a href="{{UNSUBSCRIBE_URL}}">Unsubscribe</a>',
     text: 'Hello\nUnsubscribe: {{UNSUBSCRIBE_URL}}',
+    copy: 'none',
   })
+  await fireScheduledSend(t, campaignId)
 }
 
 /** Cancels every pending scheduled function, as if the chain had died. */

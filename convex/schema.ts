@@ -34,7 +34,9 @@ import {
   socialLinksValidator,
   tabVisibilityValidator,
   cityVisibilityValidator,
+  emailCampaignAudienceValidator,
   emailCampaignContentValidator,
+  emailCampaignScheduledValidator,
   emailCampaignSentValidator,
   emailCampaignStateValidator,
   emailCategoryValidator,
@@ -251,7 +253,12 @@ export default defineSchema({
     state: emailCampaignStateValidator,
     content: emailCampaignContentValidator,
     preparationDiagnostics: v.array(v.string()),
-    // Set once by startSend: the exact artifact sent, and enqueue progress.
+    // Who it goes to; missing means everyone in the campaign's category.
+    audience: v.optional(emailCampaignAudienceValidator),
+    // Only while `state` is 'scheduled'.
+    scheduled: v.optional(emailCampaignScheduledValidator),
+    // Set once when sending starts: the exact artifact sent, and enqueue
+    // progress.
     sent: v.optional(emailCampaignSentValidator),
     createdBy: v.id('users'),
     updatedBy: v.id('users'),
@@ -270,6 +277,9 @@ export default defineSchema({
     userId: v.id('users'),
     // The campaign's category, so an opt-out cancels only that category.
     category: emailCategoryValidator,
+    // The address it went to, kept for the send log. Optional for sends
+    // made before it was recorded; purged with the account.
+    to: v.optional(v.string()),
     emailId: v.string(),
     status: emailSendStatusValidator,
     errorMessage: v.optional(v.string()),
@@ -285,6 +295,8 @@ export default defineSchema({
     .index('by_campaign_and_user', ['campaignId', 'userId'])
     .index('by_campaign_and_status', ['campaignId', 'status'])
     .index('by_email_id', ['emailId'])
+    .index('by_created_at', ['createdAt'])
+    .index('by_status_and_created_at', ['status', 'createdAt'])
     .index('by_user_and_status_and_created_at', [
       'userId',
       'status',

@@ -10,8 +10,10 @@ import {
   formatCount,
   type CampaignDraft,
   type EmailCampaignContent,
+  type SkipReason,
 } from '../contracts'
 import { emailProjectSearchQueryOptions } from '../queries'
+import { AudienceField } from './audience-field'
 
 const labelClassName = 'mb-1.5 block font-mono text-label text-text-muted'
 const hintClassName = 'mt-1.5 font-mono text-meta text-text-muted'
@@ -179,22 +181,22 @@ function DigestPicks({
 export interface CampaignEditorProps {
   draft: CampaignDraft
   onChange: (draft: CampaignDraft) => void
-  onSave: () => void
+  /** Save without waiting for autosave (⌘S / Ctrl+S). */
+  onSaveNow: () => void
   onReload: () => void
-  isDirty: boolean
-  isSaving: boolean
   /** Someone else saved a newer version while this one has local edits. */
   isStale: boolean
+  /** Live skip reasons for named members (see AudienceField). */
+  skipReasons: ReadonlyMap<string, SkipReason>
 }
 
 export function CampaignEditor({
   draft,
   onChange,
-  onSave,
+  onSaveNow,
   onReload,
-  isDirty,
-  isSaving,
   isStale,
+  skipReasons,
 }: CampaignEditorProps) {
   const ctaLabelId = useId()
   const ctaUrlId = useId()
@@ -212,7 +214,16 @@ export function CampaignEditor({
       className="space-y-5"
       onSubmit={(event) => {
         event.preventDefault()
-        if (isDirty && !isSaving) onSave()
+        onSaveNow()
+      }}
+      onKeyDown={(event) => {
+        if (
+          (event.metaKey || event.ctrlKey) &&
+          event.key.toLowerCase() === 's'
+        ) {
+          event.preventDefault()
+          onSaveNow()
+        }
       }}
     >
       {isStale ? (
@@ -240,6 +251,12 @@ export function CampaignEditor({
           />
         )}
       </Field>
+      <AudienceField
+        kind={content.kind}
+        audience={draft.audience}
+        onChange={(audience) => onChange({ ...draft, audience })}
+        skipReasons={skipReasons}
+      />
       <Field label="Subject" value={draft.subject} limit={EMAIL_LIMITS.subject}>
         {(props) => (
           <Input
@@ -326,12 +343,6 @@ export function CampaignEditor({
       {content.kind === 'digest' ? (
         <DigestPicks content={content} onChange={setContent} />
       ) : null}
-
-      <div className="flex justify-end">
-        <Button type="submit" variant="primary" disabled={!isDirty || isSaving}>
-          {isSaving ? 'Saving…' : 'Save draft'}
-        </Button>
-      </div>
     </form>
   )
 }

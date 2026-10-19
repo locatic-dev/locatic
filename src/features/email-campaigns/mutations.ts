@@ -4,6 +4,12 @@ import { api } from '../../../convex/_generated/api'
 
 export const useCreateEmailCampaign = () =>
   useMutation(api.emailCampaigns.createDraft)
+export const useDeleteEmailCampaign = () =>
+  useMutation(api.emailCampaigns.deleteDraft)
+export const useDeleteEmailCampaigns = () =>
+  useMutation(api.emailCampaigns.deleteDrafts)
+export const useUnscheduleEmailSend = () =>
+  useMutation(api.emailSchedule.unscheduleSend)
 export const useSaveEmailCampaign = () =>
   useMutation(api.emailCampaigns.saveDraft)
 export const usePreviewEmailCampaign = () =>

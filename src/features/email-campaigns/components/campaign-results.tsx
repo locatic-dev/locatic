@@ -182,6 +182,9 @@ export function CampaignResults({
                     name
                   </th>
                   <th scope="col" className="py-2 pr-4 font-normal">
+                    address
+                  </th>
+                  <th scope="col" className="py-2 pr-4 font-normal">
                     status
                   </th>
                   <th scope="col" className="py-2 font-normal">
@@ -201,6 +204,9 @@ export function CampaignResults({
                           @{recipient.githubUsername}
                         </span>
                       ) : null}
+                    </td>
+                    <td className="py-2 pr-4 font-mono text-meta break-all text-text-muted">
+                      {recipient.to ?? '—'}
                     </td>
                     <td className="py-2 pr-4 font-mono text-meta text-text">
                       {SEND_STATUS_LABELS[recipient.status]}

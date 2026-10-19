@@ -5,3 +5,8 @@
  * body. Kept apart from the React template so mutations can import it.
  */
 export const UNSUBSCRIBE_URL_PLACEHOLDER = '{{UNSUBSCRIBE_URL}}'
+
+/** Where a test or a copy's unsubscribe link points instead. */
+export function settingsUrl(siteUrl: string) {
+  return `${siteUrl}/settings?tab=notifications`
+}

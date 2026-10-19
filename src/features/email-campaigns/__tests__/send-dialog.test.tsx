@@ -45,6 +45,10 @@ function renderDialog(props: Partial<Parameters<typeof SendDialog>[0]> = {}) {
       campaignId={CAMPAIGN_ID}
       subject="Maps"
       kind="announcement"
+      copyAddresses={{
+        archive: 'contact@locatic.dev',
+        me: 'admin@example.test',
+      }}
       blockedReason={null}
       onSend={onSend}
       {...props}
@@ -98,8 +102,55 @@ describe('SendDialog', () => {
     await user.click(screen.getByRole('button', { name: 'Review and send' }))
     await user.click(screen.getByRole('button', { name: 'Send to 2 people' }))
 
-    expect(onSend).toHaveBeenCalledTimes(1)
+    // Now (with the undo window), copied to the archive by default.
+    expect(onSend).toHaveBeenCalledWith({ copy: 'archive' })
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+  })
+
+  it('offers the archive, your own address or no copy', async () => {
+    const user = userEvent.setup()
+    const { onSend } = renderDialog()
+
+    await user.click(screen.getByRole('button', { name: 'Review and send' }))
+    const copy = screen.getByLabelText('Send a copy to')
+    expect(
+      within(copy)
+        .getAllByRole('option')
+        .map((option) => option.textContent),
+    ).toEqual(['contact@locatic.dev', 'admin@example.test (you)', 'No copy'])
+    await user.selectOptions(copy, 'me')
+    await user.click(screen.getByRole('button', { name: 'Send to 2 people' }))
+    expect(onSend).toHaveBeenCalledWith({ copy: 'me' })
+  })
+
+  it('schedules for a later time in the browser time zone', async () => {
+    const user = userEvent.setup()
+    const { onSend } = renderDialog()
+
+    await user.click(screen.getByRole('button', { name: 'Review and send' }))
+    await user.click(screen.getByRole('radio', { name: 'Later' }))
+    const at = screen.getByLabelText('Send at') as HTMLInputElement
+    expect(screen.getByText(/^Your time zone: /)).toBeTruthy()
+
+    await user.clear(at)
+    expect(screen.getByText('Pick a date and time.')).toBeTruthy()
+    expect(
+      (screen.getByRole('button', { name: 'Schedule' }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(true)
+
+    const later = new Date(Date.now() + 2 * 60 * 60_000)
+    later.setSeconds(0, 0)
+    const pad = (value: number) => String(value).padStart(2, '0')
+    await user.type(
+      at,
+      `${later.getFullYear()}-${pad(later.getMonth() + 1)}-${pad(later.getDate())}T${pad(later.getHours())}:${pad(later.getMinutes())}`,
+    )
+    await user.click(screen.getByRole('button', { name: /^Schedule for / }))
+    expect(onSend).toHaveBeenCalledWith({
+      copy: 'archive',
+      sendAt: later.getTime(),
+    })
   })
 
   it('says N+ and explains a capped estimate', async () => {

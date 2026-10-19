@@ -1,6 +1,7 @@
 import type { FunctionArgs, FunctionReturnType } from 'convex/server'
 
 import type { api } from '../../../convex/_generated/api'
+import type { NewCampaignKind } from './route-search'
 
 export type EmailCampaignSummary = FunctionReturnType<
   typeof api.emailCampaigns.list
@@ -19,6 +20,16 @@ export type EmailSendPreview = FunctionReturnType<
 export type EmailRecipient = FunctionReturnType<
   typeof api.emailCampaigns.listRecipients
 >['page'][number]
+export type EmailAudienceMember = FunctionReturnType<
+  typeof api.emailCampaigns.searchMembers
+>[number]
+export type EmailCopyAddresses = EmailCampaignDetail['copyAddresses']
+export type EmailCopyChoice = FunctionArgs<
+  typeof api.emailRender.requestSend
+>['copy']
+export type EmailSendLogEntry = FunctionReturnType<
+  typeof api.emailCampaigns.listSendLog
+>['page'][number]
 export type EmailProjectSelection = FunctionReturnType<
   typeof api.emailCampaigns.searchProjects
 >[number]
@@ -27,12 +38,93 @@ export type EmailPreviewArgs = Omit<
   'requestId'
 >
 
+/**
+ * A named member as the draft holds them: who, not whether they would be
+ * skipped. Skip reasons change without a new campaign revision (a member
+ * opts out), so the To field reads them live instead.
+ */
+export type AudienceMemberIdentity = Pick<
+  EmailAudienceMember,
+  'userId' | 'displayName' | 'githubUsername'
+>
+
+/** Who a draft goes to. */
+export type DraftAudience =
+  | { kind: 'everyone' }
+  | { kind: 'members'; members: AudienceMemberIdentity[] }
+
+export type SkipReason = EmailAudienceMember['skipReason']
+
+/** Live skip reasons by member, from the stored campaign. */
+export function audienceSkipReasons(
+  detail: EmailCampaignDetail | null,
+): ReadonlyMap<string, SkipReason> {
+  return new Map(
+    detail?.audience.kind === 'members'
+      ? detail.audience.members.map((member) => [
+          member.userId,
+          member.skipReason,
+        ])
+      : [],
+  )
+}
+
+function toDraftAudience(audience: EmailCampaignDetail['audience']) {
+  return audience.kind === 'everyone'
+    ? audience
+    : {
+        kind: 'members' as const,
+        members: audience.members.map(
+          ({ userId, displayName, githubUsername }) => ({
+            userId,
+            displayName,
+            githubUsername,
+          }),
+        ),
+      }
+}
+
 /** What the editor holds: the saved fields plus local edits. */
 export interface CampaignDraft {
   title: string
   subject: string
   preheader: string
   content: EmailCampaignContent
+  audience: DraftAudience
+}
+
+/** The draft as `createDraft` and `saveDraft` take it. */
+export function draftToArgs(draft: CampaignDraft) {
+  return {
+    title: titleForSave(draft),
+    subject: draft.subject,
+    preheader: draft.preheader,
+    content: draft.content,
+    audience:
+      draft.audience.kind === 'everyone'
+        ? { kind: 'everyone' as const }
+        : {
+            kind: 'members' as const,
+            userIds: draft.audience.members.map((member) => member.userId),
+          },
+  }
+}
+
+/**
+ * Whether a new draft has anything worth storing yet. Until it does,
+ * autosave writes nothing, so opening New and leaving creates no campaign.
+ */
+export function hasDraftContent(draft: CampaignDraft) {
+  const { content } = draft
+  return (
+    [draft.title, draft.subject, draft.preheader, content.body].some(
+      (value) => value.trim() !== '',
+    ) ||
+    content.cta !== null ||
+    draft.audience.kind === 'members' ||
+    (content.kind === 'digest' &&
+      (content.projects.length > 0 || content.discussions.length > 0))
+  )
 }
 
 // Mirrors LIMITS in convex/lib/email_campaigns.ts; a test keeps them equal.
@@ -46,13 +138,18 @@ export const EMAIL_LIMITS = {
   projects: 5,
   discussions: 2,
   sendPreviewMembers: 100,
+  audienceMembers: 50,
 } as const
+
+/** Send waits this long so it can be undone (SEND_DELAY_MS on the server). */
+export const SEND_DELAY_MS = 30_000
 
 /** Sends start being "stalled" (Resume offered) after this long. */
 export const STALLED_AFTER_MS = 5 * 60_000
 
 export const CAMPAIGN_STATE_LABELS: Record<EmailCampaignState, string> = {
   draft: 'draft',
+  scheduled: 'scheduled',
   sending: 'sending',
   sent: 'sent',
   cancelled: 'cancelled',
@@ -104,12 +201,48 @@ export function campaignKindLabel(kind: EmailCampaignKind) {
   return kind === 'digest' ? 'digest' : 'update'
 }
 
+/**
+ * What the New page starts from. It lives only in the browser until the
+ * first save; the digest period fields are placeholders the server replaces.
+ */
+export function emptyDraft(kind: NewCampaignKind): CampaignDraft {
+  return {
+    title: '',
+    subject: '',
+    preheader: '',
+    content:
+      kind === 'digest'
+        ? {
+            kind: 'digest',
+            body: '',
+            cta: null,
+            periodKey: '',
+            periodStart: 0,
+            periodEnd: 0,
+            projects: [],
+            discussions: [],
+          }
+        : { kind: 'announcement', body: '', cta: null },
+    audience: { kind: 'everyone' },
+  }
+}
+
+/** The title to save: what was typed, else the subject, else "Untitled …". */
+export function titleForSave(draft: CampaignDraft) {
+  return (
+    draft.title.trim() ||
+    draft.subject.trim() ||
+    `Untitled ${campaignKindLabel(draft.content.kind)}`
+  )
+}
+
 export function detailToDraft(detail: EmailCampaignDetail): CampaignDraft {
   return {
     title: detail.title,
     subject: detail.subject,
     preheader: detail.preheader,
     content: detail.content,
+    audience: toDraftAudience(detail.audience),
   }
 }
 
