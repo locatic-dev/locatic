@@ -3,17 +3,17 @@ import { X } from 'lucide-react'
 import { useId, useState } from 'react'
 
 import { Input } from '@/components/ui/input'
-import { cn } from '@/lib/utils'
 import {
   type DraftAudience,
   EMAIL_LIMITS,
   type EmailAudienceMember,
   type EmailCampaignKind,
+  type SkipReason,
 } from '../contracts'
 import { emailMemberSearchQueryOptions } from '../queries'
 
 const SKIP_LABELS: Record<
-  NonNullable<EmailAudienceMember['skipReason']>,
+  NonNullable<SkipReason>,
   (kind: EmailCampaignKind) => string
 > = {
   unsubscribed: (kind) =>
@@ -22,14 +22,19 @@ const SKIP_LABELS: Record<
   inactive: () => 'account inactive',
 }
 
+// Native radios (arrow keys, one tab stop) drawn as chips.
 const optionClassName =
-  'rounded-control border px-3 py-1.5 font-mono text-label transition-colors'
+  'inline-flex min-h-8 cursor-pointer items-center rounded-control border border-control px-3 font-mono text-label text-text-muted transition-colors hover:text-text has-checked:border-selected-bar has-checked:bg-selected has-checked:text-text has-focus-visible:outline-2 has-focus-visible:outline-focus has-focus-visible:outline-offset-2 pointer-coarse:min-h-11'
 
 export interface AudienceFieldProps {
   kind: EmailCampaignKind
   audience: DraftAudience
   onChange: (audience: DraftAudience) => void
-  disabled?: boolean
+  /**
+   * Live skip reasons for the stored campaign's members. They change when a
+   * member changes their settings, without a new campaign revision.
+   */
+  skipReasons: ReadonlyMap<string, SkipReason>
 }
 
 /**
@@ -41,56 +46,63 @@ export function AudienceField({
   kind,
   audience,
   onChange,
-  disabled = false,
+  skipReasons,
 }: AudienceFieldProps) {
   const id = useId()
   const [search, setSearch] = useState('')
-  const { data } = useQuery(emailMemberSearchQueryOptions(search, kind))
+  const searchQuery = useQuery(emailMemberSearchQueryOptions(search, kind))
+  // What search said about members added since the campaign last loaded.
+  const [addedReasons, setAddedReasons] = useState<
+    ReadonlyMap<string, SkipReason>
+  >(() => new Map())
   const members = audience.kind === 'members' ? audience.members : []
   const chosen = new Set(members.map((member) => member.userId))
-  const results = (data ?? []).filter((member) => !chosen.has(member.userId))
+  const results = (searchQuery.data ?? []).filter(
+    (member) => !chosen.has(member.userId),
+  )
   const full = members.length >= EMAIL_LIMITS.audienceMembers
   const everyoneLabel =
     kind === 'digest' ? 'All digest subscribers' : 'All members who get updates'
+  const reasonFor = (userId: string) =>
+    skipReasons.has(userId) ? skipReasons.get(userId) : addedReasons.get(userId)
 
-  const add = (member: EmailAudienceMember) => {
+  const add = ({ skipReason, ...member }: EmailAudienceMember) => {
+    setAddedReasons((current) =>
+      new Map(current).set(member.userId, skipReason),
+    )
     onChange({ kind: 'members', members: [...members, member] })
     setSearch('')
   }
 
   return (
-    <fieldset className="space-y-2.5" disabled={disabled}>
+    <fieldset className="space-y-2.5">
       <legend className="mb-1.5 font-mono text-label text-text-muted">
         To
       </legend>
-      <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Who">
+      <div className="flex flex-wrap gap-2">
         {(
           [
             ['everyone', everyoneLabel],
             ['members', 'Specific members'],
           ] as const
         ).map(([value, label]) => (
-          <button
-            key={value}
-            type="button"
-            role="radio"
-            aria-checked={audience.kind === value}
-            className={cn(
-              optionClassName,
-              audience.kind === value
-                ? 'border-selected-bar bg-selected text-text'
-                : 'border-control text-text-muted hover:text-text',
-            )}
-            onClick={() =>
-              onChange(
-                value === 'everyone'
-                  ? { kind: 'everyone' }
-                  : { kind: 'members', members },
-              )
-            }
-          >
+          <label key={value} className={optionClassName}>
+            <input
+              type="radio"
+              name={`${id}-to`}
+              value={value}
+              className="sr-only"
+              checked={audience.kind === value}
+              onChange={() =>
+                onChange(
+                  value === 'everyone'
+                    ? { kind: 'everyone' }
+                    : { kind: 'members', members },
+                )
+              }
+            />
             {label}
-          </button>
+          </label>
         ))}
       </div>
 
@@ -98,39 +110,42 @@ export function AudienceField({
         <div className="space-y-2.5">
           {members.length > 0 ? (
             <ul aria-label="Chosen members" className="flex flex-wrap gap-2">
-              {members.map((member) => (
-                <li
-                  key={member.userId}
-                  className="inline-flex items-center gap-1.5 rounded-control border border-line py-1 pr-1 pl-2.5"
-                >
-                  <span className="text-label text-text">
-                    {member.displayName}
-                  </span>
-                  <span className="font-mono text-meta text-text-muted">
-                    @{member.githubUsername}
-                  </span>
-                  {member.skipReason ? (
-                    <span className="font-mono text-meta text-danger">
-                      {SKIP_LABELS[member.skipReason](kind)} · will be skipped
-                    </span>
-                  ) : null}
-                  <button
-                    type="button"
-                    aria-label={`Remove ${member.displayName}`}
-                    className="inline-flex size-6 items-center justify-center rounded-control text-text-muted hover:bg-state-hover hover:text-text"
-                    onClick={() =>
-                      onChange({
-                        kind: 'members',
-                        members: members.filter(
-                          (other) => other.userId !== member.userId,
-                        ),
-                      })
-                    }
+              {members.map((member) => {
+                const reason = reasonFor(member.userId)
+                return (
+                  <li
+                    key={member.userId}
+                    className="inline-flex items-center gap-1.5 rounded-control border border-line py-1 pr-1 pl-2.5"
                   >
-                    <X aria-hidden className="size-3.5" />
-                  </button>
-                </li>
-              ))}
+                    <span className="text-label text-text">
+                      {member.displayName}
+                    </span>
+                    <span className="font-mono text-meta text-text-muted">
+                      @{member.githubUsername}
+                    </span>
+                    {reason ? (
+                      <span className="font-mono text-meta text-danger">
+                        {SKIP_LABELS[reason](kind)} · will be skipped
+                      </span>
+                    ) : null}
+                    <button
+                      type="button"
+                      aria-label={`Remove ${member.displayName}`}
+                      className="inline-flex size-6 items-center justify-center rounded-control text-text-muted hover:bg-state-hover hover:text-text pointer-coarse:size-11"
+                      onClick={() =>
+                        onChange({
+                          kind: 'members',
+                          members: members.filter(
+                            (other) => other.userId !== member.userId,
+                          ),
+                        })
+                      }
+                    >
+                      <X aria-hidden className="size-3.5" />
+                    </button>
+                  </li>
+                )
+              })}
             </ul>
           ) : (
             <p className="font-mono text-meta text-danger">
@@ -153,13 +168,34 @@ export function AudienceField({
               disabled={full}
               onChange={(event) => setSearch(event.target.value)}
             />
-            {search.trim() && results.length > 0 ? (
+            {!search.trim() ? null : searchQuery.error ? (
+              <p
+                role="alert"
+                className="mt-1.5 font-mono text-meta text-danger"
+              >
+                Couldn't search members.{' '}
+                <button
+                  type="button"
+                  className="underline"
+                  onClick={() => void searchQuery.refetch()}
+                >
+                  Retry
+                </button>
+              </p>
+            ) : !searchQuery.data ? (
+              <p
+                role="status"
+                className="mt-1.5 font-mono text-meta text-text-muted"
+              >
+                Searching…
+              </p>
+            ) : results.length > 0 ? (
               <ul aria-label="Matching members" className="mt-1.5 space-y-1">
                 {results.map((member) => (
                   <li key={member.userId}>
                     <button
                       type="button"
-                      className="flex w-full flex-wrap items-baseline gap-2 rounded-control px-2 py-1.5 text-left hover:bg-state-hover"
+                      className="flex min-h-8 w-full flex-wrap items-baseline gap-2 rounded-control px-2 py-1.5 text-left hover:bg-state-hover pointer-coarse:min-h-11"
                       onClick={() => add(member)}
                     >
                       <span className="text-label text-text">
@@ -177,11 +213,11 @@ export function AudienceField({
                   </li>
                 ))}
               </ul>
-            ) : search.trim() && data ? (
+            ) : (
               <p className="mt-1.5 font-mono text-meta text-text-muted">
                 No members match.
               </p>
-            ) : null}
+            )}
           </div>
         </div>
       ) : null}

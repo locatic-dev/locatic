@@ -119,7 +119,7 @@ export async function fireScheduledSend(
   const scheduled = (await campaign(t, campaignId))?.scheduled
   if (!scheduled) throw new Error('campaign is not scheduled')
   await t.run((ctx) => ctx.scheduler.cancel(scheduled.jobId))
-  await t.mutation(internal.emailCampaigns.startScheduledSend, {
+  await t.mutation(internal.emailSchedule.startScheduledSend, {
     campaignId,
     scheduledAt: scheduled.scheduledAt,
   })
@@ -134,7 +134,7 @@ export async function startDirect(
   campaignId: Id<'email_campaigns'>,
   revision = 3,
 ) {
-  await asAdmin(t).mutation(internal.emailCampaigns.scheduleSend, {
+  await asAdmin(t).mutation(internal.emailSchedule.scheduleSend, {
     campaignId,
     expectedRevision: revision,
     html: '<p>Hello</p><a href="{{UNSUBSCRIBE_URL}}">Unsubscribe</a>',

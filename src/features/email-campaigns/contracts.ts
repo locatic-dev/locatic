@@ -38,10 +38,51 @@ export type EmailPreviewArgs = Omit<
   'requestId'
 >
 
-/** Who a draft goes to; named members keep what their chips show. */
+/**
+ * A named member as the draft holds them: who, not whether they would be
+ * skipped. Skip reasons change without a new campaign revision (a member
+ * opts out), so the To field reads them live instead.
+ */
+export type AudienceMemberIdentity = Pick<
+  EmailAudienceMember,
+  'userId' | 'displayName' | 'githubUsername'
+>
+
+/** Who a draft goes to. */
 export type DraftAudience =
   | { kind: 'everyone' }
-  | { kind: 'members'; members: EmailAudienceMember[] }
+  | { kind: 'members'; members: AudienceMemberIdentity[] }
+
+export type SkipReason = EmailAudienceMember['skipReason']
+
+/** Live skip reasons by member, from the stored campaign. */
+export function audienceSkipReasons(
+  detail: EmailCampaignDetail | null,
+): ReadonlyMap<string, SkipReason> {
+  return new Map(
+    detail?.audience.kind === 'members'
+      ? detail.audience.members.map((member) => [
+          member.userId,
+          member.skipReason,
+        ])
+      : [],
+  )
+}
+
+function toDraftAudience(audience: EmailCampaignDetail['audience']) {
+  return audience.kind === 'everyone'
+    ? audience
+    : {
+        kind: 'members' as const,
+        members: audience.members.map(
+          ({ userId, displayName, githubUsername }) => ({
+            userId,
+            displayName,
+            githubUsername,
+          }),
+        ),
+      }
+}
 
 /** What the editor holds: the saved fields plus local edits. */
 export interface CampaignDraft {
@@ -201,7 +242,7 @@ export function detailToDraft(detail: EmailCampaignDetail): CampaignDraft {
     subject: detail.subject,
     preheader: detail.preheader,
     content: detail.content,
-    audience: detail.audience,
+    audience: toDraftAudience(detail.audience),
   }
 }
 

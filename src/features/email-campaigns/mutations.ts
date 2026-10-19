@@ -9,7 +9,7 @@ export const useDeleteEmailCampaign = () =>
 export const useDeleteEmailCampaigns = () =>
   useMutation(api.emailCampaigns.deleteDrafts)
 export const useUnscheduleEmailSend = () =>
-  useMutation(api.emailCampaigns.unscheduleSend)
+  useMutation(api.emailSchedule.unscheduleSend)
 export const useSaveEmailCampaign = () =>
   useMutation(api.emailCampaigns.saveDraft)
 export const usePreviewEmailCampaign = () =>

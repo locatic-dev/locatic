@@ -74,7 +74,9 @@ export function ScheduledPanel({ detail }: { detail: EmailCampaignDetail }) {
         <Button
           type="button"
           variant="primary"
-          disabled={busy || (soon && remaining <= 0)}
+          // Only while the request runs: the server decides whether it is
+          // still in time, whatever this browser's clock says.
+          disabled={busy}
           onClick={() => void undo()}
         >
           {soon ? 'Undo' : 'Cancel and edit'}
