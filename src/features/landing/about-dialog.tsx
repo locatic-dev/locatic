@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { LOCATIC_DEFINITION } from '@/features/about/about-content'
 import { AboutLetter } from '@/features/about/about-letter'
 import {
   Dialog,
@@ -34,16 +35,9 @@ export function AboutDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <AboutLetter
-          headingLevel="h3"
-          opener={
-            <p>
-              Thanks for signing up. It genuinely means a lot to us, as every
-              builder who joins our platform makes us believe in our vision
-              more.
-            </p>
-          }
-        />
+        <p className="text-body text-text">{LOCATIC_DEFINITION}</p>
+
+        <AboutLetter headingLevel="h3" />
       </DialogContent>
     </Dialog>
   )
