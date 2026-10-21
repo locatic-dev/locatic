@@ -10,7 +10,7 @@ describe('about page content', () => {
   it('puts the letter sections at h2 on the page', () => {
     render(<AboutLetter headingLevel="h2" />)
     for (const title of [
-      'Where it came from',
+      'It started with a question',
       'So what is it?',
       'Who we are',
       'Where we want to take it',
@@ -20,7 +20,7 @@ describe('about page content', () => {
         screen.getByRole('heading', { level: 2, name: title }),
       ).toBeTruthy()
     }
-    expect(screen.queryByText(/Thanks for signing up/)).toBeNull()
+    expect(screen.getByText(/Thanks for signing up/)).toBeTruthy()
     expect(
       screen
         .getAllByRole('link', { name: 'Avinash Changrani' })[0]
