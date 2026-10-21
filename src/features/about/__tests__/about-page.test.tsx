@@ -20,7 +20,7 @@ describe('about page content', () => {
         screen.getByRole('heading', { level: 2, name: title }),
       ).toBeTruthy()
     }
-    expect(screen.queryByText(/Thanks for signing up/)).toBeNull()
+    expect(screen.getByText(/Thanks for signing up/)).toBeTruthy()
     expect(
       screen
         .getAllByRole('link', { name: 'Avinash Changrani' })[0]

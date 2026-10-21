@@ -55,21 +55,17 @@ function Section({
 /**
  * The founders' letter, shared by /about and the in-app about dialog. Its
  * section headings sit one level under the host's title: `h2` on the page,
- * `h3` in the dialog. `opener` adds host-specific lines after the greeting
- * (the dialog thanks members for signing up; /about readers may not have).
+ * `h3` in the dialog, so both read the same.
  */
-export function AboutLetter({
-  headingLevel,
-  opener,
-}: {
-  headingLevel: HeadingLevel
-  opener?: ReactNode
-}) {
+export function AboutLetter({ headingLevel }: { headingLevel: HeadingLevel }) {
   return (
     <div className="grid gap-5 text-body text-text-muted">
       <div className="grid gap-3">
         <p className="font-medium text-text">Hey builders!</p>
-        {opener}
+        <p>
+          Thanks for signing up. It genuinely means a lot to us, as every
+          builder who joins our platform makes us believe in our vision more.
+        </p>
       </div>
 
       <Section title="It started with a question" headingLevel={headingLevel}>
