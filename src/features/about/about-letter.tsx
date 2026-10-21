@@ -87,7 +87,9 @@ export function AboutLetter({
       </Section>
 
       <Section title="So what is it?" headingLevel={headingLevel}>
-        <p>Locatic is a social network for developers and builders where you can:</p>
+        <p>
+          Locatic is a social network for developers and builders where you can:
+        </p>
         <ul className="grid gap-1.5">
           {OFFERINGS.map((item) => (
             <li key={item} className="flex gap-2.5">
