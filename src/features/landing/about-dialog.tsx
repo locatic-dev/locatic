@@ -36,7 +36,13 @@ export function AboutDialog({
 
         <AboutLetter
           headingLevel="h3"
-          opener={<p>Thanks for signing up. We're glad you're here.</p>}
+          opener={
+            <p>
+              Thanks for signing up. It genuinely means a lot to us, as every
+              builder who joins our platform makes us believe in our vision
+              more.
+            </p>
+          }
         />
       </DialogContent>
     </Dialog>

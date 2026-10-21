@@ -9,11 +9,11 @@ import {
 import { GITHUB_URL } from '@/lib/site-links'
 
 const OFFERINGS = [
-  'Discover projects and builders in your city or explore other cities',
-  'Keep up with recent projects, releases and posts',
-  'Share public GitHub projects and post updates on your work',
-  'Follow builders and join discussions in the comments',
-  'Message other builders about their work or a possible collaboration',
+  'Find developers and projects in any city in the world',
+  "See what's trending in different cities",
+  'Share projects and comment on them',
+  "Post updates on what you're building",
+  'Reach out to other builders, collaborate and maybe make a few friends',
 ] as const
 
 const inlineLinkClassName =
@@ -72,22 +72,22 @@ export function AboutLetter({
         {opener}
       </div>
 
-      <Section title="Where it came from" headingLevel={headingLevel}>
+      <Section title="It started with a question" headingLevel={headingLevel}>
         <p>
-          We love discovering projects online. But we kept wondering who was
-          building things in our own cities.
+          In today's world, we have many platforms like GitHub, Hacker News,
+          Reddit, Discord, Product Hunt, Hugging Face etc. that help us discover
+          projects and builders. And as shipping software has become easier and
+          the models keep getting better, we continue to see more and more
+          interesting projects that devs are building around the world.
         </p>
         <p>
-          We built Locatic to find out. We believe it's exciting and inspiring
-          to discover what people are building in your own city.
+          That's when we wondered if there was a way to discover projects and
+          builders in one's city. That's where Locatic came from.
         </p>
       </Section>
 
       <Section title="So what is it?" headingLevel={headingLevel}>
-        <p>
-          Locatic is a social network for developers to discover projects and
-          builders by city. You can:
-        </p>
+        <p>Locatic is a social network for developers and builders where you can:</p>
         <ul className="grid gap-1.5">
           {OFFERINGS.map((item) => (
             <li key={item} className="flex gap-2.5">
@@ -99,12 +99,16 @@ export function AboutLetter({
             </li>
           ))}
         </ul>
+        <p>
+          We believe it'd be very exciting and inspiring to discover what kind
+          of projects people are shipping in your own city.
+        </p>
       </Section>
 
       <Section title="Who we are" headingLevel={headingLevel}>
         <p>
-          We're two developers who enjoy making software and seeing what other
-          people build:
+          We're two developers who love building and discovering what others are
+          building as well:
         </p>
         <ul className="flex flex-wrap gap-x-5 gap-y-2">
           {FOUNDERS.map((founder) => (
@@ -119,16 +123,30 @@ export function AboutLetter({
 
       <Section title="Where we want to take it" headingLevel={headingLevel}>
         <p>
-          We hope the projects you find here lead to conversations,
-          collaborations and friendships, including with people you can meet in
-          person.
+          We want Locatic to be more than just a platform of projects. We'd love
+          it to become a place where builders can find others working on similar
+          projects, bond over shared interests or potentially meet in person for
+          a collab.
+        </p>
+        <p>
+          We wanna see how the developer scene looks and evolves in different
+          cities and countries. That's what we're aiming for. We are still early
+          and there's a lot left to build, but we wanna aim for this ambition
+          and become something relevant that helps the community grow.
         </p>
       </Section>
 
       <Section title="Help us grow" headingLevel={headingLevel}>
         <p>
-          Share Locatic with a friend who's building something. Follow us on
-          GitHub, or send ideas and feedback to{' '}
+          Locatic is only as interesting as the people and projects on it. The
+          more builders join and share their projects, the more there is for
+          everyone to discover.
+        </p>
+        <p>
+          If you like what we're building, please follow us on GitHub and share
+          it with your developer friends, colleagues and communities. And if you
+          have ideas, feedback or something you want to see on the platform,
+          write to us at{' '}
           <a href={`mailto:${CONTACT_EMAIL}`} className={inlineLinkClassName}>
             {CONTACT_EMAIL}
           </a>

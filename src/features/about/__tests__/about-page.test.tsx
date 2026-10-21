@@ -10,7 +10,7 @@ describe('about page content', () => {
   it('puts the letter sections at h2 on the page', () => {
     render(<AboutLetter headingLevel="h2" />)
     for (const title of [
-      'Where it came from',
+      'It started with a question',
       'So what is it?',
       'Who we are',
       'Where we want to take it',
