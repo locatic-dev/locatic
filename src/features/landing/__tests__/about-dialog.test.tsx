@@ -2,6 +2,7 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
+import { LOCATIC_DEFINITION } from '@/features/about/about-content'
 import { AboutDialog } from '../about-dialog'
 
 describe('AboutDialog', () => {
@@ -17,6 +18,7 @@ describe('AboutDialog', () => {
 
     expect(screen.getByRole('dialog')).toBeTruthy()
     expect(screen.getByText(/Thanks for signing up/)).toBeTruthy()
+    expect(screen.getByText(LOCATIC_DEFINITION)).toBeTruthy()
     const founder = screen.getAllByRole('link', { name: 'Saketha Rama' })[0]
     expect(founder.getAttribute('href')).toBe(
       'https://github.com/bv-saketha-rama',
