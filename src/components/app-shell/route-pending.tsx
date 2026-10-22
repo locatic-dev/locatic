@@ -1,5 +1,6 @@
 import { PageHeader } from '@/components/app-shell/page-header'
 import { CardSheet } from '@/components/ui/card-sheet'
+import { Logo } from '@/components/ui/logo'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ProfileContentSkeleton } from '@/features/profile/content-skeleton'
 
@@ -35,6 +36,41 @@ function QuietRoutePending({ label }: { label: string }) {
  */
 export function ContentRoutePending() {
   return <QuietRoutePending label="loading" />
+}
+
+/**
+ * How long the sign-out screen still holds before revealing the next page.
+ * Its content fades in after `ROUTE_PENDING_MS`, so a fast sign-out shows a
+ * plain canvas and never flashes text. Once the fade has started
+ * (`visibleAt`), the content stays up for at least `ROUTE_PENDING_MIN_MS`.
+ */
+export function signOutHoldMs(visibleAt: number | null, now: number) {
+  if (visibleAt === null) return 0
+  return Math.max(0, ROUTE_PENDING_MIN_MS - (now - visibleAt))
+}
+
+/** A single responsive, announced transition while the session ends. */
+export function SignOutPending({ onVisible }: { onVisible?: () => void }) {
+  return (
+    <main
+      id="main-content"
+      tabIndex={-1}
+      className="flex min-h-dvh items-center justify-center bg-canvas px-6 text-text"
+    >
+      {/* The delay mirrors ROUTE_PENDING_MS; `animationstart` fires once it
+          elapses. Opacity only, so it needs no reduced-motion override; the
+          status is announced immediately. */}
+      <div
+        onAnimationStart={onVisible}
+        className="flex animate-in flex-col items-center gap-3 fill-mode-both delay-150 duration-200 fade-in"
+      >
+        <Logo size={32} />
+        <p role="status" className="font-mono text-body text-text-muted">
+          signing out…
+        </p>
+      </div>
+    </main>
+  )
 }
 
 /** Route pending for list pages that render their own list skeleton. */

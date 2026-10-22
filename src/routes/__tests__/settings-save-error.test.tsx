@@ -31,7 +31,8 @@ vi.mock('@tanstack/react-query', async (importOriginal) => ({
 
 vi.mock('@/features/settings/mutations', () => ({
   useUpdateExploreConfig: () => vi.fn(),
-  useUpdateNotificationPrefs: () => vi.fn(),
+  useUpdateNotificationPref: () => vi.fn(),
+  useUpdateEmailPreference: () => vi.fn(),
   useUpdatePrivacy: () => vi.fn(),
   useUpdateProfile: () => mocks.updateProfile,
 }))

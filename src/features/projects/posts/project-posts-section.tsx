@@ -10,6 +10,7 @@ import { shouldAutoLoadDeepLinkPage } from '@/features/projects/deep-link'
 import { useCreatePost } from '@/features/projects/mutations'
 import { getActionErrorMessage } from '@/lib/action-error'
 import { ProjectPostCard } from './project-post-card'
+import { CONTENT_LIMITS } from '../../../../convex/lib/content_limits'
 
 export function ProjectPostsSection({
   detail,
@@ -115,6 +116,7 @@ export function ProjectPostsSection({
         <div className="rounded-card border border-line bg-surface px-4 py-4">
           <div className="mb-3 text-eyebrow text-text-muted">repo post</div>
           <Textarea
+            maxLength={CONTENT_LIMITS.post}
             value={postBody}
             onChange={(event) => setPostBody(event.target.value)}
             placeholder="share what changed, what you learned, or what help this repo needs…"

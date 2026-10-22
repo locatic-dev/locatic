@@ -23,6 +23,8 @@ import {
   requireIdentity,
 } from './lib/auth'
 import { buildDiscoverabilitySearchText } from './lib/discoverability'
+import { assertProfileTextLimits } from './lib/content_limits'
+import { enforceRateLimit } from './lib/rate_limits'
 import { resolveProjectOwnerLogin } from './lib/project_route'
 import {
   buildProjectCardPreview,
@@ -46,6 +48,9 @@ import {
   getPostCityId,
 } from './lib/snapshots'
 import { createDefaultViewerProfile } from './lib/viewer'
+import { normalizeEmailAddress } from './lib/email_address'
+import { isEmailAdminViewer } from './lib/email_admin'
+import { isSubscribed } from './lib/email_audience'
 import { resolveStoredGithubId } from './lib/clerk'
 import { assertGithubUsernameAvailable } from './lib/github_identity'
 import {
@@ -56,7 +61,11 @@ import {
   getNextUserPostsCountBackfillCursor,
   shouldPatchUserPostsCount,
 } from './lib/post_counts'
-import { isContributionsVisibleOnPublicProfile } from './lib/privacy'
+import {
+  isContributionsVisibleOnPublicProfile,
+  isProfileGone,
+  isProfileOpenToSignedOutVisitors,
+} from './lib/privacy'
 import {
   getRegionLabel,
   isCityMember,
@@ -160,6 +169,7 @@ const serializedViewerValidator = v.object({
     dms: v.boolean(),
     weeklyDigest: v.boolean(),
     contributorRecognized: v.boolean(),
+    productUpdates: v.optional(v.boolean()),
   }),
   onboardingSelectedOwnedProjectIds: v.array(v.id('projects')),
   pinnedProfileProjectIds: v.array(v.id('projects')),
@@ -199,6 +209,8 @@ const profileCommentPreviewValidator = v.object({
 const viewerBootstrapValidator = v.object({
   isAuthenticated: v.boolean(),
   needsOnboarding: v.boolean(),
+  // UI hint only; every email admin function checks again.
+  isEmailAdmin: v.boolean(),
   status: viewerBootstrapStatusValidator,
   viewer: v.union(serializedViewerValidator, v.null()),
 })
@@ -337,7 +349,10 @@ function serializeViewer(
     },
     exploreConfig: viewer.exploreConfig,
     privacy: viewer.privacy,
-    notificationPrefs: viewer.notificationPrefs,
+    notificationPrefs: {
+      ...viewer.notificationPrefs,
+      productUpdates: viewer.notificationPrefs.productUpdates ?? true,
+    },
     onboardingSelectedOwnedProjectIds: viewer.onboardingSelectedOwnedProjectIds,
     pinnedProfileProjectIds: viewer.pinnedProfileProjectIds,
     unreadMessagesCount: viewer.unreadMessagesCount,
@@ -462,6 +477,11 @@ async function requestAccountDeletion(ctx: MutationCtx, user: Doc<'users'>) {
     deactivatedAt,
     purgeAfter,
     appearInExplore: false,
+  })
+
+  await ctx.scheduler.runAfter(0, internal.emailSends.cancelWaitingSends, {
+    userId: user._id,
+    before: now,
   })
 
   await ctx.scheduler.runAfter(
@@ -1021,7 +1041,7 @@ async function getAccessiblePublicProfileViewer(
     )
     .unique()
 
-  if (!viewer || viewer.deletedAt || viewer.deactivatedAt) {
+  if (!viewer || isProfileGone(viewer)) {
     return {
       requester,
       requesterIdentity,
@@ -1029,7 +1049,7 @@ async function getAccessiblePublicProfileViewer(
     }
   }
 
-  if (viewer.privacy.profileVisibility !== 'public' && !requesterIdentity) {
+  if (!isProfileOpenToSignedOutVisitors(viewer) && !requesterIdentity) {
     return {
       requester,
       requesterIdentity,
@@ -1333,6 +1353,7 @@ export const viewerBootstrap = query({
       return {
         isAuthenticated: false,
         needsOnboarding: false,
+        isEmailAdmin: false,
         status: 'unauthenticated' as const,
         viewer: null,
       }
@@ -1342,6 +1363,7 @@ export const viewerBootstrap = query({
       return {
         isAuthenticated: true,
         needsOnboarding: true,
+        isEmailAdmin: false,
         status: 'missingViewer' as const,
         viewer: null,
       }
@@ -1350,6 +1372,10 @@ export const viewerBootstrap = query({
     return {
       isAuthenticated: true,
       needsOnboarding: viewerState.viewer.onboardingCompletedAt === null,
+      isEmailAdmin: isEmailAdminViewer(
+        viewerState.identity.subject,
+        viewerState.viewer,
+      ),
       status: 'ready' as const,
       viewer: serializeViewer(viewerState.viewer),
     }
@@ -1806,10 +1832,12 @@ export const updateProfile = mutation({
     }),
   },
   handler: async (ctx, args) => {
+    assertProfileTextLimits(args)
     const viewer = await getOrCreateViewer(ctx)
     if (!viewer) {
       throw new ConvexError('Viewer not found')
     }
+    await enforceRateLimit(ctx, 'profileUpdate', String(viewer._id))
 
     const nextExploreCityIds = getExploreCityIdsAfterProfileCityChange({
       previousExploreCityIds: viewer.exploreConfig.cityIds,
@@ -1926,17 +1954,22 @@ export const updatePrivacy = mutation({
   },
 })
 
-export const updateNotificationPrefs = mutation({
-  args: {
-    projectLikes: v.boolean(),
-    updateLikes: v.boolean(),
-    comments: v.boolean(),
-    commentReplies: v.boolean(),
-    newFollowers: v.boolean(),
-    dms: v.boolean(),
-    weeklyDigest: v.boolean(),
-    contributorRecognized: v.boolean(),
-  },
+// In-app notification keys only. Email preferences go through
+// emailPreferences.updateEmailPreference (the single writer, with consent log).
+const inAppNotificationKeyValidator = v.union(
+  v.literal('projectLikes'),
+  v.literal('updateLikes'),
+  v.literal('comments'),
+  v.literal('commentReplies'),
+  v.literal('newFollowers'),
+  v.literal('dms'),
+  v.literal('contributorRecognized'),
+)
+
+// One key per call, so a stale settings tab cannot restore old values.
+export const updateNotificationPref = mutation({
+  args: { key: inAppNotificationKeyValidator, value: v.boolean() },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const viewer = await getOrCreateViewer(ctx)
     if (!viewer) {
@@ -1944,7 +1977,10 @@ export const updateNotificationPrefs = mutation({
     }
 
     await ctx.db.patch(viewer._id, {
-      notificationPrefs: args,
+      notificationPrefs: {
+        ...viewer.notificationPrefs,
+        [args.key]: args.value,
+      },
       updatedAt: Date.now(),
     })
 
@@ -2011,6 +2047,8 @@ export const completeOnboarding = mutation({
       throw new ConvexError('Viewer not found')
     }
 
+    assertProfileTextLimits(args)
+    await enforceRateLimit(ctx, 'profileUpdate', String(viewer._id))
     if (args.cityId && !(await ctx.db.get(args.cityId))) {
       throw new ConvexError('City not found')
     }
@@ -2063,6 +2101,22 @@ export const completeOnboarding = mutation({
       updatedAt: Date.now(),
     })
     await syncOwnedProjectOwnerState(ctx, viewer, updatedViewer)
+
+    // New members are told about update emails on the last step and start
+    // subscribed; the consent log records that default once.
+    const priorPreference = await ctx.db
+      .query('email_preference_changes')
+      .withIndex('by_user_and_changed_at', (q) => q.eq('userId', viewer._id))
+      .first()
+    if (!priorPreference && isSubscribed(viewer, 'product_updates')) {
+      await ctx.db.insert('email_preference_changes', {
+        userId: viewer._id,
+        category: 'product_updates',
+        subscribed: true,
+        source: 'signup_default',
+        changedAt: Date.now(),
+      })
+    }
 
     return await ctx.db.get(viewer._id)
   },
@@ -2164,6 +2218,11 @@ export const deactivateAccount = mutation({
       ...viewer,
       deactivatedAt: now,
       appearInExplore: false,
+    })
+
+    await ctx.scheduler.runAfter(0, internal.emailSends.cancelWaitingSends, {
+      userId: viewer._id,
+      before: now,
     })
 
     return null
@@ -2497,6 +2556,12 @@ export const scrubDeletedAccount = internalMutation({
     if (user.purgedAt) {
       return null
     }
+
+    // Send records (with the address each went to) and the consent log go
+    // with the account, in bounded pages.
+    await ctx.scheduler.runAfter(0, internal.emailSends.purgeUserEmailRecords, {
+      userId: user._id,
+    })
 
     const [
       ownedProjects,
@@ -2881,6 +2946,7 @@ export const upsertFromClerkWebhook = internalMutation({
     githubUrl: v.string(),
     displayName: v.string(),
     avatarUrl: v.string(),
+    emailVerified: v.boolean(),
   },
   handler: async (ctx, args) => {
     const existingViewer = await getViewerByClerkId(ctx, args.clerkId)
@@ -2890,9 +2956,8 @@ export const upsertFromClerkWebhook = internalMutation({
     })
 
     if (!existingViewer) {
-      const userId = await ctx.db.insert(
-        'users',
-        createDefaultViewerProfile({
+      const userId = await ctx.db.insert('users', {
+        ...createDefaultViewerProfile({
           clerkId: args.clerkId,
           email: args.email,
           githubId: args.githubId,
@@ -2901,7 +2966,8 @@ export const upsertFromClerkWebhook = internalMutation({
           avatarUrl: args.avatarUrl,
           displayName: args.displayName,
         }),
-      )
+        emailVerified: args.emailVerified,
+      })
 
       return await ctx.db.get(userId)
     }
@@ -2915,8 +2981,14 @@ export const upsertFromClerkWebhook = internalMutation({
       args.githubId,
     )
 
+    const emailChanged =
+      normalizeEmailAddress(args.email) !==
+      normalizeEmailAddress(existingViewer.email)
+
     await ctx.db.patch(existingViewer._id, {
       email: args.email,
+      emailVerified: args.emailVerified,
+      ...(emailChanged ? { emailChangedAt: now } : {}),
       github: {
         id: nextGithubId,
         username: args.githubUsername,
@@ -2959,6 +3031,18 @@ export const upsertFromClerkWebhook = internalMutation({
         },
       },
     })
+
+    // Emails still waiting were addressed to the old (or now unverified)
+    // address; batches re-check eligibility for everyone else.
+    if (
+      emailChanged ||
+      (existingViewer.emailVerified === true && !args.emailVerified)
+    ) {
+      await ctx.scheduler.runAfter(0, internal.emailSends.cancelWaitingSends, {
+        userId: existingViewer._id,
+        before: now,
+      })
+    }
 
     return await ctx.db.get(existingViewer._id)
   },

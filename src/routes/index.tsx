@@ -1,24 +1,30 @@
-import { keepPreviousData, useQuery } from '@tanstack/react-query'
-import { createFileRoute, redirect } from '@tanstack/react-router'
+import { useQuery } from '@tanstack/react-query'
+import { Link, createFileRoute, redirect } from '@tanstack/react-router'
+import { Button } from '@/components/ui/button'
 import { PublicHeader } from '@/components/app-shell/public-header'
 import { PublicFooter } from '@/components/app-shell/public-footer'
+import { HeroActivityList } from '@/features/landing/hero-activity-list'
 import { HeroCopy } from '@/features/landing/hero-copy'
 import { HeroMapCaption } from '@/features/landing/hero-map-caption'
 import {
+  getCitiesWithActivity,
   getLandingCityDots,
   getLandingMap,
   getPingSequence,
-  getShowcaseCityIds,
 } from '@/features/landing/landing-content'
 import { PingGlobe } from '@/features/landing/ping-globe'
 import { FeatureRow } from '@/features/landing/feature-row'
+import { WhatIsLocatic } from '@/features/landing/what-is-locatic'
 import { viewerQueryOptions } from '@/features/viewer/queries'
 import type { ViewerBootstrapPayload } from '@/features/contracts'
 import {
-  citiesByIdsQueryOptions,
+  landingActivityQueryOptions,
   landingMapCitiesQueryOptions,
-  landingShowcaseQueryOptions,
 } from '@/integrations/convex/query-options'
+import { GITHUB_URL } from '@/lib/site-links'
+import { seo } from '@/lib/seo'
+import { organizationNode, websiteNode } from '@/lib/structured-data'
+import { JsonLd } from '@/components/ui/json-ld'
 
 export const Route = createFileRoute('/')({
   beforeLoad: async ({ context }) => {
@@ -33,20 +39,14 @@ export const Route = createFileRoute('/')({
     throw redirect({ to: bootstrap.needsOnboarding ? '/onboarding' : '/home' })
   },
   // The public queries render on the server. `prefetchQuery` never throws:
-  // if one fails, the landing still renders with its labelled examples.
+  // if one fails, the landing still renders, with nothing pinged.
   loader: async ({ context }) => {
     await Promise.all([
       context.queryClient.prefetchQuery(landingMapCitiesQueryOptions()),
-      context.queryClient.prefetchQuery(landingShowcaseQueryOptions()),
+      context.queryClient.prefetchQuery(landingActivityQueryOptions()),
     ])
-    // The ping cards place showcase projects on their owners' cities.
-    const cityIds = getShowcaseCityIds(
-      context.queryClient.getQueryData(landingShowcaseQueryOptions().queryKey),
-    )
-    if (cityIds.length > 0) {
-      await context.queryClient.prefetchQuery(citiesByIdsQueryOptions(cityIds))
-    }
   },
+  head: () => seo({ path: '/' }),
   component: LandingPage,
 })
 
@@ -55,25 +55,32 @@ const HERO_MAP_CAPTION_ID = 'hero-map-caption'
 
 function LandingPage() {
   const { data: mapCities } = useQuery(landingMapCitiesQueryOptions())
-  const { data: showcase } = useQuery(landingShowcaseQueryOptions())
-  // A live showcase update changes the id list, and so the query key: keep the
-  // previous cities until the new list loads so the pings do not drop to the
-  // city top-ups and back. Extra cities are harmless; pings only use the ones
-  // a current showcase owner names.
-  const { data: showcaseCities } = useQuery({
-    ...citiesByIdsQueryOptions(getShowcaseCityIds(showcase)),
-    placeholderData: keepPreviousData,
-  })
-  const map = getLandingMap(mapCities)
-  const pingItems = getPingSequence({
-    map,
-    showcase: showcase ?? [],
-    cities: showcaseCities ?? [],
-  })
+  const { data: activity } = useQuery(landingActivityQueryOptions())
+  // Only cities with something to ping: the dots and caption match the pings.
+  const map = getLandingMap(getCitiesWithActivity(mapCities, activity))
+  const pingItems = getPingSequence(activity)
 
   return (
     <div className="min-h-dvh overflow-x-clip bg-canvas text-text">
-      <PublicHeader />
+      <PublicHeader
+        navStart={
+          <>
+            <Button asChild variant="ghost" size="touch">
+              <Link to="/about">about</Link>
+            </Button>
+            <Button asChild variant="ghost" size="touch">
+              <a
+                href={GITHUB_URL}
+                target="_blank"
+                rel="noreferrer noopener"
+                aria-label="Locatic on GitHub (opens in a new tab)"
+              >
+                github
+              </a>
+            </Button>
+          </>
+        }
+      />
 
       <main id="main-content" tabIndex={-1}>
         {/* Two columns from lg: the copy beside the globe. Below lg the globe
@@ -81,11 +88,12 @@ function LandingPage() {
         <div className="mx-auto grid max-w-(--lx-public-max) items-center gap-x-10 px-(--lx-gutter) pt-16 md:pt-24 lg:grid-cols-2 lg:pt-12">
           <HeroCopy />
           <section
-            aria-label="builders on the map"
+            aria-label="recent activity on the map"
             aria-describedby={HERO_MAP_CAPTION_ID}
             className="mx-auto mt-10 w-full max-w-105 md:mt-14 lg:mt-0 lg:max-w-none"
           >
             <PingGlobe items={pingItems} cityDots={getLandingCityDots(map)} />
+            <HeroActivityList items={pingItems} />
           </section>
         </div>
         <div className="mx-auto max-w-(--lx-public-max) px-(--lx-gutter)">
@@ -93,9 +101,11 @@ function LandingPage() {
         </div>
 
         <FeatureRow />
+        <WhatIsLocatic />
       </main>
 
       <PublicFooter />
+      <JsonLd nodes={[organizationNode(), websiteNode()]} />
     </div>
   )
 }

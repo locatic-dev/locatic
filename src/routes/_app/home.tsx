@@ -1,3 +1,4 @@
+import { captureSessionCache } from '@/integrations/convex/session-cache'
 import {
   createFileRoute,
   useRouter,
@@ -59,6 +60,7 @@ import {
   getHomeFeedState,
 } from '@/features/home/render-state'
 import { fadeUp, listStagger } from '@/lib/motion'
+import { seo } from '@/lib/seo'
 
 export const Route = createFileRoute('/_app/home')({
   loader: async ({ context }) => {
@@ -78,6 +80,7 @@ export const Route = createFileRoute('/_app/home')({
   pendingMs: ROUTE_PENDING_MS,
   pendingMinMs: ROUTE_PENDING_MIN_MS,
   errorComponent: HomeErrorPage,
+  head: () => seo({ title: 'home', noindex: true }),
   component: HomePage,
 })
 
@@ -118,6 +121,7 @@ function HomeErrorPage({ reset }: ErrorComponentProps) {
 function HomePage() {
   const goToExplore = useExploreNavigation()
   const queryClient = useQueryClient()
+  const isCurrentSession = captureSessionCache(queryClient)
   // SSR-rendered first page — resolved on first paint (prefetched in the loader).
   const { data: firstPageData } = useSuspenseQuery(homeFeedQueryOptions())
   // Live feed for "load older" and post-hydration freshness.
@@ -197,6 +201,8 @@ function HomePage() {
     onMutate: async ({ projectId }) => {
       await queryClient.cancelQueries({ queryKey: likedProjectIdsQueryKey })
 
+      if (!isCurrentSession()) return
+
       const previousLikedProjectIds =
         queryClient.getQueryData<ViewerLikedProjectIdsPayload>(
           likedProjectIdsQueryKey,
@@ -216,12 +222,14 @@ function HomePage() {
       return { previousLikedProjectIds }
     },
     onError: (_error, _variables, context) => {
+      if (!isCurrentSession()) return
       queryClient.setQueryData(
         likedProjectIdsQueryKey,
         context?.previousLikedProjectIds,
       )
     },
     onSettled: async () => {
+      if (!isCurrentSession()) return
       await queryClient.invalidateQueries({ queryKey: likedProjectIdsQueryKey })
     },
   })
@@ -244,6 +252,7 @@ function HomePage() {
         projectId,
       })
     } catch (error) {
+      if (!isCurrentSession()) return
       reportActionError(error, {
         title: "couldn't update your like",
         retry: () => handleLike(projectId, projectKey),

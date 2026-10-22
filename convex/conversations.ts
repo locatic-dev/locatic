@@ -17,6 +17,7 @@ import {
   buildConversationNotificationTarget,
   createNotificationIfEnabled,
 } from './lib/notifications'
+import { assertMaxLength } from './lib/content_limits'
 import { enforceRateLimit } from './lib/rate_limits'
 import { buildSnapshotLocation } from './lib/snapshots'
 import { countMetric } from './metrics'
@@ -497,6 +498,7 @@ export const sendMessage = mutation({
     if (!content) {
       throw new ConvexError('Message cannot be empty')
     }
+    assertMaxLength('message', content)
 
     await enforceRateLimit(ctx, 'conversationMessage', String(viewer._id))
     const conversation = await ctx.db.get(args.conversationId)
@@ -543,6 +545,7 @@ export const sendFirstMessage = mutation({
     if (!content) {
       throw new ConvexError('Message cannot be empty')
     }
+    assertMaxLength('message', content)
 
     await enforceRateLimit(ctx, 'conversationMessage', String(viewer._id))
     const otherUser = await ctx.db.get(args.otherUserId)

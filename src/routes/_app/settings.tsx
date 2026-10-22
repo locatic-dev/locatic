@@ -14,11 +14,14 @@ import {
 } from '@/features/cities/queries'
 import {
   useUpdateExploreConfig,
-  useUpdateNotificationPrefs,
+  useUpdateEmailPreference,
+  useUpdateNotificationPref,
   useUpdatePrivacy,
   useUpdateProfile,
 } from '@/features/settings/mutations'
 import { AccountDangerZone } from '@/features/settings/account-danger-zone'
+import { LEGAL_CONTACT_EMAIL } from '@/features/legal/legal-contact'
+import { CONTENT_LIMITS } from '../../../convex/lib/content_limits'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { CityCombobox } from '@/components/ui/city-combobox'
@@ -56,7 +59,11 @@ import {
   type SettingsAccountFormState,
 } from '@/features/settings/dirty'
 import { useUnsavedChangesGuard } from '@/features/settings/use-unsaved-changes-guard'
+import { EmailPreferencesSection } from '@/features/settings/email-preferences-section'
+import { myEmailStatusQueryOptions } from '@/features/settings/queries'
+import { viewerQueryOptions } from '@/features/viewer/queries'
 import { shouldPrefetchPrivateConvexQueries } from '@/lib/auth-routing'
+import { seo } from '@/lib/seo'
 
 export const Route = createFileRoute('/_app/settings')({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -81,13 +88,15 @@ export const Route = createFileRoute('/_app/settings')({
       return
     }
 
-    await context.queryClient.ensureQueryData(
-      privateProfileOverviewQueryOptions(),
-    )
+    await Promise.all([
+      context.queryClient.ensureQueryData(privateProfileOverviewQueryOptions()),
+      context.queryClient.ensureQueryData(myEmailStatusQueryOptions()),
+    ])
   },
   pendingComponent: FormRoutePending,
   pendingMs: ROUTE_PENDING_MS,
   pendingMinMs: ROUTE_PENDING_MIN_MS,
+  head: () => seo({ title: 'settings', noindex: true }),
   component: SettingsPage,
 })
 
@@ -129,7 +138,11 @@ function SettingsPage() {
   const updateProfile = useUpdateProfile()
   const updatePrivacy = useUpdatePrivacy()
   const updateExploreConfig = useUpdateExploreConfig()
-  const updateNotifPrefs = useUpdateNotificationPrefs()
+  const updateNotifPref = useUpdateNotificationPref()
+  const updateEmailPreference = useUpdateEmailPreference()
+  const emailStatusQuery = useQuery(myEmailStatusQueryOptions())
+  const bootstrapQuery = useQuery(viewerQueryOptions())
+  const isEmailAdmin = bootstrapQuery.data?.isEmailAdmin === true
   const viewerAccountState = getSettingsAccountStateFromViewer(profile.viewer)
 
   const [saved, setSaved] = useState(false)
@@ -338,6 +351,7 @@ function SettingsPage() {
                       </label>
                       <Input
                         id="settings-display-name"
+                        maxLength={CONTENT_LIMITS.displayName}
                         value={displayName}
                         onChange={(event) => setDisplayName(event.target.value)}
                         className={fieldClassName}
@@ -349,14 +363,17 @@ function SettingsPage() {
                       <label htmlFor="settings-bio" className={labelClassName}>
                         bio{' '}
                         <span className="text-text-muted">
-                          ({bio.length}/140)
+                          ({bio.length}/{CONTENT_LIMITS.bio})
                         </span>
                       </label>
                       <Textarea
                         id="settings-bio"
+                        maxLength={CONTENT_LIMITS.bio}
                         value={bio}
                         onChange={(event) =>
-                          setBio(event.target.value.slice(0, 140))
+                          setBio(
+                            event.target.value.slice(0, CONTENT_LIMITS.bio),
+                          )
                         }
                         className={`${fieldClassName} resize-none font-sans`}
                         rows={3}
@@ -449,6 +466,7 @@ function SettingsPage() {
                       </label>
                       <Input
                         id="settings-twitter"
+                        maxLength={CONTENT_LIMITS.socialLink}
                         value={twitter}
                         onChange={(event) => setTwitter(event.target.value)}
                         className={fieldClassName}
@@ -464,6 +482,7 @@ function SettingsPage() {
                       </label>
                       <Input
                         id="settings-linkedin"
+                        maxLength={CONTENT_LIMITS.socialLink}
                         value={linkedin}
                         onChange={(event) => setLinkedin(event.target.value)}
                         className={fieldClassName}
@@ -479,6 +498,7 @@ function SettingsPage() {
                       </label>
                       <Input
                         id="settings-bluesky"
+                        maxLength={CONTENT_LIMITS.socialLink}
                         value={bluesky}
                         onChange={(event) => setBluesky(event.target.value)}
                         className={fieldClassName}
@@ -494,6 +514,7 @@ function SettingsPage() {
                       </label>
                       <Input
                         id="settings-website"
+                        maxLength={CONTENT_LIMITS.socialLink}
                         value={website}
                         onChange={(event) => setWebsite(event.target.value)}
                         className={fieldClassName}
@@ -526,6 +547,13 @@ function SettingsPage() {
                     >
                       terms of service
                     </Link>
+                    <a
+                      href={`mailto:${LEGAL_CONTACT_EMAIL}`}
+                      className="inline-flex min-h-11 items-center text-text-muted no-underline transition-colors hover:text-text"
+                      aria-label={`Email Locatic at ${LEGAL_CONTACT_EMAIL}`}
+                    >
+                      contact
+                    </a>
                   </nav>
                 </div>
               </div>
@@ -582,19 +610,23 @@ function SettingsPage() {
                 <div className={sectionTitleClassName}>
                   notification preferences
                 </div>
-                {[
-                  { key: 'projectLikes', label: 'likes on your projects' },
-                  { key: 'updateLikes', label: 'likes on your posts' },
-                  { key: 'comments', label: 'comments on your projects' },
-                  { key: 'commentReplies', label: 'replies to your comments' },
-                  { key: 'newFollowers', label: 'new followers' },
-                  { key: 'dms', label: 'direct messages' },
-                  { key: 'weeklyDigest', label: 'weekly digest email' },
-                  {
-                    key: 'contributorRecognized',
-                    label: 'contributor recognition',
-                  },
-                ].map(({ key, label }) => (
+                {(
+                  [
+                    { key: 'projectLikes', label: 'likes on your projects' },
+                    { key: 'updateLikes', label: 'likes on your posts' },
+                    { key: 'comments', label: 'comments on your projects' },
+                    {
+                      key: 'commentReplies',
+                      label: 'replies to your comments',
+                    },
+                    { key: 'newFollowers', label: 'new followers' },
+                    { key: 'dms', label: 'direct messages' },
+                    {
+                      key: 'contributorRecognized',
+                      label: 'contributor recognition',
+                    },
+                  ] as const
+                ).map(({ key, label }) => (
                   <div key={key} className={settingsRowClassName}>
                     {/* The label toggles the switch too: a 44px+ target. */}
                     <label
@@ -607,23 +639,17 @@ function SettingsPage() {
                     <Switch
                       id={`notification-pref-${key}`}
                       aria-labelledby={`notification-pref-${key}-label`}
-                      checked={
-                        profile.viewer.notificationPrefs[
-                          key as keyof typeof profile.viewer.notificationPrefs
-                        ]
-                      }
+                      checked={profile.viewer.notificationPrefs[key]}
                       onCheckedChange={async (checked) => {
-                        const nextPrefs = {
-                          ...profile.viewer.notificationPrefs,
-                          [key]: checked,
-                        }
+                        // One key per call: a stale tab cannot restore others.
+                        const change = { key, value: checked }
                         try {
-                          await updateNotifPrefs(nextPrefs)
+                          await updateNotifPref(change)
                         } catch (error) {
                           reportActionError(error, {
                             title: "couldn't save notification setting",
                             retry: () => {
-                              void updateNotifPrefs(nextPrefs).catch((e) =>
+                              void updateNotifPref(change).catch((e) =>
                                 reportActionError(e, {
                                   title: "couldn't save notification setting",
                                 }),
@@ -635,6 +661,25 @@ function SettingsPage() {
                     />
                   </div>
                 ))}
+                <EmailPreferencesSection
+                  status={emailStatusQuery.data}
+                  isEmailAdmin={isEmailAdmin}
+                  onChange={(category, subscribed) => {
+                    const change = { category, subscribed }
+                    updateEmailPreference(change).catch((error: unknown) =>
+                      reportActionError(error, {
+                        title: "couldn't save email setting",
+                        retry: () => {
+                          void updateEmailPreference(change).catch((e) =>
+                            reportActionError(e, {
+                              title: "couldn't save email setting",
+                            }),
+                          )
+                        },
+                      }),
+                    )
+                  }}
+                />
               </div>
             )}
 

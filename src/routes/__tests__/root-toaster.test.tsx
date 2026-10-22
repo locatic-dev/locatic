@@ -33,6 +33,10 @@ vi.mock('../../integrations/convex/provider', () => ({
   default: ({ children }: { children: ReactNode }) => <>{children}</>,
 }))
 
+vi.mock('@/integrations/clerk/sign-out', () => ({
+  SignOutProvider: ({ children }: { children: ReactNode }) => <>{children}</>,
+}))
+
 // Needs the real Convex auth provider, which is mocked out above.
 vi.mock('../../integrations/convex/metrics', () => ({
   DiscoveryReturnMetric: () => null,

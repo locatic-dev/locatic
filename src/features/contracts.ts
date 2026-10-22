@@ -113,6 +113,8 @@ export type ProjectCardSignals = {
 export type ViewerBootstrapPayload = {
   isAuthenticated: boolean
   needsOnboarding: boolean
+  /** Shows the email campaign links; the server checks on every call. */
+  isEmailAdmin?: boolean
   status?: 'unauthenticated' | 'missingViewer' | 'ready'
   viewer: ViewerRecord | null
 }
@@ -200,7 +202,9 @@ export type PublicProfilePayload = {
 /** `users.publicProfileOverview`, as the profile feature types it. */
 export type PublicProfileOverviewPayload = PublicProfileOverview
 
-export type ThreadedProjectComment = Doc<'comments'> & {
+export type ThreadedProjectComment = Omit<Doc<'comments'>, 'authorSnapshot'> & {
+  /** The stored snapshot with the author's live location and city slug. */
+  authorSnapshot: Doc<'comments'>['authorSnapshot'] & { citySlug?: string }
   viewerHasLiked: boolean
   viewerReactionTypes: string[]
   reactionCounts?: Record<string, number>
@@ -293,6 +297,7 @@ export function mapViewerBootstrap(
   return {
     isAuthenticated: payload.isAuthenticated,
     needsOnboarding: payload.needsOnboarding,
+    isEmailAdmin: payload.isEmailAdmin === true,
     status:
       payload.status ??
       (payload.viewer

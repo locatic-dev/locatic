@@ -80,6 +80,7 @@ const builder = {
     kind: 'city' as const,
     cityId,
     cityName: 'Mysuru, Karnataka, India',
+    citySlug: 'mysuru-in',
     regionLabel: 'Karnataka, India',
   },
   projectsCount: 2,

@@ -34,5 +34,23 @@ crons.interval(
   internal.cleanup.runDailyCleanup,
   {},
 )
+crons.interval(
+  'prepare due community email draft daily',
+  { hours: 24 },
+  internal.emailDigest.prepareDue,
+  {},
+)
+crons.interval(
+  'reconcile email sends',
+  { minutes: 15 },
+  internal.emailSends.reconcileSends,
+  {},
+)
+crons.interval(
+  'clean up delivered email copies',
+  { hours: 1 },
+  internal.emailSends.cleanupComponentEmails,
+  {},
+)
 
 export default crons

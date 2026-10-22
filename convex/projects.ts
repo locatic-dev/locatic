@@ -1259,6 +1259,7 @@ export const save = mutation({
     if (await getSavedRow(ctx, viewer._id, args.projectId)) {
       return null
     }
+    await enforceRateLimit(ctx, 'saveWrite', String(viewer._id))
 
     await ctx.db.insert('saved_projects', {
       userId: viewer._id,
@@ -1355,69 +1356,5 @@ export const getSavedState = query({
       projectIds.map((projectId) => getSavedRow(ctx, viewer._id, projectId)),
     )
     return rows.flatMap((row) => (row ? [row.projectId] : []))
-  },
-})
-
-/** Projects the landing shows (plan item D7). */
-const LANDING_SHOWCASE_LIMIT = 3
-
-/**
- * Rows read for the landing showcase. A few more than it shows, so one
- * builder's several recent pushes, or a row whose owner has just left, do
- * not leave the landing short.
- */
-const LANDING_SHOWCASE_READ_LIMIT = 12
-
-/**
- * Real public work for the landing (plan item D7): up to three eligible
- * projects, most recently pushed first, one per builder. One bounded read
- * of `by_explore_eligible_last_commit` (eligible means visible, with an
- * owner who appears in Explore) plus the owners, then the public card
- * preview with no viewer. Public and viewer-independent: the landing never
- * reads auth.
- */
-export const listLandingShowcase = query({
-  args: {},
-  returns: v.array(projectCardPreviewValidator),
-  handler: async (ctx) => {
-    const candidates = await ctx.db
-      .query('projects')
-      .withIndex('by_explore_eligible_last_commit', (query) =>
-        query.eq('exploreOwner.isEligible', true),
-      )
-      .order('desc')
-      .take(LANDING_SHOWCASE_READ_LIMIT)
-
-    const owners = await Promise.all(
-      candidates.map((project) => ctx.db.get(project.ownerId)),
-    )
-    const seenOwners = new Set<string>()
-    const showcase = candidates.flatMap((project, index) => {
-      const owner = owners[index]
-      // `exploreOwner` is re-derived on owner changes; the live check covers
-      // rows written before the latest one.
-      if (
-        !project.locatic.isVisible ||
-        !owner ||
-        !owner.appearInExplore ||
-        owner.deletedAt ||
-        owner.deactivatedAt ||
-        seenOwners.has(owner._id)
-      ) {
-        return []
-      }
-      seenOwners.add(owner._id)
-      return [{ project, owner }]
-    })
-
-    return await Promise.all(
-      showcase.slice(0, LANDING_SHOWCASE_LIMIT).map(({ project, owner }) =>
-        buildProjectCardPreview(ctx.db, project, {
-          audience: 'public',
-          owner,
-          signals: { viewerId: null },
-        }),
-      ),
-    )
   },
 })

@@ -41,10 +41,15 @@ test.describe('public city page', () => {
     )
 
     await cityLink.click()
-    // The pill links by city id; the page redirects to the city's slug.
+    // The pill links by slug (or by id, which redirects to the slug).
     await expect.poll(() => pathname(page.url())).toMatch(/^\/c\/[a-z0-9-]+$/)
     await expectSettled(page, page.getByRole('heading', { level: 1 }))
-    await expect(page.getByText(/^\d+ builders?, \d+ projects?$/)).toBeVisible()
+    // The header summarises the city in a sentence.
+    await expect(
+      page.getByText(
+        /^\d+ builders? in .+ shares? \d+ public projects? on Locatic\./,
+      ),
+    ).toBeVisible()
     await expect(
       page.getByRole('heading', { level: 2, name: 'builders' }),
     ).toBeVisible()

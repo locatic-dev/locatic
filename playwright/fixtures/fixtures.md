@@ -26,7 +26,7 @@ E2E_MODE=smoke pnpm e2e  # partial local run; missing external fixtures may skip
 Functions and shapes the branch adds or changes, from the implementation follow-ups:
 
 - `explore.listPublic*`, `explore.listNearbyBuildersPublic`, the `language`, `topic` and `openToCollab` arguments of `explore.list`
-- `projects.getProjectSignals`, `projects.listMoreFromOwnerCity`, `projects.listLandingShowcase`, `projects.save` and the saves queries
+- `projects.getProjectSignals`, `projects.listMoreFromOwnerCity`, `landing.listRecentActivity`, `projects.save` and the saves queries
 - `users.publicProfileOverview` (pinned projects, shipping log), `home.list` (`actorGithubUsername`)
 - `cities.listActiveForMap`, `cities.listNearby` (Explore rail) and the city page queries, `metrics.record`
 - the notifications internal backfill; `viewerInboxSummary` removed
@@ -77,6 +77,7 @@ The shape mirrors the `alice` role in `seedPopulatedCity`. For strict release va
 - At least one unread notification (`notifications`). The notification click test marks one read, so a rerun needs a new unread notification.
 - Explore must list at least one project owned by someone else, so Save is offered (`saves`) and the DM failure toast has a builder to message (`inbox`).
 - The synced city catalogue must answer the prefix `ber` with at least one city (Berlin, Bern) for `explore-header`.
+- For `email-campaigns`, the development deployment needs this user's Clerk id in `EMAIL_ADMIN_CLERK_IDS`, `EMAIL_TEST_SENDING_ENABLED=true`, `delivered@resend.dev` in `EMAIL_TEST_RECIPIENTS`, and the sender settings (`EMAIL_FROM`, `EMAIL_REPLY_TO`, `SITE_URL`, `RESEND_API_KEY`). Leave `EMAIL_SENDING_ENABLED` off. Each run creates one draft update and sends one test to Resend's `delivered@resend.dev` test address; it opens the send confirmation and closes it without sending.
 
 ### Empty-city user (`E2E_CLERK_EMPTY_CITY_USER_EMAIL`)
 

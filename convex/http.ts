@@ -4,8 +4,10 @@ import { httpRouter } from 'convex/server'
 import { internal } from './_generated/api'
 import { httpAction } from './_generated/server'
 import { parseClerkGithubExternalAccount } from './lib/clerk'
+import { getSiteUrl } from './lib/email_provider'
+import { getResend } from './lib/resend'
 
-function getPrimaryEmailAddress(data: Record<string, unknown>) {
+function getPrimaryEmail(data: Record<string, unknown>) {
   const emailAddresses = Array.isArray(data.email_addresses)
     ? data.email_addresses
     : []
@@ -27,16 +29,28 @@ function getPrimaryEmailAddress(data: Record<string, unknown>) {
       )
     }) ?? emailAddresses[0]
 
-  if (
-    primaryEmail &&
-    typeof primaryEmail === 'object' &&
-    'email_address' in primaryEmail &&
-    typeof primaryEmail.email_address === 'string'
-  ) {
-    return primaryEmail.email_address
+  if (!primaryEmail || typeof primaryEmail !== 'object') {
+    return { address: '', verified: false }
   }
 
-  return ''
+  const address =
+    'email_address' in primaryEmail &&
+    typeof primaryEmail.email_address === 'string'
+      ? primaryEmail.email_address
+      : ''
+  const verification =
+    'verification' in primaryEmail &&
+    primaryEmail.verification &&
+    typeof primaryEmail.verification === 'object'
+      ? primaryEmail.verification
+      : null
+  const verified = Boolean(
+    verification &&
+    'status' in verification &&
+    verification.status === 'verified',
+  )
+
+  return { address, verified }
 }
 
 function getGithubAccount(data: Record<string, unknown>) {
@@ -137,7 +151,8 @@ http.route({
       }
 
       if (event.type === 'user.created' || event.type === 'user.updated') {
-        const email = getPrimaryEmailAddress(payload)
+        const primaryEmail = getPrimaryEmail(payload)
+        const email = primaryEmail.address
         const githubAccount = getGithubAccount(payload)
         const clerkId = typeof payload.id === 'string' ? payload.id : ''
         const githubParseResult = parseClerkGithubExternalAccount(
@@ -166,6 +181,7 @@ http.route({
             : 'https://github.com',
           displayName: getDisplayName(payload, email),
           avatarUrl,
+          emailVerified: primaryEmail.verified,
         })
 
         await ctx.runMutation(internal.users.markClerkWebhookEventProcessed, {
@@ -212,6 +228,59 @@ http.route({
       console.error('Failed to process Clerk webhook', error)
       return new Response('webhook processing failed', { status: 500 })
     }
+  }),
+})
+
+// Delivery events from Resend, verified and recorded by the email component,
+// which then calls emailSends.handleEmailEvent.
+http.route({
+  path: '/resend-webhook',
+  method: 'POST',
+  handler: httpAction(async (ctx, request) =>
+    getResend().handleResendEventWebhook(ctx, request),
+  ),
+})
+
+// RFC 8058 one-click unsubscribe. Mail clients POST the body field
+// `List-Unsubscribe=One-Click` (URL-encoded or multipart) with no cookies.
+async function hasOneClickField(request: Request) {
+  try {
+    const form = await request.formData()
+    return form.get('List-Unsubscribe') === 'One-Click'
+  } catch {
+    return false
+  }
+}
+
+http.route({
+  path: '/email/unsubscribe',
+  method: 'POST',
+  handler: httpAction(async (ctx, request) => {
+    const token = new URL(request.url).searchParams.get('t') ?? ''
+    if (!token || !(await hasOneClickField(request))) {
+      return new Response(null, { status: 400 })
+    }
+    const ok = await ctx.runMutation(
+      internal.emailPreferences.oneClickUnsubscribe,
+      { token },
+    )
+    return new Response(null, { status: ok ? 200 : 400 })
+  }),
+})
+
+// Link scanners prefetch GETs, so a GET never changes anything: it sends the
+// reader to the confirmation page.
+http.route({
+  path: '/email/unsubscribe',
+  method: 'GET',
+  handler: httpAction(async (_ctx, request) => {
+    const token = new URL(request.url).searchParams.get('t') ?? ''
+    return new Response(null, {
+      status: 303,
+      headers: {
+        Location: `${getSiteUrl()}/unsubscribe?t=${encodeURIComponent(token)}`,
+      },
+    })
   }),
 })
 

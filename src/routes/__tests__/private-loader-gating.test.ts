@@ -24,19 +24,29 @@ vi.mock('@tanstack/react-router', async (importOriginal) => ({
 type Loader = (args: {
   context: { queryClient: { ensureQueryData: (options: unknown) => unknown } }
   deps: Record<string, unknown>
+  params: Record<string, string>
 }) => unknown
 
 const routes: Array<[string, () => Promise<{ Route: unknown }>, number]> = [
   ['notifications', () => import('../_app/notifications'), 1],
-  ['settings', () => import('../_app/settings'), 1],
+  ['settings', () => import('../_app/settings'), 2],
   ['inbox', () => import('../_app/inbox'), 2],
+  ['admin emails', () => import('../_app/admin/emails/index'), 1],
+  ['admin email campaign', () => import('../_app/admin/emails/$campaignId'), 1],
 ]
 
-async function runLoader(load: () => Promise<{ Route: unknown }>) {
+async function runLoader(
+  load: () => Promise<{ Route: unknown }>,
+  params: Record<string, string> = { campaignId: 'campaign_1' },
+) {
   const { Route } = await load()
   const loader = (Route as { options: { loader: Loader } }).options.loader
   const ensureQueryData = vi.fn(async () => null)
-  await loader({ context: { queryClient: { ensureQueryData } }, deps: {} })
+  await loader({
+    context: { queryClient: { ensureQueryData } },
+    deps: {},
+    params,
+  })
   return ensureQueryData
 }
 
@@ -66,4 +76,15 @@ describe('private route loaders', () => {
       expect(ensureQueryData).toHaveBeenCalledTimes(queryCount)
     },
   )
+
+  it('reads nothing for an unsaved New email draft', async () => {
+    mocks.shouldPrefetch.mockReturnValue(true)
+
+    const ensureQueryData = await runLoader(
+      () => import('../_app/admin/emails/$campaignId'),
+      { campaignId: 'new' },
+    )
+
+    expect(ensureQueryData).not.toHaveBeenCalled()
+  })
 })

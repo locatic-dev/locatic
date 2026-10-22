@@ -5,7 +5,10 @@ import type { LatLng } from '@/lib/geo'
 import {
   GLOBE_RADIUS,
   anchorVariables,
+  clampDragPhi,
   decodeLandDots,
+  dragDegreesPerPixel,
+  dragRotation,
   faceRotation,
   projectToGlobe,
   stepSpring,
@@ -177,6 +180,49 @@ describe('wrapLongitude', () => {
     expect(wrapLongitude(-190)).toBe(170)
     expect(wrapLongitude(180)).toBe(-180)
     expect(wrapLongitude(540)).toBe(-180)
+  })
+})
+
+describe('dragRotation', () => {
+  const WIDTH = 400
+
+  it('keeps the place under the pointer moving with it', () => {
+    const start = faceRotation(BENGALURU)
+    const before = toBoxFraction(projectToGlobe(BENGALURU, start))
+    const after = toBoxFraction(
+      projectToGlobe(BENGALURU, dragRotation(start, 20, 10, WIDTH)),
+    )
+
+    // Right and down, by about the pixels dragged near the centre.
+    expect(after.left).toBeGreaterThan(before.left)
+    expect(after.top).toBeGreaterThan(before.top)
+    expect((after.left - before.left) * WIDTH).toBeGreaterThan(15)
+    expect((after.left - before.left) * WIDTH).toBeLessThan(21)
+  })
+
+  it('moves the centre of the disc one pixel per pixel, whatever its size', () => {
+    const centre = { lat: 0, lng: 0 }
+    for (const width of [200, 400, 800]) {
+      const moved = toBoxFraction(
+        projectToGlobe(
+          centre,
+          dragRotation({ lambda: 0, phi: 0 }, 1, 0, width),
+        ),
+      )
+      expect((moved.left - 0.5) * width).toBeCloseTo(1, 3)
+    }
+    expect(dragDegreesPerPixel(0)).toBeGreaterThan(0)
+  })
+
+  it('wraps the longitude and stops the tilt short of the poles', () => {
+    const turned = dragRotation({ lambda: 170, phi: 0 }, -100, 0, WIDTH)
+    expect(turned.lambda).toBeGreaterThanOrEqual(-180)
+    expect(turned.lambda).toBeLessThan(180)
+    expect(dragRotation({ lambda: 0, phi: 50 }, 0, 1_000, WIDTH).phi).toBe(60)
+    expect(dragRotation({ lambda: 0, phi: -50 }, 0, -1_000, WIDTH).phi).toBe(
+      -60,
+    )
+    expect(clampDragPhi(12)).toBe(12)
   })
 })
 

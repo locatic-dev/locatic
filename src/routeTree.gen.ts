@@ -9,10 +9,14 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as UnsubscribeRouteImport } from './routes/unsubscribe'
 import { Route as TermsRouteImport } from './routes/terms'
+import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
+import { Route as RobotsDottxtRouteImport } from './routes/robots[.]txt'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as ExploreRouteImport } from './routes/explore'
+import { Route as AboutRouteImport } from './routes/about'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as UUsernameRouteImport } from './routes/u.$username'
@@ -25,11 +29,30 @@ import { Route as AppProfileRouteImport } from './routes/_app/profile'
 import { Route as AppNotificationsRouteImport } from './routes/_app/notifications'
 import { Route as AppInboxRouteImport } from './routes/_app/inbox'
 import { Route as AppHomeRouteImport } from './routes/_app/home'
+import { Route as AppAdminEmailsRouteImport } from './routes/_app/admin/emails'
+import { Route as AppAdminEmailsIndexRouteImport } from './routes/_app/admin/emails/index'
 import { Route as AppProjectOwnerRepoRouteImport } from './routes/_app/project.$owner.$repo'
+import { Route as AppAdminEmailsLogRouteImport } from './routes/_app/admin/emails/log'
+import { Route as AppAdminEmailsCampaignIdRouteImport } from './routes/_app/admin/emails/$campaignId'
 
+const UnsubscribeRoute = UnsubscribeRouteImport.update({
+  id: '/unsubscribe',
+  path: '/unsubscribe',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const TermsRoute = TermsRouteImport.update({
   id: '/terms',
   path: '/terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
+  id: '/sitemap.xml',
+  path: '/sitemap.xml',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RobotsDottxtRoute = RobotsDottxtRouteImport.update({
+  id: '/robots.txt',
+  path: '/robots.txt',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PrivacyRoute = PrivacyRouteImport.update({
@@ -45,6 +68,11 @@ const OnboardingRoute = OnboardingRouteImport.update({
 const ExploreRoute = ExploreRouteImport.update({
   id: '/explore',
   path: '/explore',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AboutRoute = AboutRouteImport.update({
+  id: '/about',
+  path: '/about',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AppRoute = AppRouteImport.update({
@@ -106,18 +134,43 @@ const AppHomeRoute = AppHomeRouteImport.update({
   path: '/home',
   getParentRoute: () => AppRoute,
 } as any)
+const AppAdminEmailsRoute = AppAdminEmailsRouteImport.update({
+  id: '/admin/emails',
+  path: '/admin/emails',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppAdminEmailsIndexRoute = AppAdminEmailsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppAdminEmailsRoute,
+} as any)
 const AppProjectOwnerRepoRoute = AppProjectOwnerRepoRouteImport.update({
   id: '/project/$owner/$repo',
   path: '/project/$owner/$repo',
   getParentRoute: () => AppRoute,
 } as any)
+const AppAdminEmailsLogRoute = AppAdminEmailsLogRouteImport.update({
+  id: '/log',
+  path: '/log',
+  getParentRoute: () => AppAdminEmailsRoute,
+} as any)
+const AppAdminEmailsCampaignIdRoute =
+  AppAdminEmailsCampaignIdRouteImport.update({
+    id: '/$campaignId',
+    path: '/$campaignId',
+    getParentRoute: () => AppAdminEmailsRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/about': typeof AboutRoute
   '/explore': typeof ExploreRoute
   '/onboarding': typeof OnboardingRoute
   '/privacy': typeof PrivacyRoute
+  '/robots.txt': typeof RobotsDottxtRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/terms': typeof TermsRoute
+  '/unsubscribe': typeof UnsubscribeRoute
   '/home': typeof AppHomeRoute
   '/inbox': typeof AppInboxRoute
   '/notifications': typeof AppNotificationsRoute
@@ -128,14 +181,22 @@ export interface FileRoutesByFullPath {
   '/sign-in/$': typeof SignInSplatRoute
   '/sign-up/$': typeof SignUpSplatRoute
   '/u/$username': typeof UUsernameRoute
+  '/admin/emails': typeof AppAdminEmailsRouteWithChildren
+  '/admin/emails/$campaignId': typeof AppAdminEmailsCampaignIdRoute
+  '/admin/emails/log': typeof AppAdminEmailsLogRoute
   '/project/$owner/$repo': typeof AppProjectOwnerRepoRoute
+  '/admin/emails/': typeof AppAdminEmailsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/about': typeof AboutRoute
   '/explore': typeof ExploreRoute
   '/onboarding': typeof OnboardingRoute
   '/privacy': typeof PrivacyRoute
+  '/robots.txt': typeof RobotsDottxtRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/terms': typeof TermsRoute
+  '/unsubscribe': typeof UnsubscribeRoute
   '/home': typeof AppHomeRoute
   '/inbox': typeof AppInboxRoute
   '/notifications': typeof AppNotificationsRoute
@@ -146,16 +207,23 @@ export interface FileRoutesByTo {
   '/sign-in/$': typeof SignInSplatRoute
   '/sign-up/$': typeof SignUpSplatRoute
   '/u/$username': typeof UUsernameRoute
+  '/admin/emails/$campaignId': typeof AppAdminEmailsCampaignIdRoute
+  '/admin/emails/log': typeof AppAdminEmailsLogRoute
   '/project/$owner/$repo': typeof AppProjectOwnerRepoRoute
+  '/admin/emails': typeof AppAdminEmailsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_app': typeof AppRouteWithChildren
+  '/about': typeof AboutRoute
   '/explore': typeof ExploreRoute
   '/onboarding': typeof OnboardingRoute
   '/privacy': typeof PrivacyRoute
+  '/robots.txt': typeof RobotsDottxtRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/terms': typeof TermsRoute
+  '/unsubscribe': typeof UnsubscribeRoute
   '/_app/home': typeof AppHomeRoute
   '/_app/inbox': typeof AppInboxRoute
   '/_app/notifications': typeof AppNotificationsRoute
@@ -166,16 +234,24 @@ export interface FileRoutesById {
   '/sign-in/$': typeof SignInSplatRoute
   '/sign-up/$': typeof SignUpSplatRoute
   '/u/$username': typeof UUsernameRoute
+  '/_app/admin/emails': typeof AppAdminEmailsRouteWithChildren
+  '/_app/admin/emails/$campaignId': typeof AppAdminEmailsCampaignIdRoute
+  '/_app/admin/emails/log': typeof AppAdminEmailsLogRoute
   '/_app/project/$owner/$repo': typeof AppProjectOwnerRepoRoute
+  '/_app/admin/emails/': typeof AppAdminEmailsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/about'
     | '/explore'
     | '/onboarding'
     | '/privacy'
+    | '/robots.txt'
+    | '/sitemap.xml'
     | '/terms'
+    | '/unsubscribe'
     | '/home'
     | '/inbox'
     | '/notifications'
@@ -186,14 +262,22 @@ export interface FileRouteTypes {
     | '/sign-in/$'
     | '/sign-up/$'
     | '/u/$username'
+    | '/admin/emails'
+    | '/admin/emails/$campaignId'
+    | '/admin/emails/log'
     | '/project/$owner/$repo'
+    | '/admin/emails/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/about'
     | '/explore'
     | '/onboarding'
     | '/privacy'
+    | '/robots.txt'
+    | '/sitemap.xml'
     | '/terms'
+    | '/unsubscribe'
     | '/home'
     | '/inbox'
     | '/notifications'
@@ -204,15 +288,22 @@ export interface FileRouteTypes {
     | '/sign-in/$'
     | '/sign-up/$'
     | '/u/$username'
+    | '/admin/emails/$campaignId'
+    | '/admin/emails/log'
     | '/project/$owner/$repo'
+    | '/admin/emails'
   id:
     | '__root__'
     | '/'
     | '/_app'
+    | '/about'
     | '/explore'
     | '/onboarding'
     | '/privacy'
+    | '/robots.txt'
+    | '/sitemap.xml'
     | '/terms'
+    | '/unsubscribe'
     | '/_app/home'
     | '/_app/inbox'
     | '/_app/notifications'
@@ -223,16 +314,24 @@ export interface FileRouteTypes {
     | '/sign-in/$'
     | '/sign-up/$'
     | '/u/$username'
+    | '/_app/admin/emails'
+    | '/_app/admin/emails/$campaignId'
+    | '/_app/admin/emails/log'
     | '/_app/project/$owner/$repo'
+    | '/_app/admin/emails/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AppRoute: typeof AppRouteWithChildren
+  AboutRoute: typeof AboutRoute
   ExploreRoute: typeof ExploreRoute
   OnboardingRoute: typeof OnboardingRoute
   PrivacyRoute: typeof PrivacyRoute
+  RobotsDottxtRoute: typeof RobotsDottxtRoute
+  SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   TermsRoute: typeof TermsRoute
+  UnsubscribeRoute: typeof UnsubscribeRoute
   CSlugRoute: typeof CSlugRoute
   SignInSplatRoute: typeof SignInSplatRoute
   SignUpSplatRoute: typeof SignUpSplatRoute
@@ -241,11 +340,32 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/unsubscribe': {
+      id: '/unsubscribe'
+      path: '/unsubscribe'
+      fullPath: '/unsubscribe'
+      preLoaderRoute: typeof UnsubscribeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/terms': {
       id: '/terms'
       path: '/terms'
       fullPath: '/terms'
       preLoaderRoute: typeof TermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sitemap.xml': {
+      id: '/sitemap.xml'
+      path: '/sitemap.xml'
+      fullPath: '/sitemap.xml'
+      preLoaderRoute: typeof SitemapDotxmlRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/robots.txt': {
+      id: '/robots.txt'
+      path: '/robots.txt'
+      fullPath: '/robots.txt'
+      preLoaderRoute: typeof RobotsDottxtRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/privacy': {
@@ -267,6 +387,13 @@ declare module '@tanstack/react-router' {
       path: '/explore'
       fullPath: '/explore'
       preLoaderRoute: typeof ExploreRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/about': {
+      id: '/about'
+      path: '/about'
+      fullPath: '/about'
+      preLoaderRoute: typeof AboutRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_app': {
@@ -353,6 +480,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppHomeRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/admin/emails': {
+      id: '/_app/admin/emails'
+      path: '/admin/emails'
+      fullPath: '/admin/emails'
+      preLoaderRoute: typeof AppAdminEmailsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/admin/emails/': {
+      id: '/_app/admin/emails/'
+      path: '/'
+      fullPath: '/admin/emails/'
+      preLoaderRoute: typeof AppAdminEmailsIndexRouteImport
+      parentRoute: typeof AppAdminEmailsRoute
+    }
     '/_app/project/$owner/$repo': {
       id: '/_app/project/$owner/$repo'
       path: '/project/$owner/$repo'
@@ -360,8 +501,38 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppProjectOwnerRepoRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/admin/emails/log': {
+      id: '/_app/admin/emails/log'
+      path: '/log'
+      fullPath: '/admin/emails/log'
+      preLoaderRoute: typeof AppAdminEmailsLogRouteImport
+      parentRoute: typeof AppAdminEmailsRoute
+    }
+    '/_app/admin/emails/$campaignId': {
+      id: '/_app/admin/emails/$campaignId'
+      path: '/$campaignId'
+      fullPath: '/admin/emails/$campaignId'
+      preLoaderRoute: typeof AppAdminEmailsCampaignIdRouteImport
+      parentRoute: typeof AppAdminEmailsRoute
+    }
   }
 }
+
+interface AppAdminEmailsRouteChildren {
+  AppAdminEmailsCampaignIdRoute: typeof AppAdminEmailsCampaignIdRoute
+  AppAdminEmailsLogRoute: typeof AppAdminEmailsLogRoute
+  AppAdminEmailsIndexRoute: typeof AppAdminEmailsIndexRoute
+}
+
+const AppAdminEmailsRouteChildren: AppAdminEmailsRouteChildren = {
+  AppAdminEmailsCampaignIdRoute: AppAdminEmailsCampaignIdRoute,
+  AppAdminEmailsLogRoute: AppAdminEmailsLogRoute,
+  AppAdminEmailsIndexRoute: AppAdminEmailsIndexRoute,
+}
+
+const AppAdminEmailsRouteWithChildren = AppAdminEmailsRoute._addFileChildren(
+  AppAdminEmailsRouteChildren,
+)
 
 interface AppRouteChildren {
   AppHomeRoute: typeof AppHomeRoute
@@ -370,6 +541,7 @@ interface AppRouteChildren {
   AppProfileRoute: typeof AppProfileRoute
   AppSavedRoute: typeof AppSavedRoute
   AppSettingsRoute: typeof AppSettingsRoute
+  AppAdminEmailsRoute: typeof AppAdminEmailsRouteWithChildren
   AppProjectOwnerRepoRoute: typeof AppProjectOwnerRepoRoute
 }
 
@@ -380,6 +552,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppProfileRoute: AppProfileRoute,
   AppSavedRoute: AppSavedRoute,
   AppSettingsRoute: AppSettingsRoute,
+  AppAdminEmailsRoute: AppAdminEmailsRouteWithChildren,
   AppProjectOwnerRepoRoute: AppProjectOwnerRepoRoute,
 }
 
@@ -388,10 +561,14 @@ const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AppRoute: AppRouteWithChildren,
+  AboutRoute: AboutRoute,
   ExploreRoute: ExploreRoute,
   OnboardingRoute: OnboardingRoute,
   PrivacyRoute: PrivacyRoute,
+  RobotsDottxtRoute: RobotsDottxtRoute,
+  SitemapDotxmlRoute: SitemapDotxmlRoute,
   TermsRoute: TermsRoute,
+  UnsubscribeRoute: UnsubscribeRoute,
   CSlugRoute: CSlugRoute,
   SignInSplatRoute: SignInSplatRoute,
   SignUpSplatRoute: SignUpSplatRoute,

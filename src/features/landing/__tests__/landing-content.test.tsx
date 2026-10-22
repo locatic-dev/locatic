@@ -1,48 +1,48 @@
 // @vitest-environment jsdom
-import { render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { AnchorHTMLAttributes, ReactNode } from 'react'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { Id } from '../../../../convex/_generated/dataModel'
-import type { ProjectCardPreview } from '@/features/contracts'
-import { decodeLandDots } from '../globe'
 
 vi.mock('@tanstack/react-router', () => ({
   Link: ({
     children,
     params,
-    search: _search,
+    search,
     to,
     ...props
   }: AnchorHTMLAttributes<HTMLAnchorElement> & {
     children: ReactNode
     params?: Record<string, string>
-    search?: unknown
+    search?: Record<string, string>
     to: string
-  }) => (
-    <a
-      href={to.replace(
-        /\$(\w+)/g,
-        (_match, key: string) => params?.[key] ?? '',
-      )}
-      {...props}
-    >
-      {children}
-    </a>
-  ),
+  }) => {
+    const path = to.replace(
+      /\$(\w+)/g,
+      (_match, key: string) => params?.[key] ?? '',
+    )
+    const query = new URLSearchParams(search).toString()
+    return (
+      <a href={query ? `${path}?${query}` : path} {...props}>
+        {children}
+      </a>
+    )
+  },
 }))
 
+import { HeroActivityList } from '../hero-activity-list'
 import { HeroMapCaption } from '../hero-map-caption'
 import {
-  EXAMPLE_PINGS,
   LANDING_MAP_MAX_PINS,
   LANDING_MAP_MIN_CITIES,
+  getCitiesWithActivity,
   getLandingCityDots,
   getLandingMap,
   getLatLngCell,
   getPingSequence,
-  getShowcaseCityIds,
   type ActiveMapCity,
+  type LandingActivity,
 } from '../landing-content'
 
 function city(
@@ -63,56 +63,56 @@ const FIVE_CITIES = [
   city('nairobi', -1.29, 36.82, 1),
 ]
 
-function preview(
+const BERLIN = { name: 'Berlin', slug: 'berlin', lat: 52.52, lng: 13.4 }
+const BENGALURU = {
+  name: 'Bengaluru',
+  slug: 'bengaluru',
+  lat: 12.97,
+  lng: 77.59,
+}
+
+function base(
+  key: string,
+  at: number,
+  actorName: string,
   repo: string,
-  owner = 'alice',
-  extra: Partial<ProjectCardPreview> = {},
-): ProjectCardPreview {
+  where = BERLIN,
+) {
+  const handle = actorName.split(' ')[0]?.toLowerCase() ?? actorName
   return {
-    projectId: `project_${repo}` as Id<'projects'>,
-    ownerUserId: `user_${owner}` as Id<'users'>,
-    fullName: `${owner}/${repo}`,
-    owner,
-    repo,
-    description: `${repo} does one thing well`,
-    primaryLanguage: 'TypeScript',
-    languages: [],
-    githubStars: 0,
-    locaticLikes: 0,
-    commentsCount: 0,
-    lastCommitAt: Date.now() - 2 * 60 * 60 * 1000,
-    updatedAt: Date.now(),
-    authorName: owner,
-    authorHandle: owner,
-    authorAvatarUrl: null,
-    cityLabel: 'Bengaluru',
-    cityVisibilityState: 'exact_city',
-    ...extra,
+    key,
+    at,
+    actor: {
+      name: actorName,
+      handle,
+      avatarUrl: `https://avatars.example/${handle}.png`,
+    },
+    project: { owner: handle, repo, description: `${repo} does one thing` },
+    city: where,
   }
 }
 
-const BENGALURU_ID = 'city_bengaluru' as Id<'cities'>
-const BERLIN_ID = 'city_berlin' as Id<'cities'>
-const UNKNOWN_ID = 'city_unknown' as Id<'cities'>
+type ActivityOf<Kind extends LandingActivity['kind']> = Extract<
+  LandingActivity,
+  { kind: Kind }
+>
 
-const CITY_DOCS = [
-  {
-    _id: BENGALURU_ID,
-    name: 'Bengaluru',
-    location: { lat: 12.97, lng: 77.59 },
-  },
-  { _id: BERLIN_ID, name: 'Berlin', location: { lat: 52.52, lng: 13.4 } },
-]
-
-function inCity(cityId: Id<'cities'>, cityName: string) {
-  return {
-    ownerLocation: {
-      kind: 'city' as const,
-      cityId,
-      cityName,
-      regionLabel: null,
-    },
-  }
+const POST: ActivityOf<'post'> = {
+  ...base('post:1', 3_000, 'Saroj Pedada', 'portfolio'),
+  kind: 'post',
+  postId: 'post_1' as Id<'posts'>,
+  excerpt: 'shipped dark mode',
+}
+const RELEASE: ActivityOf<'release'> = {
+  ...base('release:1', 2_000, 'Bob', 'cli', BENGALURU),
+  kind: 'release',
+  releaseId: 'release_1' as Id<'project_releases'>,
+  tag: 'v0.3',
+  name: 'Faster startup',
+}
+const PROJECT: ActivityOf<'project'> = {
+  ...base('project:1', 1_000, 'Carol', 'notes', BENGALURU),
+  kind: 'project',
 }
 
 describe('getLandingMap', () => {
@@ -192,227 +192,159 @@ describe('HeroMapCaption', () => {
       screen.getByRole('link', { name: 'bengaluru' }).getAttribute('href'),
     ).toBe('/c/bengaluru')
     expect(screen.getAllByRole('link')).toHaveLength(3)
-    expect(screen.getByText(/on the map: builders in/).textContent).toBe(
+    expect(screen.getByText(/^on the map: builders in/).textContent).toBe(
       'on the map: builders in bengaluru, berlin, new-york and 2 more cities',
     )
-    expect(screen.queryByText('example')).toBeNull()
   })
 
-  it('labels the example map as an example', () => {
-    render(<HeroMapCaption map={{ kind: 'example' }} />)
+  it('renders nothing while there is no city map', () => {
+    const { container } = render(<HeroMapCaption map={{ kind: 'example' }} />)
 
-    expect(screen.getByText('example')).toBeTruthy()
-    expect(screen.queryByRole('link')).toBeNull()
-  })
-})
-
-describe('getShowcaseCityIds', () => {
-  it('collects each exact owner city once and skips the rest', () => {
-    expect(
-      getShowcaseCityIds([
-        preview('a', 'alice', inCity(BENGALURU_ID, 'Bengaluru')),
-        preview('b', 'bob', inCity(BENGALURU_ID, 'Bengaluru')),
-        preview('c', 'carol', {
-          ownerLocation: { kind: 'region', regionLabel: 'Karnataka' },
-        }),
-        preview('d', 'dan', { ownerLocation: { kind: 'none' } }),
-        preview('e', 'erin'),
-        preview('f', 'fay', inCity(BERLIN_ID, 'Berlin')),
-      ]),
-    ).toEqual([BENGALURU_ID, BERLIN_ID])
-    expect(getShowcaseCityIds(undefined)).toEqual([])
+    expect(container.innerHTML).toBe('')
   })
 })
 
 describe('getPingSequence', () => {
-  it('uses the labelled example pings below the city threshold', () => {
-    const items = getPingSequence({
-      map: getLandingMap(FIVE_CITIES.slice(0, LANDING_MAP_MIN_CITIES - 1)),
-      showcase: [preview('real', 'alice', inCity(BENGALURU_ID, 'Bengaluru'))],
-      cities: CITY_DOCS,
-    })
-
-    expect(items).toEqual(EXAMPLE_PINGS)
-    expect(items.length).toBeGreaterThanOrEqual(3)
-    expect(items.every((item) => item.example)).toBe(true)
-    // Example copy never names a person or a real repository.
-    expect(items.some((item) => /alice|real/.test(item.headline))).toBe(false)
-    // Every example is a different place, on a land dot of the globe.
-    expect(new Set(items.map(getLatLngCell)).size).toBe(items.length)
-    const land = decodeLandDots()
-    for (const { lat, lng } of items) {
-      expect(
-        land.lat.some(
-          (dotLat, index) =>
-            Math.abs(dotLat - lat) <= 2 && Math.abs(land.lng[index] - lng) <= 2,
-        ),
-      ).toBe(true)
-    }
+  it('pings nothing while there is no activity: nothing is invented', () => {
+    expect(getPingSequence([])).toEqual([])
+    expect(getPingSequence(undefined)).toEqual([])
   })
 
-  it('pings showcase projects in order, on their exact city', () => {
-    const items = getPingSequence({
-      map: getLandingMap(FIVE_CITIES),
-      showcase: [
-        preview('portfolio', 'saroj', {
-          ...inCity(BERLIN_ID, 'Berlin'),
-          authorName: 'Saroj Pedada',
-          authorAvatarUrl: 'https://avatars.example/saroj.png',
-          latestUpdate: { kind: 'repo', at: 1_000 },
-        }),
-        preview('cli', 'bob', {
-          ...inCity(BENGALURU_ID, 'Bengaluru'),
-          authorName: 'Bob',
-          latestUpdate: { kind: 'release', at: 2_000, label: 'v0.3' },
-        }),
-        preview('notes', 'carol', {
-          ...inCity(BENGALURU_ID, 'Bengaluru'),
-          authorName: 'Carol',
-          latestUpdate: { kind: 'post', at: 3_000 },
-        }),
-      ],
-      cities: CITY_DOCS,
-    })
+  it('pings each item in order, on its city, leading to what it describes', () => {
+    const items = getPingSequence([POST, RELEASE, PROJECT])
 
-    expect(
-      items.slice(0, 3).map(({ headline, place, at, example }) => ({
-        headline,
-        place,
-        at,
-        example,
-      })),
-    ).toEqual([
+    expect(items).toEqual([
       {
-        headline: 'Saroj pushed portfolio',
+        key: 'post:1',
+        kind: 'post',
+        lat: BERLIN.lat,
+        lng: BERLIN.lng,
+        headline: 'Saroj posted in portfolio',
+        detail: 'shipped dark mode',
         place: 'Berlin',
-        at: 1_000,
-        example: false,
+        at: 3_000,
+        avatarUrl: 'https://avatars.example/saroj.png',
+        link: { owner: 'saroj', repo: 'portfolio', search: { post: 'post_1' } },
       },
       {
+        key: 'release:1',
+        kind: 'release',
+        lat: BENGALURU.lat,
+        lng: BENGALURU.lng,
         headline: 'Bob released cli v0.3',
+        detail: 'Faster startup',
         place: 'Bengaluru',
         at: 2_000,
-        example: false,
+        avatarUrl: 'https://avatars.example/bob.png',
+        link: { owner: 'bob', repo: 'cli', search: { release: 'release_1' } },
       },
       {
-        headline: 'Carol posted in notes',
+        key: 'project:1',
+        kind: 'project',
+        lat: BENGALURU.lat,
+        lng: BENGALURU.lng,
+        headline: 'Carol shared notes',
+        detail: 'notes does one thing',
         place: 'Bengaluru',
-        at: 3_000,
-        example: false,
+        at: 1_000,
+        avatarUrl: 'https://avatars.example/carol.png',
+        link: { owner: 'carol', repo: 'notes', search: {} },
       },
     ])
-    // Two showcase cells: a busy city in a third cell tops the cycle up.
-    expect(items.slice(3).map((item) => item.place)).toEqual(['new-york'])
-    expect(items[0]?.avatarUrl).toBe('https://avatars.example/saroj.png')
-    // The ping sits on the city's own coordinates.
-    expect({ lat: items[0]?.lat, lng: items[0]?.lng }).toEqual(
-      CITY_DOCS[1].location,
+  })
+
+  it('skips a release name that only repeats its tag, and an empty excerpt', () => {
+    const [release, post] = getPingSequence([
+      { ...RELEASE, name: 'v0.3' },
+      { ...POST, excerpt: '' },
+    ])
+
+    expect(release?.detail).toBeNull()
+    expect(post?.detail).toBeNull()
+  })
+
+  it('pings a push as shipped, leading to its project', () => {
+    const [item] = getPingSequence([
+      { ...base('push:1', 4_000, 'Dana', 'engine'), kind: 'push' },
+    ])
+
+    expect(item).toMatchObject({
+      kind: 'push',
+      headline: 'Dana shipped engine',
+      detail: 'engine does one thing',
+      place: 'Berlin',
+      link: { owner: 'dana', repo: 'engine', search: {} },
+    })
+  })
+
+  it('falls back to the handle when the display name is blank', () => {
+    const [item] = getPingSequence([
+      { ...PROJECT, actor: { ...PROJECT.actor, name: '  ' } },
+    ])
+
+    expect(item?.headline).toBe('carol shared notes')
+  })
+})
+
+describe('HeroActivityList', () => {
+  afterEach(() => {
+    cleanup()
+  })
+
+  it('gives keyboards every activity link, with its deep link, without the city caption', () => {
+    const onClick = vi.fn((event: MouseEvent) => event.preventDefault())
+    render(
+      <>
+        <HeroMapCaption map={getLandingMap([])} />
+        <HeroActivityList items={getPingSequence([POST, RELEASE, PROJECT])} />
+      </>,
     )
-  })
 
-  it('never pings region-only, hidden or unknown-city owners', () => {
-    const items = getPingSequence({
-      map: getLandingMap(FIVE_CITIES),
-      showcase: [
-        preview('region', 'rita', {
-          ownerLocation: { kind: 'region', regionLabel: 'Karnataka' },
-        }),
-        preview('hidden', 'hal', { ownerLocation: { kind: 'none' } }),
-        preview('nosignal', 'nate'),
-        preview('gone', 'gus', inCity(UNKNOWN_ID, 'Atlantis')),
-        preview('shipit', 'bob', inCity(BENGALURU_ID, 'Bengaluru')),
-      ],
-      cities: CITY_DOCS,
-    })
-
-    const headlines = items.map((item) => item.headline)
-    // No latest update: the project is shared, not claimed as a push.
-    expect(headlines[0]).toBe('bob shared shipit')
+    const list = screen.getByRole('list', { name: 'recent activity' })
+    expect(list.closest('[aria-hidden="true"]')).toBeNull()
+    const post = screen.getByRole('link', { name: 'Saroj posted in portfolio' })
+    expect(post.getAttribute('href')).toBe(
+      '/project/saroj/portfolio?post=post_1',
+    )
+    expect(post.getAttribute('tabindex')).toBeNull()
     expect(
-      headlines.some((headline) => /rita|hal|nate|gus|Atlantis/.test(headline)),
-    ).toBe(false)
-    expect(items.map((item) => item.place)).not.toContain('Atlantis')
+      screen
+        .getByRole('link', { name: 'Bob released cli v0.3' })
+        .getAttribute('href'),
+    ).toBe('/project/bob/cli?release=release_1')
+    expect(
+      screen
+        .getByRole('link', { name: 'Carol shared notes' })
+        .getAttribute('href'),
+    ).toBe('/project/carol/notes')
+    expect(list.textContent).toContain('Saroj posted in portfolio · Berlin')
+
+    post.focus()
+    expect(document.activeElement).toBe(post)
+    post.addEventListener('click', onClick)
+    fireEvent.click(post)
+    expect(onClick).toHaveBeenCalledTimes(1)
   })
 
-  it('falls back to the busiest cities when no showcase project has a city', () => {
-    const items = getPingSequence({
-      map: getLandingMap(FIVE_CITIES),
-      showcase: [],
-      cities: [],
-    })
+  it('renders nothing while there is no activity', () => {
+    const { container } = render(<HeroActivityList items={[]} />)
+
+    expect(container.innerHTML).toBe('')
+  })
+})
+
+describe('getCitiesWithActivity', () => {
+  it('keeps only the cities with activity, in their order', () => {
+    const bengaluru = city('bengaluru', 12.97, 77.59, 9)
+    const berlin = city('berlin', 52.52, 13.4, 6)
+    // Builders, but no projects: nothing there ever pings.
+    const vizag = city('visakhapatnam', 17.68, 83.2, 1)
 
     expect(
-      items.map(({ place, headline, at }) => ({ place, headline, at })),
-    ).toEqual([
-      { place: 'bengaluru', headline: '9 builders', at: null },
-      { place: 'berlin', headline: '6 builders', at: null },
-      { place: 'new-york', headline: '4 builders', at: null },
-    ])
-    expect(items[0]).toMatchObject({
-      lat: FIVE_CITIES[0].lat,
-      lng: FIVE_CITIES[0].lng,
-    })
-    expect(items.every((item) => !item.example)).toBe(true)
-  })
-
-  it('tops up with busy cities in cells that are not already pinged', () => {
-    const items = getPingSequence({
-      map: getLandingMap(FIVE_CITIES),
-      showcase: [preview('shipit', 'bob', inCity(BENGALURU_ID, 'Bengaluru'))],
-      cities: CITY_DOCS,
-    })
-
-    // Bengaluru already pings for the project, so the city tops up skip it.
-    expect(items.map((item) => item.place)).toEqual([
-      'Bengaluru',
-      'berlin',
-      'new-york',
-    ])
-  })
-
-  it('tops up past the featured cities when the busiest ones share one cell', () => {
-    // Three Bengaluru-area cities lead by builders and share one ~1° cell.
-    const cities = [
-      city('blr-central', 12.97, 77.59, 9),
-      city('blr-north', 12.98, 77.6, 8),
-      city('blr-south', 12.96, 77.58, 7),
-      city('berlin', 52.52, 13.4, 6),
-      city('new-york', 40.71, -74.0, 4),
-    ]
-    const cell = getLatLngCell(cities[0])
-    expect(getLatLngCell(cities[1])).toBe(cell)
-    expect(getLatLngCell(cities[2])).toBe(cell)
-
-    const items = getPingSequence({
-      map: getLandingMap(cities),
-      showcase: [],
-      cities: [],
-    })
-
-    expect(items.map(({ place, headline }) => ({ place, headline }))).toEqual([
-      { place: 'blr-central', headline: '9 builders' },
-      { place: 'berlin', headline: '6 builders' },
-      { place: 'new-york', headline: '4 builders' },
-    ])
-  })
-
-  it('tops up with busy cities when every showcase owner shares one cell', () => {
-    const items = getPingSequence({
-      map: getLandingMap(FIVE_CITIES),
-      showcase: ['a', 'b', 'c', 'd'].map((repo) =>
-        preview(repo, repo, inCity(BENGALURU_ID, 'Bengaluru')),
-      ),
-      cities: CITY_DOCS,
-    })
-
-    expect(items.map((item) => item.place)).toEqual([
-      'Bengaluru',
-      'Bengaluru',
-      'Bengaluru',
-      'Bengaluru',
-      'berlin',
-      'new-york',
-    ])
+      getCitiesWithActivity([bengaluru, vizag, berlin], [POST, RELEASE]),
+    ).toEqual([bengaluru, berlin])
+    expect(getCitiesWithActivity([bengaluru, berlin], [])).toEqual([])
+    expect(getCitiesWithActivity(undefined, [POST])).toEqual([])
   })
 })
 

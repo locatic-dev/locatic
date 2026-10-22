@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { AnchorHTMLAttributes, ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -26,11 +27,8 @@ vi.mock('@tanstack/react-router', () => ({
   }),
 }))
 
-vi.mock('@clerk/tanstack-react-start', () => ({
-  useClerk: () => ({
-    signOut: vi.fn(),
-  }),
-}))
+const signOut = vi.hoisted(() => vi.fn())
+vi.mock('@/integrations/clerk/sign-out', () => ({ useSignOut: () => signOut }))
 
 vi.mock('@/features/explore/state', () => ({
   useResumeExploreSearch: () => ({
@@ -80,4 +78,57 @@ describe('SidebarNav', () => {
     expect(screen.getByRole('link', { name: 'notifications' })).toBeTruthy()
     expect(screen.queryByRole('link', { name: /unread/ })).toBeNull()
   })
+})
+
+describe('AccountMenu', () => {
+  const viewer = { displayName: 'Ada', githubUsername: 'ada' }
+
+  it.each([false, true])(
+    'opens About from the account menu when isEmailAdmin is %s',
+    async (isEmailAdmin) => {
+      const user = userEvent.setup()
+      render(<SidebarNav viewer={viewer} isEmailAdmin={isEmailAdmin} />)
+
+      await user.click(screen.getByRole('button', { name: 'Account menu' }))
+      expect(screen.getByRole('menuitem', { name: 'settings' })).toBeTruthy()
+      expect(
+        screen.queryByRole('menuitem', { name: 'email campaigns' }) !== null,
+      ).toBe(isEmailAdmin)
+
+      await user.click(screen.getByRole('menuitem', { name: 'about' }))
+      expect(
+        await screen.findByRole('dialog', {
+          name: 'It started with a question',
+        }),
+      ).toBeTruthy()
+    },
+  )
+
+  it('offers email campaigns to email admins only', async () => {
+    const user = userEvent.setup()
+    const { unmount } = render(<SidebarNav viewer={viewer} isEmailAdmin />)
+
+    await user.click(screen.getByRole('button', { name: 'Account menu' }))
+    expect(
+      screen
+        .getByRole('menuitem', { name: 'email campaigns' })
+        .getAttribute('href'),
+    ).toBe('/admin/emails')
+    unmount()
+
+    render(<SidebarNav viewer={viewer} />)
+    await user.click(screen.getByRole('button', { name: 'Account menu' }))
+    expect(screen.getByRole('menuitem', { name: 'settings' })).toBeTruthy()
+    expect(
+      screen.queryByRole('menuitem', { name: 'email campaigns' }),
+    ).toBeNull()
+  })
+})
+
+it('uses the shared sign-out action from the desktop account menu', async () => {
+  const user = userEvent.setup()
+  render(<SidebarNav viewer={{ displayName: 'Ada', githubUsername: 'ada' }} />)
+  await user.click(screen.getByRole('button', { name: 'Account menu' }))
+  await user.click(screen.getByRole('menuitem', { name: 'sign out' }))
+  expect(signOut).toHaveBeenCalledOnce()
 })

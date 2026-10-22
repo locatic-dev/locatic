@@ -4,7 +4,7 @@ import {
   useQueryClient,
   useSuspenseQuery,
 } from '@tanstack/react-query'
-import { useClerk } from '@clerk/tanstack-react-start'
+import { useSignOut } from '@/integrations/clerk/sign-out'
 import { useEffect, useState, useTransition } from 'react'
 import { useAction } from 'convex/react'
 import { api } from '../../../convex/_generated/api'
@@ -81,6 +81,7 @@ import { reportActionError } from '@/lib/action-error'
 import { showUndoToast } from '@/lib/undo-toast'
 import { Pin } from '@/lib/icons'
 import { shouldPrefetchPrivateConvexQueries } from '@/lib/auth-routing'
+import { seo } from '@/lib/seo'
 
 const TAB_QUERY_STALE_TIME = 60_000
 const SOCIAL_PAGE_SIZE = 12
@@ -127,6 +128,7 @@ export const Route = createFileRoute('/_app/profile')({
   pendingComponent: ProfileRoutePending,
   pendingMs: ROUTE_PENDING_MS,
   pendingMinMs: ROUTE_PENDING_MIN_MS,
+  head: () => seo({ title: 'your profile', noindex: true }),
   component: ProfilePage,
 })
 
@@ -149,7 +151,7 @@ function resolveVisibleSocialPage(
 function ProfilePage() {
   const { tab, network = 'followers' } = Route.useSearch()
   const navigate = Route.useNavigate()
-  const { signOut } = useClerk()
+  const signOut = useSignOut()
   const queryClient = useQueryClient()
   const [isRoutePending, startRouteTransition] = useTransition()
   const { data } = useSuspenseQuery(privateProfileOverviewQueryOptions())
@@ -587,9 +589,7 @@ function ProfilePage() {
                 <Button asChild size="touch" variant="ghost">
                   <Link to="/saved">saved</Link>
                 </Button>
-                <ProfileMobileAccountActions
-                  onSignOut={() => void signOut({ redirectUrl: '/' })}
-                />
+                <ProfileMobileAccountActions onSignOut={signOut} />
               </>
             }
           />

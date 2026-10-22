@@ -2,6 +2,7 @@ import { ConvexError, v } from 'convex/values'
 
 import { mutation, query } from './_generated/server'
 import { getViewerOrThrow } from './lib/auth'
+import { enforceRateLimit } from './lib/rate_limits'
 import {
   backfillHomeFeedForFollow,
   enqueueActivityEventFanOut,
@@ -66,6 +67,7 @@ export const follow = mutation({
       return existing
     }
 
+    await enforceRateLimit(ctx, 'followWrite', String(viewer._id))
     const followId = await ctx.db.insert('follows', {
       followerId: viewer._id,
       followingId: args.targetUserId,

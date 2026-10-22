@@ -786,11 +786,23 @@ The landing reads two public, viewer-independent queries:
   `builderCount > 0`, most builders first. City-level fields only (slug,
   name, coordinates, builder count); no user appears in the payload. With more
   than 200 active cities the map shows an arbitrary 200.
-- `api.projects.listLandingShowcase`: one
-  `projects.by_explore_eligible_last_commit` read, `take(12)`, plus the owners
-  (at most 12 reads), keeping visible projects of active, discoverable owners,
-  one per builder, up to 3, as public card previews. Hidden-city builders can
-  appear without a city, as in global Explore.
+- `api.landing.listRecentActivity`: the newest posts
+  (`posts.by_deleted_created`), published releases
+  (`project_releases.by_published`), shared projects
+  (`projects.by_explore_eligible_added`) and pushed projects
+  (`projects.by_explore_eligible_last_commit`), read lazily and merged newest
+  first, plus cached project, owner and city reads. A project is one item:
+  shipped at `lastCommitAt` when pushed after it was shared, else shared at
+  `addedToLocaticAt`. Keeps visible projects of active, discoverable owners
+  who disclose an exact city (region-only and hidden-city builders never
+  appear), at most two per builder, up to 12. Skipped rows do not end the
+  scan; it stops at 12 items or after 400 index rows. Each item carries its
+  city's coordinates and links to its project, post (`?post=`) or release
+  (`?release=`).
+
+The globe's city dots and caption use only the map cities that appear in that
+activity (`getCitiesWithActivity`): a builder with no projects counts toward a
+city's `builderCount` but gives it nothing to ping, so it gets no dot.
 
 ## Do Not Change Casually
 

@@ -180,9 +180,12 @@ export const nearbyCitiesQueryOptions = (cityId: Id<'cities'> | null) =>
 export const landingMapCitiesQueryOptions = () =>
   convexQuery(api.cities.listActiveForMap, {})
 
-/** Landing showcase (plan item D7): up to three eligible public projects. */
-export const landingShowcaseQueryOptions = () =>
-  convexQuery(api.projects.listLandingShowcase, {})
+/**
+ * Landing activity (plan item D7): recent posts, releases and projects on
+ * their owners' cities, public.
+ */
+export const landingActivityQueryOptions = () =>
+  convexQuery(api.landing.listRecentActivity, {})
 
 export const projectDetailQueryOptions = ({
   owner,

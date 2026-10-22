@@ -14,6 +14,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => {
   const toastError = vi.fn()
   return {
+    signOut: vi.fn(),
     pinOwnedProject: vi.fn(),
     refreshProjectMetadata: vi.fn(),
     showcase: null as unknown,
@@ -47,8 +48,8 @@ vi.mock('@tanstack/react-query', async (importOriginal) => ({
   useSuspenseQuery: () => ({ data: privateOverview }),
 }))
 
-vi.mock('@clerk/tanstack-react-start', () => ({
-  useClerk: () => ({ signOut: vi.fn() }),
+vi.mock('@/integrations/clerk/sign-out', () => ({
+  useSignOut: () => mocks.signOut,
 }))
 
 vi.mock('convex/react', () => ({
@@ -277,4 +278,11 @@ describe('own profile page (C6, C8)', () => {
       }),
     )
   })
+})
+
+it('wires the mobile profile sign-out button to the shared action', async () => {
+  await renderOwnProfile([])
+  fireEvent.click(screen.getByRole('button', { name: 'sign out' }))
+  expect(mocks.signOut).toHaveBeenCalledOnce()
+  cleanup()
 })

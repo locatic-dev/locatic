@@ -64,6 +64,20 @@ describe('relativeTime', () => {
     expect(relativeTime(Number.NaN)).toBe('unknown')
     expect(relativeTime(Number.POSITIVE_INFINITY)).toBe('unknown')
   })
+
+  it('returns years ago for year-old timestamps', () => {
+    expect(relativeTime(Date.now() - 365 * 86400_000)).toBe('1y ago')
+    expect(relativeTime(Date.now() - 730 * 86400_000)).toBe('2y ago')
+  })
+
+  it('treats future timestamps as just now', () => {
+    expect(relativeTime(Date.now() + 5 * 60_000)).toBe('just now')
+  })
+
+  it('returns a safe fallback for invalid timestamps', () => {
+    expect(relativeTime(Number.NaN)).toBe('unknown')
+    expect(relativeTime(Number.POSITIVE_INFINITY)).toBe('unknown')
+  })
 })
 
 describe('formatDate', () => {

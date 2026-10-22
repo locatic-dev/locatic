@@ -34,6 +34,14 @@ import {
   socialLinksValidator,
   tabVisibilityValidator,
   cityVisibilityValidator,
+  emailCampaignAudienceValidator,
+  emailCampaignContentValidator,
+  emailCampaignScheduledValidator,
+  emailCampaignSentValidator,
+  emailCampaignStateValidator,
+  emailCategoryValidator,
+  emailPreferenceSourceValidator,
+  emailSendStatusValidator,
 } from './lib/validators'
 
 export default defineSchema({
@@ -155,7 +163,18 @@ export default defineSchema({
       dms: v.boolean(),
       weeklyDigest: v.boolean(),
       contributorRecognized: v.boolean(),
+      // Read as `?? true` until the backfill runs; then required.
+      productUpdates: v.optional(v.boolean()),
     }),
+    // From Clerk's primary address; optional until the backfill runs.
+    emailVerified: v.optional(v.boolean()),
+    // Set when the primary address changes; bounces before it are ignored.
+    emailChangedAt: v.optional(v.number()),
+    // Deprecated: PR #32's subscription state, which development data may
+    // still hold. Nothing reads or writes it; emailMigrations
+    // .clearLegacyEmailSubscription removes it, then the field goes in the
+    // same change that makes emailVerified and productUpdates required.
+    emailSubscription: v.optional(v.any()),
     githubContributions: v.optional(
       v.object({
         totalContributions: v.number(),
@@ -224,6 +243,92 @@ export default defineSchema({
   })
     .index('by_source_event', ['source', 'eventId'])
     .index('by_status_received', ['status', 'receivedAt']),
+
+  email_campaigns: defineTable({
+    title: v.string(),
+    subject: v.string(),
+    preheader: v.string(),
+    revision: v.number(),
+    templateVersion: v.number(),
+    state: emailCampaignStateValidator,
+    content: emailCampaignContentValidator,
+    preparationDiagnostics: v.array(v.string()),
+    // Who it goes to; missing means everyone in the campaign's category.
+    audience: v.optional(emailCampaignAudienceValidator),
+    // Only while `state` is 'scheduled'.
+    scheduled: v.optional(emailCampaignScheduledValidator),
+    // Set once when sending starts: the exact artifact sent, and enqueue
+    // progress.
+    sent: v.optional(emailCampaignSentValidator),
+    createdBy: v.id('users'),
+    updatedBy: v.id('users'),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_updated_at', ['updatedAt'])
+    .index('by_state_and_updated_at', ['state', 'updatedAt'])
+    .index('by_content_kind_and_period_key', [
+      'content.kind',
+      'content.periodKey',
+    ]),
+
+  email_sends: defineTable({
+    campaignId: v.id('email_campaigns'),
+    userId: v.id('users'),
+    // The campaign's category, so an opt-out cancels only that category.
+    category: emailCategoryValidator,
+    // The address it went to, kept for the send log. Optional for sends
+    // made before it was recorded; purged with the account.
+    to: v.optional(v.string()),
+    emailId: v.string(),
+    status: emailSendStatusValidator,
+    errorMessage: v.optional(v.string()),
+    // Set by the first complaint for this send, whatever its status was.
+    complaintHandledAt: v.optional(v.number()),
+    // When reconciliation next checks this row. Cleared when the row becomes
+    // final, and at its first check past the reconciliation window
+    // (emailSends.reconcileSends).
+    nextReconcileAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_campaign_and_user', ['campaignId', 'userId'])
+    .index('by_campaign_and_status', ['campaignId', 'status'])
+    .index('by_email_id', ['emailId'])
+    .index('by_created_at', ['createdAt'])
+    .index('by_status_and_created_at', ['status', 'createdAt'])
+    .index('by_user_and_status_and_created_at', [
+      'userId',
+      'status',
+      'createdAt',
+    ])
+    .index('by_user_and_category_and_status_and_created_at', [
+      'userId',
+      'category',
+      'status',
+      'createdAt',
+    ])
+    .index('by_status_and_next_reconcile_at', ['status', 'nextReconcileAt'])
+    .index('by_user_and_complaint_handled_at', [
+      'userId',
+      'complaintHandledAt',
+    ]),
+
+  email_preference_changes: defineTable({
+    userId: v.id('users'),
+    category: emailCategoryValidator,
+    subscribed: v.boolean(),
+    source: emailPreferenceSourceValidator,
+    changedAt: v.number(),
+  }).index('by_user_and_changed_at', ['userId', 'changedAt']),
+
+  email_digest_config: defineTable({
+    key: v.literal('fortnightly'),
+    anchorAt: v.number(),
+    enabled: v.boolean(),
+    updatedBy: v.id('users'),
+    updatedAt: v.number(),
+  }).index('by_key', ['key']),
 
   projects: defineTable({
     ownerId: v.id('users'),
@@ -322,6 +427,15 @@ export default defineSchema({
       'exploreOwner.isEligible',
       'addedToLocaticAt',
     ])
+    .index('by_explore_eligible_activity', [
+      'exploreOwner.isEligible',
+      'locatic.lastPublicActivityAt',
+    ])
+    // The email digest's project picker searches repository names.
+    .searchIndex('search_name', {
+      searchField: 'github.name',
+      filterFields: ['exploreOwner.isEligible'],
+    })
     .index('by_explore_eligible_last_commit', [
       'exploreOwner.isEligible',
       'github.lastCommitAt',
@@ -418,7 +532,9 @@ export default defineSchema({
     importedAt: v.number(),
   })
     .index('by_project_published', ['projectId', 'publishedAt'])
-    .index('by_project_release', ['projectId', 'githubReleaseId']),
+    .index('by_project_release', ['projectId', 'githubReleaseId'])
+    // Newest releases across projects, for the landing activity (D7).
+    .index('by_published', ['publishedAt']),
 
   saved_projects: defineTable({
     userId: v.id('users'),

@@ -21,11 +21,13 @@ const CLERK_WIDGET = '.cl-rootBox'
 const STATIC_ROUTES: Array<{ name: string; path: string; exclude?: string[] }> =
   [
     { name: 'landing', path: '/' },
+    { name: 'about', path: '/about' },
     { name: 'explore projects', path: '/explore' },
     { name: 'explore builders', path: '/explore?mode=builders&scope=global' },
     { name: 'explore posts', path: '/explore?mode=posts&scope=global' },
     { name: 'privacy', path: '/privacy' },
     { name: 'terms', path: '/terms' },
+    { name: 'unsubscribe', path: '/unsubscribe?t=invalid' },
     { name: 'sign in', path: '/sign-in', exclude: [CLERK_WIDGET] },
     { name: 'unknown city', path: '/c/atlantis-nowhere' },
     { name: 'not found', path: '/this-route-does-not-exist' },

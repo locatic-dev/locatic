@@ -145,6 +145,117 @@ export const reportStatusValidator = v.union(
 export const optionalTimestampValidator = v.union(v.number(), v.null())
 export const optionalStringValidator = v.union(v.string(), v.null())
 
+export const emailCategoryValidator = v.union(
+  v.literal('product_updates'),
+  v.literal('weekly_digest'),
+)
+
+export const emailPreferenceSourceValidator = v.union(
+  v.literal('settings'),
+  v.literal('unsubscribe_link'),
+  v.literal('one_click'),
+  v.literal('complaint'),
+  v.literal('backfill'),
+  v.literal('signup_default'),
+)
+
+export const emailCampaignStateValidator = v.union(
+  v.literal('draft'),
+  // Waiting for its send time (Undo send / Send later).
+  v.literal('scheduled'),
+  v.literal('sending'),
+  v.literal('sent'),
+  v.literal('cancelled'),
+)
+
+export const emailSendStatusValidator = v.union(
+  v.literal('queued'),
+  v.literal('sent'),
+  v.literal('delivered'),
+  v.literal('bounced'),
+  v.literal('complained'),
+  v.literal('failed'),
+  v.literal('cancelled'),
+)
+
+export const emailProjectSelectionValidator = v.object({
+  projectId: v.id('projects'),
+  name: v.string(),
+  fullName: v.string(),
+  description: optionalStringValidator,
+  url: v.string(),
+  activityAt: v.number(),
+  activityLabel: v.string(),
+})
+
+export const emailDiscussionSelectionValidator = v.object({
+  commentId: v.id('comments'),
+  title: v.string(),
+  url: v.string(),
+  summary: v.string(),
+})
+
+export const emailCtaValidator = v.union(
+  v.object({ label: v.string(), url: v.string() }),
+  v.null(),
+)
+
+export const emailCampaignContentValidator = v.union(
+  v.object({
+    kind: v.literal('announcement'),
+    body: v.string(),
+    cta: emailCtaValidator,
+  }),
+  v.object({
+    kind: v.literal('digest'),
+    body: v.string(),
+    cta: emailCtaValidator,
+    periodKey: v.string(),
+    periodStart: v.number(),
+    periodEnd: v.number(),
+    projects: v.array(emailProjectSelectionValidator),
+    discussions: v.array(emailDiscussionSelectionValidator),
+  }),
+)
+
+export const emailCampaignSentValidator = v.object({
+  revision: v.number(),
+  html: v.string(),
+  text: v.string(),
+  startedAt: v.number(),
+  startedBy: v.id('users'),
+  cursor: v.union(v.string(), v.null()),
+  lastBatchAt: v.number(),
+  enqueuedAt: v.optional(v.number()),
+  // The archive/admin copy's component email, so Stop sending cancels it too.
+  copyEmailId: v.optional(v.string()),
+})
+
+// Missing on a campaign means everyone in its category.
+export const emailCampaignAudienceValidator = v.union(
+  v.object({ kind: v.literal('everyone') }),
+  v.object({ kind: v.literal('members'), userIds: v.array(v.id('users')) }),
+)
+
+// Who gets a copy of a campaign when it starts sending.
+export const emailCopyChoiceValidator = v.union(
+  v.literal('archive'),
+  v.literal('me'),
+  v.literal('none'),
+)
+
+/** The rendered send waiting for its time; moved to `sent` when it starts. */
+export const emailCampaignScheduledValidator = v.object({
+  sendAt: v.number(),
+  revision: v.number(),
+  html: v.string(),
+  text: v.string(),
+  scheduledBy: v.id('users'),
+  scheduledAt: v.number(),
+  jobId: v.id('_scheduled_functions'),
+  copyTo: v.union(v.string(), v.null()),
+})
+
 export const cityReferenceValidator = v.union(v.id('cities'), v.null())
 
 export const socialLinksValidator = v.object({
@@ -176,6 +287,7 @@ export const locationDisclosureValidator = v.union(
     kind: v.literal('city'),
     cityId: v.id('cities'),
     cityName: v.string(),
+    citySlug: v.string(),
     regionLabel: optionalStringValidator,
   }),
   v.object({

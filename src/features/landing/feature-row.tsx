@@ -8,7 +8,7 @@ import { durations, easeOutExpo, viewportOnce } from '@/lib/motion'
 const FEATURES = [
   {
     eyebrow: '01 · discover',
-    title: 'see who is building near you',
+    title: 'start local, go global',
     desc: 'pick your city in explore and see the projects, posts and builders there, or look at every city at once.',
   },
   {

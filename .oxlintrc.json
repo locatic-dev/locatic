@@ -61,12 +61,14 @@
               {
                 "group": [
                   "**/convex/lib/*",
+                  "!**/convex/lib/content_limits",
                   "!**/convex/lib/explore",
                   "!**/convex/lib/geo",
+                  "!**/convex/lib/seo_thresholds",
                   "!**/convex/lib/topics"
                 ],
                 "allowTypeImports": true,
-                "message": "Client code may only import pure convex/lib modules (explore, geo, topics). Import types with `import type`, or move the helper to a pure module and allowlist it in .oxlintrc.json."
+                "message": "Client code may only import pure convex/lib modules (content_limits, explore, geo, seo_thresholds, topics). Import types with `import type`, or move the helper to a pure module and allowlist it in .oxlintrc.json."
               }
             ]
           }
@@ -77,8 +79,10 @@
       // Keep the client-importable convex/lib modules pure: runtime imports
       // only from convex/values or each other.
       "files": [
+        "convex/lib/content_limits.ts",
         "convex/lib/explore.ts",
         "convex/lib/geo.ts",
+        "convex/lib/seo_thresholds.ts",
         "convex/lib/topics.ts"
       ],
       "rules": {
@@ -87,7 +91,15 @@
           {
             "patterns": [
               {
-                "group": ["../*", "./*", "!./explore", "!./geo", "!./topics"],
+                "group": [
+                  "../*",
+                  "./*",
+                  "!./content_limits",
+                  "!./explore",
+                  "!./geo",
+                  "!./seo_thresholds",
+                  "!./topics"
+                ],
                 "allowTypeImports": true,
                 "message": "This convex/lib module is imported by client code; keep its runtime imports pure (see .oxlintrc.json)."
               }

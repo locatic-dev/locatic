@@ -1,3 +1,4 @@
+import rateLimiterTest from '@convex-dev/rate-limiter/test'
 import { convexTest, type TestConvex } from 'convex-test'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -68,6 +69,7 @@ describe('onboarding builder suggestions (D7, D8)', () => {
   beforeEach(async () => {
     vi.useFakeTimers({ now: NOW, toFake: ['Date'] })
     t = convexTest(schema, modules)
+    rateLimiterTest.register(t)
     fixture = await seedPopulatedCity(t)
     await seedUser(t, { username: 'newbie', onboarded: false })
   })
@@ -239,6 +241,7 @@ describe('completeOnboarding (U5)', () => {
   beforeEach(() => {
     vi.useFakeTimers({ now: NOW, toFake: ['Date'] })
     t = convexTest(schema, modules)
+    rateLimiterTest.register(t)
   })
 
   afterEach(() => {
@@ -289,6 +292,55 @@ describe('completeOnboarding (U5)', () => {
     expect(user?.profile.cityId).toBe(city)
     expect(user?.profile.buildStatus).toBe('hiring')
     expect(user?.exploreConfig.cityIds).toEqual([city])
+  })
+
+  it('records the default update subscription once, at signup', async () => {
+    const userId = await seedUser(t, { username: 'newbie', onboarded: false })
+    const finish = () =>
+      as(t, 'newbie').mutation(api.users.completeOnboarding, {
+        ...baseArgs,
+        cityId: null,
+        exploreCityIds: [],
+      })
+
+    await finish()
+    await finish()
+
+    const changes = await t.run((ctx) =>
+      ctx.db.query('email_preference_changes').collect(),
+    )
+    expect(changes).toEqual([
+      expect.objectContaining({
+        userId,
+        category: 'product_updates',
+        subscribed: true,
+        source: 'signup_default',
+        changedAt: NOW,
+      }),
+    ])
+  })
+
+  it('does not log a signup default for someone who already opted out', async () => {
+    const userId = await seedUser(t, { username: 'newbie', onboarded: false })
+    await t.run(async (ctx) => {
+      const user = await ctx.db.get(userId)
+      await ctx.db.patch(userId, {
+        notificationPrefs: {
+          ...user!.notificationPrefs,
+          productUpdates: false,
+        },
+      })
+    })
+
+    await as(t, 'newbie').mutation(api.users.completeOnboarding, {
+      ...baseArgs,
+      cityId: null,
+      exploreCityIds: [],
+    })
+
+    expect(
+      await t.run((ctx) => ctx.db.query('email_preference_changes').collect()),
+    ).toEqual([])
   })
 
   it('rejects a city that does not exist', async () => {

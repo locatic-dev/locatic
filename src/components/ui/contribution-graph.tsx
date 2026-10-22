@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 
 import { Skeleton } from '@/components/ui/skeleton'
+import { useHydrated } from '@/lib/use-hydrated'
 import { cn } from '@/lib/utils'
 
 interface ContributionWeek {
@@ -51,6 +52,7 @@ export function ContributionGraph({
   unavailable,
 }: ContributionGraphProps) {
   const scrollerRef = useRef<HTMLDivElement>(null)
+  const hydrated = useHydrated()
 
   // On narrow screens the graph scrolls instead of shrinking; open it on the
   // most recent weeks, which sit at the right edge. A no-op when it fits.
@@ -217,12 +219,16 @@ export function ContributionGraph({
               rx={3}
               fill={CELL_COLORS[level]}
             >
-              <title>{formatTooltipLabel(count, date)}</title>
+              {/* Mouse tooltips only (the graph's label describes it), so
+                  they stay out of server HTML: 365 of them drown the
+                  profile's text for crawlers. */}
+              {hydrated && <title>{formatTooltipLabel(count, date)}</title>}
             </rect>
           ))}
         </svg>
       </div>
-      {/* Intensity key; the per-day counts are in each cell's title. */}
+      {/* Intensity key; once hydrated, the per-day counts are in each cell's
+          title. */}
       <div
         aria-hidden="true"
         className="flex items-center justify-end gap-1 font-mono text-meta text-text-muted"

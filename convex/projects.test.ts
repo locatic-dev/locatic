@@ -170,6 +170,7 @@ describe('project signals', () => {
       kind: 'city',
       cityId: cities.bengaluru,
       cityName: 'Bengaluru, Karnataka, India',
+      citySlug: 'bengaluru-in',
       regionLabel: 'Karnataka, India',
     })
 
@@ -357,6 +358,7 @@ describe('more from the owner city', () => {
       kind: 'city',
       cityId: cities.bengaluru,
       cityName: 'Bengaluru, Karnataka, India',
+      citySlug: 'bengaluru-in',
       regionLabel: 'Karnataka, India',
     })
     expect(preview).not.toHaveProperty('email')
@@ -449,155 +451,5 @@ describe('pinning', () => {
         pinned: true,
       }),
     ).toEqual([projectIds[0]])
-  })
-})
-
-describe('landing showcase (D7)', () => {
-  let t: T
-  let cities: SeededCities
-
-  beforeEach(async () => {
-    vi.useFakeTimers({ now: NOW, toFake: ['Date'] })
-    t = convexTest(schema, modules)
-    cities = await seedCities(t)
-  })
-
-  afterEach(() => {
-    vi.useRealTimers()
-  })
-
-  async function listShowcase() {
-    return await t.query(api.projects.listLandingShowcase, {})
-  }
-
-  it('is empty when no project is eligible', async () => {
-    const quiet = await seedUser(t, {
-      username: 'quiet',
-      cityId: cities.bengaluru,
-      appearInExplore: false,
-    })
-    await seedProject(t, { ownerId: quiet, name: 'quiet-tool' })
-
-    expect(await listShowcase()).toEqual([])
-  })
-
-  it('shows up to three eligible projects, newest push first, one per builder', async () => {
-    const ada = await seedUser(t, { username: 'ada', cityId: cities.bengaluru })
-    const bob = await seedUser(t, { username: 'bob', cityId: cities.bengaluru })
-    const frank = await seedUser(t, {
-      username: 'frank',
-      cityId: cities.hyderabad,
-    })
-    const dev = await seedUser(t, {
-      username: 'dev',
-      cityId: cities.bengaluru,
-      cityVisibility: 'region_only',
-    })
-    const quiet = await seedUser(t, {
-      username: 'quiet',
-      cityId: cities.bengaluru,
-      appearInExplore: false,
-    })
-    const gone = await seedUser(t, {
-      username: 'gone',
-      cityId: cities.bengaluru,
-    })
-    // Newer than everything eligible, but never shown.
-    await seedProject(t, {
-      ownerId: quiet,
-      name: 'quiet-tool',
-      lastCommitAt: NOW - 60_000,
-    })
-    await seedProject(t, {
-      ownerId: bob,
-      name: 'hidden-tool',
-      isVisible: false,
-      lastCommitAt: NOW - 60_000,
-    })
-    await seedProject(t, {
-      ownerId: gone,
-      name: 'left',
-      lastCommitAt: NOW - 60_000,
-    })
-    // The owner deactivates after the row was written: the stored
-    // `exploreOwner` still says eligible.
-    await t.run((ctx) => ctx.db.patch(gone, { deactivatedAt: NOW }))
-
-    await seedProject(t, {
-      ownerId: ada,
-      name: 'fresh',
-      lastCommitAt: daysAgo(0.5),
-    })
-    await seedProject(t, {
-      ownerId: ada,
-      name: 'also-fresh',
-      lastCommitAt: daysAgo(0.6),
-    })
-    await seedProject(t, {
-      ownerId: bob,
-      name: 'tool',
-      lastCommitAt: daysAgo(1),
-    })
-    await seedProject(t, {
-      ownerId: frank,
-      name: 'api',
-      lastCommitAt: daysAgo(2),
-    })
-    await seedProject(t, {
-      ownerId: dev,
-      name: 'region-tool',
-      lastCommitAt: daysAgo(3),
-    })
-
-    const showcase = await listShowcase()
-
-    expect(showcase.map((project) => project.fullName)).toEqual([
-      'ada/fresh',
-      'bob/tool',
-      'frank/api',
-    ])
-  })
-
-  it('returns the reviewed public card, the same for visitors and members', async () => {
-    const ada = await seedUser(t, { username: 'ada', cityId: cities.bengaluru })
-    const dev = await seedUser(t, {
-      username: 'dev',
-      cityId: cities.bengaluru,
-      cityVisibility: 'region_only',
-    })
-    await seedProject(t, {
-      ownerId: ada,
-      name: 'fresh',
-      lastCommitAt: daysAgo(1),
-    })
-    await seedProject(t, {
-      ownerId: dev,
-      name: 'region-tool',
-      lastCommitAt: daysAgo(2),
-    })
-
-    const visitor = await listShowcase()
-    const member = await as(t, 'ada').query(
-      api.projects.listLandingShowcase,
-      {},
-    )
-
-    expect(member).toEqual(visitor)
-    expect(visitor[0]).toMatchObject({
-      fullName: 'ada/fresh',
-      cityLabel: 'Bengaluru, Karnataka, India',
-      ownerLocation: { kind: 'city', cityId: cities.bengaluru },
-    })
-    // Region-only owners disclose their region, never the city.
-    expect(visitor[1]).toMatchObject({
-      fullName: 'dev/region-tool',
-      cityVisibilityState: 'region_only',
-      ownerLocation: { kind: 'region' },
-    })
-    expect(JSON.stringify(visitor[1])).not.toContain('Bengaluru')
-    expect(JSON.stringify(visitor[1])).not.toContain(String(cities.bengaluru))
-    const serialized = JSON.stringify(visitor)
-    expect(serialized).not.toContain('@example.test')
-    expect(serialized).not.toContain('clerk_')
   })
 })

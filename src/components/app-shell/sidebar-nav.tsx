@@ -26,8 +26,9 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { useClerk } from '@clerk/tanstack-react-start'
-import type { ReactNode } from 'react'
+import { useSignOut } from '@/integrations/clerk/sign-out'
+import { useState, type ReactNode } from 'react'
+import { AboutDialog } from '@/features/landing/about-dialog'
 import { useResumeExploreSearch } from '@/features/explore/state'
 
 interface NavItem {
@@ -70,6 +71,8 @@ interface SidebarNavProps {
   } | null
   unreadNotifications?: number
   unreadMessages?: number
+  /** Adds the email campaigns link to the account menu. */
+  isEmailAdmin?: boolean
   collapsed?: boolean
   onCollapsedChange?: (collapsed: boolean) => void
 }
@@ -78,6 +81,7 @@ export function SidebarNav({
   viewer,
   unreadNotifications,
   unreadMessages,
+  isEmailAdmin = false,
   collapsed = false,
   onCollapsedChange,
 }: SidebarNavProps) {
@@ -295,7 +299,7 @@ export function SidebarNav({
               )}
 
               {/* More icon — opens account menu */}
-              <AccountMenu />
+              <AccountMenu isEmailAdmin={isEmailAdmin} />
             </div>
           </div>
         )}
@@ -304,38 +308,59 @@ export function SidebarNav({
   )
 }
 
-function AccountMenu() {
-  const { signOut } = useClerk()
+function AccountMenu({ isEmailAdmin }: { isEmailAdmin: boolean }) {
+  const signOut = useSignOut()
+  const [aboutOpen, setAboutOpen] = useState(false)
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button
-          className="flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-md border-0 bg-transparent p-0 text-text-muted transition-colors hover:bg-surface-alt hover:text-text"
-          aria-label="Account menu"
-          type="button"
-        >
-          <MoreHorizontal size={15} />
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent side="right" align="end" sideOffset={8}>
-        <DropdownMenuItem asChild>
-          <Link
-            to="/settings"
-            search={{ tab: 'account' }}
-            preload={false}
-            className="text-inherit no-underline"
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            className="flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-md border-0 bg-transparent p-0 text-text-muted transition-colors hover:bg-surface-alt hover:text-text"
+            aria-label="Account menu"
+            type="button"
           >
-            settings
-          </Link>
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem
-          onClick={() => void signOut({ redirectUrl: '/' })}
-          className="cursor-pointer text-danger"
-        >
-          sign out
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+            <MoreHorizontal size={15} />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent side="right" align="end" sideOffset={8}>
+          <DropdownMenuItem asChild>
+            <Link
+              to="/settings"
+              search={{ tab: 'account' }}
+              preload={false}
+              className="text-inherit no-underline"
+            >
+              settings
+            </Link>
+          </DropdownMenuItem>
+          {isEmailAdmin ? (
+            <DropdownMenuItem asChild>
+              <Link
+                to="/admin/emails"
+                preload={false}
+                className="text-inherit no-underline"
+              >
+                email campaigns
+              </Link>
+            </DropdownMenuItem>
+          ) : null}
+          <DropdownMenuItem
+            onSelect={() => setAboutOpen(true)}
+            className="cursor-pointer"
+          >
+            about
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            onClick={signOut}
+            className="cursor-pointer text-danger"
+          >
+            sign out
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <AboutDialog open={aboutOpen} onOpenChange={setAboutOpen} />
+    </>
   )
 }

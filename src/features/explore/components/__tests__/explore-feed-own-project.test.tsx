@@ -104,7 +104,6 @@ function renderSearch(items: Array<ProjectCardPreview>) {
       onFollowUser={vi.fn()}
       onLoadMore={vi.fn()}
       onMessageUser={vi.fn()}
-      onOpenBuilderProfile={vi.fn()}
       pendingFollows={new Set()}
       pendingUserId={null}
       state={state}
