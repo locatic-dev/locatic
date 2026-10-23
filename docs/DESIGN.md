@@ -349,7 +349,7 @@ Fixed to the bottom, `surface-chrome` with a `line` top border, height `calc(72p
 
 ### Unread badges (decision D4)
 
-Readable and quiet: `surface-raised` fill, `text` count at `meta` size, tabular, `rounded-pill`, capped at "99+". Hidden at zero. The badge is `aria-hidden`; the link's accessible name carries the count ("notifications, 3 unread"). Badges never use the accent fill, so they do not compete with primary actions. The inbox badge counts messages; the notifications badge excludes direct messages, so one message is never two tasks. This supersedes the quieted badges of `docs/plans/2026-07-05-ui-consistency-and-pr18-landing-plan.md`.
+Readable and quiet: `surface-raised` fill, `text` count at `meta` size, tabular, `rounded-pill`, capped at "99+". Hidden at zero. The badge is `aria-hidden`; the link's accessible name carries the count ("notifications, 3 unread"). Badges never use the accent fill, so they do not compete with primary actions. The inbox badge counts messages; the notifications badge excludes direct messages, so one message is never two tasks.
 
 ### Notification rows
 

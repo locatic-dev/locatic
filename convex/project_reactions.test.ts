@@ -1,3 +1,4 @@
+import { purgeFixtureAccount } from './__tests__/fixtures.helpers'
 import rateLimiterTest from '@convex-dev/rate-limiter/test'
 import { convexTest } from 'convex-test'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -421,9 +422,7 @@ describe('project reaction mutations', () => {
       return { commentId, postId }
     })
 
-    await t.mutation(internal.users.scrubDeletedAccount, {
-      userId: ids.viewerId,
-    })
+    await purgeFixtureAccount(t, ids.viewerId)
 
     await t.run(async (ctx) => {
       const project = await ctx.db.get(ids.projectId)

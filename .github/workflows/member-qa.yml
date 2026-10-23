@@ -1,0 +1,68 @@
+name: Protected development QA
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: development-member-qa
+  cancel-in-progress: false
+
+jobs:
+  verify-protection:
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+      deployments: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: package.json
+      - name: Require protected disposable QA environment
+        run: node scripts/verify-member-qa-environment.mjs
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+  journeys:
+    needs: verify-protection
+    # Never execute a PR head with environment secrets. Configure required
+    # reviewers and allowed branches for development-qa before enabling it.
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'
+    environment: development-qa
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      VITE_CONVEX_URL: ${{ vars.VITE_CONVEX_URL }}
+      VITE_CLERK_PUBLISHABLE_KEY: ${{ vars.VITE_CLERK_PUBLISHABLE_KEY }}
+      CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
+      E2E_CLERK_USER_EMAIL: ${{ vars.E2E_CLERK_USER_EMAIL }}
+      E2E_PUBLIC_PROFILE_USERNAME: ${{ vars.E2E_PUBLIC_PROFILE_USERNAME }}
+      E2E_CLERK_EMPTY_CITY_USER_EMAIL: ${{ vars.E2E_CLERK_EMPTY_CITY_USER_EMAIL }}
+      E2E_CLERK_ONBOARDING_USER_EMAIL: ${{ vars.E2E_CLERK_ONBOARDING_USER_EMAIL }}
+      E2E_MODE: release
+      E2E_FIXTURE_CONVEX_URL: ${{ vars.E2E_FIXTURE_CONVEX_URL }}
+      E2E_RESET_FIXTURES: '1'
+      # Dedicated disposable-development deployment key, never production.
+      CONVEX_DEPLOY_KEY: ${{ secrets.E2E_CONVEX_DEPLOY_KEY }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: package.json
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      - name: Run prepared development journeys
+        # Visual snapshots are reviewed separately and are platform-specific;
+        # the separately authorized campaign test sends a provider test email.
+        run: pnpm e2e --project=chromium-public --project=chromium-authenticated --project=chromium-onboarding --grep-invert 'baselines|writes, previews and tests an update'

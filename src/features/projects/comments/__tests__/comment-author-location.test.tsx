@@ -76,7 +76,6 @@ function renderComment(authorSnapshot: ProjectCommentView['authorSnapshot']) {
     <CommentThread
       activeHighlightedCommentId={null}
       commentItem={comment}
-      commentRefs={{ current: {} }}
       depth={0}
       expandedIds={new Set()}
       handleDeleteComment={vi.fn()}

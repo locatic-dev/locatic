@@ -1,4 +1,5 @@
 import type { Page } from '@playwright/test'
+import { resetOnboardingPersona } from './fixtures/reset-onboarding'
 import {
   currentPathname,
   gotoRetryingAbort,
@@ -44,6 +45,7 @@ test.describe('onboarding', () => {
   test.use({ storageState: SIGNED_OUT_STATE })
 
   test.beforeEach(async ({ page }) => {
+    await resetOnboardingPersona()
     requireE2EPrerequisite(
       Boolean(personas.onboardingEmail),
       'needs a Clerk user that has not finished onboarding (set E2E_CLERK_ONBOARDING_USER_EMAIL)',

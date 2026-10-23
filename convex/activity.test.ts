@@ -15,6 +15,7 @@ import {
   seedProject,
   seedRelease,
   seedUser,
+  purgeFixtureAccount,
 } from './__tests__/fixtures.helpers'
 import {
   raiseLastPublicActivity,
@@ -685,7 +686,7 @@ describe('internal.users.scrubDeletedAccount', () => {
       })
     })
 
-    await t.mutation(internal.users.scrubDeletedAccount, { userId: ada })
+    await purgeFixtureAccount(t, ada)
 
     const saves = await t.run(async (ctx) =>
       (await ctx.db.query('saved_projects').collect()).map((row) => ({

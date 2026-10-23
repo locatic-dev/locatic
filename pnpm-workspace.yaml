@@ -1,6 +1,9 @@
 minimumReleaseAge: 1440
 blockExoticSubdeps: true
 strictDepBuilds: true
+overrides:
+  # Keep formatter output stable while patching its pinned worker-pool gadgets.
+  'oxfmt@0.47.0>tinypool': 2.1.2
 allowBuilds:
   esbuild: true
   lightningcss: true

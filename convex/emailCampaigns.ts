@@ -31,6 +31,7 @@ import {
   isTestSendingEnabled,
 } from './lib/email_provider'
 import { isProjectPubliclyInteractable } from './lib/project_access'
+import { isOwnerDiscoverable } from './lib/snapshots'
 import { cancelIfWaiting } from './lib/resend'
 import {
   normalizeProjectRouteKey,
@@ -434,8 +435,11 @@ export const searchProjects = query({
       if (seen.has(project._id)) continue
       seen.add(project._id)
       const activityAt = project.locatic.lastPublicActivityAt
+      const owner = await ctx.db.get(project.ownerId)
       if (
         !activityAt ||
+        !owner ||
+        !isOwnerDiscoverable(owner) ||
         !project.exploreOwner.isEligible ||
         !(await isProjectPubliclyInteractable(ctx, project))
       ) {

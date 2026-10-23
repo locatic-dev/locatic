@@ -1,11 +1,32 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  normalizeInboxSearch,
   getInboxComposeSearch,
   getInboxDestinationSearch,
   getInboxTabForConversation,
   getInboxTabForStatus,
 } from '../navigation'
+
+describe('Inbox URL normalization', () => {
+  it.each(['null', 'undefined', '', '   ', ' null ', ' undefined '])(
+    'treats serialized optional id %j as absent',
+    (value) => {
+      expect(
+        normalizeInboxSearch({ conversation: value, compose: value }),
+      ).toEqual({ tab: 'inbox', conversation: null, compose: null })
+    },
+  )
+  it('does not let an absent serialized conversation discard a valid draft recipient', () => {
+    expect(
+      normalizeInboxSearch({
+        conversation: 'null',
+        compose: 'user_ada',
+        tab: 'requests',
+      }),
+    ).toEqual({ tab: 'requests', conversation: null, compose: 'user_ada' })
+  })
+})
 
 describe('inbox navigation helpers', () => {
   it('files only incoming requests under requests', () => {

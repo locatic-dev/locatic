@@ -1,3 +1,8 @@
+/**
+ * @deprecated Legacy Pulse ranking code; unused by production.
+ * Retained for compatibility with its helper test and generated API imports.
+ * Use the current city/discovery queries instead of adding new consumers.
+ */
 import type { Id } from '../_generated/dataModel'
 
 export type PulseScopeType = 'city' | 'global'
@@ -65,6 +70,7 @@ function getScore(project: PulseProjectInput, sort: PulseSort): number {
   }
 }
 
+/** @deprecated Unused by production since Pulse retirement; retained for now. */
 export function buildPulseSnapshotRows({
   scopeType,
   scopeId,

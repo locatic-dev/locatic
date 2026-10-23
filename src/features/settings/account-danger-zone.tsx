@@ -16,7 +16,7 @@ import { useDeactivateAccount, useDeleteAccount } from './mutations'
 // Danger-zone actions live behind in-app confirmation dialogs rather than the
 // browser's native confirm/prompt — the native dialogs can't be styled, read as
 // generic, and (for confirm) can't hold a typed acknowledgement. Deactivation
-// uses a single acknowledgement; permanent deletion keeps the type-DELETE gate.
+// uses a single acknowledgement; scheduled deletion keeps the type-DELETE gate.
 export function AccountDangerZone() {
   const deactivate = useDeactivateAccount()
   const deleteAccount = useDeleteAccount()
@@ -88,14 +88,15 @@ export function AccountDangerZone() {
         </Button>
       </div>
 
-      {/* Delete — irreversible */}
+      {/* Delete after the restoration window */}
       <div className="rounded-card border border-danger/40 bg-danger/4 p-5">
         <div className="mb-2 text-title text-danger">delete account</div>
         <p className="mb-3.5 mt-0 font-sans text-body leading-normal text-text-muted">
-          permanently removes all your Locatic data. this cannot be undone.
+          hides your profile immediately. you can restore your account within 30
+          days. after that, account data is deleted or anonymized.
         </p>
         <Button variant="danger" size="touch" onClick={() => resetDelete(true)}>
-          delete account permanently
+          delete account
         </Button>
       </div>
 
@@ -142,10 +143,12 @@ export function AccountDangerZone() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-danger">
               <AlertTriangle size={16} aria-hidden />
-              delete account permanently
+              schedule account deletion
             </DialogTitle>
             <DialogDescription>
-              This erases all of your Locatic data and cannot be undone. Type{' '}
+              Your profile is hidden immediately. Sign in again to restore your
+              account within 30 days. After that, account data is deleted or
+              anonymized and restoration is unavailable. Type{' '}
               <span className="font-mono font-semibold text-text">DELETE</span>{' '}
               to confirm.
             </DialogDescription>
@@ -191,7 +194,7 @@ export function AccountDangerZone() {
               {deleting && (
                 <Loader2 size={14} className="animate-spin" aria-hidden />
               )}
-              {deleting ? 'deleting' : 'delete permanently'}
+              {deleting ? 'deleting' : 'delete account'}
             </Button>
           </DialogFooter>
         </DialogContent>

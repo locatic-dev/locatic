@@ -12,6 +12,7 @@ import {
   seedCity,
   seedProject,
   seedUser,
+  finishLifecycleOwnerSync,
 } from './__tests__/fixtures.helpers'
 
 const modules = import.meta.glob('./**/*.ts')
@@ -58,12 +59,21 @@ describe('settings location and discovery controls (D8)', () => {
       onboardingSelectedOwnedProjectIds: [],
       stackPrefs: ['rust'],
     })
+    await finishLifecycleOwnerSync(t, maya)
     projectId = await seedProject(t, { ownerId: maya, name: 'tide' })
   })
 
   afterEach(() => {
     vi.useRealTimers()
   })
+
+  async function finishOwnerSync() {
+    const { viewer } = await asMaya(t).query(
+      api.users.privateProfileOverview,
+      {},
+    )
+    await finishLifecycleOwnerSync(t, viewer!._id)
+  }
 
   async function previewOwnerLocation() {
     const everywhere = await t.query(api.explore.listPublic, {
@@ -120,6 +130,7 @@ describe('settings location and discovery controls (D8)', () => {
       ...privacyArgs,
       cityVisibility: 'exact_city',
     })
+    await finishOwnerSync()
     expect((await previewOwnerLocation())?.kind).toBe('city')
     expect(await inCityFeed()).toBe(true)
     expect(await builderCount()).toBe(1)
@@ -142,6 +153,7 @@ describe('settings location and discovery controls (D8)', () => {
       appearInExplore: true,
     })
     expect(await builderCount()).toBe(1)
+    await finishOwnerSync()
     expect((await previewOwnerLocation())?.kind).toBe('city')
   })
 
@@ -220,6 +232,7 @@ describe('settings location and discovery controls (D8)', () => {
     await asMaya(t).mutation(api.users.updatePrivacy, {
       cityVisibility: 'hidden',
     })
+    await finishOwnerSync()
     const hiddenProjects = await t.run((ctx) =>
       ctx.db
         .query('projects')
@@ -242,6 +255,7 @@ describe('settings location and discovery controls (D8)', () => {
     await asMaya(t).mutation(api.users.updatePrivacy, {
       cityVisibility: 'exact_city',
     })
+    await finishOwnerSync()
     expect(
       (await t.query(api.cities.getStats, { cityId: bengaluru }))?.projectCount,
     ).toBe(56)

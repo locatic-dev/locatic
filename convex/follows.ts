@@ -1,6 +1,8 @@
 import { ConvexError, v } from 'convex/values'
 
 import { mutation, query } from './_generated/server'
+import type { QueryCtx } from './_generated/server'
+import type { Id } from './_generated/dataModel'
 import { getViewerOrThrow } from './lib/auth'
 import { enforceRateLimit } from './lib/rate_limits'
 import {
@@ -15,16 +17,38 @@ import {
 import { buildActorSnapshot, buildProfileTargetSnapshot } from './lib/snapshots'
 import { countMetric } from './metrics'
 
+const followValidator = v.object({
+  _id: v.id('follows'),
+  _creationTime: v.number(),
+  followerId: v.id('users'),
+  followingId: v.id('users'),
+  createdAt: v.number(),
+})
+
+// Raw relationship rows are viewer-only. Public graph reads use
+// users.publicFollowGraphPage and its privacy-filtered profile projections.
+async function getOwnFollowGraphViewerId(ctx: QueryCtx, userId: Id<'users'>) {
+  const viewer = await getViewerOrThrow(ctx)
+  if (
+    viewer._id !== userId ||
+    viewer.deletedAt != null ||
+    viewer.purgedAt != null
+  ) {
+    throw new ConvexError('Unauthorized')
+  }
+  return viewer._id
+}
+
 export const listFollowers = query({
   args: {
     userId: v.id('users'),
   },
+  returns: v.array(followValidator),
   handler: async (ctx, args) => {
+    const viewerId = await getOwnFollowGraphViewerId(ctx, args.userId)
     return await ctx.db
       .query('follows')
-      .withIndex('by_following', (query) =>
-        query.eq('followingId', args.userId),
-      )
+      .withIndex('by_following', (query) => query.eq('followingId', viewerId))
       .collect()
   },
 })
@@ -33,10 +57,12 @@ export const listFollowing = query({
   args: {
     userId: v.id('users'),
   },
+  returns: v.array(followValidator),
   handler: async (ctx, args) => {
+    const viewerId = await getOwnFollowGraphViewerId(ctx, args.userId)
     return await ctx.db
       .query('follows')
-      .withIndex('by_follower', (query) => query.eq('followerId', args.userId))
+      .withIndex('by_follower', (query) => query.eq('followerId', viewerId))
       .collect()
   },
 })
@@ -52,7 +78,12 @@ export const follow = mutation({
     }
 
     const targetUser = await ctx.db.get(args.targetUserId)
-    if (!targetUser) {
+    if (
+      !targetUser ||
+      targetUser.deletedAt != null ||
+      targetUser.deactivatedAt != null ||
+      targetUser.purgedAt != null
+    ) {
       throw new ConvexError('User not found')
     }
 

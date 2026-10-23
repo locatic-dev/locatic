@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { Doc, Id } from '../../convex/_generated/dataModel'
 import { useCompleteOnboarding } from '@/features/onboarding/mutations'
 import { viewerQueryOptions } from '@/features/viewer/queries'
+import { getAccountRecoveryState } from '@/features/viewer/lifecycle'
 import { mineProjectsQueryOptions } from '@/features/projects/queries'
 import {
   useListGithubRepositories,
@@ -57,6 +58,13 @@ export const Route = createFileRoute('/onboarding')({
       viewerQueryOptions(),
     )) as ViewerBootstrapPayload
 
+    if (getAccountRecoveryState(bootstrap)) {
+      throw redirect({
+        to: '/sign-in/$',
+        search: { redirect: search.redirect },
+      })
+    }
+
     if (!bootstrap.needsOnboarding) {
       if (search.redirect) {
         throw redirect({ href: search.redirect })
@@ -88,6 +96,19 @@ function OnboardingPage() {
   const bootstrap = mapViewerBootstrap(
     viewerQuery.data as ViewerBootstrapPayload | undefined,
   )
+  const needsRecovery = Boolean(
+    getAccountRecoveryState(
+      viewerQuery.data as ViewerBootstrapPayload | undefined,
+    ),
+  )
+  useEffect(() => {
+    if (!needsRecovery) return
+    void navigate({
+      to: '/sign-in/$',
+      search: { redirect: destination },
+      replace: true,
+    })
+  }, [destination, navigate, needsRecovery])
   const ownedProjectsQuery = useQuery({
     ...mineProjectsQueryOptions(),
     enabled: Boolean(bootstrap?.viewer),
@@ -137,6 +158,7 @@ function OnboardingPage() {
   }, [step])
 
   useEffect(() => {
+    if (needsRecovery) return
     let cancelled = false
 
     const loadRepositories = async () => {
@@ -169,7 +191,7 @@ function OnboardingPage() {
     return () => {
       cancelled = true
     }
-  }, [listGithubRepositories])
+  }, [listGithubRepositories, needsRecovery])
 
   useEffect(() => {
     if (!bootstrap?.viewer) {
@@ -193,7 +215,7 @@ function OnboardingPage() {
     }
   }, [bootstrap, selectedCityId])
 
-  if (!bootstrap) {
+  if (!bootstrap || needsRecovery) {
     return (
       <main id="main-content" tabIndex={-1} className="p-8 text-text-muted">
         loading…

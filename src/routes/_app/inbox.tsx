@@ -1,33 +1,24 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, stripSearchParams } from '@tanstack/react-router'
 import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
-import { usePaginatedQuery } from 'convex/react'
 import * as m from 'motion/react-m'
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { api } from '../../../convex/_generated/api'
-import type { Id } from '../../../convex/_generated/dataModel'
 import {
   conversationRecipientPreviewQueryOptions,
-  conversationsQueryOptions,
+  conversationSummaryQueryOptions,
 } from '@/features/inbox/queries'
-import {
-  useMarkConversationRead,
-  useSendFirstMessage,
-  useSendMessage,
-} from '@/features/inbox/mutations'
+import { useInboxConversations } from '@/features/inbox/use-inbox-conversations'
+import { DraftConversationPanel } from '@/features/inbox/draft-conversation-panel'
+import { SelectedConversationPanel } from '@/features/inbox/selected-conversation-panel'
 import { LxAvatar } from '@/components/ui/lx-avatar'
 import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/textarea'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Skeleton } from '@/components/ui/skeleton'
 import { fadeUp, listStagger } from '@/lib/motion'
-import { getActionErrorMessage } from '@/lib/action-error'
 import { relativeTime } from '@/lib/time'
-import { Inbox, Send } from '@/lib/icons'
+import { Inbox } from '@/lib/icons'
 import { formatUnreadCount } from '@/lib/format'
 import {
   mapConversationList,
   mapViewerBootstrap,
-  type ConversationDetailPayload,
   type EnrichedConversation,
   type ViewerBootstrapPayload,
 } from '@/features/contracts'
@@ -40,26 +31,21 @@ import {
 import {
   getInboxDestinationSearch,
   getInboxTabForStatus,
+  INBOX_SEARCH_DEFAULTS,
+  normalizeInboxSearch,
+  type InboxSearch,
   type InboxConversation,
-  type InboxTab,
 } from '@/features/inbox/navigation'
 import { shouldPrefetchPrivateConvexQueries } from '@/lib/auth-routing'
 import { seo } from '@/lib/seo'
-import { CONTENT_LIMITS } from '../../../convex/lib/content_limits'
 
 export const Route = createFileRoute('/_app/inbox')({
-  validateSearch: (search: Record<string, unknown>) => ({
-    tab: ((search.tab as string) === 'requests' ? 'requests' : 'inbox') as
-      | 'inbox'
-      | 'requests',
-    conversation:
-      typeof search.conversation === 'string' ? search.conversation : null,
-    compose:
-      typeof search.compose === 'string' &&
-      typeof search.conversation !== 'string'
-        ? search.compose
-        : null,
-  }),
+  validateSearch: normalizeInboxSearch,
+  search: {
+    middlewares: [
+      stripSearchParams<InboxSearch, InboxSearch>(INBOX_SEARCH_DEFAULTS),
+    ],
+  },
   loaderDeps: ({ search }) => ({
     composeUserId: search.compose,
     conversationId: search.conversation,
@@ -73,10 +59,7 @@ export const Route = createFileRoute('/_app/inbox')({
       return
     }
 
-    await Promise.all([
-      context.queryClient.ensureQueryData(conversationsQueryOptions()),
-      context.queryClient.ensureQueryData(viewerQueryOptions()),
-    ])
+    await context.queryClient.ensureQueryData(viewerQueryOptions())
   },
   pendingComponent: InboxRoutePending,
   pendingMs: ROUTE_PENDING_MS,
@@ -101,9 +84,8 @@ function InboxPage() {
   } = Route.useSearch()
   const navigate = Route.useNavigate()
   const { data: viewerData } = useSuspenseQuery(viewerQueryOptions())
-  const { data: conversationsData } = useSuspenseQuery(
-    conversationsQueryOptions(),
-  )
+  const conversationPages = useInboxConversations()
+  const summaryQuery = useQuery(conversationSummaryQueryOptions(selectedId))
 
   const viewer = mapViewerBootstrap(
     viewerData as ViewerBootstrapPayload | undefined,
@@ -113,11 +95,16 @@ function InboxPage() {
   // mobile tab bar badge also read (`users.viewerBootstrap`).
   const unreadMessages = viewer?.viewer?.unreadMessagesCount ?? 0
   const allConversations =
-    mapConversationList(conversationsData as Array<EnrichedConversation>) ?? []
-  const selectedConversation =
-    allConversations.find(
-      (conversation) => String(conversation._id) === selectedId,
-    ) ?? null
+    mapConversationList(
+      conversationPages.items as Array<EnrichedConversation>,
+    ) ?? []
+  const selectedConversation = !selectedId
+    ? null
+    : summaryQuery.data !== undefined
+      ? summaryQuery.data
+      : (allConversations.find(
+          (conversation) => String(conversation._id) === selectedId,
+        ) ?? null)
   // A stored link (a notification, a bookmark) can name a tab the
   // conversation has since left, e.g. a request accepted after it was sent.
   // The selected conversation's own status decides which list shows it.
@@ -146,6 +133,7 @@ function InboxPage() {
     !recipientPreviewQuery.isLoading &&
     !draftRecipient
   const hasDetailPanel = Boolean(
+    selectedId ||
     selectedConversation ||
     draftRecipient ||
     composePreviewLoading ||
@@ -158,19 +146,6 @@ function InboxPage() {
   // With nothing to list and nothing open, the list's empty state is the only
   // message; no second "select a conversation" placeholder beside it.
   const listOnly = conversations.length === 0 && !hasDetailPanel
-  const markConversationRead = useMarkConversationRead()
-
-  useEffect(() => {
-    if (!selectedConversation || !viewerId) return
-
-    const unreadCount = selectedConversation.unreadCounts[viewerId] ?? 0
-    if (unreadCount <= 0) return
-
-    void markConversationRead({
-      conversationId: selectedConversation._id,
-    })
-  }, [markConversationRead, selectedConversation, viewerId])
-
   const tabItems = [
     { id: 'inbox', label: 'inbox', count: 0 },
     { id: 'requests', label: 'requests', count: incomingRequestCount },
@@ -227,6 +202,7 @@ function InboxPage() {
               {tabItem.count > 0 && (
                 <span className="rounded-pill bg-surface-alt px-[5px] py-px font-mono text-meta leading-[1.3] text-text-muted">
                   {tabItem.count}
+                  {conversationPages.hasMore ? '+' : ''}
                 </span>
               )}
               {activeTab === tabItem.id && (
@@ -247,22 +223,44 @@ function InboxPage() {
           } ${mobileView === 'thread' ? 'hidden' : 'flex'}`}
         >
           <div className="min-h-0 flex-1 overflow-y-auto">
-            {conversations.length === 0 && (
-              <EmptyState
-                size="compact"
-                icon={<Inbox size={28} strokeWidth={1.2} />}
-                title={
-                  activeTab === 'requests'
-                    ? 'no message requests'
-                    : 'no conversations yet'
-                }
-                description={
-                  activeTab === 'requests'
-                    ? 'requests from builders you don’t follow back will land here.'
-                    : 'start a conversation from a builder’s profile to see it here.'
-                }
-              />
+            {conversationPages.loading && (
+              <div
+                role="status"
+                aria-label="loading conversations"
+                className="p-6 text-label text-text-muted"
+              >
+                loading conversations…
+              </div>
             )}
+            {!conversationPages.loading &&
+              conversations.length === 0 &&
+              conversationPages.hasMore && (
+                <p className="m-0 p-6 text-label text-text-muted">
+                  older conversations may include{' '}
+                  {activeTab === 'requests'
+                    ? 'message requests'
+                    : 'more messages'}
+                  .
+                </p>
+              )}
+            {!conversationPages.loading &&
+              conversations.length === 0 &&
+              !conversationPages.hasMore && (
+                <EmptyState
+                  size="compact"
+                  icon={<Inbox size={28} strokeWidth={1.2} />}
+                  title={
+                    activeTab === 'requests'
+                      ? 'no message requests'
+                      : 'no conversations yet'
+                  }
+                  description={
+                    activeTab === 'requests'
+                      ? 'requests from builders you don’t follow back will land here.'
+                      : 'start a conversation from a builder’s profile to see it here.'
+                  }
+                />
+              )}
 
             <m.div
               key={activeTab}
@@ -390,6 +388,19 @@ function InboxPage() {
                 )
               })}
             </m.div>
+            {conversationPages.hasMore && (
+              <Button
+                className="m-4"
+                disabled={
+                  conversationPages.loading || conversationPages.loadingMore
+                }
+                onClick={() => conversationPages.loadMore()}
+              >
+                {conversationPages.loadingMore
+                  ? 'loading conversations…'
+                  : 'load more conversations'}
+              </Button>
+            )}
           </div>
         </section>
 
@@ -406,6 +417,35 @@ function InboxPage() {
               description="pick a thread from the list to read and reply."
             />
           )}
+
+          {selectedId &&
+            !selectedConversation &&
+            (summaryQuery.isLoading ? (
+              <div
+                role="status"
+                aria-label="loading conversation"
+                className="p-6 text-label text-text-muted"
+              >
+                loading conversation…
+              </div>
+            ) : (
+              <EmptyState
+                title="couldn't open this conversation"
+                description="this conversation is unavailable."
+                action={{
+                  label: 'back to inbox',
+                  onClick: () =>
+                    void navigate({
+                      to: '/inbox',
+                      search: {
+                        compose: null,
+                        conversation: null,
+                        tab: activeTab,
+                      },
+                    }),
+                }}
+              />
+            ))}
 
           {composePreviewLoading && (
             <div
@@ -443,482 +483,39 @@ function InboxPage() {
 
           {selectedConversation && viewerId && (
             <SelectedConversationPanel
-              tab={activeTab}
+              key={String(selectedConversation._id)}
               selectedConversation={selectedConversation}
               viewerId={viewerId}
+              onBack={() =>
+                void navigate({
+                  to: '/inbox',
+                  search: { compose: null, conversation: null, tab: activeTab },
+                })
+              }
+              onOpenProfile={openProfile}
             />
           )}
 
           {!selectedConversation && composeUserId && draftRecipient && (
             <DraftConversationPanel
-              tab={activeTab}
-              otherUserId={draftRecipient.userId}
+              key={String(draftRecipient.userId)}
               recipient={draftRecipient}
+              onBack={() =>
+                void navigate({
+                  to: '/inbox',
+                  search: { compose: null, conversation: null, tab: activeTab },
+                })
+              }
+              onOpenProfile={openProfile}
+              onConversationCreated={async (id) => {
+                await navigate({
+                  to: '/inbox',
+                  search: getInboxDestinationSearch(String(id), 'inbox'),
+                })
+              }}
             />
           )}
         </section>
-      </div>
-    </div>
-  )
-}
-
-type DraftRecipient = {
-  userId: Id<'users'>
-  githubUsername: string
-  displayName: string
-  avatarUrl: string | null
-  cityName: string | null
-}
-
-function DraftConversationPanel({
-  otherUserId,
-  recipient,
-  tab,
-}: {
-  otherUserId: Id<'users'>
-  recipient: DraftRecipient
-  tab: InboxTab
-}) {
-  const navigate = Route.useNavigate()
-  const sendFirstMessage = useSendFirstMessage()
-  const [newMessage, setNewMessage] = useState('')
-  const [sending, setSending] = useState(false)
-  const [sendError, setSendError] = useState<string | null>(null)
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null)
-
-  useEffect(() => {
-    setSendError(null)
-    requestAnimationFrame(() => textareaRef.current?.focus())
-  }, [otherUserId])
-
-  const handleSend = async () => {
-    if (!newMessage.trim() || sending) return
-
-    setSending(true)
-    setSendError(null)
-    try {
-      const result = await sendFirstMessage({
-        otherUserId,
-        content: newMessage.trim(),
-      })
-      setNewMessage('')
-      await navigate({
-        to: '/inbox',
-        // The sender's own conversation always lives in the main inbox
-        // (pending until the other person replies), never under requests.
-        search: getInboxDestinationSearch(
-          String(result.conversationId),
-          'inbox',
-        ),
-      })
-    } catch (error) {
-      console.error('Send failed', error)
-      setSendError(getActionErrorMessage(error))
-    } finally {
-      setSending(false)
-    }
-  }
-
-  return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex min-h-14 shrink-0 items-center gap-3 border-b border-line px-[var(--lx-gutter)]">
-        <Button
-          variant="ghost"
-          size="touch"
-          onClick={() =>
-            void navigate({
-              to: '/inbox',
-              search: { compose: null, tab, conversation: null },
-            })
-          }
-          className="md:hidden"
-        >
-          back
-        </Button>
-        <button
-          type="button"
-          onClick={() =>
-            void navigate({
-              to: '/u/$username',
-              params: { username: recipient.githubUsername },
-              search: { tab: 'projects', network: 'followers' },
-            })
-          }
-          className="flex min-w-0 items-center gap-3 rounded-card px-1 py-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
-        >
-          <LxAvatar
-            name={recipient.displayName}
-            avatarUrl={recipient.avatarUrl ?? undefined}
-            size={32}
-          />
-          <div className="min-w-0">
-            <div className="truncate font-sans text-label font-medium text-text">
-              {recipient.displayName}
-            </div>
-            <div className="truncate font-mono text-meta text-text-muted">
-              {recipient.cityName ?? 'location hidden'}
-            </div>
-          </div>
-        </button>
-      </div>
-
-      <EmptyState
-        icon={<Send size={28} strokeWidth={1.2} />}
-        title="write the first message"
-        description={`say hi to ${recipient.displayName} to start the conversation.`}
-      />
-
-      <div className="shrink-0 border-t border-line px-[var(--lx-gutter)] pt-2 pb-[calc(var(--lx-mobile-tab-height)+0.75rem)] md:pt-4 md:pb-5">
-        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-1.5 rounded-card border border-line bg-surface p-1.5 transition-colors focus-within:border-line-strong md:gap-3 md:border-0 md:bg-transparent md:p-0">
-          <Textarea
-            maxLength={CONTENT_LIMITS.message}
-            ref={textareaRef}
-            value={newMessage}
-            onChange={(event) => setNewMessage(event.target.value)}
-            placeholder="write a message…"
-            aria-label="Message"
-            rows={1}
-            className="max-h-28 min-h-11 min-w-0 border-0 bg-transparent py-2.5 font-sans md:min-h-20 md:border md:bg-surface md:py-2"
-            onKeyDown={(event) => {
-              if (event.key === 'Enter' && !event.shiftKey) {
-                event.preventDefault()
-                void handleSend()
-              }
-            }}
-          />
-          <Button
-            type="button"
-            onClick={() => void handleSend()}
-            disabled={!newMessage.trim() || sending}
-            variant="primary"
-            size="touch"
-            className="w-11 px-0 md:w-auto md:px-4"
-            aria-label={sending ? 'Sending message' : 'Send message'}
-          >
-            <Send size={16} aria-hidden="true" className="md:hidden" />
-            <span className="hidden md:inline">
-              {sending ? 'sending…' : 'send'}
-            </span>
-          </Button>
-        </div>
-        {sendError && (
-          <p
-            role="alert"
-            className="mt-2 mb-0 font-mono text-label text-danger"
-          >
-            {sendError}
-          </p>
-        )}
-      </div>
-    </div>
-  )
-}
-
-function SelectedConversationPanel({
-  tab,
-  selectedConversation,
-  viewerId,
-}: {
-  tab: InboxTab
-  selectedConversation: InboxConversation
-  viewerId: string
-}) {
-  const navigate = Route.useNavigate()
-  const sendMessage = useSendMessage()
-  const [newMessage, setNewMessage] = useState('')
-  const [sending, setSending] = useState(false)
-  const [sendError, setSendError] = useState<string | null>(null)
-  const messagesScrollRef = useRef<HTMLDivElement | null>(null)
-  const messagesEndRef = useRef<HTMLDivElement | null>(null)
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null)
-  const previousScrollHeightRef = useRef<number | null>(null)
-  const openedConversationRef = useRef<string | null>(null)
-  const shouldStickToBottomRef = useRef(true)
-  const sentMessagePendingRef = useRef(false)
-  const lastMessageIdRef = useRef<string | null>(null)
-  const messagesPage = usePaginatedQuery(
-    api.conversations.messagesPage,
-    { conversationId: selectedConversation._id },
-    { initialNumItems: 30 },
-  )
-
-  const messages = useMemo(
-    () =>
-      [
-        ...((messagesPage.results ??
-          []) as ConversationDetailPayload['messages']),
-      ].reverse(),
-    [messagesPage.results],
-  )
-
-  const scrollToBottom = () => {
-    requestAnimationFrame(() => {
-      messagesEndRef.current?.scrollIntoView({ block: 'end' })
-    })
-  }
-
-  const isNearBottom = () => {
-    const scrollElement = messagesScrollRef.current
-    if (!scrollElement) {
-      return true
-    }
-
-    return (
-      scrollElement.scrollHeight -
-        scrollElement.scrollTop -
-        scrollElement.clientHeight <
-      96
-    )
-  }
-
-  const handleSend = async () => {
-    if (!newMessage.trim() || sending) return
-
-    setSending(true)
-    setSendError(null)
-    sentMessagePendingRef.current = true
-    shouldStickToBottomRef.current = true
-    try {
-      await sendMessage({
-        conversationId: selectedConversation._id,
-        content: newMessage.trim(),
-      })
-      setNewMessage('')
-    } catch (error) {
-      console.error('Send failed', error)
-      setSendError(getActionErrorMessage(error))
-      sentMessagePendingRef.current = false
-    } finally {
-      setSending(false)
-    }
-  }
-
-  const handleLoadOlder = () => {
-    if (messagesPage.status !== 'CanLoadMore') {
-      return
-    }
-
-    const scrollElement = messagesScrollRef.current
-    previousScrollHeightRef.current = scrollElement?.scrollHeight ?? null
-    messagesPage.loadMore(30)
-  }
-
-  useEffect(() => {
-    openedConversationRef.current = null
-    previousScrollHeightRef.current = null
-    shouldStickToBottomRef.current = true
-    sentMessagePendingRef.current = false
-    lastMessageIdRef.current = null
-    setSendError(null)
-    requestAnimationFrame(() => textareaRef.current?.focus())
-  }, [selectedConversation._id])
-
-  useLayoutEffect(() => {
-    const previousScrollHeight = previousScrollHeightRef.current
-    const scrollElement = messagesScrollRef.current
-    if (!scrollElement || messages.length === 0) {
-      return
-    }
-
-    if (previousScrollHeight !== null) {
-      const nextScrollHeight = scrollElement.scrollHeight
-      scrollElement.scrollTop += nextScrollHeight - previousScrollHeight
-      previousScrollHeightRef.current = null
-      return
-    }
-
-    const lastMessage = messages.at(-1)
-    const lastMessageId = lastMessage ? String(lastMessage._id) : null
-    const lastMessageChanged = lastMessageId !== lastMessageIdRef.current
-    const lastMessageIsMine =
-      lastMessage !== undefined && viewerId === String(lastMessage.senderId)
-
-    if (openedConversationRef.current !== String(selectedConversation._id)) {
-      scrollElement.scrollTop = scrollElement.scrollHeight
-      openedConversationRef.current = String(selectedConversation._id)
-      lastMessageIdRef.current = lastMessageId
-      return
-    }
-
-    if (
-      lastMessageChanged &&
-      (sentMessagePendingRef.current ||
-        shouldStickToBottomRef.current ||
-        lastMessageIsMine)
-    ) {
-      scrollToBottom()
-      sentMessagePendingRef.current = false
-    }
-
-    lastMessageIdRef.current = lastMessageId
-  }, [messages, selectedConversation._id, viewerId])
-
-  const otherUsername = selectedConversation.otherUser?.githubUsername
-  const otherDisplayName =
-    selectedConversation.otherUser?.displayName ??
-    selectedConversation.otherUser?.githubUsername ??
-    'Unknown user'
-
-  return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      {/* Wraps on phones: the request status takes its own line so the name
-          keeps its width and the composer stays above the tab bar. */}
-      <div className="flex min-h-14 shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line px-[var(--lx-gutter)] py-1">
-        <Button
-          variant="ghost"
-          size="touch"
-          onClick={() =>
-            void navigate({
-              to: '/inbox',
-              search: { compose: null, tab, conversation: null },
-            })
-          }
-          className="md:hidden"
-        >
-          back
-        </Button>
-        <button
-          type="button"
-          onClick={() => {
-            if (!otherUsername) {
-              return
-            }
-
-            void navigate({
-              to: '/u/$username',
-              params: { username: otherUsername },
-              search: { tab: 'projects', network: 'followers' },
-            })
-          }}
-          disabled={!otherUsername}
-          className="flex min-w-0 items-center gap-3 rounded-card px-1 py-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand disabled:cursor-default"
-        >
-          <LxAvatar
-            name={otherDisplayName}
-            avatarUrl={selectedConversation.otherUser?.avatarUrl ?? undefined}
-            size={32}
-          />
-          <div className="min-w-0">
-            <div className="truncate font-sans text-label font-medium text-text">
-              {otherDisplayName}
-            </div>
-            <div className="truncate font-mono text-meta text-text-muted">
-              {selectedConversation.otherUser?.cityName ?? 'location hidden'}
-            </div>
-          </div>
-        </button>
-        {selectedConversation.status !== 'active' && (
-          <p className="m-0 basis-full font-mono text-meta text-text-muted md:ml-auto md:basis-auto">
-            {selectedConversation.status === 'pending'
-              ? 'pending: waiting for a reply'
-              : 'message request: reply to accept'}
-          </p>
-        )}
-      </div>
-
-      <div
-        ref={messagesScrollRef}
-        onScroll={() => {
-          shouldStickToBottomRef.current = isNearBottom()
-        }}
-        className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-[var(--lx-gutter)] pt-4 pb-8"
-      >
-        {messagesPage.status === 'LoadingFirstPage' && (
-          <div className="flex flex-col gap-3">
-            <Skeleton className="h-11 w-2/3 max-w-64 self-start rounded-card" />
-            <Skeleton className="h-9 w-1/2 max-w-48 self-end rounded-card" />
-            <Skeleton className="h-14 w-3/5 max-w-72 self-start rounded-card" />
-          </div>
-        )}
-        {messagesPage.status === 'CanLoadMore' && (
-          <Button size="meta" onClick={handleLoadOlder} className="self-center">
-            load older messages
-          </Button>
-        )}
-        {messagesPage.status === 'LoadingMore' && (
-          <div className="mx-auto mb-2 font-mono text-meta text-text-muted">
-            loading older messages…
-          </div>
-        )}
-        {messagesPage.status !== 'LoadingFirstPage' &&
-          messages.length === 0 && (
-            <EmptyState
-              icon={<Inbox size={28} strokeWidth={1.2} />}
-              title="no messages yet"
-              description="send the first message below to start the conversation."
-            />
-          )}
-        {messages.map((message) => {
-          const isMe = viewerId === String(message.senderId)
-          return (
-            <m.div
-              key={String(message._id)}
-              variants={fadeUp}
-              initial="hidden"
-              animate="visible"
-              className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}
-            >
-              <div
-                className={`max-w-[min(100%,36rem)] rounded-card px-3.5 py-2.5 ${
-                  isMe
-                    ? 'border border-brand/30 bg-outgoing text-text'
-                    : 'border border-line bg-surface text-text'
-                }`}
-              >
-                <div className="whitespace-pre-wrap font-sans text-body leading-6">
-                  {message.content}
-                </div>
-                <div className="mt-1.5 font-mono text-meta text-text-muted">
-                  {relativeTime(message.createdAt)}
-                </div>
-              </div>
-            </m.div>
-          )
-        })}
-        <div ref={messagesEndRef} aria-hidden="true" />
-      </div>
-
-      <div className="shrink-0 border-t border-line px-[var(--lx-gutter)] pt-2 pb-[calc(var(--lx-mobile-tab-height)+0.75rem)] md:pt-4 md:pb-5">
-        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-1.5 rounded-card border border-line bg-surface p-1.5 transition-colors focus-within:border-line-strong md:gap-3 md:border-0 md:bg-transparent md:p-0">
-          <Textarea
-            maxLength={CONTENT_LIMITS.message}
-            ref={textareaRef}
-            value={newMessage}
-            onChange={(event) => setNewMessage(event.target.value)}
-            placeholder="write a message…"
-            aria-label="Message"
-            rows={1}
-            className="max-h-28 min-h-11 min-w-0 border-0 bg-transparent py-2.5 font-sans md:min-h-20 md:border md:bg-surface md:py-2"
-            onKeyDown={(event) => {
-              if (event.key === 'Enter' && !event.shiftKey) {
-                event.preventDefault()
-                void handleSend()
-              }
-            }}
-          />
-          <Button
-            type="button"
-            onClick={() => void handleSend()}
-            disabled={!newMessage.trim() || sending}
-            variant="primary"
-            size="touch"
-            className="w-11 px-0 md:w-auto md:px-4"
-            aria-label={sending ? 'Sending message' : 'Send message'}
-          >
-            <Send size={16} aria-hidden="true" className="md:hidden" />
-            <span className="hidden md:inline">
-              {sending ? 'sending…' : 'send'}
-            </span>
-          </Button>
-        </div>
-        {sendError && (
-          <p
-            role="alert"
-            className="mt-2 mb-0 font-mono text-label text-danger"
-          >
-            {sendError}
-          </p>
-        )}
       </div>
     </div>
   )

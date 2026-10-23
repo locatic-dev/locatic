@@ -1,8 +1,9 @@
 {
   "name": "locatic",
+  "license": "MIT",
   "private": true,
   "type": "module",
-  "packageManager": "pnpm@11.1.2",
+  "packageManager": "pnpm@11.28.7",
   "engines": {
     "node": "24.x"
   },
@@ -11,12 +12,13 @@
   },
   "scripts": {
     "dev": "vite dev --port 3000",
-    "build": "vite build",
-    "build:development": "CLOUDFLARE_ENV=development vite build --mode development",
-    "build:production": "CLOUDFLARE_ENV=production vite build --mode production",
+    "build": "vite build && pnpm run notices:complete",
+    "build:development": "CLOUDFLARE_ENV=development vite build --mode development && pnpm run notices:complete",
+    "build:production": "CLOUDFLARE_ENV=production vite build --mode production && pnpm run notices:complete",
     "preview": "vite preview",
     "test": "vitest run",
     "e2e": "playwright test",
+    "e2e:components": "playwright test --config playwright.components.config.ts",
     "e2e:public:production": "pnpm run build && E2E_PRODUCTION_SERVER=1 pnpm exec playwright test --project=chromium-public",
     "e2e:auth": "playwright test --project=setup",
     "e2e:headed": "playwright test --headed",
@@ -36,6 +38,8 @@
     "ci:quality": "pnpm run check && pnpm run typecheck && pnpm run test",
     "ci:build": "pnpm run build && pnpm run bundle:check",
     "cities:generate": "node scripts/geonames-to-cities-seed.mjs",
+    "cities:catalog": "node scripts/verify-city-catalog.mjs",
+    "oss:audit": "node scripts/oss-readiness-audit.mjs",
     "reactions:generate": "node scripts/reactions-to-seed.mjs",
     "geo:land-dots": "node scripts/generate-land-dots.mjs",
     "brand:images": "node scripts/generate-brand-images.mjs",
@@ -48,12 +52,13 @@
     "deploy:convex:production": "pnpm exec convex deploy",
     "deploy:worker:development": "pnpm run build:development && pnpm exec wrangler deploy --env development",
     "deploy:worker:production": "pnpm run build:production && pnpm exec wrangler deploy --env production",
-    "deploy": "pnpm run deploy:worker:production"
+    "deploy": "pnpm run deploy:worker:production",
+    "notices:complete": "node scripts/complete-bundle-notices.mjs"
   },
   "dependencies": {
-    "@clerk/backend": "3.4.4",
-    "@clerk/tanstack-react-start": "^1.2.5",
-    "@cloudflare/vite-plugin": "^1.26.0",
+    "@clerk/backend": "3.26.0",
+    "@clerk/tanstack-react-start": "^1.7.4",
+    "@cloudflare/vite-plugin": "^1.64.0",
     "@convex-dev/rate-limiter": "^0.3.2",
     "@convex-dev/react-query": "0.1.0",
     "@convex-dev/resend": "0.2.8",
@@ -66,10 +71,10 @@
     "@radix-ui/react-tooltip": "^1.2.8",
     "@react-email/render": "2.1.0",
     "@tailwindcss/vite": "^4.1.18",
-    "@tanstack/react-query": "5.100.10",
-    "@tanstack/react-router": "1.170.1",
-    "@tanstack/react-router-ssr-query": "1.167.0",
-    "@tanstack/react-start": "1.168.2",
+    "@tanstack/react-query": "5.104.5",
+    "@tanstack/react-router": "1.170.45",
+    "@tanstack/react-router-ssr-query": "1.167.3",
+    "@tanstack/react-start": "1.169.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "convex": "^1.46.0",
@@ -107,9 +112,9 @@
     "oxlint-tsgolint": "^0.22.1",
     "topojson-client": "^3.1.0",
     "typescript": "^6.0.2",
-    "vite": "^8.0.0",
-    "vitest": "^4.1.5",
+    "vite": "^8.3.5",
+    "vitest": "^4.1.12",
     "world-atlas": "^2.0.2",
-    "wrangler": "^4.70.0"
+    "wrangler": "^4.151.3"
   }
 }

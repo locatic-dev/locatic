@@ -115,25 +115,15 @@ export type ViewerBootstrapPayload = {
   needsOnboarding: boolean
   /** Shows the email campaign links; the server checks on every call. */
   isEmailAdmin?: boolean
-  status?: 'unauthenticated' | 'missingViewer' | 'ready'
+  status?:
+    | 'unauthenticated'
+    | 'missingViewer'
+    | 'ready'
+    | 'deletion_pending'
+    | 'deletion_expired'
+    | 'purged'
+  accountLifecycle?: { canRestore: boolean; purgeAfter: number | null }
   viewer: ViewerRecord | null
-}
-
-export type PrivateProfilePayload = {
-  viewer: ViewerRecord
-  cityName: string | null
-  projects: Array<ProjectCardPreview>
-  comments: Array<ProfileCommentPreview>
-  posts: Array<ProfilePostPreview>
-  contributions: Array<ContributedProjectPreview>
-  followers: Array<ProfileSocialPreview>
-  likedProjects: Array<{
-    reactionId: Id<'reactions'>
-    projectId: Id<'projects'>
-    likedAt: number
-    project: ProjectCardPreview
-  }>
-  following: Array<ProfileSocialPreview>
 }
 
 export type PrivateProfileOverviewPayload = {
@@ -168,35 +158,6 @@ export type ProfileSocialPagePayload = {
   isDone: boolean
   pageStatus?: 'SplitRecommended' | 'SplitRequired' | null
   splitCursor?: string | null
-}
-
-export type PublicProfilePayload = {
-  userId: Id<'users'>
-  viewerFollowsProfile: boolean
-  githubUsername: string
-  profile: {
-    displayName: string
-    bio: string
-    avatarUrl: string
-    buildStatus: Doc<'users'>['profile']['buildStatus']
-    socialLinks: Doc<'users'>['profile']['socialLinks']
-    city: string | null
-  }
-  stats: Doc<'users'>['stats']
-  githubContributions?: Doc<'users'>['githubContributions'] | null
-  projects: Array<ProjectCardPreview>
-  comments: Array<ProfileCommentPreview>
-  posts: Array<ProfilePostPreview>
-  contributions: Array<ContributedProjectPreview>
-  followers: Array<ProfileSocialPreview>
-  likedProjects: Array<{
-    reactionId: Id<'reactions'>
-    projectId: Id<'projects'>
-    likedAt: number
-    project: ProjectCardPreview
-  }>
-  following: Array<ProfileSocialPreview>
-  privacy: Doc<'users'>['privacy']
 }
 
 /** `users.publicProfileOverview`, as the profile feature types it. */
@@ -241,7 +202,7 @@ export type EnrichedConversation = Doc<'conversations'> & {
     userId: Id<'users'>
     githubUsername: string
     displayName: string
-    avatarUrl: string
+    avatarUrl: string | null
     cityName: string | null
   } | null
 }
@@ -298,6 +259,7 @@ export function mapViewerBootstrap(
     isAuthenticated: payload.isAuthenticated,
     needsOnboarding: payload.needsOnboarding,
     isEmailAdmin: payload.isEmailAdmin === true,
+    accountLifecycle: payload.accountLifecycle ?? null,
     status:
       payload.status ??
       (payload.viewer
@@ -306,21 +268,6 @@ export function mapViewerBootstrap(
           ? 'missingViewer'
           : 'unauthenticated'),
     viewer: payload.viewer ? mapViewer(payload.viewer) : null,
-  }
-}
-
-export function mapPrivateProfile(payload: PrivateProfilePayload | undefined) {
-  if (!payload) return null
-
-  return {
-    comments: payload.comments,
-    contributions: payload.contributions,
-    followers: payload.followers,
-    following: payload.following,
-    likedProjects: payload.likedProjects,
-    posts: payload.posts,
-    projects: payload.projects,
-    viewer: mapViewer(payload.viewer, payload.cityName),
   }
 }
 
@@ -361,29 +308,6 @@ export function mapViewerExplorePrefs(
   return payload
 }
 
-export function mapPublicProfile(
-  payload: PublicProfilePayload | null | undefined,
-) {
-  if (!payload) return null
-
-  return {
-    comments: payload.comments,
-    contributions: payload.contributions,
-    followers: payload.followers,
-    githubUsername: payload.githubUsername,
-    githubContributions: payload.githubContributions ?? null,
-    following: payload.following,
-    likedProjects: payload.likedProjects,
-    posts: payload.posts,
-    privacy: payload.privacy,
-    profile: payload.profile,
-    projects: payload.projects,
-    stats: payload.stats,
-    userId: payload.userId,
-    viewerFollowsProfile: payload.viewerFollowsProfile,
-  }
-}
-
 export function mapProjectDetail(
   payload: ProjectDetailPayload | null | undefined,
 ) {
@@ -405,12 +329,6 @@ export function mapConversationList(
   payload: Array<EnrichedConversation> | undefined,
 ) {
   return payload
-}
-
-export function mapConversationDetail(
-  payload: ConversationDetailPayload | undefined,
-) {
-  return payload ?? null
 }
 
 export function mapNotifications(

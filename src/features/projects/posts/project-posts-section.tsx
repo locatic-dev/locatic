@@ -17,6 +17,7 @@ export function ProjectPostsSection({
   highlightedCommentId,
   highlightedCommentPath,
   highlightedPostId,
+  onReleaseCommentHighlight,
   isOwnProject,
   isSignedIn,
   projectDetailQueryKey,
@@ -26,6 +27,7 @@ export function ProjectPostsSection({
   highlightedCommentId: string | null
   highlightedCommentPath: string[]
   highlightedPostId: string | null
+  onReleaseCommentHighlight?: (commentId: string) => void
   isOwnProject: boolean
   isSignedIn: boolean
   projectDetailQueryKey: readonly unknown[]
@@ -39,6 +41,7 @@ export function ProjectPostsSection({
   const postLoadAttemptsRef = useRef(0)
   const postLoadTargetRef = useRef<string | null>(null)
   const postRefs = useRef<Record<string, HTMLElement | null>>({})
+  const scrolledPostRef = useRef<string | null>(null)
   const projectPosts = usePaginatedQuery(
     api.posts.listByProject,
     { projectId: detail.project._id },
@@ -73,19 +76,29 @@ export function ProjectPostsSection({
 
   useEffect(() => {
     if (!highlightedPostId) {
+      scrolledPostRef.current = null
       return
     }
+    // A comment destination owns the viewport, including after its URL clears.
+    if (highlightedCommentId) {
+      scrolledPostRef.current = highlightedPostId
+      return
+    }
+    if (scrolledPostRef.current === highlightedPostId) return
 
     const postElement = postRefs.current[highlightedPostId]
     if (!postElement) {
       return
     }
 
+    scrolledPostRef.current = highlightedPostId
     postElement.scrollIntoView({
-      behavior: 'smooth',
+      behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+        ? 'instant'
+        : 'smooth',
       block: 'center',
     })
-  }, [highlightedPostId, posts.length])
+  }, [highlightedCommentId, highlightedPostId, posts.length])
 
   const handleCreatePost = async () => {
     const body = postBody.trim()
@@ -174,6 +187,7 @@ export function ProjectPostsSection({
                 highlightedCommentPath={
                   highlighted ? highlightedCommentPath : []
                 }
+                onReleaseCommentHighlight={onReleaseCommentHighlight}
                 isOwner={isOwnProject}
                 isSignedIn={isSignedIn}
                 post={post}

@@ -47,6 +47,20 @@ export default defineConfig({
       name: 'chromium-authenticated',
       dependencies: ['setup'],
       testMatch: /.*\.authenticated\.spec\.ts/,
+      testIgnore: /(?:onboarding|auth-destination)\.authenticated\.spec\.ts/,
+      use: {
+        ...devices['Desktop Chrome'],
+        storageState: 'playwright/.clerk/user.json',
+      },
+    },
+    {
+      name: 'chromium-onboarding',
+      dependencies: ['setup'],
+      // These two files share a single resettable Clerk persona. Keep their
+      // mutations ordered; other projects use distinct personas.
+      fullyParallel: false,
+      workers: 1,
+      testMatch: /(?:onboarding|auth-destination)\.authenticated\.spec\.ts/,
       use: {
         ...devices['Desktop Chrome'],
         storageState: 'playwright/.clerk/user.json',

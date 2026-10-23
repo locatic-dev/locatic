@@ -33,6 +33,7 @@
  */
 import type { TestConvex } from 'convex-test'
 
+import { internal } from '../_generated/api'
 import type { Id } from '../_generated/dataModel'
 import type schema from '../schema'
 import { upsertHomeFeedItemForEvent } from '../lib/homeFeed'
@@ -711,6 +712,8 @@ export async function seedHomeFeedItem(
       },
       event.target,
     )
+    if (!result.id)
+      throw new Error('seedHomeFeedItem: unavailable account or target')
     return result.id
   })
 }
@@ -1158,4 +1161,41 @@ export async function seedPrivacyVariants(
   }
 
   return { cityId: resolvedCityId, users, projects }
+}
+
+/** Drain lifecycle snapshot pages without advancing timers into the purge window. */
+export async function finishLifecycleOwnerSync(
+  t: Pick<TestConvex<typeof schema>, 'run' | 'mutation'>,
+  userId: Id<'users'>,
+): Promise<void> {
+  for (let page = 0; page < 1000; page++) {
+    const progress = (await t.run((ctx) => ctx.db.get(userId)))
+      ?.lifecycleOwnerSync
+    if (!progress || progress.stage === 3) return
+    await t.mutation(internal.users.syncLifecycleOwnerStatePage, {
+      userId,
+      ...progress,
+    })
+  }
+  throw new Error('Fixture lifecycle synchronization did not complete')
+}
+
+/** Enter the real deletion lifecycle and finish bounded purge in memory only. */
+export async function purgeFixtureAccount(
+  t: Pick<TestConvex<typeof schema>, 'run' | 'mutation'>,
+  userId: Id<'users'>,
+): Promise<void> {
+  const now = Date.now()
+  await t.run((ctx) =>
+    ctx.db.patch(userId, {
+      deletedAt: now - 30 * 24 * 60 * 60 * 1000,
+      deactivatedAt: now - 30 * 24 * 60 * 60 * 1000,
+      purgeAfter: now,
+    }),
+  )
+  for (let page = 0; page < 1000; page++) {
+    if ((await t.run((ctx) => ctx.db.get(userId)))?.purgedAt != null) return
+    await t.mutation(internal.users.scrubDeletedAccount, { userId })
+  }
+  throw new Error('Fixture account purge did not complete')
 }

@@ -12,6 +12,7 @@ import {
   listClerkPrimaryEmails,
 } from './lib/clerk_users'
 import { normalizeEmailAddress } from './lib/email_address'
+import { isAccountPastRestorationWindow } from './lib/account_deletion'
 
 // One-off backfills for the community email fields. Run by hand on each
 // deployment before the optional fields are made required (see
@@ -44,9 +45,12 @@ export const backfillProductUpdates = internalMutation({
     const now = Date.now()
     for (const user of page.page) {
       if (user.notificationPrefs.productUpdates !== undefined) continue
-      if (user.purgedAt != null) {
-        // A purged tombstone gets no email and no consent record, but needs
-        // the field before it becomes required.
+      if (
+        user.purgeProgress != null ||
+        isAccountPastRestorationWindow(user, now)
+      ) {
+        // Irreversible deletion must not recreate consent after that table's
+        // purge stage. Keep the future required preference explicitly off.
         await ctx.db.patch(user._id, {
           notificationPrefs: {
             ...user.notificationPrefs,

@@ -2,8 +2,7 @@ import resendTest from '@convex-dev/resend/test'
 import { convexTest } from 'convex-test'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { seedUser } from './__tests__/fixtures.helpers'
-import { internal } from './_generated/api'
+import { seedUser, purgeFixtureAccount } from './__tests__/fixtures.helpers'
 import type { Id } from './_generated/dataModel'
 import { signUnsubscribeToken } from './lib/unsubscribe_token'
 import schema from './schema'
@@ -131,7 +130,7 @@ describe('/email/unsubscribe', () => {
     const t = setup()
     const userId = await seedUser(t, { username: 'ada' })
     const token = await signUnsubscribeToken(userId, 'product_updates')
-    await t.mutation(internal.users.scrubDeletedAccount, { userId })
+    await purgeFixtureAccount(t, userId)
     const request = oneClick(
       token,
       'List-Unsubscribe=One-Click',

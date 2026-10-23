@@ -64,7 +64,9 @@ test.describe('public profile (C6)', () => {
       'href',
       new RegExp(`redirect=%2Fu%2F${PROFILE_USERNAME}`),
     )
-    await expect(main.getByRole('button', { name: 'follow' })).toHaveCount(0)
+    await expect(
+      main.getByRole('button', { name: 'follow', exact: true }),
+    ).toHaveCount(0)
 
     const titles = await sectionTitles(page)
     expect(titles).toEqual(

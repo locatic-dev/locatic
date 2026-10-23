@@ -14,7 +14,7 @@ import { cn } from '@/lib/utils'
 // The trailing `action` sits outside the interactive identity so its own buttons
 // stay independently clickable.
 const identityBase =
-  'flex min-w-0 flex-1 items-center gap-3 rounded-control text-left'
+  'flex min-w-0 basis-full items-center gap-3 rounded-control text-left @min-[36rem]/person:basis-0 @min-[36rem]/person:flex-1'
 // Focus comes from the global :focus-visible rule.
 const identityInteractive =
   'bg-transparent p-0 transition-colors hover:text-text'
@@ -69,16 +69,16 @@ export function PersonRow({
         decorative
       />
       <div className="min-w-0 flex-1">
-        <div className="truncate font-sans text-label font-medium text-text">
+        <div className="wrap-anywhere font-sans text-label font-medium text-text">
           {title}
         </div>
         {meta != null && (
-          <div className="truncate font-mono text-meta text-text-muted">
+          <div className="wrap-anywhere font-mono text-meta text-text-muted">
             {meta}
           </div>
         )}
         {subtitle != null && (
-          <div className="mt-0.5 truncate font-mono text-meta text-text-muted">
+          <div className="mt-0.5 wrap-anywhere font-mono text-meta text-text-muted">
             {subtitle}
           </div>
         )}
@@ -110,15 +110,18 @@ export function PersonRow({
   }
 
   return (
-    <div className={cn('flex min-h-11 items-center gap-3', className)}>
-      {identity}
-      {location && location.kind !== 'none' && (
-        <LocationPill
-          location={location}
-          className="min-w-0 max-w-2/5 shrink"
-        />
-      )}
-      {action != null && <div className="shrink-0">{action}</div>}
+    <div className={cn('@container/person min-w-0', className)}>
+      <div className="flex min-h-11 flex-wrap items-center gap-x-3 gap-y-2 @min-[36rem]/person:flex-nowrap">
+        {identity}
+        {location && location.kind !== 'none' && (
+          <LocationPill
+            location={location}
+            truncate={false}
+            className="min-w-0 max-w-full shrink @min-[36rem]/person:max-w-2/5"
+          />
+        )}
+        {action != null && <div className="ml-auto shrink-0">{action}</div>}
+      </div>
     </div>
   )
 }

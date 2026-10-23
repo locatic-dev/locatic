@@ -102,7 +102,7 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
     // loader threw notFound), so the city, profile and project routes set
     // their own 404 head from their fresh match.
     const notFound = matches.some(
-      (match) => match.globalNotFound || match.status === 'notFound',
+      (match) => match._notFound || match.status === 'notFound',
     )
     return {
       meta: [
