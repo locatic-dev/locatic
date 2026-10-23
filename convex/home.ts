@@ -14,7 +14,12 @@ import {
   getHomeFeedLegacyTarget,
 } from './lib/homeFeed'
 import { buildProjectCardPreview } from './lib/project_previews'
-import { buildProjectSnapshot, buildSnapshotLocation } from './lib/snapshots'
+import {
+  buildOwnerSnapshot,
+  buildProjectExploreOwner,
+  buildProjectSnapshot,
+  buildSnapshotLocation,
+} from './lib/snapshots'
 import type { SnapshotLocation } from './lib/visibility'
 import {
   actorSnapshotValidator,
@@ -248,18 +253,34 @@ async function enrichTarget(
     }
   }
 
-  const project = await ctx.db.get(target.projectId)
+  const storedProject = await ctx.db.get(target.projectId)
   // A hidden/deleted project still renders its stored label, but a stored
   // snapshot must never preserve location that its owner no longer shares.
   // `ownerId` in the snapshot lets legacy rows apply the same rule after the
   // project itself has been deleted.
   const owner = await ctx.db.get(
-    project?.ownerId ?? target.projectSnapshot.ownerId,
+    storedProject?.ownerId ?? target.projectSnapshot.ownerId,
   )
   const ownerLocation =
-    owner && !owner.deletedAt && !owner.deactivatedAt
+    owner && owner.deletedAt == null && owner.deactivatedAt == null
       ? await buildSnapshotLocation(ctx.db, owner)
       : UNDISCLOSED_LOCATION
+  // The raw project is part of this response too; protecting just its card
+  // preview leaves the old city exposed until the background copy catches up.
+  const project =
+    storedProject &&
+    owner &&
+    owner.deletedAt == null &&
+    owner.deactivatedAt == null
+      ? {
+          ...storedProject,
+          ownerSnapshot: await buildOwnerSnapshot(ctx.db, owner),
+          exploreOwner: buildProjectExploreOwner(
+            owner,
+            storedProject.locatic.isVisible,
+          ),
+        }
+      : null
   const projectSnapshot = {
     ...(project && project.locatic.isVisible
       ? buildProjectSnapshot(project)

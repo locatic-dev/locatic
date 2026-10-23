@@ -96,7 +96,11 @@ export function getCityActivityCell(
 
 /** The city a user counts toward as a builder, or null. */
 export function getBuilderCityId(user: BuilderCandidate): Id<'cities'> | null {
-  if (!user.appearInExplore || user.deletedAt || user.deactivatedAt) {
+  if (
+    !user.appearInExplore ||
+    user.deletedAt != null ||
+    user.deactivatedAt != null
+  ) {
     return null
   }
   return getMemberCityId(user)

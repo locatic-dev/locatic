@@ -1,7 +1,10 @@
 // @vitest-environment jsdom
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { renderToString } from 'react-dom/server'
+import { hydrateRoot } from 'react-dom/client'
 import {
   cleanup,
+  act,
   fireEvent,
   render,
   screen,
@@ -11,7 +14,11 @@ import {
 import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { publicProfileOverviewQueryOptions } from '@/features/profile/queries'
+import {
+  publicFollowGraphQueryOptions,
+  publicProfileOverviewQueryOptions,
+} from '@/features/profile/queries'
+import { emptySocialPage } from '@/features/profile/state'
 import type { PublicProfileOverview } from '@/features/profile/types'
 
 const mocks = vi.hoisted(() => {
@@ -20,6 +27,8 @@ const mocks = vi.hoisted(() => {
     followUser: vi.fn(),
     isSignedIn: true,
     overview: null as unknown,
+    realGraphQuery: false,
+    network: 'followers' as 'followers' | 'following',
     toast: Object.assign(vi.fn(), { error: toastError }),
     toastError,
     unfollowUser: vi.fn(),
@@ -35,7 +44,7 @@ vi.mock('@tanstack/react-router', () => ({
       options,
       useNavigate: () => vi.fn(),
       useParams: () => ({ username: 'ada' }),
-      useSearch: () => ({ tab: 'projects', network: 'followers' }),
+      useSearch: () => ({ tab: 'projects', network: mocks.network }),
     }),
   Link: ({
     children,
@@ -66,11 +75,19 @@ vi.mock('@tanstack/react-router', () => ({
   }) => select({ location: { href: '/u/ada?tab=posts' } }),
 }))
 
-vi.mock('@tanstack/react-query', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@tanstack/react-query')>()),
-  useQuery: () => ({ data: undefined, isLoading: false }),
-  useSuspenseQuery: () => ({ data: mocks.overview }),
-}))
+vi.mock('@tanstack/react-query', async (importOriginal) => {
+  const original =
+    await importOriginal<typeof import('@tanstack/react-query')>()
+  return {
+    ...original,
+    useQuery: (options: Parameters<typeof original.useQuery>[0]) =>
+      mocks.realGraphQuery &&
+      JSON.stringify(options.queryKey).includes('publicFollowGraphPage')
+        ? original.useQuery(options)
+        : { data: undefined, isLoading: false },
+    useSuspenseQuery: () => ({ data: mocks.overview }),
+  }
+})
 
 vi.mock('@clerk/tanstack-react-start', () => ({
   useAuth: () => ({ isSignedIn: mocks.isSignedIn }),
@@ -174,21 +191,49 @@ function buildOverview(
   } as unknown as PublicProfileOverview
 }
 
-async function renderProfilePage(overview: PublicProfileOverview) {
+async function renderProfilePage(
+  overview: PublicProfileOverview,
+  queryClient = new QueryClient(),
+) {
   mocks.overview = overview
-  const queryClient = new QueryClient()
   const profileQueryKey = publicProfileOverviewQueryOptions('ada').queryKey
   queryClient.setQueryData(profileQueryKey, overview)
   const { Route } = await import('@/routes/u.$username')
   const PublicProfilePage = Route.options.component as () => ReactNode
 
-  render(
+  const page = () => (
     <QueryClientProvider client={queryClient}>
       <PublicProfilePage />
-    </QueryClientProvider>,
+    </QueryClientProvider>
   )
+  const view = render(page())
 
-  return { profileQueryKey, queryClient }
+  return { profileQueryKey, queryClient, page, ...view }
+}
+
+function networkPage(name: string, done = true) {
+  return {
+    ...emptySocialPage(),
+    isDone: done,
+    continueCursor: 'next-page',
+    page: [
+      {
+        userId: name,
+        displayName: name,
+        githubUsername: name.toLowerCase(),
+        avatarUrl: null,
+        cityName: null,
+      },
+    ],
+  }
+}
+
+function firstGraphKey(kind: 'followers' | 'following') {
+  return publicFollowGraphQueryOptions({
+    username: 'ada',
+    kind,
+    paginationOpts: { cursor: null, numItems: 12 },
+  }).queryKey
 }
 
 /** The identity header; the network tabs below reuse "following". */
@@ -211,6 +256,229 @@ describe('public profile page (C6)', () => {
     cleanup()
     vi.clearAllMocks()
     mocks.isSignedIn = true
+    mocks.realGraphQuery = false
+    mocks.network = 'followers'
+  })
+
+  it('waits for the initial network snapshot before the loader completes', async () => {
+    const { Route } = await import('@/routes/u.$username')
+    let finishGraph!: () => void
+    const graph = new Promise<void>((resolve) => {
+      finishGraph = resolve
+    })
+    const prefetchQuery = vi.fn(() => graph)
+    let completed = false
+    const loader = Route.options.loader as (args: unknown) => Promise<unknown>
+    const loading = loader({
+      context: {
+        queryClient: {
+          ensureQueryData: async () => buildOverview(),
+          prefetchQuery,
+        },
+      },
+      deps: { network: 'followers' },
+      params: { username: 'ada' },
+    }).then(() => {
+      completed = true
+    })
+    await vi.waitFor(() => expect(prefetchQuery).toHaveBeenCalledOnce())
+    expect(completed).toBe(false)
+    finishGraph()
+    await loading
+    expect(completed).toBe(true)
+  })
+
+  it('server-renders cached network rows and hydrates them without an empty flash', async () => {
+    mocks.realGraphQuery = true
+    mocks.isSignedIn = false
+    mocks.overview = buildOverview()
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { queryFn: async () => [], staleTime: Infinity, retry: false },
+      },
+    })
+    queryClient.setQueryData(
+      publicFollowGraphQueryOptions({
+        username: 'ada',
+        kind: 'followers',
+        paginationOpts: { cursor: null, numItems: 12 },
+      }).queryKey,
+      {
+        ...emptySocialPage(),
+        page: [
+          {
+            userId: 'grace',
+            displayName: 'Grace Hopper',
+            githubUsername: 'grace',
+            avatarUrl: null,
+            cityName: null,
+          },
+        ],
+      },
+    )
+    const { Route } = await import('@/routes/u.$username')
+    const Page = Route.options.component as () => ReactNode
+    const page = (
+      <QueryClientProvider client={queryClient}>
+        <Page />
+      </QueryClientProvider>
+    )
+    const html = renderToString(page)
+    expect(html).toContain('Grace Hopper')
+    expect(html).not.toContain('no followers yet.')
+    const container = document.createElement('div')
+    container.innerHTML = html
+    document.body.append(container)
+    const recoverable = vi.fn()
+    const root = hydrateRoot(container, page, {
+      onRecoverableError: recoverable,
+    })
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(
+      within(container).getByRole('button', {
+        name: "Open Grace Hopper's profile",
+      }),
+    ).toBeTruthy()
+    expect(recoverable).not.toHaveBeenCalled()
+    act(() => root.unmount())
+    container.remove()
+    queryClient.clear()
+  })
+
+  it('keeps appended pages across tabs and discards them after the first snapshot changes', async () => {
+    mocks.realGraphQuery = true
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: {
+          queryFn: async () => networkPage('Katherine'),
+          staleTime: Infinity,
+          retry: false,
+        },
+      },
+    })
+    queryClient.setQueryData(
+      firstGraphKey('followers'),
+      networkPage('Grace', false),
+    )
+    queryClient.setQueryData(
+      firstGraphKey('following'),
+      networkPage('Margaret'),
+    )
+    const { page, rerender } = await renderProfilePage(
+      buildOverview(),
+      queryClient,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'load more' }))
+    await screen.findByRole('button', { name: "Open Katherine's profile" })
+    mocks.network = 'following'
+    rerender(page())
+    expect(
+      screen.getByRole('button', { name: "Open Margaret's profile" }),
+    ).toBeTruthy()
+    expect(
+      screen.queryByRole('button', { name: "Open Katherine's profile" }),
+    ).toBeNull()
+    mocks.network = 'followers'
+    rerender(page())
+    expect(
+      screen.getByRole('button', { name: "Open Katherine's profile" }),
+    ).toBeTruthy()
+
+    await act(async () => {
+      queryClient.setQueryData(
+        firstGraphKey('followers'),
+        networkPage('Dorothy'),
+      )
+    })
+    expect(
+      await screen.findByRole('button', { name: "Open Dorothy's profile" }),
+    ).toBeTruthy()
+    expect(
+      screen.queryByRole('button', { name: "Open Katherine's profile" }),
+    ).toBeNull()
+    queryClient.clear()
+  })
+
+  it('does not append a late page to a refreshed cursor chain', async () => {
+    mocks.realGraphQuery = true
+    let finish!: (value: ReturnType<typeof networkPage>) => void
+    const pending = new Promise<ReturnType<typeof networkPage>>((resolve) => {
+      finish = resolve
+    })
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { queryFn: () => pending, staleTime: Infinity, retry: false },
+      },
+    })
+    queryClient.setQueryData(
+      firstGraphKey('followers'),
+      networkPage('Grace', false),
+    )
+    queryClient.setQueryData(
+      firstGraphKey('following'),
+      networkPage('Margaret'),
+    )
+    await renderProfilePage(buildOverview(), queryClient)
+    fireEvent.click(screen.getByRole('button', { name: 'load more' }))
+    await act(async () => {
+      queryClient.setQueryData(
+        firstGraphKey('followers'),
+        networkPage('Dorothy'),
+      )
+    })
+    await act(async () => {
+      finish(networkPage('Stale'))
+      await pending
+    })
+    expect(
+      screen.getByRole('button', { name: "Open Dorothy's profile" }),
+    ).toBeTruthy()
+    expect(
+      screen.queryByRole('button', { name: "Open Stale's profile" }),
+    ).toBeNull()
+    queryClient.clear()
+  })
+
+  it('shows a retry after a network failure instead of claiming there are no followers', async () => {
+    mocks.realGraphQuery = true
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: {
+          queryFn: async () => {
+            throw new Error('offline')
+          },
+          retry: false,
+        },
+      },
+    })
+    await renderProfilePage(buildOverview(), queryClient)
+    expect(await screen.findByRole('alert')).toHaveProperty(
+      'textContent',
+      expect.stringContaining("couldn't load this network."),
+    )
+    expect(screen.queryByText('no followers yet.')).toBeNull()
+    expect(screen.getByRole('button', { name: 'try again' })).toBeTruthy()
+    queryClient.clear()
+  })
+
+  it('hides the calendar section when contributions are private, even with cached calendar data', async () => {
+    const overview = buildOverview()
+    await renderProfilePage({
+      ...overview,
+      privacy: { ...overview.privacy, contributionsVisibility: 'private' },
+      githubContributions: {
+        totalContributions: 1234,
+        syncedAt: 0,
+        weeks: [{ days: [{ count: 3, date: '2026-06-01' }] }],
+      },
+    })
+
+    expect(
+      screen.queryByRole('heading', { name: 'github contributions' }),
+    ).toBeNull()
+    expect(screen.queryByText('1,234 contributions this year')).toBeNull()
   })
 
   it('renders identity, bio, actions, pins, recent work, graph, languages, then network', async () => {

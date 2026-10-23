@@ -208,12 +208,13 @@ export const notificationsQueryOptions = (
 export const notificationsUnreadCountQueryOptions = (ready = true) =>
   convexQuery(api.notifications.unreadCount, ready ? {} : 'skip')
 
-export const conversationsQueryOptions = () =>
-  convexQuery(api.conversations.list, {})
-
-export const conversationDetailQueryOptions = (
-  conversationId: Id<'conversations'>,
-) => convexQuery(api.conversations.get, { conversationId })
+export const conversationSummaryQueryOptions = (
+  conversationId: string | null,
+) =>
+  convexQuery(
+    api.conversations.getSummary,
+    conversationId ? { conversationId } : 'skip',
+  )
 
 export const conversationRecipientPreviewQueryOptions = (
   otherUserId: string | null,

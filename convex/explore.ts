@@ -379,13 +379,15 @@ async function listExploreProjectPage(
     // index already excludes non-members via `exploreOwner.cityId`;
     // checking the live owner also covers rows written before the owner's
     // latest privacy change was re-derived.
-    const scopedProjects =
-      selectedCityIds.length === 0
-        ? candidates
-        : candidates.filter((project) => {
-            const owner = ownerById.get(String(project.ownerId))
-            return owner ? isMemberOfAnyCity(owner, selectedCityIds) : false
-          })
+    const scopedProjects = candidates.filter((project) => {
+      const owner = ownerById.get(String(project.ownerId))
+      return (
+        owner !== undefined &&
+        isOwnerDiscoverable(owner) &&
+        (selectedCityIds.length === 0 ||
+          isMemberOfAnyCity(owner, selectedCityIds))
+      )
+    })
 
     return await Promise.all(
       rankExploreProjectsByStack({

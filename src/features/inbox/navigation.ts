@@ -2,9 +2,35 @@ import type { EnrichedConversation } from '@/features/contracts'
 
 export type InboxTab = 'inbox' | 'requests'
 
+export type InboxSearch = {
+  tab: InboxTab
+  conversation: string | null
+  compose: string | null
+}
+export const INBOX_SEARCH_DEFAULTS = {
+  tab: 'inbox',
+  conversation: null,
+  compose: null,
+} as const
+
+export function normalizeInboxSearch(
+  search: Record<string, unknown>,
+): InboxSearch {
+  const optionalId = (value: unknown) => {
+    const id = typeof value === 'string' ? value.trim() : ''
+    return id && id !== 'null' && id !== 'undefined' ? id : null
+  }
+  const conversation = optionalId(search.conversation)
+  return {
+    tab: search.tab === 'requests' ? 'requests' : 'inbox',
+    conversation,
+    compose: conversation ? null : optionalId(search.compose),
+  }
+}
+
 /**
- * How a conversation reads for the viewer, as `conversations.list` and
- * `conversations.get` return it: `request` is an incoming message request,
+ * How a conversation reads for the viewer, as `conversations.listPage` and
+ * `conversations.getSummary` return it: `request` is an incoming message request,
  * `pending` an outgoing one the other person has not answered, `active` an
  * accepted conversation.
  */

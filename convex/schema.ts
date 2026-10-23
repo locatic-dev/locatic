@@ -1,4 +1,8 @@
 import { defineSchema, defineTable } from 'convex/server'
+import {
+  fixtureIdentitiesValidator,
+  fixtureManifestValidator,
+} from './lib/development_fixture_contracts'
 import { v } from 'convex/values'
 import {
   actorSnapshotValidator,
@@ -45,6 +49,19 @@ import {
 } from './lib/validators'
 
 export default defineSchema({
+  // Internal tooling for an explicitly pinned disposable development project.
+  // No ordinary app endpoint reads/writes this table.
+  development_fixture_state: defineTable({
+    generation: v.number(),
+    stage: v.number(),
+    cursor: v.union(v.string(), v.null()),
+    status: v.union(v.literal('resetting'), v.literal('ready')),
+    requestKey: v.string(),
+    target: v.string(),
+    identities: fixtureIdentitiesValidator,
+    preparedAt: v.union(v.number(), v.null()),
+    manifest: v.union(fixtureManifestValidator, v.null()),
+  }),
   github_tokens: defineTable({
     userId: v.id('users'),
     tokenStatus: githubTokenStatusValidator,
@@ -199,6 +216,21 @@ export default defineSchema({
     deletedAt: optionalTimestampValidator,
     purgeAfter: v.optional(optionalTimestampValidator),
     purgedAt: v.optional(optionalTimestampValidator),
+    deletionPreviousAppearInExplore: v.optional(v.boolean()),
+    lifecycleOwnerSync: v.optional(
+      v.object({
+        generation: v.number(),
+        stage: v.number(),
+        cursor: optionalStringValidator,
+      }),
+    ),
+    purgeProgress: v.optional(
+      v.object({
+        stage: v.number(),
+        cursor: optionalStringValidator,
+        accountIndexed: v.optional(v.boolean()),
+      }),
+    ),
   })
     .index('by_clerk_id', ['clerkId'])
     .index('by_github_id', ['github.id'])
@@ -726,6 +758,13 @@ export default defineSchema({
     .index('by_user_group_key', ['userId', 'groupKey']),
 
   conversations: defineTable({
+    messageSequence: v.optional(v.number()),
+    readWatermarks: v.optional(
+      v.record(
+        v.string(),
+        v.object({ sequence: v.number(), readAt: v.number() }),
+      ),
+    ),
     conversationKey: v.string(),
     participantLowId: v.id('users'),
     participantHighId: v.id('users'),
@@ -744,6 +783,7 @@ export default defineSchema({
     .index('by_participant_high_updated', ['participantHighId', 'updatedAt']),
 
   messages: defineTable({
+    sequence: v.optional(v.number()),
     conversationId: v.id('conversations'),
     senderId: v.id('users'),
     content: v.string(),

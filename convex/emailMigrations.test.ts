@@ -1,7 +1,12 @@
 import { convexTest, type TestConvex } from 'convex-test'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { fixtureClerkId, NOW, seedUser } from './__tests__/fixtures.helpers'
+import {
+  fixtureClerkId,
+  NOW,
+  seedUser,
+  purgeFixtureAccount,
+} from './__tests__/fixtures.helpers'
 import { internal } from './_generated/api'
 import type { Id } from './_generated/dataModel'
 import { listClerkPrimaryEmails } from './lib/clerk_users'
@@ -91,10 +96,38 @@ describe('backfillProductUpdates', () => {
     expect(changes.every((change) => change.subscribed)).toBe(true)
   })
 
+  it('does not recreate consent during irreversible deletion but preserves recoverable defaults', async () => {
+    const t = convexTest(schema, modules)
+    const [expired, recoverable] = await insertLegacyUsers(t, 2)
+    const now = Date.now()
+    await t.run(async (ctx) => {
+      await ctx.db.patch(expired!, {
+        deletedAt: now - 1,
+        purgeAfter: now - 1,
+        purgeProgress: { stage: 18, cursor: null },
+      })
+      await ctx.db.patch(recoverable!, {
+        deletedAt: now - 1,
+        purgeAfter: now + 86_400_000,
+      })
+    })
+    await t.mutation(internal.emailMigrations.backfillProductUpdates, {
+      cursor: null,
+    })
+    const changes = await t.run((ctx) =>
+      ctx.db.query('email_preference_changes').collect(),
+    )
+    expect(changes.map((row) => row.userId)).toEqual([recoverable])
+    expect(
+      (await t.run((ctx) => ctx.db.get(expired!)))?.notificationPrefs
+        .productUpdates,
+    ).toBe(false)
+  })
+
   it('gives purged accounts the field turned off, with no consent record', async () => {
     const t = convexTest(schema, modules)
     const [purged] = await insertLegacyUsers(t, 1)
-    await t.mutation(internal.users.scrubDeletedAccount, { userId: purged! })
+    await purgeFixtureAccount(t, purged!)
 
     await t.mutation(internal.emailMigrations.backfillProductUpdates, {
       cursor: null,
@@ -250,7 +283,7 @@ describe('backfillEmailVerified', () => {
     const t = convexTest(schema, modules)
     const ids = await insertLegacyUsers(t, 101)
     // A purged tombstone: Clerk no longer has it either.
-    await t.mutation(internal.users.scrubDeletedAccount, { userId: ids[4]! })
+    await purgeFixtureAccount(t, ids[4]!)
     listClerk.mockImplementation(async (clerkIds) =>
       clerkIds
         .filter(

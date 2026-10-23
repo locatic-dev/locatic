@@ -15,6 +15,7 @@ import {
   seedPrivacyVariants,
   seedProject,
   seedUser,
+  finishLifecycleOwnerSync,
   type PopulatedCityFixture,
 } from './__tests__/fixtures.helpers'
 import {
@@ -288,6 +289,7 @@ describe('explore visibility contract (D8)', () => {
     expect(await projectIds(t, 'frank', null)).toContain(aliceApp)
     expect(await postIds(t, 'frank', [bengaluru])).not.toContain(alicePost)
 
+    await finishLifecycleOwnerSync(t, alice)
     const stored = await t.run(async (ctx) => ({
       projects: await Promise.all(
         [aliceApp, aliceLib].map((id) => ctx.db.get(id)),
@@ -314,6 +316,7 @@ describe('explore visibility contract (D8)', () => {
       ...privacyArgs,
       cityVisibility: 'region_only',
     })
+    await finishLifecycleOwnerSync(t, alice)
     expect(
       await t.run(async (ctx) => (await ctx.db.get(aliceApp))?.ownerSnapshot),
     ).toMatchObject({ cityId: null, cityName: 'Karnataka, India' })
@@ -324,6 +327,7 @@ describe('explore visibility contract (D8)', () => {
       ...privacyArgs,
       cityVisibility: 'exact_city',
     })
+    await finishLifecycleOwnerSync(t, alice)
     expect(ids(await builders(t, 'frank', [bengaluru]))).toContain(alice)
     expect(await projectIds(t, 'frank', [bengaluru])).toContain(aliceApp)
     expect(await postIds(t, 'frank', [bengaluru])).toContain(alicePost)

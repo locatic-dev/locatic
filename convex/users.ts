@@ -21,6 +21,7 @@ import {
   getViewerFromAuth,
   getViewerOrThrow,
   requireIdentity,
+  assertAccountAvailable,
 } from './lib/auth'
 import { buildDiscoverabilitySearchText } from './lib/discoverability'
 import { assertProfileTextLimits } from './lib/content_limits'
@@ -35,19 +36,21 @@ import { filterVisiblePosts, getVisiblePostProject } from './lib/posts'
 import { isProjectPubliclyInteractable } from './lib/project_access'
 import {
   getAccountDeletionWindow,
+  getAccountLifecycle,
+  isAccountDeleted,
   shouldPurgeDeletedAccount,
 } from './lib/account_deletion'
 import {
   getExploreCityIdsAfterProfileCityChange,
   isNewBuilderAccount,
 } from './lib/explore'
-import {
-  buildActorSnapshot,
-  buildOwnerSnapshot,
-  buildProjectExploreOwner,
-  getPostCityId,
-} from './lib/snapshots'
+import { buildActorSnapshot } from './lib/snapshots'
 import { createDefaultViewerProfile } from './lib/viewer'
+import { purgeAccountPage } from './lib/account_purge'
+import {
+  startLifecycleOwnerSync,
+  syncLifecycleOwnerStatePage as processLifecycleOwnerStatePage,
+} from './lib/lifecycle_owner_sync'
 import { normalizeEmailAddress } from './lib/email_address'
 import { isEmailAdminViewer } from './lib/email_admin'
 import { isSubscribed } from './lib/email_audience'
@@ -71,7 +74,6 @@ import {
   isCityMember,
   toPublicIdentity,
 } from './lib/visibility'
-import { createCityStatsChanges, getBuilderCityId } from './lib/cityStats'
 import {
   computeLastPublicActivityAt,
   recomputeProjectPublicActivity,
@@ -91,9 +93,6 @@ import {
 } from './lib/validators'
 import {
   getCommentReactionCounts,
-  getNextCommentReactionState,
-  getNextPostReactionCounts,
-  getNextProjectReactionLocatic,
   getViewerReactionTypesByTargetId,
 } from './lib/reactions'
 
@@ -101,6 +100,9 @@ const viewerBootstrapStatusValidator = v.union(
   v.literal('unauthenticated'),
   v.literal('missingViewer'),
   v.literal('ready'),
+  v.literal('deletion_pending'),
+  v.literal('deletion_expired'),
+  v.literal('purged'),
 )
 
 const githubContributionsValidator = v.union(
@@ -213,6 +215,12 @@ const viewerBootstrapValidator = v.object({
   isEmailAdmin: v.boolean(),
   status: viewerBootstrapStatusValidator,
   viewer: v.union(serializedViewerValidator, v.null()),
+  accountLifecycle: v.optional(
+    v.object({
+      canRestore: v.boolean(),
+      purgeAfter: optionalTimestampValidator,
+    }),
+  ),
 })
 
 const PROFILE_POSTS_LIMIT = 50
@@ -376,87 +384,8 @@ async function getViewerCityName(
   return city?.displayName ?? null
 }
 
-/**
- * Re-derives the user's denormalised owner and actor fields after a change to
- * their profile, city, city visibility or discovery participation, so the
- * visibility policy (convex/lib/visibility.ts) holds for maintained data:
- * `projects.exploreOwner` / `projects.ownerSnapshot` on their projects,
- * `posts.projectCityId` (`getPostCityId`: member city while discoverable) on
- * posts about their projects, `actorSnapshot` on
- * their own live posts, and the city counters (convex/lib/cityStats.ts) for
- * the user as a builder and for each of their projects. `previous` is the
- * user document before the change (pass `user` itself when only re-deriving);
- * project transitions are read from the stored rows. Reads are bounded by the
- * user's own rows via the owner and actor indexes.
- */
-async function syncOwnedProjectOwnerState(
-  ctx: MutationCtx,
-  previous: Doc<'users'>,
-  user: Doc<'users'>,
-) {
-  const cityStats = createCityStatsChanges()
-  cityStats.moveBuilder(getBuilderCityId(previous), getBuilderCityId(user))
-
-  const [ownedProjects, ownedPosts, authoredPosts] = await Promise.all([
-    ctx.db
-      .query('projects')
-      .withIndex('by_owner', (query) => query.eq('ownerId', user._id))
-      .collect(),
-    ctx.db
-      .query('posts')
-      .withIndex('by_owner_deleted_created', (query) =>
-        query.eq('ownerId', user._id),
-      )
-      .collect(),
-    ctx.db
-      .query('posts')
-      .withIndex('by_actor_deleted_created', (query) =>
-        query.eq('actorId', user._id).eq('deletedAt', null),
-      )
-      .collect(),
-  ])
-
-  if (
-    ownedProjects.length === 0 &&
-    ownedPosts.length === 0 &&
-    authoredPosts.length === 0
-  ) {
-    await cityStats.apply(ctx.db)
-    return
-  }
-
-  const [ownerSnapshot, actorSnapshot] = await Promise.all([
-    buildOwnerSnapshot(ctx.db, user),
-    buildActorSnapshot(ctx.db, user),
-  ])
-  const projectCityId = getPostCityId(user)
-
-  await Promise.all([
-    ...ownedProjects.map(async (project) => {
-      const exploreOwner = buildProjectExploreOwner(
-        user,
-        project.locatic.isVisible,
-      )
-      await cityStats.moveProject(ctx.db, project, project, { exploreOwner })
-      await ctx.db.patch(project._id, { ownerSnapshot, exploreOwner })
-    }),
-    ...ownedPosts
-      .filter((post) => post.projectCityId !== projectCityId)
-      .map((post) => ctx.db.patch(post._id, { projectCityId })),
-    ...authoredPosts
-      .filter(
-        (post) =>
-          post.actorSnapshot.displayName !== actorSnapshot.displayName ||
-          post.actorSnapshot.avatarUrl !== actorSnapshot.avatarUrl ||
-          post.actorSnapshot.cityId !== actorSnapshot.cityId ||
-          post.actorSnapshot.cityName !== actorSnapshot.cityName,
-      )
-      .map((post) => ctx.db.patch(post._id, { actorSnapshot })),
-  ])
-  await cityStats.apply(ctx.db)
-}
-
 async function requestAccountDeletion(ctx: MutationCtx, user: Doc<'users'>) {
+  if (user.purgedAt != null || user.deletedAt != null) return
   const now = Date.now()
   const { deletedAt, deactivatedAt, purgeAfter } = getAccountDeletionWindow(
     user,
@@ -467,11 +396,13 @@ async function requestAccountDeletion(ctx: MutationCtx, user: Doc<'users'>) {
     deletedAt,
     deactivatedAt,
     purgeAfter,
+    deletionPreviousAppearInExplore:
+      user.deletionPreviousAppearInExplore ?? user.appearInExplore,
     appearInExplore: false,
     updatedAt: now,
   })
 
-  await syncOwnedProjectOwnerState(ctx, user, {
+  await startLifecycleOwnerSync(ctx, user, {
     ...user,
     deletedAt,
     deactivatedAt,
@@ -504,7 +435,7 @@ async function mapFollowUserPreview(
   cityName: string | null
 } | null> {
   const user = await ctx.db.get(userId)
-  if (!user || user.deletedAt || user.deactivatedAt) {
+  if (!user || isProfileGone(user)) {
     return null
   }
 
@@ -1031,9 +962,7 @@ async function getAccessiblePublicProfileViewer(
   username: string,
 ) {
   const requesterIdentity = await ctx.auth.getUserIdentity()
-  const requester = requesterIdentity
-    ? await getViewerByClerkId(ctx, requesterIdentity.subject)
-    : null
+  const requester = requesterIdentity ? await getViewerFromAuth(ctx) : null
   const viewer = await ctx.db
     .query('users')
     .withIndex('by_github_username', (query) =>
@@ -1049,7 +978,7 @@ async function getAccessiblePublicProfileViewer(
     }
   }
 
-  if (!isProfileOpenToSignedOutVisitors(viewer) && !requesterIdentity) {
+  if (!isProfileOpenToSignedOutVisitors(viewer) && !requester) {
     return {
       requester,
       requesterIdentity,
@@ -1332,7 +1261,9 @@ async function getPublicProfilePayload(
       city: resolvePublicCityLabel(viewer, city),
     },
     stats: toPublicProfileStats(viewer),
-    githubContributions: viewer.githubContributions ?? null,
+    githubContributions: contributionsArePublic
+      ? (viewer.githubContributions ?? null)
+      : null,
     projects,
     posts,
     comments,
@@ -1366,6 +1297,21 @@ export const viewerBootstrap = query({
         isEmailAdmin: false,
         status: 'missingViewer' as const,
         viewer: null,
+      }
+    }
+
+    const lifecycle = getAccountLifecycle(viewerState.viewer, Date.now())
+    if (lifecycle !== 'active') {
+      return {
+        isAuthenticated: true,
+        needsOnboarding: false,
+        isEmailAdmin: false,
+        status: lifecycle,
+        viewer: null,
+        accountLifecycle: {
+          canRestore: lifecycle === 'deletion_pending',
+          purgeAfter: viewerState.viewer.purgeAfter ?? null,
+        },
       }
     }
 
@@ -1525,7 +1471,7 @@ export const publicFollowGraphPage = query({
       )
       .unique()
 
-    if (!viewer || viewer.deletedAt || viewer.deactivatedAt) {
+    if (!viewer || isProfileGone(viewer)) {
       return emptyFollowPreviewPage(args.paginationOpts.cursor)
     }
 
@@ -1678,7 +1624,9 @@ export const publicProfileOverview = query({
       },
       stats: toPublicProfileStats(user),
       privacy: toPublicProfilePrivacy(user.privacy),
-      githubContributions: user.githubContributions ?? null,
+      githubContributions: isContributionsVisibleOnPublicProfile(user.privacy)
+        ? (user.githubContributions ?? null)
+        : null,
       pinnedProjects: showcase.pinnedProjects,
       recentProjects: showcase.recentProjects,
       recentPosts,
@@ -1883,7 +1831,7 @@ export const updateProfile = mutation({
       exploreConfig: nextExploreConfig,
       updatedAt: Date.now(),
     })
-    await syncOwnedProjectOwnerState(ctx, viewer, updatedViewer)
+    await startLifecycleOwnerSync(ctx, viewer, updatedViewer)
 
     return await ctx.db.get(viewer._id)
   },
@@ -1894,7 +1842,8 @@ export const updateProfile = mutation({
  * fields are merged over the stored settings, so a client can save one
  * control (for example `{ cityVisibility }`) without resending, and possibly
  * overwriting, the others. A full object still works. A city visibility
- * change re-derives the owner state and city counters in the same mutation.
+ * change commits authority and builder counters immediately; indexed snapshots
+ * and project counters catch up through guarded, bounded pages.
  */
 export const updatePrivacy = mutation({
   args: {
@@ -1947,7 +1896,7 @@ export const updatePrivacy = mutation({
     })
 
     if (privacy.cityVisibility !== viewer.privacy.cityVisibility) {
-      await syncOwnedProjectOwnerState(ctx, viewer, { ...viewer, privacy })
+      await startLifecycleOwnerSync(ctx, viewer, { ...viewer, privacy })
     }
 
     return null
@@ -2009,7 +1958,7 @@ export const updateExploreConfig = mutation({
       updatedAt: Date.now(),
     })
 
-    await syncOwnedProjectOwnerState(ctx, viewer, {
+    await startLifecycleOwnerSync(ctx, viewer, {
       ...viewer,
       appearInExplore: args.appearInExplore,
     })
@@ -2100,7 +2049,7 @@ export const completeOnboarding = mutation({
       onboardingCompletedAt: Date.now(),
       updatedAt: Date.now(),
     })
-    await syncOwnedProjectOwnerState(ctx, viewer, updatedViewer)
+    await startLifecycleOwnerSync(ctx, viewer, updatedViewer)
 
     // New members are told about update emails on the last step and start
     // subscribed; the consent log records that default once.
@@ -2214,7 +2163,7 @@ export const deactivateAccount = mutation({
       updatedAt: now,
     })
 
-    await syncOwnedProjectOwnerState(ctx, viewer, {
+    await startLifecycleOwnerSync(ctx, viewer, {
       ...viewer,
       deactivatedAt: now,
       appearInExplore: false,
@@ -2233,9 +2182,44 @@ export const deleteAccount = mutation({
   args: {},
   returns: v.null(),
   handler: async (ctx) => {
-    const viewer = await getViewerOrThrow(ctx)
+    const identity = await requireIdentity(ctx)
+    const viewer = await getViewerByClerkId(ctx, identity.subject)
+    if (!viewer || viewer.purgedAt != null)
+      throw new ConvexError('Account unavailable')
     await requestAccountDeletion(ctx, viewer)
 
+    return null
+  },
+})
+
+export const restoreAccount = mutation({
+  args: {},
+  returns: v.null(),
+  handler: async (ctx) => {
+    const identity = await requireIdentity(ctx)
+    const viewer = await getViewerByClerkId(ctx, identity.subject)
+    if (
+      !viewer ||
+      getAccountLifecycle(viewer, Date.now()) !== 'deletion_pending'
+    ) {
+      throw new ConvexError('Restoration window has ended')
+    }
+    const restored = {
+      ...viewer,
+      deletedAt: null,
+      deactivatedAt: null,
+      purgeAfter: null,
+      appearInExplore: viewer.deletionPreviousAppearInExplore ?? false,
+    }
+    await ctx.db.patch(viewer._id, {
+      deletedAt: null,
+      deactivatedAt: null,
+      purgeAfter: null,
+      deletionPreviousAppearInExplore: undefined,
+      appearInExplore: restored.appearInExplore,
+      updatedAt: Date.now(),
+    })
+    await startLifecycleOwnerSync(ctx, viewer, restored)
     return null
   },
 })
@@ -2441,14 +2425,16 @@ export const backfillLastPublicActivity = internalMutation({
 /**
  * One-off re-derivation of every user's owner/actor snapshots, project
  * `exploreOwner` fields and city counter contributions under the visibility
- * policy (plan items A2, A4), via `syncOwnedProjectOwnerState`. Not run on
+ * policy (plan items A2, A4), via `startLifecycleOwnerSync`. Not run on
  * deploy; a person runs it once, before `internal.cities.recountStats`:
  *
  *   npx convex run users:backfillOwnerState '{}'            # dev deployment
  *   npx convex run --prod users:backfillOwnerState '{}'     # production
  *
- * It schedules itself page by page over the users table. Idempotent: a user
- * whose stored fields already match writes nothing new to the counters.
+ * Each user queues bounded owner-state work independently. Finishing the user
+ * scan does not mean those jobs are finished: wait for eligible queued syncs
+ * to reach stage 3 and skipped purging accounts to finish purge before city
+ * recount/parity checks. Stored-row transitions make retries idempotent.
  */
 export const backfillOwnerState = internalMutation({
   args: {
@@ -2461,12 +2447,15 @@ export const backfillOwnerState = internalMutation({
   }),
   handler: async (ctx, args) => {
     const batchSize = Math.min(Math.max(args.batchSize ?? 25, 1), 100)
-    const page = await ctx.db
-      .query('users')
-      .paginate({ cursor: args.cursor ?? null, numItems: batchSize })
+    const page = await ctx.db.query('users').paginate({
+      cursor: args.cursor ?? null,
+      numItems: batchSize,
+      maximumRowsRead: batchSize,
+      maximumBytesRead: 256_000,
+    })
 
     for (const user of page.page) {
-      await syncOwnedProjectOwnerState(ctx, user, user)
+      await startLifecycleOwnerSync(ctx, user, user)
     }
 
     if (!page.isDone) {
@@ -2544,395 +2533,29 @@ export const deletedAccountPurgeState = internalQuery({
 })
 
 export const scrubDeletedAccount = internalMutation({
-  args: {
-    userId: v.id('users'),
-  },
+  args: { userId: v.id('users') },
   returns: v.null(),
   handler: async (ctx, args) => {
     const user = await ctx.db.get(args.userId)
-    if (!user) {
-      return null
-    }
-    if (user.purgedAt) {
-      return null
-    }
+    // The check belongs in this transaction, including every continuation.
+    if (!user || !shouldPurgeDeletedAccount(user, Date.now())) return null
+    const done = await purgeAccountPage(ctx, user)
+    if (!done)
+      await ctx.scheduler.runAfter(0, internal.users.scrubDeletedAccount, args)
+    return null
+  },
+})
 
-    // Send records (with the address each went to) and the consent log go
-    // with the account, in bounded pages.
-    await ctx.scheduler.runAfter(0, internal.emailSends.purgeUserEmailRecords, {
-      userId: user._id,
-    })
-
-    const [
-      ownedProjects,
-      ownedPosts,
-      comments,
-      reactions,
-      followsAsFollower,
-      followsAsFollowing,
-      notificationsAsRecipient,
-      notificationsAsActor,
-      conversationsAsLow,
-      conversationsAsHigh,
-      sentMessages,
-      activityEvents,
-      homeFeedItemsAsUser,
-      homeFeedItemsAsActor,
-      contributorRows,
-      reports,
-      savedProjects,
-    ] = await Promise.all([
-      ctx.db
-        .query('projects')
-        .withIndex('by_owner', (query) => query.eq('ownerId', args.userId))
-        .collect(),
-      ctx.db
-        .query('posts')
-        .withIndex('by_owner_deleted_created', (query) =>
-          query.eq('ownerId', args.userId).eq('deletedAt', null),
-        )
-        .collect(),
-      ctx.db
-        .query('comments')
-        .withIndex('by_author', (query) => query.eq('authorId', args.userId))
-        .collect(),
-      ctx.db
-        .query('reactions')
-        .withIndex('by_user', (query) => query.eq('userId', args.userId))
-        .collect(),
-      ctx.db
-        .query('follows')
-        .withIndex('by_follower', (query) =>
-          query.eq('followerId', args.userId),
-        )
-        .collect(),
-      ctx.db
-        .query('follows')
-        .withIndex('by_following', (query) =>
-          query.eq('followingId', args.userId),
-        )
-        .collect(),
-      ctx.db
-        .query('notifications')
-        .withIndex('by_recipient_created', (query) =>
-          query.eq('recipientId', args.userId),
-        )
-        .collect(),
-      ctx.db
-        .query('notifications')
-        .withIndex('by_actor_created', (query) =>
-          query.eq('actorId', args.userId),
-        )
-        .collect(),
-      ctx.db
-        .query('conversations')
-        .withIndex('by_participant_low_updated', (query) =>
-          query.eq('participantLowId', args.userId),
-        )
-        .collect(),
-      ctx.db
-        .query('conversations')
-        .withIndex('by_participant_high_updated', (query) =>
-          query.eq('participantHighId', args.userId),
-        )
-        .collect(),
-      ctx.db
-        .query('messages')
-        .withIndex('by_sender_created', (query) =>
-          query.eq('senderId', args.userId),
-        )
-        .collect(),
-      ctx.db
-        .query('activity_events')
-        .withIndex('by_actor', (query) => query.eq('actorId', args.userId))
-        .collect(),
-      ctx.db
-        .query('home_feed_items')
-        .withIndex('by_user_created', (query) =>
-          query.eq('userId', args.userId),
-        )
-        .collect(),
-      ctx.db
-        .query('home_feed_items')
-        .withIndex('by_actor_created', (query) =>
-          query.eq('actorId', args.userId),
-        )
-        .collect(),
-      ctx.db
-        .query('project_contributors')
-        .withIndex('by_user', (query) => query.eq('userId', args.userId))
-        .collect(),
-      ctx.db
-        .query('reports')
-        .withIndex('by_reporter', (query) =>
-          query.eq('reporterId', args.userId),
-        )
-        .collect(),
-      // The user's own saves only: one index range, like the reads above.
-      ctx.db
-        .query('saved_projects')
-        .withIndex('by_user_created', (query) =>
-          query.eq('userId', args.userId),
-        )
-        .collect(),
-    ])
-
-    const follows = [...followsAsFollower, ...followsAsFollowing]
-    const notifications = [...notificationsAsRecipient, ...notificationsAsActor]
-    const conversations = [...conversationsAsLow, ...conversationsAsHigh]
-    const homeFeedItems = [...homeFeedItemsAsUser, ...homeFeedItemsAsActor]
-
-    for (const follow of followsAsFollower) {
-      const targetUser = await ctx.db.get(follow.followingId)
-      if (targetUser) {
-        await ctx.db.patch(targetUser._id, {
-          stats: {
-            ...targetUser.stats,
-            followersCount: Math.max(0, targetUser.stats.followersCount - 1),
-          },
-          updatedAt: Date.now(),
-        })
-      }
-    }
-
-    for (const follow of followsAsFollowing) {
-      const follower = await ctx.db.get(follow.followerId)
-      if (follower) {
-        await ctx.db.patch(follower._id, {
-          stats: {
-            ...follower.stats,
-            followingCount: Math.max(0, follower.stats.followingCount - 1),
-          },
-          updatedAt: Date.now(),
-        })
-      }
-    }
-
-    const reactionsByTarget = new Map<string, typeof reactions>()
-    for (const reaction of reactions) {
-      const targetKey = `${reaction.targetType}:${reaction.targetId}`
-      const targetReactions = reactionsByTarget.get(targetKey) ?? []
-      targetReactions.push(reaction)
-      reactionsByTarget.set(targetKey, targetReactions)
-    }
-
-    const reactionCleanupAt = Date.now()
-    for (const targetReactions of reactionsByTarget.values()) {
-      const [firstReaction] = targetReactions
-      if (!firstReaction) continue
-
-      if (firstReaction.targetType === 'project') {
-        const projectId = ctx.db.normalizeId('projects', firstReaction.targetId)
-        const project = projectId ? await ctx.db.get(projectId) : null
-        if (project) {
-          const locatic = targetReactions.reduce(
-            (current, reaction) =>
-              getNextProjectReactionLocatic(
-                { locatic: current },
-                reaction.reactionType,
-                -1,
-              ),
-            project.locatic,
-          )
-          await ctx.db.patch(project._id, {
-            locatic,
-            updatedAt: reactionCleanupAt,
-          })
-        }
-        continue
-      }
-
-      if (firstReaction.targetType === 'post') {
-        const postId = ctx.db.normalizeId('posts', firstReaction.targetId)
-        const post = postId ? await ctx.db.get(postId) : null
-        if (post) {
-          const reactionCounts = targetReactions.reduce(
-            (current, reaction) =>
-              getNextPostReactionCounts(
-                { reactionCounts: current },
-                reaction.reactionType,
-                -1,
-              ),
-            post.reactionCounts,
-          )
-          await ctx.db.patch(post._id, {
-            reactionCounts,
-            updatedAt: reactionCleanupAt,
-          })
-        }
-        continue
-      }
-
-      const commentId = ctx.db.normalizeId('comments', firstReaction.targetId)
-      const comment = commentId ? await ctx.db.get(commentId) : null
-      if (comment) {
-        const reactionState = targetReactions.reduce(
-          (current, reaction) =>
-            getNextCommentReactionState(current, reaction.reactionType, -1),
-          {
-            likesCount: comment.likesCount,
-            reactionCounts: comment.reactionCounts,
-          },
-        )
-        await ctx.db.patch(comment._id, reactionState)
-      }
-    }
-
-    for (const comment of comments) {
-      if (comment.isDeleted) {
-        continue
-      }
-
-      if (comment.parentId) {
-        const parent = await ctx.db.get(comment.parentId)
-        if (parent) {
-          await ctx.db.patch(parent._id, {
-            replyCount: Math.max(0, parent.replyCount - 1),
-          })
-        }
-      }
-
-      if (comment.targetType === 'project') {
-        const projectId = ctx.db.normalizeId('projects', comment.targetId)
-        const project = projectId ? await ctx.db.get(projectId) : null
-        if (project) {
-          await ctx.db.patch(project._id, {
-            locatic: {
-              ...project.locatic,
-              commentsCount: Math.max(0, project.locatic.commentsCount - 1),
-            },
-            updatedAt: Date.now(),
-          })
-        }
-      }
-
-      await ctx.db.patch(comment._id, {
-        content: '[deleted]',
-        isDeleted: true,
-      })
-    }
-
-    // Deletion already removed these projects from city counts; recording
-    // the transition keeps the counters right if a row was still counted.
-    const cityStats = createCityStatsChanges()
-    for (const project of ownedProjects) {
-      const exploreOwner = buildProjectExploreOwner(user, false)
-      await cityStats.moveProject(ctx.db, project, project, { exploreOwner })
-      await ctx.db.patch(project._id, {
-        locatic: {
-          ...project.locatic,
-          isVisible: false,
-        },
-        exploreOwner,
-        updatedAt: Date.now(),
-      })
-    }
-    await cityStats.apply(ctx.db)
-
-    for (const post of ownedPosts) {
-      const project = await ctx.db.get(post.projectId)
-      if (project) {
-        await ctx.db.patch(project._id, {
-          locatic: {
-            ...project.locatic,
-            postsCount: Math.max(0, (project.locatic.postsCount ?? 0) - 1),
-          },
-          updatedAt: Date.now(),
-        })
-      }
-
-      await ctx.db.patch(post._id, {
-        deletedAt: Date.now(),
-        updatedAt: Date.now(),
-      })
-    }
-
-    for (const conversation of conversations) {
-      const conversationMessages = await ctx.db
-        .query('messages')
-        .withIndex('by_conversation', (query) =>
-          query.eq('conversationId', conversation._id),
-        )
-        .collect()
-
-      await Promise.all(
-        conversationMessages.map((message) => ctx.db.delete(message._id)),
-      )
-    }
-
-    await Promise.all([
-      ...[
-        ...new Map(
-          follows.map((follow) => [String(follow._id), follow]),
-        ).values(),
-      ].map((follow) => ctx.db.delete(follow._id)),
-      ...[
-        ...new Map(
-          notifications.map((notification) => [
-            String(notification._id),
-            notification,
-          ]),
-        ).values(),
-      ].map((notification) => ctx.db.delete(notification._id)),
-      ...[
-        ...new Map(
-          sentMessages.map((message) => [String(message._id), message]),
-        ).values(),
-      ].map((message) => ctx.db.delete(message._id)),
-      ...[
-        ...new Map(
-          conversations.map((conversation) => [
-            String(conversation._id),
-            conversation,
-          ]),
-        ).values(),
-      ].map((conversation) => ctx.db.delete(conversation._id)),
-      ...[
-        ...new Map(
-          homeFeedItems.map((item) => [String(item._id), item]),
-        ).values(),
-      ].map((item) => ctx.db.delete(item._id)),
-      ...activityEvents.map((event) => ctx.db.delete(event._id)),
-      ...contributorRows.map((row) => ctx.db.delete(row._id)),
-      ...reports.map((report) => ctx.db.delete(report._id)),
-      ...reactions.map((reaction) => ctx.db.delete(reaction._id)),
-      ...savedProjects.map((saved) => ctx.db.delete(saved._id)),
-    ])
-
-    await ctx.db.patch(user._id, {
-      email: `deleted+${String(user._id)}@locatic.invalid`,
-      profile: {
-        ...user.profile,
-        displayName: 'Deleted User',
-        fullName: null,
-        bio: '',
-        socialLinks: {
-          github: 'https://github.com',
-          x: null,
-          linkedin: null,
-          bluesky: null,
-          website: null,
-        },
-      },
-      discoverability: {
-        searchText: '',
-      },
-      // Every project is hidden and every post deleted above, so no public
-      // work is left for the activity signal (plan item D4).
-      stats: withLastPublicActivity(
-        {
-          ...user.stats,
-          postsCount: 0,
-          commentsCount: 0,
-          likedCount: 0,
-        },
-        null,
-      ),
-      purgeAfter: null,
-      purgedAt: Date.now(),
-      updatedAt: Date.now(),
-    })
-
+export const syncLifecycleOwnerStatePage = internalMutation({
+  args: {
+    userId: v.id('users'),
+    generation: v.number(),
+    stage: v.number(),
+    cursor: v.union(v.string(), v.null()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await processLifecycleOwnerStatePage(ctx, args)
     return null
   },
 })
@@ -2951,6 +2574,8 @@ export const upsertFromClerkWebhook = internalMutation({
   handler: async (ctx, args) => {
     const existingViewer = await getViewerByClerkId(ctx, args.clerkId)
     const now = Date.now()
+    if (existingViewer && isAccountDeleted(existingViewer))
+      return existingViewer
     await assertGithubUsernameAvailable(ctx, args.githubUsername, {
       exceptUserId: existingViewer?._id,
     })
@@ -3013,7 +2638,7 @@ export const upsertFromClerkWebhook = internalMutation({
       updatedAt: now,
     })
 
-    await syncOwnedProjectOwnerState(ctx, existingViewer, {
+    await startLifecycleOwnerSync(ctx, existingViewer, {
       ...existingViewer,
       email: args.email,
       github: {
@@ -3074,7 +2699,7 @@ export const listUsersMissingGithubIds = internalQuery({
         )
         .unique()
 
-      return user && user.github.id === null
+      return user && !isAccountDeleted(user) && user.github.id === null
         ? [{ userId: user._id, username: user.github.username }]
         : []
     }
@@ -3096,7 +2721,7 @@ export const listUsersMissingGithubIds = internalQuery({
 
       for (const user of page.page) {
         const backfillUsername = user.github.username.trim()
-        if (backfillUsername.length > 0) {
+        if (!isAccountDeleted(user) && backfillUsername.length > 0) {
           targets.push({
             userId: user._id,
             username: backfillUsername,
@@ -3130,7 +2755,7 @@ export const patchGithubIdFromBackfill = internalMutation({
   }),
   handler: async (ctx, args) => {
     const user = await ctx.db.get(args.userId)
-    if (!user) {
+    if (!user || isAccountDeleted(user)) {
       return { status: 'missing_user' as const }
     }
 
@@ -3347,6 +2972,7 @@ export const ensureViewerFromIdentity = internalMutation({
   handler: async (ctx, args) => {
     const existingViewer = await getViewerByClerkId(ctx, args.clerkId)
     if (existingViewer) {
+      assertAccountAvailable(existingViewer)
       const nextSearchText = buildDiscoverabilitySearchText(
         existingViewer.github.username,
         existingViewer.profile.displayName,
@@ -3393,7 +3019,7 @@ export const actorSnapshotById = internalQuery({
   },
   handler: async (ctx, args) => {
     const viewer = await ctx.db.get(args.userId)
-    if (!viewer) {
+    if (!viewer || isAccountDeleted(viewer)) {
       return null
     }
 
@@ -3406,7 +3032,10 @@ export const userById = internalQuery({
     userId: v.id('users'),
   },
   handler: async (ctx, args) => {
-    return await ctx.db.get(args.userId)
+    const user = await ctx.db.get(args.userId)
+    return user && !isAccountDeleted(user) && user.deactivatedAt == null
+      ? user
+      : null
   },
 })
 
@@ -3424,6 +3053,8 @@ export const patchContributions = internalMutation({
     }),
   },
   handler: async (ctx, args) => {
+    const viewer = await ctx.db.get(args.userId)
+    if (!viewer || isAccountDeleted(viewer)) return null
     await ctx.db.patch(args.userId, {
       githubContributions: args.contributions,
       updatedAt: Date.now(),

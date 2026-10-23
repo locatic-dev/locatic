@@ -28,6 +28,7 @@ const activeOwner = {
 const post = {
   _id: 'post_1',
   projectId: 'project_1',
+  actorId: 'user_1',
 }
 
 describe('post visibility helpers', () => {
@@ -71,6 +72,30 @@ describe('post visibility helpers', () => {
       ),
     ).resolves.toEqual(project)
   })
+
+  it.each(['recoverable', 'expired', 'purged'] as const)(
+    'checks the live collaborator author when their account is %s',
+    async (status) => {
+      const now = Date.now()
+      const author = {
+        _id: 'author',
+        deletedAt: now - 1,
+        purgeAfter: status === 'recoverable' ? now + 86_400_000 : now - 1,
+        purgedAt: status === 'purged' ? now - 1 : null,
+      }
+      const result = await getVisiblePostProject(
+        {
+          db: createDb({
+            project_1: visibleProject,
+            user_1: activeOwner,
+            author,
+          }),
+        } as never,
+        { ...post, actorId: 'author' } as never,
+      )
+      expect(result).toEqual(status === 'recoverable' ? visibleProject : null)
+    },
+  )
 
   it('hides posts when the parent project is hidden', async () => {
     await expect(

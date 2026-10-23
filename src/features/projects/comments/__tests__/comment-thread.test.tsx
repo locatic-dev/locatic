@@ -77,7 +77,6 @@ function renderThread(overrides: Partial<Parameters<typeof CommentThread>[0]>) {
     <CommentThread
       activeHighlightedCommentId={null}
       commentItem={commentItem}
-      commentRefs={{ current: {} }}
       depth={0}
       expandedIds={new Set([String(commentItem._id)])}
       handleDeleteComment={vi.fn()}
@@ -104,6 +103,10 @@ beforeEach(() => {
 })
 
 describe('CommentThread', () => {
+  it('does not show a perpetual loader for a destination with no replies to fetch', () => {
+    renderThread({ commentItem: makeComment({ replyCount: 0 }) })
+    expect(screen.queryByRole('status', { name: 'Loading replies' })).toBeNull()
+  })
   it('keeps loaded replies visible without showing a first-page skeleton', () => {
     paginatedState = {
       results: [

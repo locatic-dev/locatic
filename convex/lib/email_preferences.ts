@@ -3,6 +3,7 @@ import type { Id } from '../_generated/dataModel'
 import type { MutationCtx } from '../_generated/server'
 import { isSubscribed, type EmailCategory } from './email_audience'
 import type { Doc } from './types'
+import { isAccountPastRestorationWindow } from './account_deletion'
 
 export type EmailPreferenceSource = Doc<'email_preference_changes'>['source']
 
@@ -22,9 +23,14 @@ export async function setEmailPreference(
   },
 ) {
   const user = await ctx.db.get(args.userId)
-  // A purged account keeps only a tombstone; an old unsubscribe link must not
-  // write consent records for it again. Callers still report success.
-  if (!user || user.purgedAt != null) return { changed: false }
+  // Old links still succeed, including between purge pages, without recreating
+  // rows in a table already swept. Recoverable accounts can still opt out.
+  if (
+    !user ||
+    user.purgeProgress != null ||
+    isAccountPastRestorationWindow(user, Date.now())
+  )
+    return { changed: false }
   if (isSubscribed(user, args.category) === args.subscribed) {
     return { changed: false }
   }

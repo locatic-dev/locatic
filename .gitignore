@@ -17,3 +17,18 @@ __unconfig*
 todos.json
 .pnpm-store
 .claude/
+
+# Local planning, review notes, and member screenshots
+/docs/plans/
+/docs/Locatic_PRD.md
+/docs/*Issue_Tracker*.md
+/docs/OSS_REVIEW_STATUS.md
+/docs/OSS_RELEASE_OPERATIONS.md
+/docs/assets/ui-issue-tracker/
+
+# Local catalog inputs and generated exports
+/scripts/admin1CodesASCII.txt
+/scripts/cities15000.txt
+/scripts/cities15000.zip
+/scripts/generated-cities.json
+/scripts/generated-cities.jsonl

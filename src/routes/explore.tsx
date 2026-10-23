@@ -30,6 +30,7 @@ import {
 import { citiesByIdsQueryOptions } from '@/features/cities/queries'
 import { cityStatsQueryOptions } from '@/features/explore/queries'
 import { followingQueryOptions } from '@/features/follows/queries'
+import { getAccountRecoveryState } from '@/features/viewer/lifecycle'
 import {
   viewerExplorePrefsQueryOptions,
   viewerLikedProjectIdsQueryOptions,
@@ -77,6 +78,13 @@ export const Route = createFileRoute('/explore')({
     const bootstrap = (await context.queryClient.ensureQueryData(
       viewerQueryOptions(),
     )) as ViewerBootstrapPayload
+
+    if (getAccountRecoveryState(bootstrap)) {
+      throw redirect({
+        to: '/sign-in/$',
+        search: { redirect: toSafeRelativeUrl(location.href) ?? undefined },
+      })
+    }
 
     if (bootstrap.needsOnboarding) {
       throw redirect({

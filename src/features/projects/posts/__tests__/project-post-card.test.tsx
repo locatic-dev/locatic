@@ -1,11 +1,20 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Id } from '../../../../../convex/_generated/dataModel'
 import { ProjectPostCard } from '../project-post-card'
 
 const mocks = vi.hoisted(() => ({
   deletePost: vi.fn(),
+  comments: [] as unknown[],
+  status: 'Exhausted',
 }))
 
 vi.mock('@tanstack/react-query', () => ({
@@ -15,8 +24,8 @@ vi.mock('@tanstack/react-query', () => ({
 vi.mock('convex/react', () => ({
   usePaginatedQuery: () => ({
     loadMore: vi.fn(),
-    results: [],
-    status: 'Exhausted',
+    results: mocks.comments,
+    status: mocks.status,
   }),
   useQuery: () => [],
 }))
@@ -37,7 +46,10 @@ vi.mock('@/features/projects/mutations', () => ({
   useUpdatePost: () => vi.fn(),
 }))
 
-function renderPost(commentsCount: number) {
+function renderPost(
+  commentsCount: number,
+  destination: Partial<Parameters<typeof ProjectPostCard>[0]> = {},
+) {
   const post = {
     _id: 'post_1' as Id<'posts'>,
     _creationTime: 0,
@@ -63,7 +75,7 @@ function renderPost(commentsCount: number) {
     viewerReactionTypes: [],
   } as unknown as Parameters<typeof ProjectPostCard>[0]['post']
 
-  return render(
+  const page = () => (
     <ProjectPostCard
       activeHighlightedCommentId={null}
       highlightedCommentPath={[]}
@@ -72,9 +84,59 @@ function renderPost(commentsCount: number) {
       post={post}
       projectDetailQueryKey={['project']}
       viewerId="user_1"
-    />,
+      {...destination}
+    />
   )
+  return { page, ...render(page()) }
 }
+
+afterEach(() => {
+  cleanup()
+  vi.useRealTimers()
+  mocks.comments = []
+  mocks.status = 'Exhausted'
+})
+
+it('resolves a delayed post-comment destination only when its row mounts', () => {
+  vi.useFakeTimers()
+  const scroll = vi.fn()
+  Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+    configurable: true,
+    value: scroll,
+  })
+  const release = vi.fn()
+  mocks.status = 'LoadingFirstPage'
+  const { page, rerender } = renderPost(1, {
+    activeHighlightedCommentId: 'late',
+    onReleaseCommentHighlight: release,
+  })
+  act(() => {
+    vi.advanceTimersByTime(5000)
+  })
+  expect(release).not.toHaveBeenCalled()
+  expect(scroll).not.toHaveBeenCalled()
+
+  mocks.status = 'Exhausted'
+  mocks.comments = [
+    {
+      _id: 'late',
+      authorId: 'user_1',
+      authorSnapshot: { displayName: 'Ada', avatarUrl: null },
+      content: 'the destination',
+      createdAt: 0,
+      isDeleted: false,
+      replyCount: 0,
+      reactionCounts: {},
+      viewerReactionTypes: [],
+    },
+  ]
+  rerender(page())
+  expect(scroll).toHaveBeenCalledOnce()
+  act(() => {
+    vi.advanceTimersByTime(1800)
+  })
+  expect(release).toHaveBeenCalledExactlyOnceWith('late')
+})
 
 describe('ProjectPostCard delete', () => {
   it('deletes a post only after the confirmation, which says its comments go with it', async () => {

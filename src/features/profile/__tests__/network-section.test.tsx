@@ -16,6 +16,16 @@ const baseProps = {
 }
 
 describe('ProfileNetworkSection', () => {
+  it('offers a retry on failure without rendering a false empty state', () => {
+    const retry = vi.fn()
+    render(<ProfileNetworkSection {...baseProps} failed onRetry={retry} />)
+    expect(screen.getByRole('alert').textContent).toContain(
+      "couldn't load this network.",
+    )
+    expect(screen.queryByText('no followers yet.')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'try again' }))
+    expect(retry).toHaveBeenCalledOnce()
+  })
   it('hides follow graph tabs when private', () => {
     render(<ProfileNetworkSection {...baseProps} isPrivate />)
 

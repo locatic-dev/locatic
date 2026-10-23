@@ -23,7 +23,7 @@ When you sign in with GitHub, we receive:
 - Public repository list and metadata (names, descriptions, languages, stars, topics)
 - Public contribution and activity data, including your contribution calendar (daily contribution counts)
 
-Repository and contribution data is sourced from the public GitHub API. We do not access private repositories or write to your GitHub account.
+Repository content is imported from public GitHub repositories. We verify repository visibility and your ownership or write access through GitHub before importing content. Private repositories are ineligible for import. We do not write to your GitHub account.
 
 ### 2b. Profile, Preference, and Activity Data
 
@@ -60,7 +60,7 @@ We use the data we collect to:
 - Power developer and project discovery features
 - Display public activity, such as likes, follows, posts, comments, and showcased projects, on the platform
 - Send you in-app notifications related to your activity
-- Send service emails about your account and, if you opt in, community and product update emails (see Section 6)
+- Send service emails about your account, community and product updates unless you opt out, and a separate weekly digest if you opt in (see Section 6)
 - Detect and prevent spam, abuse, and unauthorized access
 - Operate, maintain, and improve the Service
 
@@ -106,7 +106,7 @@ Our systems already support restricting a profile to signed-in members, but the 
 
 We may send service emails needed to run your account, such as security notices or changes to these terms. You cannot opt out of these while you have an account.
 
-Community and product update emails, such as the fortnightly digest of projects and discussions on Locatic, are sent only if you turn on "community and product updates" in your settings and your email address is verified. You can turn them off in settings or with the unsubscribe link in any update email. We send these emails through Resend, which reports delivery events (such as delivered, bounced, or marked as spam) back to us; addresses that permanently bounce, are marked as spam, or are suppressed by Resend are not emailed again.
+Community and product updates are enabled by default when you join. You can turn off "Locatic updates" in settings or use the unsubscribe link in any update email. The weekly digest is separate and is sent only if you opt in. These emails require a verified email address. We send them through Resend, which reports delivery events (such as delivered, bounced, or marked as spam) back to us; addresses that permanently bounce, are marked as spam, or are suppressed by Resend are not emailed again.
 
 ## 7. Cookies
 
@@ -130,10 +130,14 @@ We retain your data for as long as your account is active.
 When you delete your account:
 
 1. Your account is **soft-deleted** and hidden from the platform immediately.
-2. You have a **30-day window** to restore your account and all data.
-3. After 30 days, your account and associated personal data are **permanently purged** from our systems.
+2. You have a **30-day window** to sign in and restore your account. Your existing profile and showcase visibility choices are retained during this window.
+3. After 30 days, restoration closes and scheduled cleanup deletes or anonymizes your Locatic profile, showcase claims, authored content and account-owned records. Cleanup runs in bounded batches.
 
-Residual copies may persist in encrypted backups for up to 90 days before being overwritten. Direct messages may be retained in the other party's inbox unless they also delete their account or delete the conversation.
+We retain a minimal authentication-provider identifier and deletion timestamps to prevent old sessions or delayed provider updates from recreating a deleted account. This marker is unavailable for ordinary member access and is not a public profile.
+
+Residual copies may persist in encrypted backups for up to 90 days before being overwritten. Other members' independently authored community content may remain, with references to deleted profiles or projects anonymized or unavailable. We do not automatically rewrite another member's prose merely because it mentions a deleted account.
+
+Deleting Locatic does not delete your GitHub account or repositories. Authentication and email providers may retain records under their own retention policies.
 
 Aggregated or anonymized data (e.g., usage statistics) may be retained indefinitely.
 

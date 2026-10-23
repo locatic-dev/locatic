@@ -26,6 +26,7 @@ import {
   seedPopulatedCity,
   seedProject,
   seedUser,
+  finishLifecycleOwnerSync,
   type FixtureCity,
   type PopulatedCityFixture,
 } from './__tests__/fixtures.helpers'
@@ -266,6 +267,7 @@ describe('city counters (A4)', () => {
         website: null,
       },
     })
+    await finishLifecycleOwnerSync(t, fixture.users.alice)
     await expectCountersMatchRecount(t)
     expect(
       await t.query(api.cities.getStats, { cityId: hyderabad }),
@@ -291,6 +293,7 @@ describe('city counters (A4)', () => {
       ...privacyArgs,
       cityVisibility: 'hidden',
     })
+    await finishLifecycleOwnerSync(t, fixture.users.carol)
     await expectCountersMatchRecount(t)
 
     // Set another user region-only: frank leaves Hyderabad's counts.
@@ -298,6 +301,7 @@ describe('city counters (A4)', () => {
       ...privacyArgs,
       cityVisibility: 'region_only',
     })
+    await finishLifecycleOwnerSync(t, fixture.users.frank)
     await expectCountersMatchRecount(t)
 
     // A hidden user who switches to exact city joins with their project.
@@ -305,6 +309,7 @@ describe('city counters (A4)', () => {
       ...privacyArgs,
       cityVisibility: 'exact_city',
     })
+    await finishLifecycleOwnerSync(t, fixture.users.erin)
     await expectCountersMatchRecount(t)
 
     // Leaving discovery removes a builder without changing their city.
@@ -313,10 +318,12 @@ describe('city counters (A4)', () => {
       stackPrefs: [],
       appearInExplore: false,
     })
+    await finishLifecycleOwnerSync(t, fixture.users.erin)
     await expectCountersMatchRecount(t)
 
     // Delete a user: alice's builder and projects leave Hyderabad.
     await as(t, 'alice').mutation(api.users.deleteAccount, {})
+    await finishLifecycleOwnerSync(t, fixture.users.alice)
     await expectCountersMatchRecount(t)
     expect(await t.query(api.cities.getStats, { cityId: hyderabad })).toEqual(
       ZERO,
@@ -1074,7 +1081,10 @@ describe('city pages (D5)', () => {
     })
     const page = await getPage('bengaluru-in')
 
-    expect(page?.stats).toMatchObject({ builderCount: 2, projectCount: 3 })
+    expect(page?.stats?.builderCount).toBe(2)
+    // Public membership/locations change immediately; stored project counters catch up.
+    await finishLifecycleOwnerSync(t, fixture.users.bob)
+    expect((await getPage('bengaluru-in'))?.stats?.projectCount).toBe(3)
     expect(page?.builders.map((builder) => builder.userId)).not.toContain(
       fixture.users.bob,
     )

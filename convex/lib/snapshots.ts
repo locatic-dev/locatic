@@ -2,6 +2,7 @@ import type { Id } from '../_generated/dataModel'
 import type { Doc } from './types'
 import type { DatabaseReader, DatabaseWriter } from '../_generated/server'
 import { resolveProjectOwnerLogin } from './project_route'
+import { isAccountDeleted } from './account_deletion'
 import {
   getMemberCityId,
   resolveLocationDisclosure,
@@ -20,6 +21,8 @@ export async function buildSnapshotLocation(
   db: Reader,
   user: Doc<'users'>,
 ): Promise<SnapshotLocation> {
+  if (isAccountDeleted(user) || user.deactivatedAt != null)
+    return { cityId: null, cityName: null }
   const city = user.profile.cityId ? await db.get(user.profile.cityId) : null
   return toSnapshotLocation(resolveLocationDisclosure(user, city))
 }
@@ -55,7 +58,7 @@ export function buildProjectExploreOwner(
   user: Doc<'users'>,
   isVisible: boolean,
 ) {
-  const isOwnerActive = !user.deletedAt && !user.deactivatedAt
+  const isOwnerActive = !isAccountDeleted(user) && user.deactivatedAt == null
   const hasCity = user.profile.cityId !== null
 
   return {

@@ -39,7 +39,17 @@ export type GithubRepository = {
   full_name: string
   name: string
   owner: {
+    id?: number
     login: string
+  }
+  private?: boolean
+  visibility?: string
+  permissions?: {
+    admin?: boolean
+    maintain?: boolean
+    push?: boolean
+    pull?: boolean
+    triage?: boolean
   }
   description: string | null
   html_url: string
@@ -48,6 +58,28 @@ export type GithubRepository = {
   topics?: string[]
   stargazers_count: number
   pushed_at: string
+}
+
+export function isPublicGithubRepository(repository: GithubRepository) {
+  return (
+    repository.private === false &&
+    (repository.visibility === undefined || repository.visibility === 'public')
+  )
+}
+
+// Both the picker and import action use the token-authenticated GitHub user,
+// not a Locatic profile handle or client-supplied repository name, as authority.
+export function canImportGithubRepository(
+  repository: GithubRepository,
+  authenticatedGithubUserId: number,
+) {
+  return (
+    isPublicGithubRepository(repository) &&
+    (repository.owner.id === authenticatedGithubUserId ||
+      repository.permissions?.admin === true ||
+      repository.permissions?.maintain === true ||
+      repository.permissions?.push === true)
+  )
 }
 
 export type GithubRepositoryRecord = {

@@ -19,7 +19,7 @@ jobs:
     name: Quality
     runs-on: ubuntu-latest
     env:
-      VITE_CONVEX_URL: ${{ secrets.VITE_CONVEX_URL || 'https://example.convex.cloud' }}
+      VITE_CONVEX_URL: https://example.convex.cloud
 
     steps:
       - name: Checkout repository
@@ -39,3 +39,37 @@ jobs:
 
       - name: Run quality checks
         run: pnpm run ci:quality
+
+      - name: Verify archived city catalog
+        run: pnpm cities:catalog --check
+
+  build:
+    name: Build and bundle budget
+    runs-on: ubuntu-latest
+    env:
+      VITE_CONVEX_URL: https://example.convex.cloud
+      VITE_CLERK_PUBLISHABLE_KEY: pk_test_ZXhhbXBsZS5jbGVyay5hY2NvdW50cy5kZXYk
+      WRANGLER_SEND_METRICS: 'false'
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: package.json
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm ci:build
+
+  browser:
+    name: Deterministic browser components
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: package.json
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm e2e:components

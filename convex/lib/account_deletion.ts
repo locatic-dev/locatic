@@ -7,6 +7,27 @@ export type AccountDeletionState = {
   purgedAt?: number | null
 }
 
+export function isAccountDeleted(state: AccountDeletionState) {
+  return state.deletedAt != null || state.purgedAt != null
+}
+
+export function getAccountLifecycle(state: AccountDeletionState, now: number) {
+  if (state.purgedAt != null) return 'purged' as const
+  if (state.deletedAt == null) return 'active' as const
+  return state.purgeAfter != null && now < state.purgeAfter
+    ? ('deletion_pending' as const)
+    : ('deletion_expired' as const)
+}
+
+/** Irreversible deletion: do not create new copies of this account's data. */
+export function isAccountPastRestorationWindow(
+  state: AccountDeletionState,
+  now: number,
+) {
+  const lifecycle = getAccountLifecycle(state, now)
+  return lifecycle === 'deletion_expired' || lifecycle === 'purged'
+}
+
 export function getAccountDeletionWindow(
   state: AccountDeletionState,
   now: number,
@@ -26,9 +47,9 @@ export function shouldPurgeDeletedAccount(
   now: number,
 ) {
   return Boolean(
-    state.deletedAt &&
-    state.purgeAfter &&
+    state.deletedAt != null &&
+    state.purgeAfter != null &&
     state.purgeAfter <= now &&
-    !state.purgedAt,
+    state.purgedAt == null,
   )
 }

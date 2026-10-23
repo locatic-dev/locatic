@@ -9,6 +9,7 @@ import {
   NOW,
   fixtureClerkId,
   seedPopulatedCity,
+  finishLifecycleOwnerSync,
   type PopulatedCityFixture,
 } from './__tests__/fixtures.helpers'
 
@@ -105,6 +106,7 @@ describe('posts of owners outside discovery (B3)', () => {
       stackPrefs: gwen!.exploreConfig.stackPrefs,
       appearInExplore: true,
     })
+    await finishLifecycleOwnerSync(t, fixture.users.gwen)
     for (const [surface, ids] of Object.entries(await discoveryPostIds())) {
       expect({ surface, hasGwen: ids.includes(gwenBot) }).toEqual({
         surface,
@@ -154,6 +156,7 @@ describe('posts of owners outside discovery (B3)', () => {
       appearInExplore: false,
     })
 
+    await finishLifecycleOwnerSync(t, fixture.users.bob)
     const bobPost = await t.run((ctx) => ctx.db.get(fixture.posts.bobCli))
     expect(bobPost?.projectCityId).toBeNull()
     const cityPage = await t.query(api.cities.getPage, { slug: 'bengaluru-in' })

@@ -1066,7 +1066,7 @@ export const upsertImportedRepositories = internalMutation({
   },
   handler: async (ctx, args) => {
     const owner = await ctx.db.get(args.ownerId)
-    if (!owner) {
+    if (!owner || owner.deletedAt != null || owner.purgedAt != null) {
       throw new ConvexError('Owner not found')
     }
 

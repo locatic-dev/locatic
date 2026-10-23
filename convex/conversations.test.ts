@@ -32,8 +32,15 @@ async function partnerCityNames(
 ) {
   const viewer = as(t, 'viewer')
   const [list, detail, preview] = await Promise.all([
-    viewer.query(api.conversations.list, {}),
-    viewer.query(api.conversations.get, { conversationId }),
+    Promise.all(
+      (['low', 'high'] as const).map((side) =>
+        viewer.query(api.conversations.listPage, {
+          side,
+          paginationOpts: { cursor: null, numItems: 50 },
+        }),
+      ),
+    ).then((pages) => pages.flatMap((page) => page.page)),
+    viewer.query(api.conversations.getSummary, { conversationId }),
     viewer.query(api.conversations.getRecipientPreview, {
       otherUserId: partnerId,
     }),
@@ -42,7 +49,7 @@ async function partnerCityNames(
 
   return {
     list: listed?.otherUser?.cityName,
-    detail: detail.conversation.otherUser?.cityName,
+    detail: detail?.otherUser?.cityName,
     preview: preview?.cityName,
   }
 }
@@ -160,7 +167,15 @@ describe('inbox requests and pending state (C9)', () => {
   })
 
   async function statusesFor(username: string) {
-    const list = await as(t, username).query(api.conversations.list, {})
+    const pages = await Promise.all(
+      (['low', 'high'] as const).map((side) =>
+        as(t, username).query(api.conversations.listPage, {
+          side,
+          paginationOpts: { cursor: null, numItems: 50 },
+        }),
+      ),
+    )
+    const list = pages.flatMap((page) => page.page)
     return list.map((conversation) => conversation.status)
   }
 
@@ -178,10 +193,10 @@ describe('inbox requests and pending state (C9)', () => {
     expect(await statusesFor('sender')).toEqual(['pending'])
     expect(await statusesFor('recipient')).toEqual(['request'])
 
-    const opened = await as(t, 'sender').query(api.conversations.get, {
+    const opened = await as(t, 'sender').query(api.conversations.getSummary, {
       conversationId,
     })
-    expect(opened.conversation.status).toBe('pending')
+    expect(opened?.status).toBe('pending')
   })
 
   it('makes the conversation active for both once the recipient replies', async () => {

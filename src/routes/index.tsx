@@ -16,6 +16,7 @@ import { PingGlobe } from '@/features/landing/ping-globe'
 import { FeatureRow } from '@/features/landing/feature-row'
 import { WhatIsLocatic } from '@/features/landing/what-is-locatic'
 import { viewerQueryOptions } from '@/features/viewer/queries'
+import { getAccountRecoveryState } from '@/features/viewer/lifecycle'
 import type { ViewerBootstrapPayload } from '@/features/contracts'
 import {
   landingActivityQueryOptions,
@@ -35,6 +36,10 @@ export const Route = createFileRoute('/')({
     const bootstrap = (await context.queryClient.ensureQueryData(
       viewerQueryOptions(),
     )) as ViewerBootstrapPayload
+
+    if (getAccountRecoveryState(bootstrap)) {
+      throw redirect({ to: '/sign-in/$' })
+    }
 
     throw redirect({ to: bootstrap.needsOnboarding ? '/onboarding' : '/home' })
   },

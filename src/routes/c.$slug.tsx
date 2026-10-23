@@ -18,6 +18,7 @@ import { toSafeRelativeUrl } from '@/lib/safe-redirect'
 import { notFoundSeo, seo, truncateDescription } from '@/lib/seo'
 import { cityPageNode } from '@/lib/structured-data'
 import { JsonLd } from '@/components/ui/json-ld'
+import { getAccountRecoveryState } from '@/features/viewer/lifecycle'
 import { isCityIndexable } from '../../convex/lib/seo_thresholds'
 
 /**
@@ -36,6 +37,13 @@ export const Route = createFileRoute('/c/$slug')({
     const bootstrap = (await context.queryClient.ensureQueryData(
       viewerQueryOptions(),
     )) as ViewerBootstrapPayload
+
+    if (getAccountRecoveryState(bootstrap)) {
+      throw redirect({
+        to: '/sign-in/$',
+        search: { redirect: toSafeRelativeUrl(location.href) ?? undefined },
+      })
+    }
 
     if (bootstrap.needsOnboarding) {
       throw redirect({

@@ -91,6 +91,33 @@ async function openPublicExplore(page: Page, search = '') {
 }
 
 test.describe('public explore', () => {
+  for (const width of [320, 390]) {
+    test(`keeps builder identities readable at ${width}px`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 844 })
+      await openPublicExplore(page, '?mode=builders&scope=global')
+      const rows = await settledBuilderRows(page)
+      requireE2EPrerequisite(
+        (await rows.count()) > 0,
+        'needs a public builder in Explore (playwright/fixtures/fixtures.md)',
+      )
+      const widths = await rows.evaluateAll((identities) =>
+        identities.map(
+          (identity) =>
+            identity.lastElementChild?.getBoundingClientRect().width ?? 0,
+        ),
+      )
+      expect(Math.min(...widths)).toBeGreaterThanOrEqual(120)
+      const overflow = await page.evaluate(
+        () =>
+          document.documentElement.scrollWidth -
+          document.documentElement.clientWidth,
+      )
+      expect(overflow).toBeLessThanOrEqual(0)
+    })
+  }
+
   test('never enters sign-in and offers sign up', async ({ page }) => {
     const visited = recordNavigations(page)
     await openPublicExplore(page)

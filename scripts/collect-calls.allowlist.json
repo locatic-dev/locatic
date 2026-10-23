@@ -1,9 +1,6 @@
 {
   "$comment": "Existing .collect() calls outside internal migrations, per file#function (plan item E3). Lower or remove entries as reads become bounded; never raise one to accept a new call. Written by `node scripts/check-collect-calls.mjs --update`.",
   "functions": {
-    "convex/conversations.ts#get": 1,
-    "convex/conversations.ts#list": 2,
-    "convex/conversations.ts#markRead": 1,
     "convex/follows.ts#listFollowers": 1,
     "convex/follows.ts#listFollowing": 1,
     "convex/github.ts#patchProjectContributors": 1,
@@ -29,8 +26,6 @@
     "convex/users.ts#markClerkWebhookEventFailed": 1,
     "convex/users.ts#markClerkWebhookEventProcessed": 1,
     "convex/users.ts#markClerkWebhookEventProcessing": 1,
-    "convex/users.ts#scrubDeletedAccount": 18,
-    "convex/users.ts#syncOwnedProjectOwnerState": 3,
     "convex/users.ts#viewerLikedProjectIds": 1
   }
 }
