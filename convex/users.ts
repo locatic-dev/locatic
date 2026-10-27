@@ -37,6 +37,7 @@ import { isProjectPubliclyInteractable } from './lib/project_access'
 import {
   getAccountDeletionWindow,
   getAccountLifecycle,
+  getDeactivationBeforeDeletion,
   isAccountDeleted,
   shouldPurgeDeletedAccount,
 } from './lib/account_deletion'
@@ -46,7 +47,11 @@ import {
 } from './lib/explore'
 import { buildActorSnapshot } from './lib/snapshots'
 import { createDefaultViewerProfile } from './lib/viewer'
-import { purgeAccountPage } from './lib/account_purge'
+import {
+  claimAccountPurge,
+  getClaimedPurgeProgress,
+  purgeAccountPage,
+} from './lib/account_purge'
 import {
   startLifecycleOwnerSync,
   syncLifecycleOwnerStatePage as processLifecycleOwnerStatePage,
@@ -273,7 +278,7 @@ const profileContributionPreviewValidator = v.object({
   commitCount: v.number(),
 })
 
-// Pinned projects and recent work on the public profile (plan item C6).
+// Pinned projects and recent work on the public profile.
 const PROFILE_RECENT_WORK_LIMIT = 5
 // The pin cap enforced by `projects.pinOwnedProject`.
 const PROFILE_PIN_LIMIT = 3
@@ -396,8 +401,9 @@ async function requestAccountDeletion(ctx: MutationCtx, user: Doc<'users'>) {
     deletedAt,
     deactivatedAt,
     purgeAfter,
-    deletionPreviousAppearInExplore:
-      user.deletionPreviousAppearInExplore ?? user.appearInExplore,
+    // Restoration returns both settings to what the member chose.
+    deletionPreviousAppearInExplore: user.appearInExplore,
+    deletionPreviousDeactivatedAt: user.deactivatedAt ?? null,
     appearInExplore: false,
     updatedAt: now,
   })
@@ -1072,7 +1078,7 @@ async function listPublicProfileShowcase(
   return { pinnedProjects, recentProjects }
 }
 
-// Shipping log on the profile (plan item D6).
+// Shipping log on the profile.
 const SHIPPING_LOG_LIMIT = 10
 /** Visible projects read to find the ones whose releases are listed. */
 const SHIPPING_LOG_PROJECT_SCAN_LIMIT = 24
@@ -1389,7 +1395,7 @@ export const privateProfileOverview = query({
     return {
       viewer: serializeViewer(viewer),
       cityName: city?.displayName ?? null,
-      // What a region-only disclosure shows, for the settings copy (D8).
+      // What a region-only disclosure shows, for the settings copy.
       regionLabel: city ? getRegionLabel(city) : null,
     }
   },
@@ -1636,7 +1642,7 @@ export const publicProfileOverview = query({
 })
 
 /**
- * The profile's shipping log (plan item D6): public releases and posts,
+ * The profile's shipping log: public releases and posts,
  * newest first. Same access rule as the overview; null for a profile the
  * requester cannot see, an empty array when there is nothing to list.
  */
@@ -1971,7 +1977,7 @@ export const completeOnboarding = mutation({
   args: {
     displayName: v.string(),
     bio: v.string(),
-    // Null when the user picked "can't find my city" (plan U5); they keep
+    // Null when the user picked "can't find my city"; they keep
     // global discovery and can set a city later in settings.
     cityId: cityReferenceValidator,
     // Omitted when the status step was skipped; the sign-up default stays.
@@ -2071,7 +2077,7 @@ export const completeOnboarding = mutation({
   },
 })
 
-/** Most builders the optional onboarding follow step shows (plan D7). */
+/** Most builders the optional onboarding follow step shows. */
 const ONBOARDING_SUGGESTION_LIMIT = 5
 // Region-only, hidden, deleted and deactivated users share the index prefix and
 // are dropped after the read, so read a little more than is shown. Bounded
@@ -2080,12 +2086,12 @@ const ONBOARDING_SUGGESTION_SCAN_LIMIT = 25
 
 /**
  * Builders in the city chosen during onboarding, for the optional follow step
- * (plan D7) and Home's "builders near you". Exact-city members only (D8),
+ * and Home's "builders near you". Exact-city members only,
  * never the viewer, public identity only. An empty array means the step is
  * skipped. Builders the viewer already follows stay in the list, marked by
  * `viewerIsFollowing`, so a row never disappears under the viewer's own click.
  *
- * Order (plan item D4), as in Explore's builders mode and city pages: most
+ * Order, as in Explore's builders mode and city pages: most
  * recent public work first, from one descending read of
  * `by_city_public_activity`. Convex sorts a missing field before every number,
  * so builders without `stats.lastPublicActivityAt` come after every active
@@ -2204,18 +2210,23 @@ export const restoreAccount = mutation({
     ) {
       throw new ConvexError('Restoration window has ended')
     }
+    const deactivatedAt = getDeactivationBeforeDeletion(viewer)
     const restored = {
       ...viewer,
       deletedAt: null,
-      deactivatedAt: null,
+      deactivatedAt,
       purgeAfter: null,
-      appearInExplore: viewer.deletionPreviousAppearInExplore ?? false,
+      // A deactivated account never participates in discovery.
+      appearInExplore:
+        deactivatedAt == null &&
+        (viewer.deletionPreviousAppearInExplore ?? false),
     }
     await ctx.db.patch(viewer._id, {
       deletedAt: null,
-      deactivatedAt: null,
+      deactivatedAt,
       purgeAfter: null,
       deletionPreviousAppearInExplore: undefined,
+      deletionPreviousDeactivatedAt: undefined,
       appearInExplore: restored.appearInExplore,
       updatedAt: Date.now(),
     })
@@ -2292,7 +2303,7 @@ const MAX_LAST_PUBLIC_ACTIVITY_BACKFILL_BATCH = 10
 
 /**
  * Fills exact project activity, then recomputes every user's
- * `stats.lastPublicActivityAt` from the project activity index (plan item D4).
+ * `stats.lastPublicActivityAt` from the project activity index.
  * Both phases page and schedule themselves from one human-run entry point:
  *
  *   npx convex run users:backfillLastPublicActivity '{}'
@@ -2425,7 +2436,7 @@ export const backfillLastPublicActivity = internalMutation({
 /**
  * One-off re-derivation of every user's owner/actor snapshots, project
  * `exploreOwner` fields and city counter contributions under the visibility
- * policy (plan items A2, A4), via `startLifecycleOwnerSync`. Not run on
+ * policy, via `startLifecycleOwnerSync`. Not run on
  * deploy; a person runs it once, before `internal.cities.recountStats`:
  *
  *   npx convex run users:backfillOwnerState '{}'            # dev deployment
@@ -2532,16 +2543,31 @@ export const deletedAccountPurgeState = internalQuery({
   },
 })
 
+/**
+ * One page of an account purge. Without `expectedStep` (deadline timer,
+ * cleanup from older deployments, operator start) it claims a due purge and
+ * otherwise does nothing, so only one chain runs. Continuations carry the step
+ * they expect; a stale or replayed job finds a different step and stops. An
+ * operator can resume a stalled chain by passing the stored step.
+ */
 export const scrubDeletedAccount = internalMutation({
-  args: { userId: v.id('users') },
+  args: { userId: v.id('users'), expectedStep: v.optional(v.number()) },
   returns: v.null(),
   handler: async (ctx, args) => {
     const user = await ctx.db.get(args.userId)
-    // The check belongs in this transaction, including every continuation.
-    if (!user || !shouldPurgeDeletedAccount(user, Date.now())) return null
-    const done = await purgeAccountPage(ctx, user)
-    if (!done)
-      await ctx.scheduler.runAfter(0, internal.users.scrubDeletedAccount, args)
+    if (!user) return null
+    // Claim and step checks belong in this transaction, on every page.
+    const progress =
+      args.expectedStep === undefined
+        ? await claimAccountPurge(ctx, user, Date.now())
+        : getClaimedPurgeProgress(user, args.expectedStep)
+    if (!progress) return null
+    const next = await purgeAccountPage(ctx, user, progress)
+    if (next)
+      await ctx.scheduler.runAfter(0, internal.users.scrubDeletedAccount, {
+        userId: user._id,
+        expectedStep: next.step,
+      })
     return null
   },
 })

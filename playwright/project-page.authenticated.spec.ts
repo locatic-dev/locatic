@@ -13,7 +13,7 @@ import {
   test,
 } from './fixtures/test'
 
-// C7 project page: deleting a comment always asks first (decision D9), and
+// Project page: deleting a comment always asks first, and
 // the reaction popovers stay inside the content column on a 390px phone.
 // Neither test writes data: the confirm dialog is cancelled and opening a
 // popover changes nothing.

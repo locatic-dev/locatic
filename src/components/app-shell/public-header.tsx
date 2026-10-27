@@ -12,8 +12,8 @@ import { useHydrationSafeHref } from '@/lib/return-href'
 import { toSafeRelativeUrl } from '@/lib/safe-redirect'
 
 /**
- * Where sign-in and sign-up return to: the page the visitor is on (plan item
- * A6). The landing page passes none, so the usual fallbacks apply (Home for
+ * Where sign-in and sign-up return to: the page the visitor is on.
+ * The landing page passes none, so the usual fallbacks apply (Home for
  * members, onboarding then Explore for new accounts).
  */
 export function getPublicAuthRedirect(pathname: string, href: string) {

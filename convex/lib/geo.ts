@@ -1,5 +1,5 @@
 /**
- * Pure geography helpers (plan item D5), shared by Convex and the client:
+ * Pure geography helpers, shared by Convex and the client:
  * `src/lib/geo.ts` re-exports them. No Convex imports, so the module is safe
  * in both bundles.
  */

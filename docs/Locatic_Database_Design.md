@@ -24,7 +24,9 @@ User authority and builder city deltas commit immediately. `startLifecycleOwnerS
 
 ## Account lifecycle
 
-Deletion denies ordinary member actions and starts a 30-day recovery window. Restoration checks the server deadline. Cleanup becomes irreversible when purge starts. `users.purgeProgress` tracks bounded resumable cleanup of owned records and copied content, including survivor counters. Historical cross-account copies can require bounded global scans.
+Deletion denies ordinary member actions and starts a 30-day recovery window. It records the member's prior deactivation and discovery settings; restoration checks the server deadline and returns both. Deletions requested before those settings were recorded cannot distinguish a prior deactivation from one stamped at deletion, so they restore with any stored deactivation kept. Cleanup becomes irreversible when purge starts.
+
+A due purge is claimed in one transaction that sets `users.purgeProgress` and clears `purgeAfter`, which removes the account from the cleanup index. Each page commits its progress with a `step` token, and only the continuation scheduled with that step runs, so the deadline timer, daily cleanup and replayed jobs cannot start a second chain. Account-keyed rows are read through account indexes; rows other members attached to the account's projects, posts or conversations are reached through those targets, one target per page. Every paginated read is capped in rows and bytes. Notification, activity, Home and Pulse snapshots, and other projects' contributor snapshots, have no index on the copied reference and are still swept in bounded global pages. Purge cleanup includes survivor counters.
 
 Preference writes and unsubscribe handling do not recreate consent after irreversible deletion. Recoverable opt-outs remain valid. Product updates default on for eligible members; weekly digests are separately opt-in. See [Community email](community-email.md).
 

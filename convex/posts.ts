@@ -170,7 +170,7 @@ export const search = query({
             )
             .take(limit)
     // Search is discovery: only posts of discoverable owners, and a city
-    // filter matches the owner's current member city (D8).
+    // filter matches the owner's current member city.
     const filtered = (await filterDiscoverablePosts(ctx, posts))
       .filter(
         (post) =>
@@ -255,7 +255,7 @@ export const create = mutation({
       postsCount: (viewer.stats.postsCount ?? 0) + 1,
     }
     await ctx.db.patch(viewer._id, {
-      // A post on a hidden project is not public work (plan item D4).
+      // A post on a hidden project is not public work.
       stats: project.locatic.isVisible
         ? raiseLastPublicActivity(postStats, now, now)
         : postStats,

@@ -32,7 +32,7 @@ const snapshotValidator = v.object({
 })
 
 /**
- * Existing members are subscribed to Locatic updates (design D7), logged
+ * Existing members are subscribed to Locatic updates, logged
  * with source `backfill`. Members who already have the key are untouched.
  */
 export const backfillProductUpdates = internalMutation({

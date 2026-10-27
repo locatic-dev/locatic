@@ -9,6 +9,7 @@ import type { ProjectDetailPayload } from '@/features/contracts'
 import { shouldAutoLoadDeepLinkPage } from '@/features/projects/deep-link'
 import { useCreatePost } from '@/features/projects/mutations'
 import { getActionErrorMessage } from '@/lib/action-error'
+import { prefersReducedMotion } from '@/lib/motion'
 import { ProjectPostCard } from './project-post-card'
 import { CONTENT_LIMITS } from '../../../../convex/lib/content_limits'
 
@@ -93,9 +94,7 @@ export function ProjectPostsSection({
 
     scrolledPostRef.current = highlightedPostId
     postElement.scrollIntoView({
-      behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-        ? 'instant'
-        : 'smooth',
+      behavior: prefersReducedMotion() ? 'instant' : 'smooth',
       block: 'center',
     })
   }, [highlightedCommentId, highlightedPostId, posts.length])

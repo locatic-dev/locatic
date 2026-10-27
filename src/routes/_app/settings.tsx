@@ -215,7 +215,7 @@ function SettingsPage() {
 
   // Privacy settings save on change, so there is nothing to leave unsaved; a
   // failed save reports through the shared action-error toast with a retry
-  // (A5), and the control falls back to the saved value.
+  //, and the control falls back to the saved value.
   const savePrivacySetting = async (save: () => Promise<unknown>) => {
     try {
       await save()

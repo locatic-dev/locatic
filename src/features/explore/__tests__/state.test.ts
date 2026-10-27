@@ -531,7 +531,7 @@ describe('explore state helpers', () => {
   })
 })
 
-describe('explore filters in the URL (D2, D3)', () => {
+describe('explore filters in the URL', () => {
   it('keeps language and topic in the form the server compares', () => {
     expect(
       normalizeExploreSearch({

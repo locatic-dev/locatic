@@ -14,7 +14,7 @@ import {
 } from './__tests__/fixtures.helpers'
 
 /**
- * Daily product counters (plan item E4): successful actions add one to a
+ * Daily product counters: successful actions add one to a
  * per-day, per-key row; repeated no-op actions and anonymous client reports
  * add nothing.
  */

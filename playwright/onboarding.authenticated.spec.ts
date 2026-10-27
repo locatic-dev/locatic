@@ -14,7 +14,7 @@ import {
   test,
 } from './fixtures/test'
 
-// Onboarding with and without eligible builders (plan items B13, C10). The
+// Onboarding with and without eligible builders. The
 // follow step exists only when the chosen city has an eligible builder.
 // Nothing is saved before "finish", so these tests walk the steps and stop
 // short of it; the onboarding user stays un-onboarded for the next run.

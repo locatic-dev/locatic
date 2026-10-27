@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Generates the YAML front matter of docs/DESIGN.md from src/styles.css, so
-// the documented tokens are the shipped tokens (plan item E1).
+// the documented tokens are the shipped tokens.
 //
 //   node scripts/generate-design-tokens.mjs          rewrite the front matter
 //   node scripts/generate-design-tokens.mjs --check  fail if it has drifted

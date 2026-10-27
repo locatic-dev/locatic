@@ -33,13 +33,13 @@ function asMaya(t: TestConvex<typeof schema>) {
 }
 
 /**
- * Settings privacy controls (plan decision D8): "where your city shows"
+ * Settings privacy controls: "where your city shows"
  * writes `cityVisibility` through `users.updatePrivacy`, and "appear in
  * explore and city pages" writes `appearInExplore` through
  * `users.updateExploreConfig`. Both re-derive owner state, so the next read
  * reflects them.
  */
-describe('settings location and discovery controls (D8)', () => {
+describe('settings location and discovery controls', () => {
   let t: TestConvex<typeof schema>
   let bengaluru: Id<'cities'>
   let projectId: Id<'projects'>

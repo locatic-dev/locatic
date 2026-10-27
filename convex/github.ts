@@ -598,7 +598,7 @@ export const recordProjectMetadataSyncFailure = internalMutation({
 })
 
 /**
- * Projects for the hourly metadata refresh (plan item D4): one bounded read of
+ * Projects for the hourly metadata refresh: one bounded read of
  * the `METADATA_REFRESH_SCAN_FACTOR * limit` visible projects least recently
  * attempted, then discovery-visible projects first with a share reserved for
  * the stalest rows (`selectMetadataRefreshTargets`).

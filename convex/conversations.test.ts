@@ -54,7 +54,7 @@ async function partnerCityNames(
   }
 }
 
-describe('conversation partner location (D8)', () => {
+describe('conversation partner location', () => {
   let t: TestConvex<typeof schema>
   let cities: SeededCities
   let viewerId: Id<'users'>
@@ -146,7 +146,7 @@ describe('conversation partner location (D8)', () => {
   })
 })
 
-describe('inbox requests and pending state (C9)', () => {
+describe('inbox requests and pending state', () => {
   let t: TestConvex<typeof schema>
   let senderId: Id<'users'>
   let recipientId: Id<'users'>
@@ -242,7 +242,7 @@ describe('inbox requests and pending state (C9)', () => {
     const { page } = await recipient.query(api.notifications.list, {
       paginationOpts: { cursor: null, numItems: 10 },
     })
-    // The notification is listed but created read (S5): the inbox badge is
+    // The notification is listed but created read: the inbox badge is
     // the one task, and nothing has to scan notifications to clear it.
     expect(page.map((row) => [row.type, row.isRead])).toEqual([
       ['dm_received', true],

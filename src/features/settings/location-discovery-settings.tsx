@@ -14,7 +14,7 @@ const CITY_VISIBILITY_OPTIONS: ReadonlyArray<{
   { value: 'hidden', label: 'hidden' },
 ]
 
-/** One line per option: what visitors see under that setting (D8). */
+/** One line per option: what visitors see under that setting. */
 export function getCityVisibilityDescription(
   value: CityVisibility,
   labels: { cityName: string | null; regionLabel: string | null },
@@ -59,7 +59,7 @@ function usePendingSave<T>(value: T, save: (next: T) => Promise<unknown>) {
 }
 
 /**
- * "Where your city shows" (plan decision D8): exact city, region only or
+ * "Where your city shows": exact city, region only or
  * hidden. Separate from discovery participation, which
  * `AppearInExploreSetting` controls. `onChange` saves and reports its own
  * errors; this only shows the pick while the save runs.
@@ -136,7 +136,7 @@ export function CityVisibilitySettings({
 const APPEAR_IN_EXPLORE_LABEL = 'appear in explore and city pages'
 
 /**
- * Discovery participation (`users.appearInExplore`, D8). Off takes the
+ * Discovery participation (`users.appearInExplore`). Off takes the
  * viewer and their projects out of Explore, city pages and builder
  * suggestions without changing what their location discloses.
  */

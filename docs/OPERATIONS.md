@@ -34,7 +34,9 @@ Record the deployed revision, a controlled quiet window, scan counts, complete o
 
 - `users:backfillOwnerState` schedules per-user synchronization. Wait for the outer scan and every eligible user's `lifecycleOwnerSync.stage === 3`; accounts skipped for purge must finish purge. Only then recount city statistics.
 - Profile/privacy changes commit current user authority immediately. Owner snapshots, discovery indexes, and project city counters converge in pages; reads apply live privacy during that interval.
-- Keep bounded legacy Inbox interfaces until old-client use ends. Preserve the global/index cursor query shape and `purgeProgress.accountIndexed` while account purge jobs drain. Reverting source does not restore erased data.
+- Keep bounded legacy Inbox interfaces until old-client use ends. Reverting source does not restore erased data.
+- Account purge cursors are versioned. Progress without `purgeProgress.queryVersion` and with a cursor finishes its stage with the original query (`accountIndexed` included); later stages use the indexed phases. Do not roll back below this version while any `purgeProgress.queryVersion` exists: older code cannot read those cursors, and the older schema rejects the new fields. Purges started by older code are adopted once by the next cleanup, deadline timer or queued continuation.
+- A stalled purge (for example after a failing page) keeps its claim. After fixing the cause, resume it with the stored step: `pnpm exec convex run users:scrubDeletedAccount '{"userId":"…","expectedStep":<purgeProgress.step>}'`. A run without `expectedStep` does nothing once a purge is claimed.
 - Remove legacy consent, reaction, route, or profile fields only after every target deployment has valid retained rows and no pending consumers/jobs. Email migrations must preserve opt-outs and irreversible deletion guards; do not reinterpret a backfill as new consent.
 - Pulse is deprecated and unused. Retain its schema/compatibility records until a separate data-retention decision and migration are complete; regenerate bindings normally when removing modules.
 

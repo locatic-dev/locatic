@@ -30,7 +30,7 @@ function suggestion(
   }
 }
 
-describe('FollowStepFields (D4 order copy)', () => {
+describe('FollowStepFields (order copy)', () => {
   it('explains the order and labels only new builders', () => {
     render(
       <FollowStepFields

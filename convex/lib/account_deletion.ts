@@ -28,6 +28,25 @@ export function isAccountPastRestorationWindow(
   return lifecycle === 'deletion_expired' || lifecycle === 'purged'
 }
 
+/**
+ * Deactivation to keep when a pending deletion is cancelled.
+ *
+ * Requests made before `deletionPreviousDeactivatedAt` existed stamped
+ * `deactivatedAt` at deletion unless the account was already deactivated,
+ * and a deactivation in the same millisecond stores the same shape, so their
+ * history is unknowable. Those restore hidden: reopening a profile the member
+ * may have hidden is worse than keeping one hidden.
+ */
+export function getDeactivationBeforeDeletion(
+  state: AccountDeletionState & {
+    deletionPreviousDeactivatedAt?: number | null
+  },
+): number | null {
+  if (state.deletionPreviousDeactivatedAt !== undefined)
+    return state.deletionPreviousDeactivatedAt
+  return state.deactivatedAt ?? null
+}
+
 export function getAccountDeletionWindow(
   state: AccountDeletionState,
   now: number,

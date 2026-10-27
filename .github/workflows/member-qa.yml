@@ -41,7 +41,6 @@ jobs:
     env:
       VITE_CONVEX_URL: ${{ vars.VITE_CONVEX_URL }}
       VITE_CLERK_PUBLISHABLE_KEY: ${{ vars.VITE_CLERK_PUBLISHABLE_KEY }}
-      CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
       E2E_CLERK_USER_EMAIL: ${{ vars.E2E_CLERK_USER_EMAIL }}
       E2E_PUBLIC_PROFILE_USERNAME: ${{ vars.E2E_PUBLIC_PROFILE_USERNAME }}
       E2E_CLERK_EMPTY_CITY_USER_EMAIL: ${{ vars.E2E_CLERK_EMPTY_CITY_USER_EMAIL }}
@@ -49,8 +48,6 @@ jobs:
       E2E_MODE: release
       E2E_FIXTURE_CONVEX_URL: ${{ vars.E2E_FIXTURE_CONVEX_URL }}
       E2E_RESET_FIXTURES: '1'
-      # Dedicated disposable-development deployment key, never production.
-      CONVEX_DEPLOY_KEY: ${{ secrets.E2E_CONVEX_DEPLOY_KEY }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -63,6 +60,12 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec playwright install --with-deps chromium
       - name: Run prepared development journeys
+        # Provider secrets are scoped to this step; checkout and installation
+        # steps never receive them.
+        env:
+          CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
+          # Dedicated disposable-development deployment key, never production.
+          CONVEX_DEPLOY_KEY: ${{ secrets.E2E_CONVEX_DEPLOY_KEY }}
         # Visual snapshots are reviewed separately and are platform-specific;
         # the separately authorized campaign test sends a provider test email.
         run: pnpm e2e --project=chromium-public --project=chromium-authenticated --project=chromium-onboarding --grep-invert 'baselines|writes, previews and tests an update'

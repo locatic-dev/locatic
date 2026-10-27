@@ -701,7 +701,7 @@ const SEND_PREVIEW_SAMPLE = 5
 
 // An estimate for the confirmation dialog from the first 100 members (full
 // user documents are large, so this stays a small read). The audience is
-// computed again, user by user, while sending (design D3); `capped` means
+// computed again, user by user, while sending; `capped` means
 // more members exist than were counted.
 export const getSendPreview = query({
   args: { campaignId: v.id('email_campaigns') },

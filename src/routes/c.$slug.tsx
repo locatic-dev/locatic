@@ -22,7 +22,7 @@ import { getAccountRecoveryState } from '@/features/viewer/lifecycle'
 import { isCityIndexable } from '../../convex/lib/seo_thresholds'
 
 /**
- * Public city page (plan item D5). Visitors get the public header; members
+ * Public city page. Visitors get the public header; members
  * get the app shell, and members who still need onboarding go there first
  * with this URL as the destination, as on Explore. Unknown and inactive
  * cities are a real 404. A city id in the address (stored snapshots only

@@ -14,7 +14,7 @@ import {
 } from './__tests__/fixtures.helpers'
 
 /**
- * Posts in discovery (review findings B3 and S7, decision D8). Discovery
+ * Posts in discovery. Discovery
  * participation (`appearInExplore`) decides whether a builder's work appears
  * in discovery at all; a post of an owner who opted out must not reach city
  * pages, Explore post feeds or post search, even through a stored
@@ -35,7 +35,7 @@ function postIds(rows: Array<{ _id: Id<'posts'> }>) {
   return rows.map((row) => row._id)
 }
 
-describe('posts of owners outside discovery (B3)', () => {
+describe('posts of owners outside discovery', () => {
   let t: T
   let fixture: PopulatedCityFixture
 
@@ -166,7 +166,7 @@ describe('posts of owners outside discovery (B3)', () => {
   })
 })
 
-describe('stale stored post fields (S7)', () => {
+describe('stale stored post fields', () => {
   let t: T
   let fixture: PopulatedCityFixture
 

@@ -484,7 +484,7 @@ export const getProjectSignals = query({
 
 /**
  * Other discoverable projects from the owner's city, most recently pushed
- * first. Only for owners who disclose their exact city (plan decision D8);
+ * first. Only for owners who disclose their exact city;
  * region-only and hidden owners get null. One bounded index read.
  */
 export const listMoreFromOwnerCity = query({
@@ -835,7 +835,7 @@ export const updateVisibility = mutation({
     })
     await cityStats.apply(ctx.db)
 
-    // Activity signal (plan item D4): a project turning visible brings its
+    // Activity signal: a project turning visible brings its
     // commits, posts and releases into public work; turning hidden takes them
     // out, recomputed after the patch above so this project no longer counts.
     const visibilityStats = {
@@ -1222,7 +1222,7 @@ export const upsertImportedRepositories = internalMutation({
 })
 
 // ---------------------------------------------------------------------------
-// Saves (plan item D1): a private bookmark list. Rows are readable only by the
+// Saves: a private bookmark list. Rows are readable only by the
 // user who saved them; there are no folders, tags or sharing.
 // ---------------------------------------------------------------------------
 

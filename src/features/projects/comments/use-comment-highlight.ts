@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { prefersReducedMotion } from '@/lib/motion'
 
 /** Resolve a destination when its row mounts, including independently loaded replies. */
 export function useCommentHighlight(
@@ -25,9 +26,7 @@ export function useCommentHighlight(
 
   useEffect(() => {
     if (!targetId || target?.id !== targetId) return
-    const reducedMotion = window.matchMedia?.(
-      '(prefers-reduced-motion: reduce)',
-    ).matches
+    const reducedMotion = prefersReducedMotion()
     target.element.scrollIntoView({
       behavior: reducedMotion ? 'instant' : 'smooth',
       block: 'center',

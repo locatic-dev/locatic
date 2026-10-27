@@ -9,7 +9,7 @@ const followButtonClass =
   'min-h-11 shrink-0 rounded-md border px-3 font-mono text-[11.5px] transition-colors'
 
 /**
- * The optional follow list (plan D7): one follow toggle per builder, nothing
+ * The optional follow list: one follow toggle per builder, nothing
  * followed without a click. The button stays enabled while a request runs so
  * keyboard focus is never dropped; repeat presses are ignored instead.
  */

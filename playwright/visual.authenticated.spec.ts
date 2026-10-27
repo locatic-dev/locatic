@@ -9,8 +9,8 @@ import {
 } from './fixtures/test'
 import { BASELINE_VIEWPORTS, expectBaseline } from './fixtures/visual'
 
-// Screenshot baselines for every signed-in route at 1440 and 390 (plan item
-// C10), as the populated user. Live content (times, graphs, maps) is masked;
+// Screenshot baselines for every signed-in route at 1440 and 390,
+// as the populated user. Live content (times, graphs, maps) is masked;
 // see fixtures/visual.ts.
 
 const ROUTES: Array<{ name: string; path: string; title: string }> = [

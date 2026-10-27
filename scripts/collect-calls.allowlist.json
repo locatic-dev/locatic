@@ -1,5 +1,5 @@
 {
-  "$comment": "Existing .collect() calls outside internal migrations, per file#function (plan item E3). Lower or remove entries as reads become bounded; never raise one to accept a new call. Written by `node scripts/check-collect-calls.mjs --update`.",
+  "$comment": "Existing .collect() calls outside internal migrations, per file#function. Lower or remove entries as reads become bounded; never raise one to accept a new call. Written by `node scripts/check-collect-calls.mjs --update`.",
   "functions": {
     "convex/follows.ts#listFollowers": 1,
     "convex/follows.ts#listFollowing": 1,

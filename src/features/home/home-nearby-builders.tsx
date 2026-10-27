@@ -10,10 +10,10 @@ import { showUndoToast } from '@/lib/undo-toast'
 import type { HomeNearbyBuilder } from './queries'
 
 /**
- * Suggestions shown beside an empty Home (plan item C5 state "no follows"):
+ * Suggestions shown beside an empty Home with no follows:
  * each builder links to their profile, shows their city pill and has one
  * follow toggle. Following or unfollowing confirms with an undo toast.
- * Ordered most recent public work first (plan item D4).
+ * Ordered most recent public work first.
  */
 export function HomeNearbyBuilders({
   builders,

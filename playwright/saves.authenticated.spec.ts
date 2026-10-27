@@ -12,7 +12,7 @@ import {
   test,
 } from './fixtures/test'
 
-// D1 private saves: save a project from its page, find it on /saved, then
+// Private saves: save a project from its page, find it on /saved, then
 // remove it from /saved. The test leaves no save behind (it restores the
 // starting state when the project was already saved).
 

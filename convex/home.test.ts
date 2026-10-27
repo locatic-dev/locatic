@@ -20,7 +20,7 @@ import {
 } from './__tests__/fixtures.helpers'
 
 /**
- * Home activity path (plan item C5, decision D12). These fixtures prove how
+ * Home activity path. These fixtures prove how
  * delivery, reads and retention behave on one injected clock. They do not
  * reproduce, and cannot establish, the cause of the historical empty-feed
  * incident: its production data expired with the 30-day purge.
@@ -72,7 +72,7 @@ async function unfollow(t: T, follower: string, targetUserId: Id<'users'>) {
   await as(t, follower).mutation(api.follows.unfollow, { targetUserId })
 }
 
-describe('home activity path and retention (C5)', () => {
+describe('home activity path and retention', () => {
   let t: T
   let viewerId: Id<'users'>
   let builderId: Id<'users'>
@@ -447,7 +447,7 @@ describe('home activity path and retention (C5)', () => {
   })
 })
 
-describe('profile targets and follow backfill (S1, S6)', () => {
+describe('profile targets and follow backfill', () => {
   let t: T
   let viewerId: Id<'users'>
   let builderId: Id<'users'>

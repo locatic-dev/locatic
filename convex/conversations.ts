@@ -73,7 +73,7 @@ const conversationOtherUserValidator = v.object({
  * - `pending`: an outgoing request the other person has not answered yet.
  * - `active`: an accepted conversation.
  *
- * Rule (C9): `isRequest` stays true only while every message came from the
+ * Rule: `isRequest` stays true only while every message came from the
  * person who started the conversation, because the first reply from the
  * recipient clears it (`sendMessage`, `sendFirstMessage`). So while
  * `isRequest` holds, `lastMessage.senderId` is the requester: equal to the
@@ -150,8 +150,8 @@ function buildRecipientPreview(user: {
 }
 
 /**
- * City label a conversation partner may see, per the visibility policy (plan
- * decision D8): the exact city name for exact-city users, the region label
+ * City label a conversation partner may see, per the visibility policy
+ * (`convex/lib/visibility.ts`): the exact city name for exact-city users, the region label
  * for region-only users, null for hidden users.
  */
 async function getDisclosedCityName(
