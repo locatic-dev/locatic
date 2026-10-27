@@ -1,7 +1,7 @@
 import type { Page } from '@playwright/test'
 import { expect, expectNoPendingContent, waitForFiniteAnimations } from './test'
 
-/** Baseline viewports (plan item C10): desktop and a 390px phone. */
+/** Baseline viewports: desktop and a 390px phone. */
 export const BASELINE_VIEWPORTS = [
   { width: 1440, height: 900 },
   { width: 390, height: 844 },

@@ -176,12 +176,12 @@ export const citiesByIdsQueryOptions = (cityIds: Array<any>) =>
 export const nearbyCitiesQueryOptions = (cityId: Id<'cities'> | null) =>
   convexQuery(api.cities.listNearby, cityId ? { cityId } : 'skip')
 
-/** Landing map (plan item D7): active cities with builders, public. */
+/** Landing map: active cities with builders, public. */
 export const landingMapCitiesQueryOptions = () =>
   convexQuery(api.cities.listActiveForMap, {})
 
 /**
- * Landing activity (plan item D7): recent posts, releases and projects on
+ * Landing activity: recent posts, releases and projects on
  * their owners' cities, public.
  */
 export const landingActivityQueryOptions = () =>

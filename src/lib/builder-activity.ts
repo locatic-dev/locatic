@@ -1,4 +1,4 @@
-/** Accounts younger than this read as new builders (plan item D4). */
+/** Accounts younger than this read as new builders. */
 export const NEW_BUILDER_WINDOW_MS = 30 * 24 * 60 * 60 * 1000
 
 /**

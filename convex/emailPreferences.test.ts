@@ -7,6 +7,7 @@ import {
   NOW,
   seedUser,
   purgeFixtureAccount,
+  runAccountPurgePage,
 } from './__tests__/fixtures.helpers'
 import type { EmailId } from '@convex-dev/resend'
 
@@ -273,7 +274,7 @@ describe('token unsubscribe mutations', () => {
       for (let page = 0; page < 100; page++) {
         const user = (await t.run((ctx) => ctx.db.get(userId)))!
         if ((user.purgeProgress?.stage ?? 0) >= 18) break
-        await t.mutation(internal.users.scrubDeletedAccount, { userId })
+        await runAccountPurgePage(t, userId)
       }
       expect(
         (await t.run((ctx) => ctx.db.get(userId)))?.purgeProgress?.stage,

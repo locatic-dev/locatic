@@ -17,12 +17,12 @@ import {
   test,
 } from './fixtures/test'
 
-// Public discovery journey (plan items C1, C4, A6, C10). Signed-out visitors
+// Public discovery journey. Signed-out visitors
 // browse Explore without being sent to sign-in, reach a builder profile, sign
 // in and come back to it, follow the builder and see their work on Home. Data
 // comes from the populated persona's city (playwright/fixtures/fixtures.md).
 
-/** Home keeps the last 30 days of activity from people you follow (C5). */
+/** Home keeps the last 30 days of activity from people you follow. */
 const HOME_WINDOW_MS = 30 * 24 * 60 * 60 * 1000
 
 /**

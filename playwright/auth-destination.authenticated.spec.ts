@@ -10,7 +10,7 @@ import {
 } from './fixtures/personas'
 import { expect, requireE2EPrerequisite, test } from './fixtures/test'
 
-// Destination contract (plan item A6). The signed-in cases use the stored
+// Destination contract. The signed-in cases use the stored
 // session of the authenticated project; signed-out cases override it with an
 // empty storage state, so the whole matrix lives in one project.
 
@@ -252,7 +252,7 @@ test.describe('signed in', () => {
       storageState: testInfo.project.use.storageState,
     })
     // Captures the redirect sequence and Clerk's auth verdicts for the
-    // intermittent mobile Explore-to-Home bounce (investigation I5).
+    // intermittent mobile Explore-to-Home bounce.
     await context.tracing.start({ screenshots: true, snapshots: true })
     const page = await context.newPage()
     const authVerdicts: Array<Record<string, string | number | null>> = []

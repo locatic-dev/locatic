@@ -34,7 +34,7 @@ export function NearbyBuilderRow({
   /** Signed-out visitor: follow becomes a sign-in link, message is hidden. */
   visitor?: { signInRedirect: string | undefined }
 }) {
-  // A young account without public work reads as new, not inactive (D4).
+  // A young account without public work reads as new, not inactive.
   const handle = (
     <>
       @{builder.githubUsername}
@@ -42,7 +42,7 @@ export function NearbyBuilderRow({
       {builder.isNewBuilder ? ' · new builder' : ''}
     </>
   )
-  // Collaboration intent (D3) beside the handle. The identity link's
+  // Collaboration intent beside the handle. The identity link's
   // `aria-label` hides its content from assistive tech, so the pill is also
   // the link's description.
   const statusId = useId()

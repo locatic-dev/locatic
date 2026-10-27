@@ -90,7 +90,7 @@ export default defineSchema({
     timezone: optionalStringValidator,
     searchText: v.string(),
     isActive: v.boolean(),
-    // City counters (plan item A4), maintained on write through
+    // City counters, maintained on write through
     // convex/lib/cityStats.ts. Optional so catalogue rows without counts
     // validate; readers treat a missing value as zero.
     stats: v.optional(
@@ -102,9 +102,9 @@ export default defineSchema({
         recountedAt: v.optional(v.number()),
       }),
     ),
-    // Coarse location cell for nearby city lookups (plan item D5,
+    // Coarse location cell for nearby city lookups (
     // `getActivityCellKey` in convex/lib/geo.ts). Set only while the city's
-    // A4 `builderCount` or `projectCount` is above zero and removed when both
+    // `stats.builderCount` or `stats.projectCount` is above zero and removed when both
     // are zero, so `by_activity_cell` holds active cities only and the
     // lookup never scans the catalogue. Maintained with the counters in
     // convex/lib/cityStats.ts.
@@ -115,9 +115,9 @@ export default defineSchema({
     .index('by_slug', ['slug'])
     .index('by_name', ['name'])
     .index('by_country_name', ['countryCode', 'name'])
-    // Prefix range for city search (plan item B10, convex/lib/citySearch.ts).
+    // Prefix range for city search (convex/lib/citySearch.ts).
     .index('by_active_normalized_name', ['isActive', 'normalizedName'])
-    // Active cities by coarse cell (plan item D5).
+    // Active cities by coarse cell.
     .index('by_activity_cell', ['activityCell'])
     .searchIndex('search_text', {
       searchField: 'searchText',
@@ -217,6 +217,9 @@ export default defineSchema({
     purgeAfter: v.optional(optionalTimestampValidator),
     purgedAt: v.optional(optionalTimestampValidator),
     deletionPreviousAppearInExplore: v.optional(v.boolean()),
+    // Null records an active account; absent means a deletion requested
+    // before this field existed.
+    deletionPreviousDeactivatedAt: v.optional(optionalTimestampValidator),
     lifecycleOwnerSync: v.optional(
       v.object({
         generation: v.number(),
@@ -228,7 +231,14 @@ export default defineSchema({
       v.object({
         stage: v.number(),
         cursor: optionalStringValidator,
+        // Legacy single-query stages only; see PURGE_QUERY_VERSION.
         accountIndexed: v.optional(v.boolean()),
+        queryVersion: v.optional(v.number()),
+        phase: v.optional(v.number()),
+        targetCursor: v.optional(optionalStringValidator),
+        targetQueue: v.optional(v.array(v.string())),
+        // Claim token: only the continuation scheduled with this step runs.
+        step: v.optional(v.number()),
       }),
     ),
   })
@@ -565,7 +575,7 @@ export default defineSchema({
   })
     .index('by_project_published', ['projectId', 'publishedAt'])
     .index('by_project_release', ['projectId', 'githubReleaseId'])
-    // Newest releases across projects, for the landing activity (D7).
+    // Newest releases across projects, for the landing activity.
     .index('by_published', ['publishedAt']),
 
   saved_projects: defineTable({
@@ -574,7 +584,8 @@ export default defineSchema({
     createdAt: v.number(),
   })
     .index('by_user_created', ['userId', 'createdAt'])
-    .index('by_user_project', ['userId', 'projectId']),
+    .index('by_user_project', ['userId', 'projectId'])
+    .index('by_project', ['projectId']),
 
   posts: defineTable({
     projectId: v.id('projects'),
@@ -850,7 +861,8 @@ export default defineSchema({
   })
     .index('by_user_project', ['userId', 'projectId'])
     .index('by_user_last_seen', ['userId', 'lastSeenAt'])
-    .index('by_user_dismissed', ['userId', 'dismissedAt']),
+    .index('by_user_dismissed', ['userId', 'dismissedAt'])
+    .index('by_project', ['projectId']),
 
   explore_post_history: defineTable({
     userId: v.id('users'),
@@ -860,7 +872,8 @@ export default defineSchema({
     dismissedAt: optionalTimestampValidator,
   })
     .index('by_user_post', ['userId', 'postId'])
-    .index('by_user_dismissed', ['userId', 'dismissedAt']),
+    .index('by_user_dismissed', ['userId', 'dismissedAt'])
+    .index('by_post', ['postId']),
 
   pulse_snapshots: defineTable({
     scopeType: pulseScopeTypeValidator,
@@ -896,7 +909,7 @@ export default defineSchema({
     .index('by_reporter', ['reporterId'])
     .index('by_status', ['status']),
 
-  // Daily product counters (plan item E4): one row per UTC day and key,
+  // Daily product counters: one row per UTC day and key,
   // written by convex/metrics.ts. Aggregates only; no user ids, no per-view
   // writes. See docs/metrics.md.
   metrics_daily: defineTable({

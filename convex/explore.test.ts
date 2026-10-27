@@ -90,7 +90,7 @@ function ids<T extends { userId: Id<'users'> }>(page: T[]) {
   return page.map((builder) => builder.userId).sort()
 }
 
-describe('explore visibility contract (D8)', () => {
+describe('explore visibility contract', () => {
   let t: TestConvex<typeof schema>
   let fixture: PopulatedCityFixture
 
@@ -357,7 +357,7 @@ async function drain<T>(
   }
 }
 
-describe('explore pagination contract (A3)', () => {
+describe('explore pagination contract', () => {
   let t: TestConvex<typeof schema>
 
   beforeEach(() => {
@@ -418,7 +418,7 @@ describe('explore pagination contract (A3)', () => {
     for (const { scope, lastPage } of [
       { scope: { scope: 'global' as const }, lastPage: [older] },
       // An explicitly selected city lists the viewer's own project after
-      // everyone else's, on the page that ends the feed (C2).
+      // everyone else's, on the page that ends the feed.
       {
         scope: { scope: 'custom' as const, selectedCityIds: [bengaluru] },
         lastPage: [older, mine],
@@ -592,7 +592,7 @@ describe('explore pagination contract (A3)', () => {
         }),
       )
 
-    // No fixture builder has public activity yet, so the D4 order falls back
+    // No fixture builder has public activity yet, so the activity order falls back
     // to newest account first: frank, erin, dev, carol, bob, alice. In
     // Bengaluru erin (hidden) and dev (region only) are not members, so the
     // first page filters to nothing.
@@ -774,7 +774,7 @@ function keysOf(row: object) {
   return Object.keys(row).sort()
 }
 
-describe('public explore payloads (C1)', () => {
+describe('public explore payloads', () => {
   let t: TestConvex<typeof schema>
   let fixture: PopulatedCityFixture
 
@@ -813,7 +813,7 @@ describe('public explore payloads (C1)', () => {
       // Sync failures and their reasons are for the owner only.
       expect(row.syncStatus).not.toHaveProperty('error')
     }
-    // The card's city link only for exact-city owners (C4).
+    // The card's city link only for exact-city owners.
     const ownerLocation = (projectId: Id<'projects'>) =>
       projects.page.find((row) => row.projectId === projectId)?.ownerLocation
     expect(ownerLocation(fixture.projects.aliceApp)).toMatchObject({
@@ -938,7 +938,7 @@ describe('public explore payloads (C1)', () => {
   })
 })
 
-describe('own projects in an explicitly selected city (C2)', () => {
+describe('own projects in an explicitly selected city', () => {
   let t: TestConvex<typeof schema>
   let fixture: PopulatedCityFixture
 
@@ -1063,7 +1063,7 @@ function exploreFeedClient<T>(
 const UNEVEN_PROJECT_COUNT = 90
 
 /**
- * Deliberately uneven Bengaluru data for the D2 filters, newest commit first:
+ * Deliberately uneven Bengaluru data for the language/topic filters, newest commit first:
  * rows 0-39 are all TypeScript (common), later rows mix in Go every third
  * row, every row has the topic `web`, and only the oldest row (89) has
  * `webgpu` (rare), so it sits past the first page plus three empty
@@ -1092,7 +1092,7 @@ async function seedUnevenProjects(t: TestConvex<typeof schema>) {
   return { bengaluru, projectIdsByRow }
 }
 
-describe('explore language and topic filters (D2)', () => {
+describe('explore language and topic filters', () => {
   let t: TestConvex<typeof schema>
 
   beforeEach(() => {
@@ -1304,7 +1304,7 @@ describe('explore language and topic filters (D2)', () => {
   })
 })
 
-describe('nearby builders order and collaboration filter (D3, D4)', () => {
+describe('nearby builders order and collaboration filter', () => {
   let t: TestConvex<typeof schema>
 
   beforeEach(() => {

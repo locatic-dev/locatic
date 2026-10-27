@@ -18,6 +18,7 @@ import {
   purgeFixtureAccount,
   BENGALURU,
   finishLifecycleOwnerSync,
+  runAccountPurgePage,
 } from './__tests__/fixtures.helpers'
 import { buildActorSnapshot } from './lib/snapshots'
 import { ACCOUNT_PURGE_RETENTION_MS } from './lib/account_deletion'
@@ -158,6 +159,107 @@ describe('account lifecycle contract', () => {
     await t.mutation(internal.users.scrubDeletedAccount, { userId: id })
     expect(await t.run((ctx) => ctx.db.get(id))).toEqual(restored)
   })
+
+  it('keeps a deactivated profile hidden after deletion is cancelled', async () => {
+    const t = convexTest(schema, modules)
+    const id = await seedUser(t, { username: 'ada' })
+    const client = t.withIdentity({ subject: fixtureClerkId('ada') })
+    await client.mutation(api.users.deactivateAccount, {})
+    await finishLifecycleOwnerSync(t, id)
+    expect(
+      await t.query(api.users.publicProfileOverview, { username: 'ada' }),
+    ).toBeNull()
+
+    vi.setSystemTime(NOW + 1_000)
+    await client.mutation(api.users.deleteAccount, {})
+    await client.mutation(api.users.restoreAccount, {})
+    await finishLifecycleOwnerSync(t, id)
+
+    const restored = await t.run((ctx) => ctx.db.get(id))
+    expect(restored).toMatchObject({
+      deletedAt: null,
+      deactivatedAt: NOW,
+      purgeAfter: null,
+      appearInExplore: false,
+    })
+    expect(restored).not.toHaveProperty('deletionPreviousDeactivatedAt')
+    expect(restored).not.toHaveProperty('deletionPreviousAppearInExplore')
+    expect(
+      await t.query(api.users.publicProfileOverview, { username: 'ada' }),
+    ).toBeNull()
+  })
+
+  it('restores an active member who had opted out of discovery as public and undiscoverable', async () => {
+    const t = convexTest(schema, modules)
+    const id = await seedUser(t, { username: 'ada' })
+    await t.run((ctx) => ctx.db.patch(id, { appearInExplore: false }))
+    const client = t.withIdentity({ subject: fixtureClerkId('ada') })
+    await client.mutation(api.users.deleteAccount, {})
+    await client.mutation(api.users.restoreAccount, {})
+    await finishLifecycleOwnerSync(t, id)
+    expect(await t.run((ctx) => ctx.db.get(id))).toMatchObject({
+      deactivatedAt: null,
+      appearInExplore: false,
+    })
+    expect(
+      await t.query(api.users.publicProfileOverview, { username: 'ada' }),
+    ).not.toBeNull()
+  })
+
+  it('records the state of each deletion request separately', async () => {
+    const t = convexTest(schema, modules)
+    const id = await seedUser(t, { username: 'ada' })
+    const client = t.withIdentity({ subject: fixtureClerkId('ada') })
+    await client.mutation(api.users.deleteAccount, {})
+    await client.mutation(api.users.restoreAccount, {})
+    vi.setSystemTime(NOW + 1_000)
+    await client.mutation(api.users.deactivateAccount, {})
+    vi.setSystemTime(NOW + 2_000)
+    await client.mutation(api.users.deleteAccount, {})
+    await client.mutation(api.users.restoreAccount, {})
+    expect(await t.run((ctx) => ctx.db.get(id))).toMatchObject({
+      deactivatedAt: NOW + 1_000,
+      appearInExplore: false,
+    })
+  })
+
+  it.each([
+    ['deactivated earlier', 'deactivated', NOW - 1_000],
+    ['deactivated in the same millisecond', 'deactivated', NOW],
+    ['active before deletion', 'active', NOW],
+  ] as const)(
+    'restores a legacy pending deletion hidden when it was %s',
+    async (_label, history, deactivatedAt) => {
+      const t = convexTest(schema, modules)
+      const id = await seedUser(t, { username: 'ada' })
+      const client = t.withIdentity({ subject: fixtureClerkId('ada') })
+      if (history === 'deactivated') {
+        vi.setSystemTime(deactivatedAt)
+        await client.mutation(api.users.deactivateAccount, {})
+        vi.setSystemTime(NOW)
+      }
+      // The deletion patch written before previous-state fields existed:
+      // it kept an existing deactivation or stamped one at deletion.
+      await t.run((ctx) =>
+        ctx.db.patch(id, {
+          deletedAt: NOW,
+          deactivatedAt,
+          purgeAfter: NOW + ACCOUNT_PURGE_RETENTION_MS,
+          appearInExplore: false,
+        }),
+      )
+      await client.mutation(api.users.restoreAccount, {})
+      await finishLifecycleOwnerSync(t, id)
+      expect(await t.run((ctx) => ctx.db.get(id))).toMatchObject({
+        deletedAt: null,
+        deactivatedAt,
+        appearInExplore: false,
+      })
+      expect(
+        await t.query(api.users.publicProfileOverview, { username: 'ada' }),
+      ).toBeNull()
+    },
+  )
 
   it('rejects restoration exactly at the deadline', async () => {
     const t = convexTest(schema, modules)
@@ -505,14 +607,14 @@ describe('account lifecycle contract', () => {
         likedAt: null,
       })
     })
-    await t.mutation(internal.users.scrubDeletedAccount, { userId: id })
+    await runAccountPurgePage(t, id)
     expect((await t.run((ctx) => ctx.db.get(id)))?.purgedAt).toBeNull()
     for (
       let page = 0;
-      page < 100 && (await t.run((ctx) => ctx.db.get(id)))?.purgedAt == null;
+      page < 500 && (await t.run((ctx) => ctx.db.get(id)))?.purgedAt == null;
       page++
     ) {
-      await t.mutation(internal.users.scrubDeletedAccount, { userId: id })
+      await runAccountPurgePage(t, id)
     }
     const user = await t.run((ctx) => ctx.db.get(id))
     expect(user?.purgedAt).toBe(NOW)

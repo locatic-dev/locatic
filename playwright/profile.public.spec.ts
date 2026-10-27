@@ -43,7 +43,7 @@ function firstShowcaseItem(page: Page) {
     .nth(1)
 }
 
-test.describe('public profile (C6)', () => {
+test.describe('public profile', () => {
   test.beforeEach(() => {
     requireE2EPrerequisite(
       Boolean(PROFILE_USERNAME),
@@ -102,7 +102,7 @@ test.describe('public profile (C6)', () => {
     const main = page.locator('main#main-content')
     await expectSettled(page, main.getByRole('heading', { level: 1 }))
 
-    // Server-rendered with the overview (D6): present only when the builder
+    // Server-rendered with the overview: present only when the builder
     // has public releases or posts.
     const log = main.getByRole('region', { name: 'shipping log' })
     if ((await log.count()) === 0) {

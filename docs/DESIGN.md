@@ -347,7 +347,7 @@ Renders the server's location disclosure: an exact city is a link to its city pa
 
 Fixed to the bottom, `surface-chrome` with a `line` top border, height `calc(72px + env(safe-area-inset-bottom))`. Tabs follow the sidebar order (home, explore, inbox, notifications, profile) with short labels that fit ("alerts" for notifications). The active tab has a 24px accent pill above its icon. Every tab is at least 44px tall.
 
-### Unread badges (decision D4)
+### Unread badges
 
 Readable and quiet: `surface-raised` fill, `text` count at `meta` size, tabular, `rounded-pill`, capped at "99+". Hidden at zero. The badge is `aria-hidden`; the link's accessible name carries the count ("notifications, 3 unread"). Badges never use the accent fill, so they do not compete with primary actions. The inbox badge counts messages; the notifications badge excludes direct messages, so one message is never two tasks.
 

@@ -1,5 +1,5 @@
 {
-  "$comment": "Existing arbitrary values in src/features and src/routes (plan item E3). Lower or remove entries as files move to tokens; never raise one to accept a new hit. Written by `node scripts/check-arbitrary-values.mjs --update`.",
+  "$comment": "Existing arbitrary values in src/features and src/routes. Lower or remove entries as files move to tokens; never raise one to accept a new hit. Written by `node scripts/check-arbitrary-values.mjs --update`.",
   "files": {
     "src/features/github/repository-manager-dialog.tsx": {
       "font-size": 2

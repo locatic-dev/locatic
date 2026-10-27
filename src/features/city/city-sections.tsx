@@ -265,7 +265,7 @@ function EmptyCity({ page }: { page: CityPagePayload }) {
   )
 }
 
-/** The public city page body (plan item D5). No ranks, no leaderboards. */
+/** The public city page body. No ranks, no leaderboards. */
 export function CityPageView({ page }: { page: CityPagePayload }) {
   const empty = isCityPageEmpty(page)
   return (

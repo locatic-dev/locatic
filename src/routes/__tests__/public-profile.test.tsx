@@ -251,7 +251,7 @@ function isBefore(first: Element, second: Element) {
 
 type ToastOptions = { action?: { label: string; onClick: () => void } }
 
-describe('public profile page (C6)', () => {
+describe('public profile page', () => {
   afterEach(() => {
     cleanup()
     vi.clearAllMocks()

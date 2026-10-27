@@ -129,7 +129,7 @@ export type ViewerBootstrapPayload = {
 export type PrivateProfileOverviewPayload = {
   viewer: ViewerRecord
   cityName: string | null
-  /** The viewer's region label, what a region-only disclosure shows (D8). */
+  /** The viewer's region label, what a region-only disclosure shows. */
   regionLabel?: string | null
 }
 

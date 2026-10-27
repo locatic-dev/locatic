@@ -280,7 +280,7 @@ describe('HomeFeedCard helpers', () => {
   })
 
   it('renders a delivered follow-feed row as returned by home.list', () => {
-    // Last step of the C5 trace (convex/home.test.ts covers source, delivery,
+    // Last step of the Home activity trace (convex/home.test.ts covers source, delivery,
     // retention and the read).
     const item = feedItem({
       eventType: 'project_posted',

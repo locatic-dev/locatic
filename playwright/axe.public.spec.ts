@@ -9,7 +9,7 @@ import {
   test,
 } from './fixtures/test'
 
-// Axe on every public route (plan item E3), signed out. Fails on critical and
+// Axe on every public route, signed out. Fails on critical and
 // serious WCAG A/AA violations. Routes that need persona data
 // (playwright/fixtures/fixtures.md) fail release validation when it is missing.
 

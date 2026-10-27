@@ -754,7 +754,7 @@ export const refreshProjectMetadata = internalAction({
  * Hourly metadata refresh. Bounded to `limit` projects per run (default
  * `DEFAULT_METADATA_REFRESH_LIMIT`, capped at 100), discovery-visible
  * projects first (`github.listRefreshableProjectIds`). Commits and releases
- * it finds raise the owner's activity signal (plan item D4).
+ * it finds raise the owner's activity signal.
  */
 export const refreshActiveProjectMetadata = internalAction({
   args: {

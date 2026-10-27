@@ -14,7 +14,7 @@ import {
 } from './__tests__/fixtures.helpers'
 
 /**
- * Comment author locations (review finding B2, decision D8). A comment stores
+ * Comment author locations. A comment stores
  * `authorSnapshot` when it is written, and nothing re-derives it when the
  * author later changes their privacy, so the list queries must resolve the
  * author's location from the live user.
@@ -48,7 +48,7 @@ function locationOf(comment: {
   }
 }
 
-describe('comment author location (B2)', () => {
+describe('comment author location', () => {
   let t: T
   let fixture: PopulatedCityFixture
 
@@ -105,7 +105,7 @@ describe('comment author location (B2)', () => {
       cityId: null,
       cityName: null,
     })
-    // Catalogue region "State of Berlin" names the city (B1): country only.
+    // Catalogue region "State of Berlin" names the city: country only.
     expect(byAuthor.get(String(berta))).toEqual({
       cityId: null,
       cityName: 'Germany',

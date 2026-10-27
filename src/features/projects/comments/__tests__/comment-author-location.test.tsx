@@ -7,7 +7,7 @@ import { CommentThread } from '../comment-thread'
 import type { ProjectCommentView } from '../types'
 
 // The author location on a comment comes from the server under the privacy
-// policy (review finding B2): a city id only for exact-city members, whose
+// policy: a city id only for exact-city members, whose
 // pill links to the city page; a region label renders as plain text.
 
 vi.mock('@tanstack/react-router', () => ({

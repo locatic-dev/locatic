@@ -8,7 +8,7 @@ import { isOwnerDiscoverable } from './lib/snapshots'
 import { optionalStringValidator } from './lib/validators'
 import { resolveLocationDisclosure } from './lib/visibility'
 
-/** Items the landing globe cycles through (plan item D7). */
+/** Items the landing globe cycles through. */
 const LANDING_ACTIVITY_LIMIT = 12
 /** Most items one builder contributes, so a busy builder cannot fill the globe. */
 const LANDING_ACTIVITY_PER_ACTOR = 2
@@ -234,7 +234,7 @@ function isCandidateNews(candidate: Candidate): boolean {
 }
 
 /**
- * Public activity for the landing globe (plan item D7): the newest posts,
+ * Public activity for the landing globe: the newest posts,
  * published releases, pushes ("shipped") and newly shared projects, newest
  * first, at most `LANDING_ACTIVITY_PER_ACTOR` per builder. There is no time
  * window, so older work fills in while little is new. Only visible projects

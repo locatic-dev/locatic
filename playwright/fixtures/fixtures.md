@@ -43,7 +43,7 @@ Some stale contracts have no distinctive error. For example, an older `home.list
 | `E2E_CLERK_EMPTY_CITY_USER_EMAIL` | empty-city user (`explore-empty-city`)                   | preflight fails               |
 | `E2E_EMPTY_CITY_NAME`             | empty-city user's city (default `Mysuru`)                | the default is used           |
 | `E2E_OTHER_CITY_NAME`             | a city with public builders (default `Bengaluru`)        | the default is used           |
-| `E2E_CLERK_ONBOARDING_USER_EMAIL` | a resettable user (`chromium-onboarding`, A6)            | preflight fails               |
+| `E2E_CLERK_ONBOARDING_USER_EMAIL` | a resettable user (`chromium-onboarding`)                | preflight fails               |
 
 ## Personas
 
@@ -61,7 +61,7 @@ No cookies and no Clerk session. Needs no data of its own, but the public specs 
 - At least one exact-city builder, visible in Explore, with a public profile and a project eligible for Explore (`discovery`, `city.public`, `axe.public`, `visual.public`). The populated user's city covers this.
 - At least one other such builder besides the populated user, with public activity from the last 30 days, for the full discovery journey (discover, profile, sign in, return, follow, Home shows their activity).
 - At least one project in global Explore with a reaction (count above zero), so the visitor check that reaction counts keep full contrast has a counted pill (`discovery.public`).
-- For the landing checks (`landing.public`, D7): at least five active cities with `builderCount > 0` and at least one eligible project. With fewer, the landing labels its examples and strict validation fails the "landing city to city page" prerequisite.
+- For the landing checks (`landing.public`): at least five active cities with `builderCount > 0` and at least one eligible project. With fewer, the landing labels its examples and strict validation fails the "landing city to city page" prerequisite.
 
 ### Populated user (`E2E_CLERK_USER_EMAIL`)
 
@@ -70,10 +70,10 @@ The shape mirrors the `alice` role in `seedPopulatedCity`. For strict release va
 - Onboarding completed.
 - `privacy.cityVisibility: 'exact_city'`, `appearInExplore: true`, and a profile city with at least two other exact-city builders who have visible projects.
 - At least one selected city on Explore (`exploreConfig.cityIds` or the profile city), so Explore opens with a city pill (`touch-targets` pill audit).
-- At least one visible project with a release or a post. Profile baselines change whenever the shipping log changes (X3).
+- At least one visible project with a release or a post. Profile baselines change whenever the shipping log changes.
 - At least one comment of their own on a project (`project-page` delete confirmation).
-- Follows at least one builder who has an activity event from the last 30 days, so Home is not empty (C5) and `profile.authenticated` can unfollow and undo. Home drops items older than 30 days daily, so this data drifts.
-- At least one inbox conversation, and one outgoing pending request (`isRequest: true`, last message sent by this user) (C9, `inbox`, `mobile-ui`).
+- Follows at least one builder who has an activity event from the last 30 days, so Home is not empty and `profile.authenticated` can unfollow and undo. Home drops items older than 30 days daily, so this data drifts.
+- At least one inbox conversation, and one outgoing pending request (`isRequest: true`, last message sent by this user) (`inbox`, `mobile-ui`).
 - At least one unread notification (`notifications`). The notification click test marks one read, so a rerun needs a new unread notification.
 - Explore must list at least one project owned by someone else, so Save is offered (`saves`) and the DM failure toast has a builder to message (`inbox`).
 - The synced city catalogue must answer the prefix `ber` with at least one city (Berlin, Bern) for `explore-header`.
@@ -87,7 +87,7 @@ A second Clerk user, because the two need different profile cities. Mirrors `see
 - No projects, follows or conversations.
 - `E2E_OTHER_CITY_NAME` (default Bengaluru) must be in the catalogue for "choose another city".
 
-It covers the empty-city copy, count and actions (C2), nearby cities (D5) and the choose-another-city journey (C10).
+It covers the empty-city copy, count and actions, nearby cities and the choose-another-city journey.
 
 ### Onboarding user (`E2E_CLERK_ONBOARDING_USER_EMAIL`)
 

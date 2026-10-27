@@ -62,9 +62,9 @@ async function rankingInputs(t: T, userId: Id<'users'>) {
 }
 
 /**
- * Builders in activity order as the D4 indexes serve them: active builders by
+ * Builders in activity order as the activity indexes serve them: active builders by
  * `lastPublicActivityAt` descending, then builders without public work by
- * `createdAt` descending (the null-last rule X2 applies in Explore).
+ * `createdAt` descending (Explore applies the same null-last rule).
  */
 async function builderActivityOrder(t: T, cityId?: Id<'cities'>) {
   return await t.run(async (ctx) => {
@@ -127,7 +127,7 @@ function release(githubReleaseId: number, publishedAt: number | null) {
   }
 }
 
-describe('lastPublicActivityAt ranking signal (plan item D4)', () => {
+describe('lastPublicActivityAt ranking signal', () => {
   let t: T
   let bengaluru: Id<'cities'>
 
@@ -547,7 +547,7 @@ describe('hourly metadata refresh targets', () => {
   })
 })
 
-describe('users.publicProfileShippingLog (plan item D6)', () => {
+describe('users.publicProfileShippingLog', () => {
   let t: T
   let bengaluru: Id<'cities'>
 

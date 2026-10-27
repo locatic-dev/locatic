@@ -137,7 +137,7 @@ function OnboardingPage() {
     onboardingBuilderSuggestionsQueryOptions(cityId),
   )
   const builderSuggestions = cityId ? (suggestionsQuery.data ?? []) : []
-  // Never shown empty (D7): the follow step exists only when the chosen city
+  // Never shown empty: the follow step exists only when the chosen city
   // has at least one eligible builder; otherwise the repo step finishes.
   const steps = getOnboardingSteps(
     builderSuggestions.length > 0 || step === 'follow',
@@ -145,7 +145,7 @@ function OnboardingPage() {
   const stepIndex = Math.max(0, steps.indexOf(step))
   const isLastStep = stepIndex === steps.length - 1
 
-  // Every step change moves focus to the new step's heading (plan F11).
+  // Every step change moves focus to the new step's heading.
   const headingRef = useRef<HTMLHeadingElement>(null)
   const previousStepRef = useRef(step)
   useEffect(() => {
