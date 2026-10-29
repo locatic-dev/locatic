@@ -30,7 +30,8 @@ type Loader = (args: {
 const routes: Array<[string, () => Promise<{ Route: unknown }>, number]> = [
   ['notifications', () => import('../_app/notifications'), 1],
   ['settings', () => import('../_app/settings'), 2],
-  ['inbox', () => import('../_app/inbox'), 2],
+  // Inbox pages use Convex's paginated hooks; SSR only primes the viewer.
+  ['inbox', () => import('../_app/inbox'), 1],
   ['admin emails', () => import('../_app/admin/emails/index'), 1],
   ['admin email campaign', () => import('../_app/admin/emails/$campaignId'), 1],
 ]

@@ -21,7 +21,7 @@ Locatic uses GitHub OAuth for authentication. By signing in, you authorize Locat
 
 You may not create accounts using automated means or impersonate another person.
 
-We may email you about your account and the Service, such as security notices and changes to these Terms. Community and product update emails are sent only if you opt in, and you can turn them off at any time in your settings or with the unsubscribe link in any update email.
+We may email you about your account and the Service, such as security notices and changes to these Terms. Community and product updates are enabled by default when you join. You can turn them off at any time in your settings or with the unsubscribe link in any update email. The weekly digest is separate and is sent only if you opt in.
 
 ## 4. User Content & License Grant
 

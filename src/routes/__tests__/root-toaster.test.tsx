@@ -43,6 +43,23 @@ vi.mock('../../integrations/convex/metrics', () => ({
 }))
 
 describe('RootDocument', () => {
+  it('keeps unmatched URLs out of the index with the current router match state', async () => {
+    const { Route } = await import('../__root')
+    const { head } = Route as unknown as {
+      head: (context: {
+        matches: Array<{ status: string; _notFound?: boolean }>
+      }) => { meta: Array<Record<string, unknown>> }
+    }
+
+    expect(
+      head({ matches: [{ status: 'success', _notFound: true }] }).meta,
+    ).toContainEqual({ name: 'robots', content: 'noindex, nofollow' })
+    expect(head({ matches: [{ status: 'success' }] }).meta).not.toContainEqual({
+      name: 'robots',
+      content: 'noindex, nofollow',
+    })
+  })
+
   beforeEach(() => {
     vi.stubGlobal(
       'matchMedia',

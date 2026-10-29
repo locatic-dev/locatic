@@ -6,7 +6,7 @@ const linkClass =
   'text-text underline decoration-line-strong underline-offset-4 hover:decoration-text'
 
 /**
- * The hero globe in words (plan item D7). The globe itself is decorative, so
+ * The hero globe in words. The globe itself is decorative, so
  * this carries its content: the busiest cities with builders, as links to
  * their pages. While the map shows no real cities, it renders nothing.
  */

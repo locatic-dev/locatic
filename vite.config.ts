@@ -55,16 +55,6 @@ const packageChunkGroups = [
   },
 ] as const
 
-// `tanstackStart` forwards router options to the underlying router plugin,
-// but the exported Vite config type still rejects `autoCodeSplitting` on a
-// fresh object literal in this release line. Keep the config in a named object
-// so TypeScript accepts the supported runtime option.
-const tanstackStartRouterOptions = {
-  routesDirectory: 'routes',
-  routeFileIgnorePattern: '(__tests__|\\.test\\.)',
-  autoCodeSplitting: false,
-}
-
 function matchesPackageGroup(packageName: string, packages: readonly string[]) {
   return packages.some((value) =>
     value.endsWith('/') ? packageName.startsWith(value) : packageName === value,
@@ -105,6 +95,7 @@ const config = defineConfig({
   environments: {
     client: {
       build: {
+        license: true,
         rollupOptions: {
           output: {
             manualChunks,
@@ -114,6 +105,7 @@ const config = defineConfig({
     },
     ssr: {
       build: {
+        license: true,
         rollupOptions: {
           output: {
             manualChunks,
@@ -129,7 +121,10 @@ const config = defineConfig({
     }),
     tailwindcss(),
     tanstackStart({
-      router: tanstackStartRouterOptions,
+      router: {
+        routesDirectory: 'routes',
+        routeFileIgnorePattern: '(__tests__|\\.test\\.)',
+      },
     }),
     viteReact(),
   ],

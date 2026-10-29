@@ -44,7 +44,7 @@ describe('convex fixtures', () => {
       users: 7,
       releases: 4,
       posts: 5,
-      // Only exact-city owners are Bengaluru members (A2): alice x2, bob and
+      // Only exact-city owners are Bengaluru members: alice x2, bob and
       // carol. dev (region-only) and erin (hidden) store no member city;
       // gwen (out of discovery) is a member but not eligible.
       bengaluruExploreEligible: 4,

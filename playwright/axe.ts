@@ -3,7 +3,7 @@ import { expect, test, type Page } from '@playwright/test'
 import { waitForFiniteAnimations } from './fixtures/test'
 
 /**
- * Accessibility gate for Playwright specs (plan item E3): runs axe-core on the
+ * Accessibility gate for Playwright specs: runs axe-core on the
  * current page against WCAG 2.x A/AA rules and fails on critical and serious
  * violations. Moderate and minor findings are attached to the report instead
  * of failing, so the gate stays strict on what blocks people without turning

@@ -9,8 +9,8 @@ import {
 } from './fixtures/test'
 import { BASELINE_VIEWPORTS, expectBaseline } from './fixtures/visual'
 
-// Screenshot baselines for every public route at 1440 and 390 (plan item
-// C10), signed out. Live content (times, graphs, maps) is masked; see
+// Screenshot baselines for every public route at 1440 and 390,
+// signed out. Live content (times, graphs, maps) is masked; see
 // fixtures/visual.ts. Persona data is required by release validation.
 
 // Clerk renders the sign-in form; its markup is not the app's.

@@ -181,7 +181,7 @@ describe('adjustCityStats', () => {
   })
 })
 
-describe('lastActivityAt write step (S3)', () => {
+describe('lastActivityAt write step', () => {
   const MINUTE = 60 * 1000
   const eligibleProject = {
     exploreOwner: {
@@ -238,7 +238,7 @@ describe('lastActivityAt write step (S3)', () => {
   })
 })
 
-describe('activityCell (D5)', () => {
+describe('activityCell', () => {
   it('holds the city cell while anyone counts and is removed at zero', async () => {
     const location = { lat: 12.9716, lng: 77.5946 }
     const { rows, writer } = makeCityDb([

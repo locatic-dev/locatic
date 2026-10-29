@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { useAuth } from '@clerk/tanstack-react-start'
+import { useSuspenseQuery } from '@tanstack/react-query'
 import { ContentRoutePending } from '@/components/app-shell/route-pending'
 import {
   createFileRoute,
@@ -11,6 +12,7 @@ import {
 import { MemberShell } from '@/components/app-shell/member-shell'
 import type { ViewerBootstrapPayload } from '@/features/contracts'
 import { viewerQueryOptions } from '@/features/viewer/queries'
+import { getAccountRecoveryState } from '@/features/viewer/lifecycle'
 import { isProjectDetailPath } from '@/lib/auth-routing'
 import { toSafeRelativeUrl } from '@/lib/safe-redirect'
 
@@ -33,6 +35,13 @@ export const Route = createFileRoute('/_app')({
       viewerQueryOptions(),
     )) as ViewerBootstrapPayload
 
+    if (getAccountRecoveryState(bootstrap)) {
+      throw redirect({
+        to: '/sign-in/$',
+        search: { redirect: toSafeRelativeUrl(location.href) ?? undefined },
+      })
+    }
+
     if (bootstrap.needsOnboarding && !isProjectDetailPath(location.pathname)) {
       // `/home` is the signed-in default, not a destination the user asked
       // for; dropping it lets onboarding fall back to Explore for new users.
@@ -53,11 +62,15 @@ export const Route = createFileRoute('/_app')({
 /** Public project browsing is the only visitor outlet in this route group. */
 function AuthenticatedApp() {
   const { isLoaded, isSignedIn } = useAuth()
+  const { data: bootstrap } = useSuspenseQuery(viewerQueryOptions())
   const location = useRouterState({ select: (state) => state.location })
   const isPublicProject = isProjectDetailPath(location.pathname)
 
   const router = useRouter()
-  const needsSignIn = !isPublicProject && isLoaded && !isSignedIn
+  const needsRecovery =
+    isSignedIn && Boolean(getAccountRecoveryState(bootstrap))
+  const needsSignIn =
+    isLoaded && ((!isPublicProject && !isSignedIn) || needsRecovery)
 
   // A mounted route must also react to session loss. Depend on stable values:
   // a newly-created <Navigate> prop object can restart an in-flight redirect.

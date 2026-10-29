@@ -9,65 +9,39 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as UnsubscribeRouteImport } from './routes/unsubscribe'
-import { Route as TermsRouteImport } from './routes/terms'
-import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
-import { Route as RobotsDottxtRouteImport } from './routes/robots[.]txt'
-import { Route as PrivacyRouteImport } from './routes/privacy'
-import { Route as OnboardingRouteImport } from './routes/onboarding'
-import { Route as ExploreRouteImport } from './routes/explore'
-import { Route as AboutRouteImport } from './routes/about'
-import { Route as AppRouteImport } from './routes/_app'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as UUsernameRouteImport } from './routes/u.$username'
-import { Route as SignUpSplatRouteImport } from './routes/sign-up.$'
-import { Route as SignInSplatRouteImport } from './routes/sign-in.$'
-import { Route as CSlugRouteImport } from './routes/c.$slug'
-import { Route as AppSettingsRouteImport } from './routes/_app/settings'
-import { Route as AppSavedRouteImport } from './routes/_app/saved'
-import { Route as AppProfileRouteImport } from './routes/_app/profile'
-import { Route as AppNotificationsRouteImport } from './routes/_app/notifications'
-import { Route as AppInboxRouteImport } from './routes/_app/inbox'
+import { Route as AppRouteImport } from './routes/_app'
+import { Route as AboutRouteImport } from './routes/about'
+import { Route as ExploreRouteImport } from './routes/explore'
+import { Route as OnboardingRouteImport } from './routes/onboarding'
+import { Route as PrivacyRouteImport } from './routes/privacy'
+import { Route as RobotsDottxtRouteImport } from './routes/robots[.]txt'
+import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
+import { Route as TermsRouteImport } from './routes/terms'
+import { Route as UnsubscribeRouteImport } from './routes/unsubscribe'
 import { Route as AppHomeRouteImport } from './routes/_app/home'
+import { Route as AppInboxRouteImport } from './routes/_app/inbox'
+import { Route as AppNotificationsRouteImport } from './routes/_app/notifications'
+import { Route as AppProfileRouteImport } from './routes/_app/profile'
+import { Route as AppSavedRouteImport } from './routes/_app/saved'
+import { Route as AppSettingsRouteImport } from './routes/_app/settings'
+import { Route as CSlugRouteImport } from './routes/c.$slug'
+import { Route as SignInSplatRouteImport } from './routes/sign-in.$'
+import { Route as SignUpSplatRouteImport } from './routes/sign-up.$'
+import { Route as UUsernameRouteImport } from './routes/u.$username'
 import { Route as AppAdminEmailsRouteImport } from './routes/_app/admin/emails'
 import { Route as AppAdminEmailsIndexRouteImport } from './routes/_app/admin/emails/index'
-import { Route as AppProjectOwnerRepoRouteImport } from './routes/_app/project.$owner.$repo'
-import { Route as AppAdminEmailsLogRouteImport } from './routes/_app/admin/emails/log'
 import { Route as AppAdminEmailsCampaignIdRouteImport } from './routes/_app/admin/emails/$campaignId'
+import { Route as AppAdminEmailsLogRouteImport } from './routes/_app/admin/emails/log'
+import { Route as AppProjectOwnerRepoRouteImport } from './routes/_app/project.$owner.$repo'
 
-const UnsubscribeRoute = UnsubscribeRouteImport.update({
-  id: '/unsubscribe',
-  path: '/unsubscribe',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const TermsRoute = TermsRouteImport.update({
-  id: '/terms',
-  path: '/terms',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
-  id: '/sitemap.xml',
-  path: '/sitemap.xml',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const RobotsDottxtRoute = RobotsDottxtRouteImport.update({
-  id: '/robots.txt',
-  path: '/robots.txt',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PrivacyRoute = PrivacyRouteImport.update({
-  id: '/privacy',
-  path: '/privacy',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const OnboardingRoute = OnboardingRouteImport.update({
-  id: '/onboarding',
-  path: '/onboarding',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ExploreRoute = ExploreRouteImport.update({
-  id: '/explore',
-  path: '/explore',
+const AppRoute = AppRouteImport.update({
+  id: '/_app',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AboutRoute = AboutRouteImport.update({
@@ -75,53 +49,44 @@ const AboutRoute = AboutRouteImport.update({
   path: '/about',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AppRoute = AppRouteImport.update({
-  id: '/_app',
+const ExploreRoute = ExploreRouteImport.update({
+  id: '/explore',
+  path: '/explore',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const OnboardingRoute = OnboardingRouteImport.update({
+  id: '/onboarding',
+  path: '/onboarding',
   getParentRoute: () => rootRouteImport,
 } as any)
-const UUsernameRoute = UUsernameRouteImport.update({
-  id: '/u/$username',
-  path: '/u/$username',
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
   getParentRoute: () => rootRouteImport,
 } as any)
-const SignUpSplatRoute = SignUpSplatRouteImport.update({
-  id: '/sign-up/$',
-  path: '/sign-up/$',
+const RobotsDottxtRoute = RobotsDottxtRouteImport.update({
+  id: '/robots.txt',
+  path: '/robots.txt',
   getParentRoute: () => rootRouteImport,
 } as any)
-const SignInSplatRoute = SignInSplatRouteImport.update({
-  id: '/sign-in/$',
-  path: '/sign-in/$',
+const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
+  id: '/sitemap.xml',
+  path: '/sitemap.xml',
   getParentRoute: () => rootRouteImport,
 } as any)
-const CSlugRoute = CSlugRouteImport.update({
-  id: '/c/$slug',
-  path: '/c/$slug',
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AppSettingsRoute = AppSettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
-  getParentRoute: () => AppRoute,
+const UnsubscribeRoute = UnsubscribeRouteImport.update({
+  id: '/unsubscribe',
+  path: '/unsubscribe',
+  getParentRoute: () => rootRouteImport,
 } as any)
-const AppSavedRoute = AppSavedRouteImport.update({
-  id: '/saved',
-  path: '/saved',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppProfileRoute = AppProfileRouteImport.update({
-  id: '/profile',
-  path: '/profile',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppNotificationsRoute = AppNotificationsRouteImport.update({
-  id: '/notifications',
-  path: '/notifications',
+const AppHomeRoute = AppHomeRouteImport.update({
+  id: '/home',
+  path: '/home',
   getParentRoute: () => AppRoute,
 } as any)
 const AppInboxRoute = AppInboxRouteImport.update({
@@ -129,10 +94,45 @@ const AppInboxRoute = AppInboxRouteImport.update({
   path: '/inbox',
   getParentRoute: () => AppRoute,
 } as any)
-const AppHomeRoute = AppHomeRouteImport.update({
-  id: '/home',
-  path: '/home',
+const AppNotificationsRoute = AppNotificationsRouteImport.update({
+  id: '/notifications',
+  path: '/notifications',
   getParentRoute: () => AppRoute,
+} as any)
+const AppProfileRoute = AppProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppSavedRoute = AppSavedRouteImport.update({
+  id: '/saved',
+  path: '/saved',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppSettingsRoute = AppSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => AppRoute,
+} as any)
+const CSlugRoute = CSlugRouteImport.update({
+  id: '/c/$slug',
+  path: '/c/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SignInSplatRoute = SignInSplatRouteImport.update({
+  id: '/sign-in/$',
+  path: '/sign-in/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SignUpSplatRoute = SignUpSplatRouteImport.update({
+  id: '/sign-up/$',
+  path: '/sign-up/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const UUsernameRoute = UUsernameRouteImport.update({
+  id: '/u/$username',
+  path: '/u/$username',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const AppAdminEmailsRoute = AppAdminEmailsRouteImport.update({
   id: '/admin/emails',
@@ -144,22 +144,22 @@ const AppAdminEmailsIndexRoute = AppAdminEmailsIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AppAdminEmailsRoute,
 } as any)
-const AppProjectOwnerRepoRoute = AppProjectOwnerRepoRouteImport.update({
-  id: '/project/$owner/$repo',
-  path: '/project/$owner/$repo',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppAdminEmailsLogRoute = AppAdminEmailsLogRouteImport.update({
-  id: '/log',
-  path: '/log',
-  getParentRoute: () => AppAdminEmailsRoute,
-} as any)
 const AppAdminEmailsCampaignIdRoute =
   AppAdminEmailsCampaignIdRouteImport.update({
     id: '/$campaignId',
     path: '/$campaignId',
     getParentRoute: () => AppAdminEmailsRoute,
   } as any)
+const AppAdminEmailsLogRoute = AppAdminEmailsLogRouteImport.update({
+  id: '/log',
+  path: '/log',
+  getParentRoute: () => AppAdminEmailsRoute,
+} as any)
+const AppProjectOwnerRepoRoute = AppProjectOwnerRepoRouteImport.update({
+  id: '/project/$owner/$repo',
+  path: '/project/$owner/$repo',
+  getParentRoute: () => AppRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -340,60 +340,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/unsubscribe': {
-      id: '/unsubscribe'
-      path: '/unsubscribe'
-      fullPath: '/unsubscribe'
-      preLoaderRoute: typeof UnsubscribeRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/terms': {
-      id: '/terms'
-      path: '/terms'
-      fullPath: '/terms'
-      preLoaderRoute: typeof TermsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/sitemap.xml': {
-      id: '/sitemap.xml'
-      path: '/sitemap.xml'
-      fullPath: '/sitemap.xml'
-      preLoaderRoute: typeof SitemapDotxmlRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/robots.txt': {
-      id: '/robots.txt'
-      path: '/robots.txt'
-      fullPath: '/robots.txt'
-      preLoaderRoute: typeof RobotsDottxtRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/privacy': {
-      id: '/privacy'
-      path: '/privacy'
-      fullPath: '/privacy'
-      preLoaderRoute: typeof PrivacyRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/onboarding': {
-      id: '/onboarding'
-      path: '/onboarding'
-      fullPath: '/onboarding'
-      preLoaderRoute: typeof OnboardingRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/explore': {
-      id: '/explore'
-      path: '/explore'
-      fullPath: '/explore'
-      preLoaderRoute: typeof ExploreRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/about': {
-      id: '/about'
-      path: '/about'
-      fullPath: '/about'
-      preLoaderRoute: typeof AboutRouteImport
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_app': {
@@ -403,67 +354,67 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+    '/about': {
+      id: '/about'
+      path: '/about'
+      fullPath: '/about'
+      preLoaderRoute: typeof AboutRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/u/$username': {
-      id: '/u/$username'
-      path: '/u/$username'
-      fullPath: '/u/$username'
-      preLoaderRoute: typeof UUsernameRouteImport
+    '/explore': {
+      id: '/explore'
+      path: '/explore'
+      fullPath: '/explore'
+      preLoaderRoute: typeof ExploreRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/sign-up/$': {
-      id: '/sign-up/$'
-      path: '/sign-up/$'
-      fullPath: '/sign-up/$'
-      preLoaderRoute: typeof SignUpSplatRouteImport
+    '/onboarding': {
+      id: '/onboarding'
+      path: '/onboarding'
+      fullPath: '/onboarding'
+      preLoaderRoute: typeof OnboardingRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/sign-in/$': {
-      id: '/sign-in/$'
-      path: '/sign-in/$'
-      fullPath: '/sign-in/$'
-      preLoaderRoute: typeof SignInSplatRouteImport
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/c/$slug': {
-      id: '/c/$slug'
-      path: '/c/$slug'
-      fullPath: '/c/$slug'
-      preLoaderRoute: typeof CSlugRouteImport
+    '/robots.txt': {
+      id: '/robots.txt'
+      path: '/robots.txt'
+      fullPath: '/robots.txt'
+      preLoaderRoute: typeof RobotsDottxtRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_app/settings': {
-      id: '/_app/settings'
-      path: '/settings'
-      fullPath: '/settings'
-      preLoaderRoute: typeof AppSettingsRouteImport
-      parentRoute: typeof AppRoute
+    '/sitemap.xml': {
+      id: '/sitemap.xml'
+      path: '/sitemap.xml'
+      fullPath: '/sitemap.xml'
+      preLoaderRoute: typeof SitemapDotxmlRouteImport
+      parentRoute: typeof rootRouteImport
     }
-    '/_app/saved': {
-      id: '/_app/saved'
-      path: '/saved'
-      fullPath: '/saved'
-      preLoaderRoute: typeof AppSavedRouteImport
-      parentRoute: typeof AppRoute
+    '/terms': {
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
+      parentRoute: typeof rootRouteImport
     }
-    '/_app/profile': {
-      id: '/_app/profile'
-      path: '/profile'
-      fullPath: '/profile'
-      preLoaderRoute: typeof AppProfileRouteImport
-      parentRoute: typeof AppRoute
+    '/unsubscribe': {
+      id: '/unsubscribe'
+      path: '/unsubscribe'
+      fullPath: '/unsubscribe'
+      preLoaderRoute: typeof UnsubscribeRouteImport
+      parentRoute: typeof rootRouteImport
     }
-    '/_app/notifications': {
-      id: '/_app/notifications'
-      path: '/notifications'
-      fullPath: '/notifications'
-      preLoaderRoute: typeof AppNotificationsRouteImport
+    '/_app/home': {
+      id: '/_app/home'
+      path: '/home'
+      fullPath: '/home'
+      preLoaderRoute: typeof AppHomeRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/inbox': {
@@ -473,12 +424,61 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppInboxRouteImport
       parentRoute: typeof AppRoute
     }
-    '/_app/home': {
-      id: '/_app/home'
-      path: '/home'
-      fullPath: '/home'
-      preLoaderRoute: typeof AppHomeRouteImport
+    '/_app/notifications': {
+      id: '/_app/notifications'
+      path: '/notifications'
+      fullPath: '/notifications'
+      preLoaderRoute: typeof AppNotificationsRouteImport
       parentRoute: typeof AppRoute
+    }
+    '/_app/profile': {
+      id: '/_app/profile'
+      path: '/profile'
+      fullPath: '/profile'
+      preLoaderRoute: typeof AppProfileRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/saved': {
+      id: '/_app/saved'
+      path: '/saved'
+      fullPath: '/saved'
+      preLoaderRoute: typeof AppSavedRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/settings': {
+      id: '/_app/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof AppSettingsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/c/$slug': {
+      id: '/c/$slug'
+      path: '/c/$slug'
+      fullPath: '/c/$slug'
+      preLoaderRoute: typeof CSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sign-in/$': {
+      id: '/sign-in/$'
+      path: '/sign-in/$'
+      fullPath: '/sign-in/$'
+      preLoaderRoute: typeof SignInSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sign-up/$': {
+      id: '/sign-up/$'
+      path: '/sign-up/$'
+      fullPath: '/sign-up/$'
+      preLoaderRoute: typeof SignUpSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/u/$username': {
+      id: '/u/$username'
+      path: '/u/$username'
+      fullPath: '/u/$username'
+      preLoaderRoute: typeof UUsernameRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/_app/admin/emails': {
       id: '/_app/admin/emails'
@@ -494,12 +494,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAdminEmailsIndexRouteImport
       parentRoute: typeof AppAdminEmailsRoute
     }
-    '/_app/project/$owner/$repo': {
-      id: '/_app/project/$owner/$repo'
-      path: '/project/$owner/$repo'
-      fullPath: '/project/$owner/$repo'
-      preLoaderRoute: typeof AppProjectOwnerRepoRouteImport
-      parentRoute: typeof AppRoute
+    '/_app/admin/emails/$campaignId': {
+      id: '/_app/admin/emails/$campaignId'
+      path: '/$campaignId'
+      fullPath: '/admin/emails/$campaignId'
+      preLoaderRoute: typeof AppAdminEmailsCampaignIdRouteImport
+      parentRoute: typeof AppAdminEmailsRoute
     }
     '/_app/admin/emails/log': {
       id: '/_app/admin/emails/log'
@@ -508,12 +508,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAdminEmailsLogRouteImport
       parentRoute: typeof AppAdminEmailsRoute
     }
-    '/_app/admin/emails/$campaignId': {
-      id: '/_app/admin/emails/$campaignId'
-      path: '/$campaignId'
-      fullPath: '/admin/emails/$campaignId'
-      preLoaderRoute: typeof AppAdminEmailsCampaignIdRouteImport
-      parentRoute: typeof AppAdminEmailsRoute
+    '/_app/project/$owner/$repo': {
+      id: '/_app/project/$owner/$repo'
+      path: '/project/$owner/$repo'
+      fullPath: '/project/$owner/$repo'
+      preLoaderRoute: typeof AppProjectOwnerRepoRouteImport
+      parentRoute: typeof AppRoute
     }
   }
 }

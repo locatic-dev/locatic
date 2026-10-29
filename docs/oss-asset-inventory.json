@@ -1,0 +1,101 @@
+{
+  "recordedDate": "2026-10-23",
+  "scope": "Tracked public assets and source generators; hashes identify bytes, not authorship or redistribution rights.",
+  "files": [
+    {
+      "path": "public/_headers",
+      "bytes": 788,
+      "sha256": "84a73fd6f42854f72b8a2a903768d9de7d6bbc078f1c6be2ca6bf1b3d36bdaaf"
+    },
+    {
+      "path": "public/apple-touch-icon.png",
+      "bytes": 2519,
+      "sha256": "15495714ef64c3dbdda67ff384ddab2f1d7d83a2b64e5f4091ee707aae7da34b"
+    },
+    {
+      "path": "public/favicon-32.png",
+      "bytes": 797,
+      "sha256": "d3a01657fc51bf5096795178b27772f396d1b2b478dacd250e530c0bc022524c"
+    },
+    {
+      "path": "public/favicon.ico",
+      "bytes": 2469,
+      "sha256": "4e486b950aeb8fcbf368ed75c357941d7586fd0d0a32185541be9bd1c7c5e5ce"
+    },
+    {
+      "path": "public/favicon.svg",
+      "bytes": 500,
+      "sha256": "4582910a507d125f1ebb8cddbc0d1ea529954e9758774adae22c90b618647db3"
+    },
+    {
+      "path": "public/fonts/OFL.txt",
+      "bytes": 4490,
+      "sha256": "be2710a7c39bbb19ccd27a69458df3890d845de60d3d75873841db9bfe614abd"
+    },
+    {
+      "path": "public/fonts/geist-latin-wght.woff2",
+      "bytes": 29288,
+      "sha256": "9b6f5ff45b278c744b5f379a2c4ecbaf858a842b8eaf82ac8d21b699ca16c608"
+    },
+    {
+      "path": "public/fonts/geist-mono-latin-wght.woff2",
+      "bytes": 23108,
+      "sha256": "5f3d6ad60f29d6cb708414ec6887163d63bf197377ef5417d2483ff31ace6c3b"
+    },
+    {
+      "path": "public/icon-192.png",
+      "bytes": 4559,
+      "sha256": "738fc3c153009c337f1d3785585bb8d4f2e7859a72d743db1d99b10669bba90a"
+    },
+    {
+      "path": "public/icon-512.png",
+      "bytes": 12660,
+      "sha256": "40c9816ff202b1d2a8a6cece41cbee3c8a5c8223a7228da8de12e90601c126fb"
+    },
+    {
+      "path": "public/icon-maskable-512.png",
+      "bytes": 7273,
+      "sha256": "9ed914889bc3183c8d94436650279a0e1559f4795b1117a68390d867d1ea87f5"
+    },
+    {
+      "path": "public/llms.txt",
+      "bytes": 1127,
+      "sha256": "fd7a751ec6e4559bd6c3b8f6b41609e1ec80dbe1461496fee2aca5acf33e8e3f"
+    },
+    {
+      "path": "public/logo.svg",
+      "bytes": 409,
+      "sha256": "02435418834062975dab0767461aaf0fcf66b48d153e4801f4a8440ec30d82cd"
+    },
+    {
+      "path": "public/manifest.json",
+      "bytes": 684,
+      "sha256": "78cf3b7b134740c1db73ae47d738c97878ee47bc2146e4edb9636d15747d89a6"
+    },
+    {
+      "path": "public/og-image.png",
+      "bytes": 193662,
+      "sha256": "97c1fd64142e18ddd6cc92290b00cbc7d0affe8621893147d28af2ded13d5eca"
+    },
+    {
+      "path": "scripts/generate-brand-images.mjs",
+      "bytes": 12859,
+      "sha256": "e5522cd93254aa50ec72cf70dd7f27a4dfd3cd89364f1c0a3f8a262f82e18675"
+    },
+    {
+      "path": "scripts/generate-land-dots.mjs",
+      "bytes": 3304,
+      "sha256": "f45c49a395966e34253008a4793da5a2b211fff9a955e8f369b8073a141f4f00"
+    },
+    {
+      "path": "src/components/ui/logo.tsx",
+      "bytes": 1338,
+      "sha256": "bd114bb8ebe6f1081f04cce7d2cb1005bd20c7d214b151d6946f959d54075988"
+    },
+    {
+      "path": "src/lib/land-dots.ts",
+      "bytes": 2741,
+      "sha256": "796b429d586ff3fa15caee26d7125221b7149d7c6a361928eb52fadb9c32494a"
+    }
+  ]
+}

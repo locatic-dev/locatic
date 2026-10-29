@@ -56,6 +56,7 @@ import {
   getSettingsAccountStateFromForm,
   getSettingsAccountStateFromViewer,
   getSettingsDirty,
+  getSettingsUrlErrors,
   type SettingsAccountFormState,
 } from '@/features/settings/dirty'
 import { useUnsavedChangesGuard } from '@/features/settings/use-unsaved-changes-guard'
@@ -185,7 +186,10 @@ function SettingsPage() {
     bluesky,
     website,
   })
-  const isAccountDirty = getSettingsDirty(persistedAccountState, accountCurrent)
+  const urlErrors = getSettingsUrlErrors({ website, linkedin })
+  const hasInvalidUrls = Boolean(urlErrors.website || urlErrors.linkedin)
+  const isAccountDirty =
+    hasInvalidUrls || getSettingsDirty(persistedAccountState, accountCurrent)
 
   const resetAccountForm = (
     nextState = persistedAccountState,
@@ -215,7 +219,7 @@ function SettingsPage() {
 
   // Privacy settings save on change, so there is nothing to leave unsaved; a
   // failed save reports through the shared action-error toast with a retry
-  // (A5), and the control falls back to the saved value.
+  //, and the control falls back to the saved value.
   const savePrivacySetting = async (save: () => Promise<unknown>) => {
     try {
       await save()
@@ -256,6 +260,7 @@ function SettingsPage() {
   }
 
   const handleSaveAccount = async () => {
+    if (hasInvalidUrls) return
     setSaving(true)
     setSaveError(null)
 
@@ -482,12 +487,27 @@ function SettingsPage() {
                       </label>
                       <Input
                         id="settings-linkedin"
+                        aria-invalid={Boolean(urlErrors.linkedin)}
+                        aria-describedby={
+                          urlErrors.linkedin
+                            ? 'settings-linkedin-error'
+                            : undefined
+                        }
                         maxLength={CONTENT_LIMITS.socialLink}
                         value={linkedin}
                         onChange={(event) => setLinkedin(event.target.value)}
                         className={fieldClassName}
                         placeholder="linkedin.com/in/username"
                       />
+                      {urlErrors.linkedin && (
+                        <p
+                          id="settings-linkedin-error"
+                          role="alert"
+                          className="mt-2 mb-0 text-label text-danger"
+                        >
+                          {urlErrors.linkedin}
+                        </p>
+                      )}
                     </div>
                     <div>
                       <label
@@ -514,12 +534,27 @@ function SettingsPage() {
                       </label>
                       <Input
                         id="settings-website"
+                        aria-invalid={Boolean(urlErrors.website)}
+                        aria-describedby={
+                          urlErrors.website
+                            ? 'settings-website-error'
+                            : undefined
+                        }
                         maxLength={CONTENT_LIMITS.socialLink}
                         value={website}
                         onChange={(event) => setWebsite(event.target.value)}
                         className={fieldClassName}
                         placeholder="https://yoursite.dev"
                       />
+                      {urlErrors.website && (
+                        <p
+                          id="settings-website-error"
+                          role="alert"
+                          className="mt-2 mb-0 text-label text-danger"
+                        >
+                          {urlErrors.website}
+                        </p>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -760,7 +795,10 @@ function SettingsPage() {
                       <Button
                         onClick={() => void handleSaveAccount()}
                         disabled={
-                          saving || !isAccountDirty || !displayName.trim()
+                          saving ||
+                          hasInvalidUrls ||
+                          !isAccountDirty ||
+                          !displayName.trim()
                         }
                         variant="primary"
                         size="touch"

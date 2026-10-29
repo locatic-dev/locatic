@@ -23,8 +23,7 @@ import {
 } from './__tests__/fixtures.helpers'
 
 /**
- * Read bounds and order on discovery and profile reads (review findings S2,
- * S4 and S7): public page sizes are clamped, "newest" reads really read the
+ * Read bounds and order on discovery and profile reads: public page sizes are clamped, "newest" reads really read the
  * newest rows, and stored owner fields that predate an owner's latest change
  * never decide what a city surface shows.
  */
@@ -50,7 +49,7 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
-describe('Explore page size (S2)', () => {
+describe('Explore page size', () => {
   it('clamps a requested page of 5000 to 50 rows on public feeds', async () => {
     for (let index = 0; index < EXPLORE_PAGE_MAX_ITEMS + 5; index += 1) {
       await seedPost(t, fixture.projects.bobCli, fixture.users.bob, daysAgo(1))
@@ -77,7 +76,7 @@ describe('Explore page size (S2)', () => {
   })
 })
 
-describe('newest-first owner reads (S4)', () => {
+describe('newest-first owner reads', () => {
   async function seedManyProjects(
     ownerId: Id<'users'>,
     count: number,
@@ -135,7 +134,7 @@ describe('newest-first owner reads (S4)', () => {
     expect(log?.map((entry) => entry.id)).toContain(String(releaseId))
   })
 
-  it('recomputes activity from the newest projects and clamps future times (N2)', async () => {
+  it('recomputes activity from the newest projects and clamps future times', async () => {
     const ownerId = await seedUser(t, { username: 'busy' })
     const projects = await seedManyProjects(
       ownerId,
@@ -164,7 +163,7 @@ describe('newest-first owner reads (S4)', () => {
   })
 })
 
-describe('stale stored owner fields on city project reads (S7)', () => {
+describe('stale stored owner fields on city project reads', () => {
   /** Rows written before an owner's latest change was re-derived. */
   async function makeStaleCityMember(projectId: Id<'projects'>) {
     await t.run(async (ctx) => {

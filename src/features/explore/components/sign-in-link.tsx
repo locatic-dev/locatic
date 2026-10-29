@@ -5,7 +5,7 @@ import { Button, type ButtonVariant } from '@/components/ui/button'
 /**
  * Stands in for a personal action (follow, like, message, dismiss) on public
  * Explore: a link to sign in that carries the visitor's current URL as the
- * post-auth destination (plan items A6, C1). No mutation is reachable.
+ * post-auth destination. No mutation is reachable.
  */
 export function SignInLink({
   appearance = 'button',

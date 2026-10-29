@@ -9,7 +9,7 @@ import {
 } from './fixtures/test'
 
 // Persona: the populated user in `fixtures/fixtures.md` needs at least one
-// unread notification (C9).
+// unread notification.
 
 /** Opens /notifications and waits for its first page: rows or the empty state. */
 async function openNotifications(page: Page) {

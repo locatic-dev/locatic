@@ -1,6 +1,8 @@
 import { devices, type Page, type Route } from '@playwright/test'
+import { resetOnboardingPersona } from './fixtures/reset-onboarding'
 import {
   currentPathname,
+  gotoRetryingAbort,
   personas,
   SIGNED_OUT_STATE,
   signIn,
@@ -8,7 +10,7 @@ import {
 } from './fixtures/personas'
 import { expect, requireE2EPrerequisite, test } from './fixtures/test'
 
-// Destination contract (plan item A6). The signed-in cases use the stored
+// Destination contract. The signed-in cases use the stored
 // session of the authenticated project; signed-out cases override it with an
 // empty storage state, so the whole matrix lives in one project.
 
@@ -250,7 +252,7 @@ test.describe('signed in', () => {
       storageState: testInfo.project.use.storageState,
     })
     // Captures the redirect sequence and Clerk's auth verdicts for the
-    // intermittent mobile Explore-to-Home bounce (investigation I5).
+    // intermittent mobile Explore-to-Home bounce.
     await context.tracing.start({ screenshots: true, snapshots: true })
     const page = await context.newPage()
     const authVerdicts: Array<Record<string, string | number | null>> = []
@@ -332,6 +334,9 @@ test.describe('signing in from a destination', () => {
 })
 
 test.describe('onboarding required', () => {
+  test.beforeEach(async () => {
+    await resetOnboardingPersona()
+  })
   test('a protected destination is carried into onboarding', async ({
     browser,
   }) => {
@@ -384,10 +389,48 @@ test.describe('onboarding required', () => {
     }
   })
 
-  test('finishing onboarding opens the preserved destination, else Explore', async () => {
-    requireE2EPrerequisite(
-      false,
-      'finishing onboarding is one-way; needs a resettable not-yet-onboarded Clerk and Convex user fixture (A1)',
-    )
-  })
+  for (const destination of [PROTECTED_DESTINATION, null]) {
+    test(`finishing onboarding opens ${destination ?? 'Explore'}`, async ({
+      browser,
+    }) => {
+      const { context, page } = await signInFreshContext(
+        browser,
+        ONBOARDING_USER_EMAIL!,
+      )
+      try {
+        await gotoRetryingAbort(
+          page,
+          destination
+            ? `/onboarding?${new URLSearchParams({ redirect: destination })}`
+            : '/onboarding',
+        )
+        await expect(
+          page.getByRole('heading', { level: 1, name: 'where do you build?' }),
+        ).toBeVisible()
+        await page.getByRole('button', { name: /can't find my city/i }).click()
+        await page
+          .getByRole('button', { name: 'continue', exact: true })
+          .click()
+        for (const [index, step] of [
+          'build status',
+          'profile',
+          'repositories',
+        ].entries()) {
+          await test.step(`skip optional ${step}`, async () => {
+            await expect(page.getByText(/^step \d of \d$/)).toHaveText(
+              `step ${index + 2} of 4`,
+            )
+            await page
+              .getByRole('button', { name: /^skip( for now)?$/ })
+              .click()
+          })
+        }
+        if (destination)
+          await expect.poll(() => currentHref(page)).toBe(destination)
+        else await expect.poll(() => currentPathname(page)).toBe('/explore')
+      } finally {
+        await context.close()
+      }
+    })
+  }
 })

@@ -53,20 +53,20 @@ import { isCityMember, toPublicIdentity } from './lib/visibility'
 
 /**
  * Explore project rows are the reviewed public project card
- * (`projectCardPreviewValidator`, plan item C1): `buildProjectCardPreview`
+ * (`projectCardPreviewValidator`): `buildProjectCardPreview`
  * with the public audience. Feed rows also carry the card signals (owner
  * location, build status, latest update, sync freshness); search rows do not.
  *
  * The signed-in project feed adds one viewer-relative field: `isViewerProject`
  * marks the viewer's own projects, which only appear after everyone else's
- * in an explicitly selected city (plan item C2).
+ * in an explicitly selected city.
  */
 const viewerExploreProjectValidator = v.object({
   ...projectCardPreviewFields,
   isViewerProject: v.boolean(),
 })
 
-/** Reviewed public post fields (plan item C1); no search text, no viewer state. */
+/** Reviewed public post fields; no search text, no viewer state. */
 const publicPostFields = {
   _id: v.id('posts'),
   _creationTime: v.number(),
@@ -109,6 +109,7 @@ const publicExplorePostValidator = v.object(publicPostFields)
 
 const postSearchResultValidator = v.object({
   ...publicPostFields,
+  editedAt: v.optional(v.number()),
   searchText: v.optional(v.string()),
   deletedAt: v.union(v.number(), v.null()),
   viewerHasLiked: v.boolean(),
@@ -130,7 +131,7 @@ type ExploreScope = 'default' | 'global' | 'custom'
 
 /**
  * A builder row: public identity plus discovery counts and whether the
- * account is under 30 days old ("new builder", plan item D4).
+ * account is under 30 days old ("new builder").
  */
 const builderSearchResultValidator = v.object({
   ...publicIdentityFields,
@@ -146,7 +147,7 @@ const exploreFeedArgs = {
 }
 
 /**
- * Project feeds add the D2 filters: `language` (primary language) and
+ * Project feeds add the language/topic filters: `language` (primary language) and
  * `topic` (canonical topic). Both optional, ANDed with scope and eligibility.
  */
 const exploreProjectFeedArgs = {
@@ -155,7 +156,7 @@ const exploreProjectFeedArgs = {
   topic: v.optional(v.string()),
 }
 
-/** `openToCollab` keeps builders whose status invites someone in (D3). */
+/** `openToCollab` keeps builders whose status invites someone in. */
 const nearbyBuildersArgs = {
   cityIds: v.array(v.id('cities')),
   paginationOpts: paginationOptsValidator,
@@ -204,7 +205,7 @@ function mapBuilderPreview(
   }
 }
 
-/** Region-only and hidden users never count for a city (D8). */
+/** Region-only and hidden users never count for a city. */
 function isMemberOfAnyCity(
   user: Doc<'users'>,
   cityIds: ReadonlyArray<Id<'cities'> | string>,
@@ -303,14 +304,14 @@ function normalizeCityIds(ctx: QueryCtx, cityIds: Array<Id<'cities'>>) {
 
 /**
  * One page of Explore projects for a set of cities (none means everywhere).
- * One `.paginate()` per execution (Convex limit, plan item A3): a single
+ * One `.paginate()` per execution (Convex limit): a single
  * city reads its own index range; several cities read the global eligible
  * index in the same order and keep rows whose owner city is in the selected
  * set, so one execution reads at most `numItems` projects. The viewer's own
  * and dismissed projects are dropped from the page; visitors pass
  * `viewerId: null` and no dismissals.
  *
- * The language and topic filters (plan item D2) are page filters too: a page
+ * The language and topic filters are page filters too: a page
  * can come back empty with `isDone: false`, and the client's bounded
  * auto-fetch and "keep looking" action carry the continuation. See
  * docs/explore-home-logic.md for why neither is an index field.
@@ -379,13 +380,15 @@ async function listExploreProjectPage(
     // index already excludes non-members via `exploreOwner.cityId`;
     // checking the live owner also covers rows written before the owner's
     // latest privacy change was re-derived.
-    const scopedProjects =
-      selectedCityIds.length === 0
-        ? candidates
-        : candidates.filter((project) => {
-            const owner = ownerById.get(String(project.ownerId))
-            return owner ? isMemberOfAnyCity(owner, selectedCityIds) : false
-          })
+    const scopedProjects = candidates.filter((project) => {
+      const owner = ownerById.get(String(project.ownerId))
+      return (
+        owner !== undefined &&
+        isOwnerDiscoverable(owner) &&
+        (selectedCityIds.length === 0 ||
+          isMemberOfAnyCity(owner, selectedCityIds))
+      )
+    })
 
     return await Promise.all(
       rankExploreProjectsByStack({
@@ -405,7 +408,7 @@ async function listExploreProjectPage(
 
 /**
  * The viewer's own projects in an explicitly selected city, shown after the
- * city's other projects on the page that ends the feed (plan item C2). One
+ * city's other projects on the page that ends the feed. One
  * bounded read of the viewer's visible projects, and only when the page is
  * the last one, the scope is `custom` and the viewer is a member of a
  * selected city. The feed's language and topic filters apply to them too.
@@ -463,7 +466,7 @@ async function listViewerCityProjects(
 
 /**
  * One page of discoverable posts for a set of cities. One `.paginate()` per
- * execution (plan item A3); several cities read the global index and keep
+ * execution; several cities read the global index and keep
  * posts whose project city is selected.
  */
 async function listExplorePostPage(
@@ -534,7 +537,7 @@ type VisibleExplorePost = Awaited<
 >['page'][number]
 
 /**
- * Public projection of a post (plan item C1). The actor's location already
+ * Public projection of a post. The actor's location already
  * comes from the live user under the visibility policy
  * (`filterDiscoverablePosts`), so a later privacy change applies at once.
  */
@@ -565,12 +568,12 @@ function toPublicExplorePosts(posts: VisibleExplorePost[]) {
 
 /**
  * One page of builders for a set of cities (none means everywhere). One
- * `.paginate()` per execution (plan item A3); the filters run on the returned
+ * `.paginate()` per execution; the filters run on the returned
  * page so one execution reads at most `numItems` users. Visitors see only
  * builders whose profile is public (`profileVisibility: 'public'`), since a
  * `locatic_only` profile is for signed-in members.
  *
- * Order (plan item D4): most recent public work first, from
+ * Order: most recent public work first, from
  * `users.by_city_public_activity` (one city) or `users.by_public_activity`
  * (several cities or everywhere), read descending. Convex sorts a missing
  * field before every number, so in descending order builders without
@@ -578,7 +581,7 @@ function toPublicExplorePosts(posts: VisibleExplorePost[]) {
  * account first (index ties fall back to insertion order, and users are
  * inserted with `createdAt` set to the insertion time). One index read per
  * page covers both groups. Neither index holds `deletedAt` or
- * `deactivatedAt`, so those are page filters, as is `openToCollab` (D3).
+ * `deactivatedAt`, so those are page filters, as is `openToCollab`.
  */
 async function listNearbyBuilderPage(
   ctx: QueryCtx,
@@ -626,7 +629,7 @@ async function listNearbyBuilderPage(
           viewerId,
         }) &&
         (viewerId !== null || user.privacy.profileVisibility === 'public') &&
-        // City-scoped lists hold exact-city members only (D8); the global
+        // City-scoped lists hold exact-city members only; the global
         // list (no cities) depends on discovery participation alone.
         (cityIds.length === 0 || isMemberOfAnyCity(user, cityIds)),
     ),
@@ -693,7 +696,7 @@ export const list = query({
 })
 
 /**
- * Signed-out Explore projects (plan item C1): the same arguments, index
+ * Signed-out Explore projects: the same arguments, index
  * reads and pagination as `list`, without viewer state. `default` scope
  * reads everywhere because a visitor has no Explore cities.
  */
@@ -757,7 +760,7 @@ export const listPosts = query({
   },
 })
 
-/** Signed-out Explore posts (plan item C1): reviewed public post fields. */
+/** Signed-out Explore posts: reviewed public post fields. */
 export const listPostsPublic = query({
   args: exploreFeedArgs,
   returns: paginationResultValidator(publicExplorePostValidator),
@@ -816,7 +819,7 @@ export const searchBuilders = query({
       )
       .take(cityIds.length > 0 ? limit * 5 : limit * 3)
 
-    // A city filter only matches that city's members (D8).
+    // A city filter only matches that city's members.
     const isInCityScope = (user: Doc<'users'>) =>
       cityIds.length === 0 || isMemberOfAnyCity(user, cityIds)
     const matchesFilters = (user: Doc<'users'>) =>
@@ -1002,7 +1005,7 @@ export const searchPosts = query({
       .filter(
         (post) =>
           !dismissedPostIds.has(String(post._id)) &&
-          // A city filter matches the owner's current member city (D8).
+          // A city filter matches the owner's current member city.
           (cityIdSet.size === 0 ||
             (post.projectCityId !== null &&
               cityIdSet.has(String(post.projectCityId)))),
@@ -1045,7 +1048,7 @@ export const listNearbyBuilders = query({
 })
 
 /**
- * Signed-out Explore builders (plan item C1): public identity (location per
+ * Signed-out Explore builders: public identity (location per
  * the visibility policy) and discovery counts, public profiles only.
  */
 export const listNearbyBuildersPublic = query({

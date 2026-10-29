@@ -10,8 +10,7 @@ export type ExploreScope = (typeof EXPLORE_SCOPE_VALUES)[number]
 export type ExploreMode = (typeof EXPLORE_MODE_VALUES)[number]
 
 /**
- * Explore URL state. `language` and `topic` filter the projects feed (plan
- * item D2) and `openToCollab` the builders feed (D3); each is present only
+ * Explore URL state. `language` and `topic` filter the projects feed and `openToCollab` the builders feed; each is present only
  * when set, so a plain Explore URL stays short.
  */
 export type ExploreSearch = {
@@ -538,7 +537,7 @@ export function getExploreEyebrowCopy({
 }
 
 /**
- * How a browse feed is ordered, in plain words (plan items D2, D4); no
+ * How a browse feed is ordered, in plain words; no
  * percentages or "recommended" framing. Visitors have no stack preferences,
  * so their project feed claims only recency.
  */

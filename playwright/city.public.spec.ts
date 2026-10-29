@@ -6,11 +6,11 @@ import {
   test,
 } from './fixtures/test'
 
-// Public city pages (plan item D5). Signed-out visitors reach a city page from
+// Public city pages. Signed-out visitors reach a city page from
 // a city pill and a builder profile from the city page; unknown cities are a
 // real 404. Data comes from the populated persona's city
 // (playwright/fixtures/fixtures.md). The landing page does not link to city
-// pages yet (D7), so the journey starts on public Explore.
+// pages yet, so the journey starts on public Explore.
 
 function pathname(url: string) {
   return new URL(url).pathname.replace(/(.)\/$/, '$1')

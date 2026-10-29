@@ -1,7 +1,7 @@
 import type { Page } from '@playwright/test'
 import { expect, expectNoPendingContent, waitForFiniteAnimations } from './test'
 
-/** Baseline viewports (plan item C10): desktop and a 390px phone. */
+/** Baseline viewports: desktop and a 390px phone. */
 export const BASELINE_VIEWPORTS = [
   { width: 1440, height: 900 },
   { width: 390, height: 844 },
@@ -34,6 +34,10 @@ export async function expectBaseline(
   name: string,
   { mask = [] }: { mask?: string[] } = {},
 ) {
+  if (!process.env.E2E_PRIVATE_BASELINE_DIR)
+    throw new Error(
+      'Provider-backed baselines require E2E_PRIVATE_BASELINE_DIR outside the repository. Use pnpm e2e:components for committed synthetic baselines.',
+    )
   await expectNoPendingContent(page)
   await page.evaluate(() => document.fonts.ready)
   await page.waitForFunction(() =>

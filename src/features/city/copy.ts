@@ -8,7 +8,7 @@ function pluralize(count: number, singular: string, plural: string) {
   return `${count} ${count === 1 ? singular : plural}`
 }
 
-/** "3 builders, 1 project": the maintained A4 counts, zeros included. */
+/** "3 builders, 1 project": the maintained `cities.stats` counts, zeros included. */
 export function formatCityCounts(stats: {
   builderCount: number
   projectCount: number

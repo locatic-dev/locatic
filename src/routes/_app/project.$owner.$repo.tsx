@@ -1,12 +1,7 @@
-import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
+import { useSuspenseQuery } from '@tanstack/react-query'
 import type { FunctionReturnType } from 'convex/server'
 import type { api } from '../../../convex/_generated/api'
-import {
-  Link,
-  createFileRoute,
-  notFound,
-  redirect,
-} from '@tanstack/react-router'
+import { createFileRoute, notFound, redirect } from '@tanstack/react-router'
 import {
   moreFromOwnerCityQueryOptions,
   projectDetailQueryOptions,
@@ -14,19 +9,16 @@ import {
 } from '@/features/projects/queries'
 import {
   mapProjectDetail,
-  mapViewerBootstrap,
   type ProjectDetailPayload,
-  type ViewerBootstrapPayload,
 } from '@/features/contracts'
 import { ProjectView } from '@/features/projects/project-view'
+import { ProjectNotFound } from '@/features/projects/project-not-found'
 import {
   ProjectRoutePending,
   ROUTE_PENDING_MIN_MS,
   ROUTE_PENDING_MS,
 } from '@/components/app-shell/route-pending'
 import { normalizeProjectSearchParam } from '@/features/projects/deep-link'
-import { getFreshExploreSearch } from '@/features/explore/state'
-import { viewerQueryOptions } from '@/features/viewer/queries'
 import { notFoundSeo, seo, truncateDescription } from '@/lib/seo'
 import { projectNodes, type ProjectStructuredData } from '@/lib/structured-data'
 import { JsonLd } from '@/components/ui/json-ld'
@@ -168,38 +160,6 @@ function projectHead(project: ProjectStructuredData) {
     ),
     path: `/project/${project.owner}/${project.repo}`,
   })
-}
-
-function ProjectNotFound() {
-  // Signed-in viewers see this inside the app shell, which already renders
-  // <main id="main-content">; signed-out viewers get no shell, so this view
-  // provides the landmark itself (the same signal ProjectView uses).
-  const viewerQuery = useQuery(viewerQueryOptions())
-  const rendersInAppShell = Boolean(
-    mapViewerBootstrap(viewerQuery.data as ViewerBootstrapPayload | undefined)
-      ?.viewer,
-  )
-  const RootElement = rendersInAppShell ? 'div' : 'main'
-
-  return (
-    <RootElement
-      id={rendersInAppShell ? undefined : 'main-content'}
-      tabIndex={rendersInAppShell ? undefined : -1}
-      className="flex flex-col items-start gap-3 bg-canvas px-(--lx-gutter) py-10"
-    >
-      <h1 className="m-0 text-headline text-text">project not found</h1>
-      <p className="m-0 font-sans text-sm leading-6 text-text-muted">
-        this project doesn&apos;t exist or isn&apos;t public.
-      </p>
-      <Link
-        to="/explore"
-        search={getFreshExploreSearch()}
-        className="inline-flex min-h-11 items-center font-mono text-label text-brand no-underline"
-      >
-        explore projects
-      </Link>
-    </RootElement>
-  )
 }
 
 // Resolves the project before any view hooks run. The loader already 404s;

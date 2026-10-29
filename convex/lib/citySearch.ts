@@ -2,10 +2,10 @@ import type { DatabaseReader } from '../_generated/server'
 import type { Doc } from './types'
 
 /**
- * City search ranking (plan item B10, decision D6): exact matches first; then
+ * City search ranking: exact matches first; then
  * cities with builders on Locatic; then alphabetical. The catalogue has no
  * population field, so the only importance signal is Locatic's own activity
- * (`cities.stats`, plan item A4). Candidates come from two bounded reads:
+ * (`cities.stats`). Candidates come from two bounded reads:
  *
  * - a prefix range on `normalizedName` (the lowercased display name, e.g.
  *   "berlin, state of berlin, germany") over active cities, capped at

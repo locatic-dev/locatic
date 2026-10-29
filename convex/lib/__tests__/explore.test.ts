@@ -298,7 +298,7 @@ describe('explore stack ranking', () => {
   })
 })
 
-describe('explore project filters (D2)', () => {
+describe('explore project filters', () => {
   const project = (
     primaryLanguage: string | null,
     githubTopics: string[],
@@ -420,7 +420,7 @@ describe('explore project filters (D2)', () => {
   })
 })
 
-describe('collaboration intent (D3)', () => {
+describe('collaboration intent', () => {
   test('keeps the statuses that invite someone in', () => {
     expect(
       [
@@ -434,7 +434,7 @@ describe('collaboration intent (D3)', () => {
   })
 })
 
-describe('clampExplorePaginationOpts (S2)', () => {
+describe('clampExplorePaginationOpts', () => {
   test('clamps numItems to 1..50 and keeps the cursor and other options', () => {
     expect(
       clampExplorePaginationOpts({ cursor: 'c1', numItems: 5000, id: 3 }),

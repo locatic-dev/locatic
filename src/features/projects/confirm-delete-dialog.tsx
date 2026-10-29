@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/dialog'
 
 /**
- * Confirms deleting a comment or post (decision D9: confirm, no undo). The
+ * Confirms deleting a comment or post (confirm, no undo). The
  * copy says what happens to what hangs off the item.
  */
 export function ConfirmDeleteDialog({

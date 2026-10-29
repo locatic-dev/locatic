@@ -28,7 +28,7 @@ export function useHydrationSafeHref(href: string): string {
 }
 
 /**
- * The sign-in `redirect` for the page being viewed (plan item A6), or
+ * The sign-in `redirect` for the page being viewed, or
  * undefined when the URL is not a safe destination.
  */
 export function useSignInReturnHref(href: string): string | undefined {

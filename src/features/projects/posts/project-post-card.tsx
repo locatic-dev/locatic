@@ -23,6 +23,7 @@ import { ConfirmDeleteDialog } from '@/features/projects/confirm-delete-dialog'
 import { commentComposerTextareaClass } from '@/features/projects/comments/composer-styles'
 import { removeReplyDraft } from '@/features/projects/comments/drafts'
 import { useCommentThreadState } from '@/features/projects/comments/use-comment-thread-state'
+import { useCommentHighlight } from '@/features/projects/comments/use-comment-highlight'
 import type { ProjectCommentView } from '@/features/projects/comments/types'
 import { ReactionBar } from '@/features/projects/reactions/reaction-bar'
 import { CONTENT_LIMITS } from '../../../../convex/lib/content_limits'
@@ -35,6 +36,7 @@ type ProjectPost = Doc<'posts'> & {
 export function ProjectPostCard({
   activeHighlightedCommentId,
   highlightedCommentPath,
+  onReleaseCommentHighlight,
   isOwner,
   isSignedIn,
   post,
@@ -43,6 +45,7 @@ export function ProjectPostCard({
 }: {
   activeHighlightedCommentId: string | null
   highlightedCommentPath: string[]
+  onReleaseCommentHighlight?: (commentId: string) => void
   isOwner: boolean
   isSignedIn: boolean
   post: ProjectPost
@@ -76,8 +79,10 @@ export function ProjectPostCard({
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
   const commentLoadAttemptsRef = useRef(0)
   const commentLoadTargetRef = useRef<string | null>(null)
-  const commentRefs = useRef<Record<string, HTMLElement | null>>({})
-  const scrolledHighlightRef = useRef<string | null>(null)
+  const registerCommentElement = useCommentHighlight(
+    activeHighlightedCommentId,
+    onReleaseCommentHighlight,
+  )
   const {
     expand: expandCommentThread,
     expandedIds,
@@ -134,28 +139,6 @@ export function ProjectPostCard({
       expandCommentThread(commentId)
     }
   }, [activeHighlightedCommentId, expandCommentThread, highlightedCommentPath])
-
-  // Scroll the highlighted comment into view ONCE; the ref guard prevents
-  // re-centering on every reply expand/collapse (which fought the user).
-  useEffect(() => {
-    if (!activeHighlightedCommentId) {
-      return
-    }
-    if (scrolledHighlightRef.current === activeHighlightedCommentId) {
-      return
-    }
-
-    const commentElement = commentRefs.current[activeHighlightedCommentId]
-    if (!commentElement) {
-      return
-    }
-
-    scrolledHighlightRef.current = activeHighlightedCommentId
-    commentElement.scrollIntoView({
-      behavior: 'smooth',
-      block: 'center',
-    })
-  }, [activeHighlightedCommentId, comments.length, expandedIds])
 
   const handlePostComment = async () => {
     const content = comment.trim()
@@ -338,7 +321,7 @@ export function ProjectPostCard({
             </div>
             <div className="font-mono text-meta text-text-muted">
               {relativeTime(post.createdAt)}
-              {post.updatedAt > post.createdAt ? ' · edited' : ''}
+              {post.editedAt != null ? ' · edited' : ''}
             </div>
           </div>
         </div>
@@ -488,7 +471,8 @@ export function ProjectPostCard({
               key={String(commentItem._id)}
               activeHighlightedCommentId={activeHighlightedCommentId}
               commentItem={commentItem}
-              commentRefs={commentRefs}
+              registerCommentElement={registerCommentElement}
+              highlightedCommentPath={highlightedCommentPath}
               depth={0}
               expandedIds={expandedIds}
               handleDeleteComment={handleDeleteComment}

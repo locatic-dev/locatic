@@ -2,7 +2,7 @@ import type { Page } from '@playwright/test'
 import { requireOnboardedPersona } from './fixtures/personas'
 import { expect, expectSettled, test } from './fixtures/test'
 
-// Plan items D2 (language and topic filters) and D3 (open to collab). The
+// Explore language/topic filters and the open-to-collab filter. The
 // filters live in the URL, so a filtered Explore link is shareable and a
 // reload of the same URL shows the same filters and the same first rows.
 // Backend behaviour (AND, continuation, read budget) is proved in

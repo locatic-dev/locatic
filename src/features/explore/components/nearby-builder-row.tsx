@@ -34,7 +34,7 @@ export function NearbyBuilderRow({
   /** Signed-out visitor: follow becomes a sign-in link, message is hidden. */
   visitor?: { signInRedirect: string | undefined }
 }) {
-  // A young account without public work reads as new, not inactive (D4).
+  // A young account without public work reads as new, not inactive.
   const handle = (
     <>
       @{builder.githubUsername}
@@ -42,7 +42,7 @@ export function NearbyBuilderRow({
       {builder.isNewBuilder ? ' · new builder' : ''}
     </>
   )
-  // Collaboration intent (D3) beside the handle. The identity link's
+  // Collaboration intent beside the handle. The identity link's
   // `aria-label` hides its content from assistive tech, so the pill is also
   // the link's description.
   const statusId = useId()
@@ -50,8 +50,8 @@ export function NearbyBuilderRow({
     ? builder.buildStatus
     : null
   const metadata = collaborationStatus ? (
-    <span className="flex min-w-0 items-center gap-2">
-      <span className="min-w-0 truncate">{handle}</span>
+    <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+      <span className="min-w-0 wrap-anywhere">{handle}</span>
       <span id={statusId} className="shrink-0">
         <StatusPill status={collaborationStatus} />
       </span>
@@ -73,8 +73,7 @@ export function NearbyBuilderRow({
     </Link>
   )
 
-  // Trailing actions: a message icon-button + a follow button, side by side, so
-  // the row stays a single compact line instead of stacking a full-width button.
+  // Actions remain independent of the profile and location links as the row wraps.
   const action = visitor ? (
     <SignInLink
       label={`Sign in to follow ${builder.displayName}`}

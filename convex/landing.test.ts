@@ -19,7 +19,7 @@ import {
 } from './__tests__/fixtures.helpers'
 
 /**
- * Landing activity (plan item D7): recent posts, releases and new projects
+ * Landing activity: recent posts, releases and new projects
  * of discoverable owners who disclose an exact city, newest first, a few per
  * builder, each placed on its city.
  */
@@ -28,7 +28,7 @@ const modules = import.meta.glob('./**/*.ts')
 
 type T = TestConvex<typeof schema>
 
-describe('landing recent activity (D7)', () => {
+describe('landing recent activity', () => {
   let t: T
   let cities: SeededCities
 

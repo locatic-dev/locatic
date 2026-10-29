@@ -1,6 +1,12 @@
 import { ConvexError, v } from 'convex/values'
 
-import { internalMutation, internalQuery } from './_generated/server'
+import {
+  internalMutation,
+  internalQuery,
+  type MutationCtx,
+} from './_generated/server'
+import type { Id } from './_generated/dataModel'
+import { isAccountDeleted } from './lib/account_deletion'
 import { normalizeProjectRouteKey } from './lib/project_route'
 import { getPubliclyInteractableProject } from './lib/project_access'
 import {
@@ -22,6 +28,11 @@ import {
   recomputeProjectPublicActivity,
   selectMetadataRefreshTargets,
 } from './lib/activity'
+
+async function canUpdateOwner(ctx: MutationCtx, userId: Id<'users'>) {
+  const user = await ctx.db.get(userId)
+  return user && !isAccountDeleted(user)
+}
 
 const MAX_README_BACKFILL_BATCH = 100
 const README_BACKFILL_SCAN_PAGE_SIZE = 100
@@ -194,7 +205,7 @@ export const patchProjectMetadata = internalMutation({
   },
   handler: async (ctx, args) => {
     const project = await ctx.db.get(args.projectId)
-    if (!project) {
+    if (!project || !(await canUpdateOwner(ctx, project.ownerId))) {
       return null
     }
     const previousActivityAt =
@@ -263,6 +274,7 @@ export const recordGithubTokenState = internalMutation({
     lastError: v.union(v.string(), v.null()),
   },
   handler: async (ctx, args) => {
+    if (!(await canUpdateOwner(ctx, args.userId))) return null
     const existing = await ctx.db
       .query('github_tokens')
       .withIndex('by_user_id', (query) => query.eq('userId', args.userId))
@@ -318,6 +330,7 @@ export const recordGithubSyncResult = internalMutation({
     githubRateLimitRemaining: v.union(v.number(), v.null()),
   },
   handler: async (ctx, args) => {
+    if (!(await canUpdateOwner(ctx, args.userId))) return null
     await ctx.db.insert('github_sync_log', {
       ...args,
       syncedAt: Date.now(),
@@ -419,7 +432,7 @@ export const markProjectContributorSyncAttempt = internalMutation({
   returns: v.null(),
   handler: async (ctx, args) => {
     const project = await ctx.db.get(args.projectId)
-    if (!project) {
+    if (!project || !(await canUpdateOwner(ctx, project.ownerId))) {
       return null
     }
 
@@ -444,7 +457,7 @@ export const recordProjectContributorSyncFailure = internalMutation({
   returns: v.null(),
   handler: async (ctx, args) => {
     const project = await ctx.db.get(args.projectId)
-    if (!project) {
+    if (!project || !(await canUpdateOwner(ctx, project.ownerId))) {
       return null
     }
 
@@ -485,7 +498,7 @@ export const patchProjectReadmePreview = internalMutation({
   returns: v.null(),
   handler: async (ctx, args) => {
     const project = await ctx.db.get(args.projectId)
-    if (!project) {
+    if (!project || !(await canUpdateOwner(ctx, project.ownerId))) {
       return null
     }
 
@@ -555,7 +568,7 @@ export const recordProjectMetadataSyncFailure = internalMutation({
   },
   handler: async (ctx, args) => {
     const project = await ctx.db.get(args.projectId)
-    if (!project) {
+    if (!project || !(await canUpdateOwner(ctx, project.ownerId))) {
       return null
     }
 
@@ -585,7 +598,7 @@ export const recordProjectMetadataSyncFailure = internalMutation({
 })
 
 /**
- * Projects for the hourly metadata refresh (plan item D4): one bounded read of
+ * Projects for the hourly metadata refresh: one bounded read of
  * the `METADATA_REFRESH_SCAN_FACTOR * limit` visible projects least recently
  * attempted, then discovery-visible projects first with a share reserved for
  * the stalest rows (`selectMetadataRefreshTargets`).
@@ -619,6 +632,8 @@ export const patchProjectReleases = internalMutation({
   handler: async (ctx, args) => {
     const now = Date.now()
     const project = await ctx.db.get(args.projectId)
+    if (!project || !(await canUpdateOwner(ctx, project.ownerId)))
+      return { deleted: 0, inserted: 0, updated: 0 }
     const previousActivityAt = project
       ? (project.locatic.lastPublicActivityAt ??
         (await getProjectActivityAt(ctx.db, project)))
@@ -714,7 +729,7 @@ export const patchProjectContributors = internalMutation({
   handler: async (ctx, args) => {
     const now = Date.now()
     const project = await ctx.db.get(args.projectId)
-    if (!project) {
+    if (!project || !(await canUpdateOwner(ctx, project.ownerId))) {
       return null
     }
 

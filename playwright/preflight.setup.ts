@@ -1,5 +1,6 @@
 import { expect, test as setup } from '@playwright/test'
 import { settledBuilderRows } from './fixtures/explore'
+import { verifyDevelopmentFixtureReadiness } from './fixtures/reset-onboarding'
 import {
   expectNoPendingContent,
   expectSettled,
@@ -21,6 +22,7 @@ setup('deployment and personas are ready for e2e', async ({ page }) => {
       missing,
       `missing release E2E variables: ${missing.join(', ')} (playwright/fixtures/fixtures.md)`,
     ).toEqual([])
+    await verifyDevelopmentFixtureReadiness()
   }
 
   // Public Explore exercises the branch's public discovery functions before

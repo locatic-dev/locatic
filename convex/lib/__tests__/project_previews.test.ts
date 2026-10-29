@@ -34,7 +34,7 @@ async function previewLocation(
   })
 }
 
-describe('project card preview location (D8)', () => {
+describe('project card preview location', () => {
   let t: TestConvex<typeof schema>
   let cities: SeededCities
 

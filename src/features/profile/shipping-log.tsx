@@ -9,7 +9,7 @@ const projectLinkClassName =
 
 /**
  * Dated releases and posts across the builder's public projects, newest
- * first (plan item D6). Renders nothing when there is nothing to list, so a
+ * first. Renders nothing when there is nothing to list, so a
  * profile without releases or posts shows no empty block.
  */
 export function ProfileShippingLog({

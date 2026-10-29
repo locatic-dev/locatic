@@ -18,10 +18,11 @@ import { toSafeRelativeUrl } from '@/lib/safe-redirect'
 import { notFoundSeo, seo, truncateDescription } from '@/lib/seo'
 import { cityPageNode } from '@/lib/structured-data'
 import { JsonLd } from '@/components/ui/json-ld'
+import { getAccountRecoveryState } from '@/features/viewer/lifecycle'
 import { isCityIndexable } from '../../convex/lib/seo_thresholds'
 
 /**
- * Public city page (plan item D5). Visitors get the public header; members
+ * Public city page. Visitors get the public header; members
  * get the app shell, and members who still need onboarding go there first
  * with this URL as the destination, as on Explore. Unknown and inactive
  * cities are a real 404. A city id in the address (stored snapshots only
@@ -36,6 +37,13 @@ export const Route = createFileRoute('/c/$slug')({
     const bootstrap = (await context.queryClient.ensureQueryData(
       viewerQueryOptions(),
     )) as ViewerBootstrapPayload
+
+    if (getAccountRecoveryState(bootstrap)) {
+      throw redirect({
+        to: '/sign-in/$',
+        search: { redirect: toSafeRelativeUrl(location.href) ?? undefined },
+      })
+    }
 
     if (bootstrap.needsOnboarding) {
       throw redirect({

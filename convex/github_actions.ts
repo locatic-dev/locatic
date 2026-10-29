@@ -9,6 +9,8 @@ import { action, internalAction } from './_generated/server'
 import { buildViewerSeedFromIdentity, requireIdentity } from './lib/auth'
 import {
   encodeRepositoryFullNamePath,
+  canImportGithubRepository,
+  isPublicGithubRepository,
   extractContributionCalendar,
   listGithubRepositoryPages,
   mapGithubContributorsForImport,
@@ -176,6 +178,43 @@ async function githubRequest<T>(
   }
 
   return (await response.json()) as T
+}
+
+async function getAuthenticatedGithubUserId(accessToken: string) {
+  const user = await githubRequest<GithubUserIdentity>('/user', accessToken)
+  if (
+    typeof user.id !== 'number' ||
+    !Number.isSafeInteger(user.id) ||
+    user.id <= 0 ||
+    user.type !== 'User'
+  ) {
+    throw new ConvexError('Could not verify GitHub account')
+  }
+  return user.id
+}
+
+async function fetchGithubRepositoryForSync(args: {
+  accessToken: string
+  repositoryPath: string
+  repoId: number
+  ownerGithubId: number | null
+}) {
+  const repository = await githubRequest<GithubRepository>(
+    `/repos/${args.repositoryPath}`,
+    args.accessToken,
+  )
+  if (!isPublicGithubRepository(repository)) {
+    throw new ConvexError('Repository is no longer public')
+  }
+  if (repository.id !== args.repoId) {
+    throw new ConvexError('Repository identity changed')
+  }
+  // Existing-account GitHub IDs come from Clerk/GitHub. When an older profile
+  // has no ID, token-specific write permissions still establish eligibility.
+  if (!canImportGithubRepository(repository, args.ownerGithubId ?? 0)) {
+    throw new ConvexError('Repository is no longer eligible for sync')
+  }
+  return repository
 }
 
 async function githubPublicRequest<T>(url: string, init?: RequestInit) {
@@ -384,13 +423,17 @@ export const listRepositories = action({
     const { accessToken, scopes } = await getGithubAccessToken(identity.subject)
     let repositories: GithubRepository[] = []
     try {
-      repositories = await listGithubRepositoryPages({
+      const githubUserId = await getAuthenticatedGithubUserId(accessToken)
+      const candidates = await listGithubRepositoryPages({
         fetchPage: (page, perPage) =>
           githubRequest<GithubRepository[]>(
             `/user/repos?visibility=public&sort=updated&per_page=${perPage}&page=${page}`,
             accessToken,
           ),
       })
+      repositories = candidates.filter((repository) =>
+        canImportGithubRepository(repository, githubUserId),
+      )
     } catch (error) {
       if (error instanceof GitHubRequestError) {
         await ctx.runMutation(internal.github.recordGithubTokenState, {
@@ -453,16 +496,39 @@ export const importSelectedRepositories = action({
 
     const { accessToken, scopes } = await getGithubAccessToken(identity.subject)
 
+    let githubUserId: number
+    try {
+      githubUserId = await getAuthenticatedGithubUserId(accessToken)
+    } catch (error) {
+      if (error instanceof GitHubRequestError) {
+        await ctx.runMutation(internal.github.recordGithubTokenState, {
+          userId: viewer._id,
+          tokenStatus: error.status === 401 ? 'needs_reauth' : 'active',
+          scopes,
+          lastError: `GitHub request failed: ${error.status}`,
+        })
+        if (error.status === 401) {
+          throw new ConvexError('Refresh your GitHub connection and try again')
+        }
+      }
+      throw error
+    }
+
     const repositoryResults = await Promise.allSettled(
       fullNames.map((fullName) => {
         const repositoryPath = encodeRepositoryFullNamePath(fullName)
 
         return mapGithubRepositoryWithOptionalLanguages({
-          fetchRepository: () =>
-            githubRequest<GithubRepository>(
+          fetchRepository: async () => {
+            const repository = await githubRequest<GithubRepository>(
               `/repos/${repositoryPath}`,
               accessToken,
-            ),
+            )
+            if (!canImportGithubRepository(repository, githubUserId)) {
+              throw new ConvexError('Repository is not eligible for import')
+            }
+            return repository
+          },
           fetchLanguages: () =>
             githubRequest<GithubLanguages>(
               `/repos/${repositoryPath}/languages`,
@@ -624,13 +690,15 @@ export const refreshProjectMetadata = internalAction({
 
     try {
       const { accessToken, scopes } = await getGithubAccessToken(owner.clerkId)
+      const sourceRepository = await fetchGithubRepositoryForSync({
+        accessToken,
+        repositoryPath,
+        repoId: project.github.repoId,
+        ownerGithubId: owner.github.id,
+      })
       const [repository, releaseImport] = await Promise.all([
         mapGithubRepositoryWithOptionalLanguages({
-          fetchRepository: () =>
-            githubRequest<GithubRepository>(
-              `/repos/${repositoryPath}`,
-              accessToken,
-            ),
+          fetchRepository: () => Promise.resolve(sourceRepository),
           fetchLanguages: () =>
             githubRequest<GithubLanguages>(
               `/repos/${repositoryPath}/languages`,
@@ -686,7 +754,7 @@ export const refreshProjectMetadata = internalAction({
  * Hourly metadata refresh. Bounded to `limit` projects per run (default
  * `DEFAULT_METADATA_REFRESH_LIMIT`, capped at 100), discovery-visible
  * projects first (`github.listRefreshableProjectIds`). Commits and releases
- * it finds raise the owner's activity signal (plan item D4).
+ * it finds raise the owner's activity signal.
  */
 export const refreshActiveProjectMetadata = internalAction({
   args: {
@@ -860,6 +928,12 @@ export const syncProjectContributors = internalAction({
       const repositoryPath = encodeRepositoryFullNamePath(
         project.github.fullName,
       )
+      await fetchGithubRepositoryForSync({
+        accessToken,
+        repositoryPath,
+        repoId: project.github.repoId,
+        ownerGithubId: owner.github.id,
+      })
       const contributors = await listGithubRepositoryPages({
         maxPages: 5,
         perPage: 100,

@@ -1,4 +1,6 @@
 import { defineConfig, devices } from '@playwright/test'
+import { fileURLToPath } from 'node:url'
+import { privateBaselineTemplate } from './playwright/fixtures/private-baselines'
 import './playwright/env'
 
 const baseURL = process.env.E2E_BASE_URL ?? 'http://localhost:3000'
@@ -14,6 +16,10 @@ export default defineConfig({
   // settle (playwright/fixtures/test.ts).
   timeout: 60_000,
   forbidOnly: Boolean(process.env.CI),
+  snapshotPathTemplate: privateBaselineTemplate(
+    process.env.E2E_PRIVATE_BASELINE_DIR,
+    fileURLToPath(new URL('.', import.meta.url)),
+  ),
   retries: process.env.CI ? 2 : 0,
   reporter: process.env.CI ? [['html'], ['github']] : [['list'], ['html']],
   use: {
@@ -47,6 +53,20 @@ export default defineConfig({
       name: 'chromium-authenticated',
       dependencies: ['setup'],
       testMatch: /.*\.authenticated\.spec\.ts/,
+      testIgnore: /(?:onboarding|auth-destination)\.authenticated\.spec\.ts/,
+      use: {
+        ...devices['Desktop Chrome'],
+        storageState: 'playwright/.clerk/user.json',
+      },
+    },
+    {
+      name: 'chromium-onboarding',
+      dependencies: ['setup'],
+      // These two files share a single resettable Clerk persona. Keep their
+      // mutations ordered; other projects use distinct personas.
+      fullyParallel: false,
+      workers: 1,
+      testMatch: /(?:onboarding|auth-destination)\.authenticated\.spec\.ts/,
       use: {
         ...devices['Desktop Chrome'],
         storageState: 'playwright/.clerk/user.json',
