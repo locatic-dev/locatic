@@ -47,6 +47,6 @@ Unit tests exercise fixture functions with `convex-test`. Component browser test
 
 Tracked screenshots come from `playwright/components/visual.spec.ts` and local fixtures. The Inbox fixture uses invented identities, locations, and messages with no remote avatars. The component suite compares Inbox lists and threads, privacy controls, and account recovery at desktop and phone widths. It blocks external requests during visual tests.
 
-Run `pnpm e2e:components`. To review a deliberate visual change, run `pnpm e2e:components --update-snapshots`, inspect every changed image, and commit only synthetic component baselines. Shared baselines allow a small pixel difference for font rendering across operating systems. Geometry and interaction checks run separately.
+Run `pnpm e2e:components`. To review a deliberate visual change, run `pnpm e2e:components --update-snapshots`, inspect every changed image, and commit only synthetic component baselines. Baselines are separate for macOS and Linux. Generate Linux baselines in the version-pinned Playwright container used by CI. Geometry and interaction checks run separately.
 
 Provider-backed route baselines remain available for local comparison. Set `E2E_PRIVATE_BASELINE_DIR` to an absolute directory outside the checkout before running the `baselines` tests. Keep that directory private. Provider baselines, failure screenshots, and traces may contain account data. Do not commit them or publish them as review attachments. Removing an image from current source does not remove earlier Git or GitHub copies.

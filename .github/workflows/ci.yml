@@ -68,6 +68,9 @@ jobs:
     name: Deterministic browser components
     # Keep the OS within the installed Playwright version's supported set.
     runs-on: ubuntu-24.04
+    container:
+      image: mcr.microsoft.com/playwright:v1.60.0-noble
+      options: --ipc=host
     steps:
       - uses: actions/checkout@v6
         with:
@@ -78,5 +81,4 @@ jobs:
           node-version-file: package.json
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm e2e:components
