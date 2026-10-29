@@ -2,10 +2,8 @@ import { Link } from '@tanstack/react-router'
 import { Button } from '@/components/ui/button'
 import { getFreshExploreSearch } from '@/features/explore/state'
 
-// Hero entrance choreography runs on pure CSS (`lx-hero-up` + `--hero-step`
-// stagger) so the above-the-fold copy animates the moment styles load —
-// SSR pages must never sit invisible waiting for the client bundle to
-// hydrate. Last step lands ~700ms in, inside the hero budget.
+// The headline is visible on first paint. Secondary copy and actions use
+// CSS entrances without waiting for hydration.
 export function HeroCopy() {
   return (
     <div>
@@ -13,7 +11,7 @@ export function HeroCopy() {
         {'// for builders who ship'}
       </p>
 
-      <h1 className="lx-hero-up mt-5 mb-0 text-hero text-text [--hero-step:1]">
+      <h1 className="mt-5 mb-0 text-hero text-text">
         github, with a <span className="text-brand">map.</span>
       </h1>
 
