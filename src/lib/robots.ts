@@ -5,25 +5,15 @@
 import { SITE_URL } from '@/lib/seo'
 import { isProductionHost } from '@/lib/security-headers'
 
-/** Signed-in, auth and admin paths: nothing a search result should show. */
-export const PRIVATE_PATHS = [
-  '/home',
-  '/inbox',
-  '/notifications',
-  '/saved',
-  '/settings',
-  '/profile',
-  '/onboarding',
-  '/admin',
-  '/sign-in',
-  '/sign-up',
-] as const
+import { PRIVATE_PATHS } from '@/lib/robots-policy'
+
+export { PRIVATE_PATHS } from '@/lib/robots-policy'
 
 /**
- * robots.txt for the requesting host. Production opens public pages to every
- * crawler (search, AI search, user fetchers and AI training) with a single
- * `*` group: a named group would replace the private-path rules for that
- * agent. Every other host blocks everything. Content-Signal:
+ * robots.txt for the requesting host. Production permits public search and
+ * AI retrieval while declining training use through Content-Signal. One
+ * origin `*` group keeps the private-path rules shared by every crawler.
+ * Every other host blocks everything. Content-Signal:
  * https://contentsignals.org
  */
 export function renderRobotsTxt(url: URL): string {
@@ -33,7 +23,7 @@ export function renderRobotsTxt(url: URL): string {
   return [
     '# https://www.robotstxt.org/robotstxt.html',
     'User-agent: *',
-    'Content-Signal: search=yes, ai-input=yes, ai-train=yes',
+    'Content-Signal: search=yes, ai-input=yes, ai-train=no',
     ...PRIVATE_PATHS.map((path) => `Disallow: ${path}`),
     '',
     `Sitemap: ${SITE_URL}/sitemap.xml`,

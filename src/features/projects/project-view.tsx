@@ -846,7 +846,7 @@ export function ProjectView({
                         <Link
                           to="/sign-in/$"
                           search={{ redirect: signInRedirect }}
-                          className="text-brand no-underline"
+                          className="text-brand underline underline-offset-2"
                         >
                           sign in
                         </Link>{' '}

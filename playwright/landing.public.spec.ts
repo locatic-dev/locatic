@@ -136,18 +136,22 @@ test.describe('public landing', () => {
     await expect(main.getByText('recently on the map')).toHaveCount(0)
   })
 
-  test('shows a still frame of three pinged cities under reduced motion', async ({
+  test('shows a still frame of three pinged cities under reduced motion without Clerk', async ({
     page,
   }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' })
+    await page.route('**/npm/@clerk/**', (route) => route.abort())
     await page.goto('/')
     const pingGlobe = page
       .locator('main#main-content')
       .getByRole('region', { name: 'recent activity on the map' })
     const pinged = pingGlobe.locator('[data-ping-key][data-active="true"]')
     const card = pingGlobe.locator('[data-ping-card]')
+    // The server-rendered list establishes the data prerequisite; the
+    // assertion below waits for the globe's own reduced-motion state.
+    const activity = page.getByRole('list', { name: 'recent activity' })
     requireE2EPrerequisite(
-      (await pinged.count()) >= 3,
+      (await activity.getByRole('link').count()) >= 3,
       'Needs at least three recent activity items in the deployment.',
     )
 
@@ -187,4 +191,27 @@ test.describe('public landing', () => {
       page.getByRole('heading', { level: 1, name: cityName }),
     ).toBeVisible()
   })
+})
+
+test('the primary headline is visible without JavaScript or an entrance animation', async ({
+  browser,
+  baseURL,
+}) => {
+  const context = await browser.newContext({
+    javaScriptEnabled: false,
+    viewport: { width: 412, height: 823 },
+  })
+  try {
+    const page = await context.newPage()
+    await page.goto(new URL('/', baseURL).href)
+    const headline = page.getByRole('heading', {
+      level: 1,
+      name: 'github, with a map.',
+    })
+    await expect(headline).toBeVisible()
+    await expect(headline).toHaveCSS('animation-name', 'none')
+    await expect(headline).toHaveCSS('opacity', '1')
+  } finally {
+    await context.close()
+  }
 })

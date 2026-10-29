@@ -48,11 +48,6 @@ const packageChunkGroups = [
     packages: ['convex', '@convex-dev/'],
     priority: 70,
   },
-  {
-    name: 'vendor-ui',
-    packages: ['@radix-ui/', 'lucide-react', 'cmdk', 'sonner', 'next-themes'],
-    priority: 60,
-  },
 ] as const
 
 function matchesPackageGroup(packageName: string, packages: readonly string[]) {
