@@ -25,7 +25,10 @@ export function normalizeHttpsUrl(value: string) {
 
   try {
     const url = new URL(withProtocol)
-    if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+    if (
+      (url.protocol !== 'https:' && url.protocol !== 'http:') ||
+      /[\s%]/.test(url.hostname)
+    ) {
       return null
     }
 

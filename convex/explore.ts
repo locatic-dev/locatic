@@ -109,6 +109,7 @@ const publicExplorePostValidator = v.object(publicPostFields)
 
 const postSearchResultValidator = v.object({
   ...publicPostFields,
+  editedAt: v.optional(v.number()),
   searchText: v.optional(v.string()),
   deletedAt: v.union(v.number(), v.null()),
   viewerHasLiked: v.boolean(),

@@ -4,6 +4,7 @@ import {
   conversationRecipientPreviewQueryOptions,
   conversationSummaryQueryOptions,
 } from '@/features/inbox/queries'
+import { InboxPanes } from '@/features/inbox/inbox-panes'
 import { ConversationList } from '@/features/inbox/conversation-list'
 import { useInboxConversations } from '@/features/inbox/use-inbox-conversations'
 import { DraftConversationPanel } from '@/features/inbox/draft-conversation-panel'
@@ -127,9 +128,8 @@ function InboxPage() {
     composePreviewLoading ||
     composePreviewInvalid,
   )
-  // Phones show one pane at a time and the URL decides which: a selected
-  // conversation or draft shows the thread, otherwise the list. Desktop
-  // always shows both side by side.
+  // Narrow Inbox containers show one pane at a time, chosen by the URL.
+  // InboxPanes shows both only when there is room alongside the app sidebar.
   const mobileView = hasDetailPanel ? 'thread' : 'list'
   // With nothing to list and nothing open, the list's empty state is the only
   // message; no second "select a conversation" placeholder beside it.
@@ -201,15 +201,10 @@ function InboxPage() {
         </div>
       </div>
 
-      <div data-mobile-view={mobileView} className="flex min-h-0 flex-1">
-        <section
-          aria-label="conversations"
-          className={`min-h-0 w-full flex-col md:flex ${
-            listOnly
-              ? 'md:flex-1'
-              : 'md:w-88 md:shrink-0 md:border-r md:border-line'
-          } ${mobileView === 'thread' ? 'hidden' : 'flex'}`}
-        >
+      <InboxPanes
+        view={mobileView}
+        listOnly={listOnly}
+        list={
           <div className="min-h-0 flex-1 overflow-y-auto">
             {conversationPages.loading && (
               <div
@@ -281,70 +276,30 @@ function InboxPage() {
               </Button>
             )}
           </div>
-        </section>
+        }
+      >
+        {!hasDetailPanel && !listOnly && (
+          <EmptyState
+            icon={<Inbox size={32} strokeWidth={1.2} />}
+            title="select a conversation"
+            description="pick a thread from the list to read and reply."
+          />
+        )}
 
-        <section
-          aria-label="conversation"
-          className={`min-h-0 flex-1 flex-col ${
-            listOnly ? 'hidden' : 'md:flex'
-          } ${mobileView === 'list' ? 'hidden' : 'flex'}`}
-        >
-          {!hasDetailPanel && !listOnly && (
-            <EmptyState
-              icon={<Inbox size={32} strokeWidth={1.2} />}
-              title="select a conversation"
-              description="pick a thread from the list to read and reply."
-            />
-          )}
-
-          {selectedId &&
-            !selectedConversation &&
-            (summaryQuery.isLoading ? (
-              <div
-                role="status"
-                aria-label="loading conversation"
-                className="p-6 text-label text-text-muted"
-              >
-                loading conversation…
-              </div>
-            ) : (
-              <EmptyState
-                title="couldn't open this conversation"
-                description="this conversation is unavailable."
-                action={{
-                  label: 'back to inbox',
-                  onClick: () =>
-                    void navigate({
-                      to: '/inbox',
-                      search: {
-                        compose: null,
-                        conversation: null,
-                        tab: activeTab,
-                      },
-                    }),
-                }}
-              />
-            ))}
-
-          {composePreviewLoading && (
+        {selectedId &&
+          !selectedConversation &&
+          (summaryQuery.isLoading ? (
             <div
               role="status"
-              aria-label="loading recipient"
-              className="flex flex-1 flex-col items-center justify-center gap-3.5 px-[var(--lx-gutter)]"
+              aria-label="loading conversation"
+              className="p-6 text-label text-text-muted"
             >
-              <Skeleton className="size-9 rounded-full" />
-              <div className="flex flex-col items-center gap-2">
-                <Skeleton className="h-3.5 w-32" />
-                <Skeleton className="h-3 w-20" />
-              </div>
+              loading conversation…
             </div>
-          )}
-
-          {composePreviewInvalid && (
+          ) : (
             <EmptyState
-              icon={<Inbox size={32} strokeWidth={1.2} />}
-              title="couldn't open this draft"
-              description="the message draft is no longer available."
+              title="couldn't open this conversation"
+              description="this conversation is unavailable."
               action={{
                 label: 'back to inbox',
                 onClick: () =>
@@ -352,50 +307,83 @@ function InboxPage() {
                     to: '/inbox',
                     search: {
                       compose: null,
-                      tab: activeTab,
                       conversation: null,
+                      tab: activeTab,
                     },
                   }),
               }}
             />
-          )}
+          ))}
 
-          {selectedConversation && viewerId && (
-            <SelectedConversationPanel
-              key={String(selectedConversation._id)}
-              selectedConversation={selectedConversation}
-              viewerId={viewerId}
-              onBack={() =>
+        {composePreviewLoading && (
+          <div
+            role="status"
+            aria-label="loading recipient"
+            className="flex flex-1 flex-col items-center justify-center gap-3.5 px-[var(--lx-gutter)]"
+          >
+            <Skeleton className="size-9 rounded-full" />
+            <div className="flex flex-col items-center gap-2">
+              <Skeleton className="h-3.5 w-32" />
+              <Skeleton className="h-3 w-20" />
+            </div>
+          </div>
+        )}
+
+        {composePreviewInvalid && (
+          <EmptyState
+            icon={<Inbox size={32} strokeWidth={1.2} />}
+            title="couldn't open this draft"
+            description="the message draft is no longer available."
+            action={{
+              label: 'back to inbox',
+              onClick: () =>
                 void navigate({
                   to: '/inbox',
-                  search: { compose: null, conversation: null, tab: activeTab },
-                })
-              }
-              onOpenProfile={openProfile}
-            />
-          )}
+                  search: {
+                    compose: null,
+                    tab: activeTab,
+                    conversation: null,
+                  },
+                }),
+            }}
+          />
+        )}
 
-          {!selectedConversation && composeUserId && draftRecipient && (
-            <DraftConversationPanel
-              key={String(draftRecipient.userId)}
-              recipient={draftRecipient}
-              onBack={() =>
-                void navigate({
-                  to: '/inbox',
-                  search: { compose: null, conversation: null, tab: activeTab },
-                })
-              }
-              onOpenProfile={openProfile}
-              onConversationCreated={async (id) => {
-                await navigate({
-                  to: '/inbox',
-                  search: getInboxDestinationSearch(String(id), 'inbox'),
-                })
-              }}
-            />
-          )}
-        </section>
-      </div>
+        {selectedConversation && viewerId && (
+          <SelectedConversationPanel
+            key={String(selectedConversation._id)}
+            selectedConversation={selectedConversation}
+            viewerId={viewerId}
+            onBack={() =>
+              void navigate({
+                to: '/inbox',
+                search: { compose: null, conversation: null, tab: activeTab },
+              })
+            }
+            onOpenProfile={openProfile}
+          />
+        )}
+
+        {!selectedConversation && composeUserId && draftRecipient && (
+          <DraftConversationPanel
+            key={String(draftRecipient.userId)}
+            recipient={draftRecipient}
+            onBack={() =>
+              void navigate({
+                to: '/inbox',
+                search: { compose: null, conversation: null, tab: activeTab },
+              })
+            }
+            onOpenProfile={openProfile}
+            onConversationCreated={async (id) => {
+              await navigate({
+                to: '/inbox',
+                search: getInboxDestinationSearch(String(id), 'inbox'),
+              })
+            }}
+          />
+        )}
+      </InboxPanes>
     </div>
   )
 }

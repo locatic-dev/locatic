@@ -222,3 +222,125 @@ describe('stale stored post fields', () => {
     expect(cityPage?.posts.map((post) => post.postId)).not.toContain(devTool)
   })
 })
+
+describe('post body edit timestamps', () => {
+  afterEach(() => vi.useRealTimers())
+
+  it.each(['feed', 'search'] as const)(
+    'keeps edited posts readable in the signed-in Explore %s',
+    async (entryPoint) => {
+      vi.useFakeTimers({ now: NOW, toFake: ['Date'] })
+      const t = convexTest(schema, modules)
+      rateLimiterTest.register(t)
+      const fixture = await seedPopulatedCity(t)
+      await as(t, 'bob').mutation(api.posts.update, {
+        postId: fixture.posts.bobCli,
+        body: 'Revised discovery contract',
+      })
+      const viewer = as(t, 'alice')
+      const rows =
+        entryPoint === 'feed'
+          ? (
+              await viewer.query(api.explore.listPosts, {
+                paginationOpts: PAGE,
+                scope: 'global',
+              })
+            ).page
+          : (await viewer.query(api.explore.searchPosts, { q: 'Revised' }))
+              .posts
+      expect(
+        rows.find((row) => row._id === fixture.posts.bobCli),
+      ).toHaveProperty('editedAt', NOW)
+    },
+  )
+
+  it.each(['private', 'public', 'overview'] as const)(
+    'keeps edited posts readable in the %s profile',
+    async (audience) => {
+      vi.useFakeTimers({ now: NOW, toFake: ['Date'] })
+      const t = convexTest(schema, modules)
+      rateLimiterTest.register(t)
+      const fixture = await seedPopulatedCity(t)
+      await as(t, 'bob').mutation(api.posts.update, {
+        postId: fixture.posts.bobCli,
+        body: 'Revised profile contract',
+      })
+      const rows =
+        audience === 'private'
+          ? await as(t, 'bob').query(api.users.privateProfilePosts, {})
+          : audience === 'public'
+            ? await t.query(api.users.publicProfilePosts, { username: 'bob' })
+            : (
+                await t.query(api.users.publicProfileOverview, {
+                  username: 'bob',
+                })
+              )?.recentPosts
+      expect(
+        rows?.find((row) => row._id === fixture.posts.bobCli),
+      ).toHaveProperty('editedAt', NOW)
+    },
+  )
+
+  it('records only actual body edits and preserves the marker through engagement and no-op saves', async () => {
+    vi.useFakeTimers({ now: NOW, toFake: ['Date'] })
+    const t = convexTest(schema, modules)
+    rateLimiterTest.register(t)
+    const fixture = await seedPopulatedCity(t)
+    const owner = as(t, 'bob')
+    const post = await owner.mutation(api.posts.create, {
+      projectId: fixture.projects.bobCli,
+      body: 'A new body',
+    })
+    expect(post).not.toBeNull()
+    expect(post).not.toHaveProperty('editedAt')
+    await t.run(async (ctx) => {
+      await ctx.db.insert('reaction_config', {
+        key: 'like',
+        label: 'Like',
+        emoji: '❤️',
+        targetTypes: ['post'],
+        isActive: true,
+        sortOrder: 0,
+        createdAt: NOW,
+        updatedAt: NOW,
+      })
+    })
+    vi.setSystemTime(NOW + 1000)
+    await as(t, 'alice').mutation(api.reactions.reactToTarget, {
+      targetType: 'post',
+      targetId: String(post!._id),
+      reactionType: 'like',
+    })
+    const reacted = await t.run((ctx) => ctx.db.get(post!._id))
+    expect(reacted).not.toHaveProperty('editedAt')
+    vi.setSystemTime(NOW + 2000)
+    const edited = await owner.mutation(api.posts.update, {
+      postId: post!._id,
+      body: 'A revised body',
+    })
+    expect(edited).toHaveProperty('editedAt', NOW + 2000)
+    await as(t, 'alice').mutation(api.reactions.unreactFromTarget, {
+      targetType: 'post',
+      targetId: String(post!._id),
+      reactionType: 'like',
+    })
+    expect(await t.run((ctx) => ctx.db.get(post!._id))).toHaveProperty(
+      'editedAt',
+      NOW + 2000,
+    )
+    vi.setSystemTime(NOW + 3000)
+    const unchanged = await owner.mutation(api.posts.update, {
+      postId: post!._id,
+      body: '  A revised body  ',
+    })
+    expect(unchanged).toHaveProperty('editedAt', NOW + 2000)
+    const page = await t.query(api.posts.listByProject, {
+      projectId: fixture.projects.bobCli,
+      paginationOpts: PAGE,
+    })
+    expect(page.page.find((row) => row._id === post!._id)).toHaveProperty(
+      'editedAt',
+      NOW + 2000,
+    )
+  })
+})

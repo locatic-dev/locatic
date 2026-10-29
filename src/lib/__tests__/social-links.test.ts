@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import {
   normalizeHandle,
@@ -36,4 +36,27 @@ describe('social links', () => {
       'https://locatic.dev/',
     )
   })
+})
+
+it('rejects malformed hostnames even when the browser URL parser accepts and escapes them', () => {
+  // Some URL implementations escape invalid hostnames instead of rejecting them.
+  class LenientURL {
+    protocol = 'https:'
+    hostname = 'not%20a%20valid%20website'
+    host = this.hostname
+    pathname = '/'
+    search = ''
+    hash = ''
+  }
+  vi.stubGlobal('URL', LenientURL)
+  try {
+    expect(normalizeHttpsUrl('not a valid website')).toBeNull()
+  } finally {
+    vi.unstubAllGlobals()
+  }
+})
+
+it('keeps encoded spaces in a valid path and international domain names supported', () => {
+  expect(normalizeHttpsUrl('example.com/a b')).toBe('https://example.com/a%20b')
+  expect(normalizeHttpsUrl('bücher.de')).toBe('https://xn--bcher-kva.de/')
 })

@@ -49,6 +49,7 @@ vi.mock('@/features/projects/mutations', () => ({
 function renderPost(
   commentsCount: number,
   destination: Partial<Parameters<typeof ProjectPostCard>[0]> = {},
+  postChanges: Record<string, unknown> = {},
 ) {
   const post = {
     _id: 'post_1' as Id<'posts'>,
@@ -73,6 +74,7 @@ function renderPost(
     updatedAt: Date.now(),
     viewerHasLiked: false,
     viewerReactionTypes: [],
+    ...postChanges,
   } as unknown as Parameters<typeof ProjectPostCard>[0]['post']
 
   const page = () => (
@@ -168,4 +170,18 @@ describe('ProjectPostCard delete', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(mocks.deletePost).not.toHaveBeenCalled()
   })
+})
+
+it('does not infer a body edit from engagement or legacy updated timestamps', () => {
+  renderPost(
+    0,
+    {},
+    { createdAt: 1, updatedAt: 200, reactionCounts: { like: 1 } },
+  )
+  expect(screen.queryByText(/edited/)).toBeNull()
+})
+
+it('labels a post with an explicit body edit even if it happened in the creation millisecond', () => {
+  renderPost(0, {}, { createdAt: 100, updatedAt: 100, editedAt: 100 })
+  expect(screen.getByText(/edited/)).toBeTruthy()
 })

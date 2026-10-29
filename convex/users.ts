@@ -268,6 +268,7 @@ const profilePostPreviewValidator = v.object({
   }),
   createdAt: v.number(),
   updatedAt: v.number(),
+  editedAt: v.optional(v.number()),
   deletedAt: v.union(v.number(), v.null()),
   viewerHasLiked: v.boolean(),
   viewerReactionTypes: v.array(v.string()),

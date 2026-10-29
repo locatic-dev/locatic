@@ -48,6 +48,7 @@ export function InboxFixture() {
   const [threads, setThreads] = useState<
     Record<Person, ConversationMessages['results']>
   >({ ana: [message('ana', 'A recent message')], bo: [] })
+  const [unavailable, setUnavailable] = useState(false)
   const [olderLoaded, setOlderLoaded] = useState(false)
   const [holdSends, setHoldSends] = useState(false)
   const [finishSend, setFinishSend] = useState<(() => void) | null>(null)
@@ -68,7 +69,9 @@ export function InboxFixture() {
     isRequest: false,
     createdAt: 1,
     updatedAt: 1,
-    otherUser: recipient,
+    otherUser: unavailable
+      ? { ...recipient, githubUsername: '', displayName: 'account unavailable' }
+      : recipient,
     status: 'active',
   }
   const send = async (content: string) => {
@@ -118,6 +121,14 @@ export function InboxFixture() {
         >
           open conversation
         </button>
+        <label className="flex min-h-11 items-center gap-2">
+          <input
+            type="checkbox"
+            checked={unavailable}
+            onChange={(event) => setUnavailable(event.target.checked)}
+          />
+          recipient unavailable
+        </label>
         <label className="flex min-h-11 items-center gap-2">
           <input
             type="checkbox"

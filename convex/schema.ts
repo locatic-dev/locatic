@@ -613,6 +613,8 @@ export default defineSchema({
     }),
     createdAt: v.number(),
     updatedAt: v.number(),
+    // Absent on legacy posts: engagement timestamps cannot establish a body edit.
+    editedAt: v.optional(v.number()),
     deletedAt: optionalTimestampValidator,
   })
     .index('by_project_deleted_created', [

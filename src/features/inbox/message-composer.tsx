@@ -1,4 +1,4 @@
-import type { RefObject } from 'react'
+import { useId, type RefObject } from 'react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Send } from '@/lib/icons'
@@ -8,6 +8,7 @@ export function MessageComposer({
   value,
   sending,
   error,
+  disabledReason = null,
   textareaRef,
   onChange,
   onSend,
@@ -15,10 +16,12 @@ export function MessageComposer({
   value: string
   sending: boolean
   error: string | null
+  disabledReason?: string | null
   textareaRef: RefObject<HTMLTextAreaElement | null>
   onChange: (value: string) => void
   onSend: () => Promise<void>
 }) {
+  const reasonId = useId()
   return (
     <div className="shrink-0 border-t border-line px-[var(--lx-gutter)] pt-2 pb-[calc(var(--lx-mobile-tab-height)+0.75rem)] md:pt-4 md:pb-5">
       <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-1.5 rounded-card border border-line bg-surface p-1.5 transition-colors focus-within:border-line-strong md:gap-3 md:border-0 md:bg-transparent md:p-0">
@@ -29,19 +32,20 @@ export function MessageComposer({
           onChange={(event) => onChange(event.target.value)}
           placeholder="write a message…"
           aria-label="Message"
+          aria-describedby={disabledReason ? reasonId : undefined}
           rows={1}
           className="max-h-28 min-h-11 min-w-0 border-0 bg-transparent py-2.5 font-sans md:min-h-20 md:border md:bg-surface md:py-2"
           onKeyDown={(event) => {
             if (event.key === 'Enter' && !event.shiftKey) {
               event.preventDefault()
-              void onSend()
+              if (!disabledReason && !sending) void onSend()
             }
           }}
         />
         <Button
           type="button"
           onClick={() => void onSend()}
-          disabled={!value.trim() || sending}
+          disabled={!value.trim() || sending || Boolean(disabledReason)}
           variant="primary"
           size="touch"
           className="w-11 px-0 md:w-auto md:px-4"
@@ -53,6 +57,15 @@ export function MessageComposer({
           </span>
         </Button>
       </div>
+      {disabledReason && (
+        <p
+          id={reasonId}
+          role="status"
+          className="mt-2 mb-0 font-mono text-label text-text-muted"
+        >
+          {disabledReason}
+        </p>
+      )}
       {error && (
         <p role="alert" className="mt-2 mb-0 font-mono text-label text-danger">
           {error}

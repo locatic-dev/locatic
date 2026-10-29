@@ -321,7 +321,7 @@ export function ProjectPostCard({
             </div>
             <div className="font-mono text-meta text-text-muted">
               {relativeTime(post.createdAt)}
-              {post.updatedAt > post.createdAt ? ' · edited' : ''}
+              {post.editedAt != null ? ' · edited' : ''}
             </div>
           </div>
         </div>

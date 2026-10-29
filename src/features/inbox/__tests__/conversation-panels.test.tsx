@@ -210,3 +210,52 @@ it('owns conversation identity even when a caller does not supply a key', () => 
   )
   expect(input().value).toBe('')
 })
+
+it('preserves the draft but blocks button and keyboard sends while the recipient is unavailable, then permits retry', async () => {
+  const send = vi.fn(async () => null)
+  const view = (available: boolean) => (
+    <SelectedConversationView
+      selectedConversation={{
+        ...selected,
+        otherUser: available
+          ? recipient
+          : {
+              ...recipient,
+              githubUsername: '',
+              displayName: 'account unavailable',
+            },
+      }}
+      viewerId="viewer"
+      messagesPage={{ results: [], status: 'Exhausted', loadMore: vi.fn() }}
+      sendMessage={send}
+      onMarkRead={vi.fn()}
+      onBack={vi.fn()}
+      onOpenProfile={vi.fn()}
+    />
+  )
+  const { rerender } = render(view(true))
+  const input = screen.getByRole('textbox', {
+    name: 'Message',
+  }) as HTMLTextAreaElement
+  fireEvent.change(input, { target: { value: 'Keep this draft' } })
+  rerender(view(false))
+  const button = screen.getByRole('button', {
+    name: 'Send message',
+  }) as HTMLButtonElement
+  expect(button.disabled).toBe(true)
+  expect(screen.getByRole('status').textContent).toMatch(
+    /account.*unavailable/i,
+  )
+  await act(async () => {
+    fireEvent.click(button)
+    fireEvent.keyDown(input, { key: 'Enter' })
+  })
+  expect(send).not.toHaveBeenCalled()
+  expect(input.value).toBe('Keep this draft')
+  rerender(view(true))
+  expect(screen.queryByRole('status')).toBeNull()
+  expect(button.disabled).toBe(false)
+  await act(async () => fireEvent.keyDown(input, { key: 'Enter' }))
+  expect(send).toHaveBeenCalledExactlyOnceWith('Keep this draft')
+  expect(input.value).toBe('')
+})
