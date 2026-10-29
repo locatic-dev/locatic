@@ -1,26 +1,12 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from './fixtures'
 
 test.beforeEach(async ({ page }) => {
-  const errors: string[] = []
-  page.on('pageerror', (error) => errors.push(error.message))
-  page.on('console', (message) => {
-    if (message.type() === 'error') errors.push(message.text())
-  })
-  // Fail for any unexpected remote dependency; fixture QA must be fork-safe.
-  await page.route(/^https?:\/\/(?!127\.0\.0\.1:3004)/, (route) =>
-    route.abort(),
-  )
   await page.goto('/')
   test.info().annotations.push({
     type: 'boundary',
     description: 'Real UI, memory saves; no provider/backend integration',
   })
-  // Assertions at teardown are provided by the shared fixture below.
-  browserErrors.set(page, errors)
 })
-
-const browserErrors = new WeakMap<object, string[]>()
-test.afterEach(async ({ page }) => expect(browserErrors.get(page)).toEqual([]))
 
 for (const width of [320, 390, 1280]) {
   test(`privacy controls and long identities work at ${width}px`, async ({

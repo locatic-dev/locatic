@@ -1,19 +1,6 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from './fixtures'
 
 test.use({ timezoneId: 'Asia/Kolkata' })
-test.beforeEach(async ({ page }) => {
-  const errors: string[] = []
-  page.on('pageerror', (error) => errors.push(error.message))
-  page.on('console', (message) => {
-    if (message.type() === 'error') errors.push(message.text())
-  })
-  browserErrors.set(page, errors)
-  await page.route(/^https?:\/\/(?!127\.0\.0\.1:3004)/, (route) =>
-    route.abort(),
-  )
-})
-const browserErrors = new WeakMap<object, string[]>()
-test.afterEach(async ({ page }) => expect(browserErrors.get(page)).toEqual([]))
 
 for (const width of [320, 390, 1280]) {
   test(`Inbox draft identity, send completion and history work at ${width}px`, async ({

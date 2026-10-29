@@ -1,4 +1,11 @@
 minimumReleaseAge: 1440
+# Exact-version security updates for Undici and deepmerge advisories.
+# Remove these age exceptions after 2026-10-29T20:29:00Z and verify a frozen install.
+minimumReleaseAgeExclude:
+  - '@cloudflare/vite-plugin@1.66.0'
+  - '@react-email/render@2.2.0'
+  - 'miniflare@5.20261023.2-beta'
+  - 'wrangler@4.155.0'
 blockExoticSubdeps: true
 strictDepBuilds: true
 overrides:
