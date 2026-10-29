@@ -1,4 +1,3 @@
-import { waitForClerk } from './fixtures/personas'
 import { expect, requireE2EPrerequisite, test } from './fixtures/test'
 
 test.describe('public landing', () => {
@@ -137,19 +136,22 @@ test.describe('public landing', () => {
     await expect(main.getByText('recently on the map')).toHaveCount(0)
   })
 
-  test('shows a still frame of three pinged cities under reduced motion', async ({
+  test('shows a still frame of three pinged cities under reduced motion without Clerk', async ({
     page,
   }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' })
+    await page.route('**/npm/@clerk/**', (route) => route.abort())
     await page.goto('/')
     const pingGlobe = page
       .locator('main#main-content')
       .getByRole('region', { name: 'recent activity on the map' })
     const pinged = pingGlobe.locator('[data-ping-key][data-active="true"]')
     const card = pingGlobe.locator('[data-ping-card]')
-    await waitForClerk(page)
+    // The server-rendered list establishes the data prerequisite; the
+    // assertion below waits for the globe's own reduced-motion state.
+    const activity = page.getByRole('list', { name: 'recent activity' })
     requireE2EPrerequisite(
-      (await pinged.count()) >= 3,
+      (await activity.getByRole('link').count()) >= 3,
       'Needs at least three recent activity items in the deployment.',
     )
 

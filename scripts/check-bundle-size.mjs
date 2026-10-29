@@ -66,4 +66,56 @@ for (const { label, maxGzipBytes, pattern } of BUNDLE_BUDGETS) {
   }
 }
 
+// Use the same route preloads SSR emits, so a shared chunk becoming eager
+// cannot hide behind a small entry. This excludes runtime/CDN downloads.
+const serverAssetsDirectory = new URL('../dist/server/assets/', import.meta.url)
+const manifestFiles = readdirSync(serverAssetsDirectory).filter((name) =>
+  /^_tanstack-start-manifest.*\.js$/.test(name),
+)
+if (manifestFiles.length !== 1) {
+  throw new Error(
+    `Expected exactly one route manifest, found ${manifestFiles.length}. Run pnpm build before bundle:check.`,
+  )
+}
+const { tsrStartManifest } = await import(
+  new URL(manifestFiles[0], serverAssetsDirectory).href
+)
+const manifest =
+  typeof tsrStartManifest === 'function' ? tsrStartManifest() : null
+const landingFiles = new Set()
+for (const route of ['__root__', '/']) {
+  const preloads = manifest?.routes?.[route]?.preloads
+  if (!Array.isArray(preloads) || preloads.length === 0) {
+    throw new Error(
+      `Missing route preload metadata for ${route}. Review the route manifest before changing the budget.`,
+    )
+  }
+  for (const preload of preloads) {
+    if (
+      typeof preload !== 'string' ||
+      !preload.startsWith('/assets/') ||
+      !preload.endsWith('.js') ||
+      !files.includes(preload.slice('/assets/'.length))
+    ) {
+      throw new Error(`Missing preload asset: ${preload}`)
+    }
+    landingFiles.add(preload.slice('/assets/'.length))
+  }
+}
+const landingGzipBytes = [...landingFiles].reduce(
+  (sum, file) =>
+    sum + gzipSync(readFileSync(new URL(file, assetsDirectory))).byteLength,
+  0,
+)
+// The measured static root/landing graph is ~220.2 KiB; allow ~5% growth.
+const landingMaxGzipBytes = 232 * 1024
+console.log(
+  `initial landing preloads: ${landingFiles.size} assets (${(landingGzipBytes / 1024).toFixed(2)} KiB gzip)`,
+)
+if (landingGzipBytes > landingMaxGzipBytes) {
+  throw new Error(
+    `initial landing preloads exceeds the ${landingMaxGzipBytes / 1024} KiB gzip budget.`,
+  )
+}
+
 console.log('✓ client bundle assets are within budget')

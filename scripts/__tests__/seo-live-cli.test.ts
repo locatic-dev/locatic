@@ -64,6 +64,10 @@ describe('live SEO robots policy', () => {
   it.each([
     originRobots,
     managed + originRobots,
+    managed.replace(
+      'User-agent: GPTBot',
+      'User-agent: GPTBot\nUser-agent: ClaudeBot',
+    ) + originRobots,
     (managed + originRobots)
       .replaceAll('\n', '\r\n')
       .replaceAll('User-agent:', 'USER-AGENT:'),
@@ -84,6 +88,16 @@ describe('live SEO robots policy', () => {
   })
 
   it.each([
+    managed.replace(
+      'User-agent: GPTBot\nDisallow: /',
+      'User-agent: Googlebot\nAllow: /',
+    ) + originRobots,
+    managed.replace(
+      'User-agent: GPTBot\nDisallow: /',
+      'User-agent: *\nUser-agent: GPTBot\nDisallow: /',
+    ) + originRobots,
+    managed.replace('User-Agent: *', 'User-agent: *\nUser-agent: Googlebot') +
+      originRobots,
     `${originRobots}Allow: /home\n`,
     managed.replace('Allow: /', 'Allow: /home') + originRobots,
     originRobots.replace('ai-train=no', 'ai-train=yes'),
