@@ -5,6 +5,7 @@ import { ConvexError } from 'convex/values'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
+  uiNeedsReload: false,
   search: {} as { redirect?: string },
   signInProps: [] as Array<Record<string, unknown>>,
   recovery: null as null | {
@@ -28,6 +29,10 @@ vi.mock('@tanstack/react-router', () => ({
     }),
   redirect: vi.fn(),
   useNavigate: () => mocks.navigate,
+}))
+
+vi.mock('@/integrations/clerk/ui-loading', () => ({
+  authUiNeedsDocumentReload: () => mocks.uiNeedsReload,
 }))
 
 vi.mock('convex/react', () => ({ useMutation: () => mocks.restore }))
@@ -181,4 +186,37 @@ describe('sign-in page destination', () => {
       expect(mocks.signOut).toHaveBeenCalledOnce()
     },
   )
+})
+
+describe('sign-in UI document entry', () => {
+  afterEach(() => {
+    mocks.uiNeedsReload = false
+  })
+  const beforeLoad = Route.options.beforeLoad as (
+    options: unknown,
+  ) => Promise<unknown>
+
+  it('reloads the same sign-in URL when a landing document has no Clerk UI', async () => {
+    mocks.uiNeedsReload = true
+    const { redirect } = await import('@tanstack/react-router')
+    vi.mocked(redirect).mockImplementationOnce((options) => options as never)
+    await expect(
+      beforeLoad({
+        context: { auth: { isAuthenticated: false } },
+        location: { href: '/sign-in?redirect=%2Fsettings%3Ftab%3Dprivacy' },
+      }),
+    ).rejects.toMatchObject({
+      href: '/sign-in?redirect=%2Fsettings%3Ftab%3Dprivacy',
+      reloadDocument: true,
+    })
+  })
+
+  it('keeps direct sign-in and subsequent Clerk steps within their document', async () => {
+    await expect(
+      beforeLoad({
+        context: { auth: { isAuthenticated: false } },
+        location: { href: '/sign-in/factor-one' },
+      }),
+    ).resolves.toEqual({ accountRecovery: null })
+  })
 })

@@ -56,6 +56,8 @@ const DRIFT_DEGREES_PER_SECOND = 4
 const TURN_OMEGA = 5
 /** Longest step the loop integrates, so a stalled frame never jumps. */
 const MAX_FRAME_SECONDS = 1 / 30
+/** Decorative rotation draws at 30 fps; physics still follows every frame. */
+const DRAW_INTERVAL_MS = 1000 / 30
 /**
  * Cards open downward unless their city rests below this fraction of the
  * box. Faced cities rest just below centre, so their cards cover the ocean
@@ -743,12 +745,27 @@ export function PingGlobe({
     }
     let frame = 0
     let last: number | null = null
+    let lastDraw: number | null = null
     const tick = (now: number) => {
       const dt =
         last === null ? 0 : Math.min((now - last) / 1000, MAX_FRAME_SECONDS)
       last = now
       advanceScene(scene, dt)
-      renderScene(scene)
+      if (
+        scene.held ||
+        lastDraw === null ||
+        now - lastDraw >= DRAW_INTERVAL_MS - 0.01
+      ) {
+        // Keep the cadence across irregular display frames without a burst
+        // of catch-up draws. Direct manipulation always draws immediately.
+        lastDraw =
+          lastDraw === null || scene.held
+            ? now
+            : lastDraw +
+              Math.floor((now - lastDraw + 0.01) / DRAW_INTERVAL_MS) *
+                DRAW_INTERVAL_MS
+        renderScene(scene)
+      }
       frame = requestAnimationFrame(tick)
     }
     frame = requestAnimationFrame(tick)
