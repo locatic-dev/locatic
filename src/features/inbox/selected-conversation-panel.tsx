@@ -69,6 +69,7 @@ export function SelectedConversationView({
   sendMessage: (content: string) => Promise<unknown>
   onMarkRead: () => void
 }) {
+  const recipientUnavailable = !selectedConversation.otherUser?.githubUsername
   const [newMessage, setNewMessage] = useState('')
   const [sending, setSending] = useState(false)
   const [sendError, setSendError] = useState<string | null>(null)
@@ -111,7 +112,7 @@ export function SelectedConversationView({
   }
 
   const handleSend = async () => {
-    if (!newMessage.trim() || sending) return
+    if (!newMessage.trim() || sending || recipientUnavailable) return
 
     setSending(true)
     setSendError(null)
@@ -202,7 +203,7 @@ export function SelectedConversationView({
           variant="ghost"
           size="touch"
           onClick={onBack}
-          className="md:hidden"
+          className="@3xl/inbox:hidden"
         >
           back
         </Button>
@@ -303,6 +304,11 @@ export function SelectedConversationView({
         value={newMessage}
         sending={sending}
         error={sendError}
+        disabledReason={
+          recipientUnavailable
+            ? 'This account is unavailable. Your draft is kept until you leave this conversation.'
+            : null
+        }
         textareaRef={textareaRef}
         onChange={setNewMessage}
         onSend={handleSend}

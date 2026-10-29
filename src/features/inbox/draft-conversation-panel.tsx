@@ -87,7 +87,7 @@ export function DraftConversationView({
           variant="ghost"
           size="touch"
           onClick={onBack}
-          className="md:hidden"
+          className="@3xl/inbox:hidden"
         >
           back
         </Button>

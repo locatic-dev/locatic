@@ -3,6 +3,7 @@ import type { Id } from '../../../convex/_generated/dataModel'
 import { ConversationList } from '@/features/inbox/conversation-list'
 import type { InboxConversation } from '@/features/inbox/navigation'
 import { SelectedConversationView } from '@/features/inbox/selected-conversation-panel'
+import { InboxPanes } from '@/features/inbox/inbox-panes'
 import { EmptyState } from '@/components/ui/empty-state'
 
 // All identities, locations, and messages are invented here. No remote avatars,
@@ -44,11 +45,9 @@ export function VisualInboxFixture() {
           synthetic visual fixture
         </p>
       </header>
-      <div className="flex min-h-0 flex-1">
-        <section
-          aria-label="conversations"
-          className={`w-full overflow-y-auto md:block md:w-88 md:shrink-0 md:border-r md:border-line ${selected ? 'hidden' : ''}`}
-        >
+      <InboxPanes
+        view={selected ? 'thread' : 'list'}
+        list={
           <ConversationList
             conversations={[conversation]}
             activeTab="inbox"
@@ -57,43 +56,58 @@ export function VisualInboxFixture() {
             onOpenProfile={() => {}}
             onSelectConversation={() => setSelected(true)}
           />
-        </section>
-        <section
-          aria-label="conversation"
-          className={`min-h-0 flex-1 flex-col md:flex ${selected ? 'flex' : 'hidden'}`}
-        >
-          {selected ? (
-            <SelectedConversationView
-              selectedConversation={conversation}
-              viewerId={viewerId}
-              onBack={() => setSelected(false)}
-              onOpenProfile={() => {}}
-              onMarkRead={() => {}}
-              sendMessage={async () => {}}
-              messagesPage={{
-                status: 'Exhausted',
-                loadMore: () => {},
-                results: [
-                  {
-                    _id: 'synthetic-message' as Id<'messages'>,
-                    _creationTime: 1,
-                    conversationId: conversation._id,
-                    senderId: peerId,
-                    content: conversation.lastMessage.content,
-                    readAt: null,
-                    createdAt: conversation.lastMessage.sentAt,
-                  },
-                ],
-              }}
-            />
-          ) : (
-            <EmptyState
-              title="select a conversation"
-              description="pick a thread from the list to read and reply."
-            />
-          )}
-        </section>
-      </div>
+        }
+      >
+        {selected ? (
+          <SelectedConversationView
+            selectedConversation={conversation}
+            viewerId={viewerId}
+            onBack={() => setSelected(false)}
+            onOpenProfile={() => {}}
+            onMarkRead={() => {}}
+            sendMessage={async () => {}}
+            messagesPage={{
+              status: 'Exhausted',
+              loadMore: () => {},
+              results: [
+                {
+                  _id: 'synthetic-message' as Id<'messages'>,
+                  _creationTime: 1,
+                  conversationId: conversation._id,
+                  senderId: peerId,
+                  content: conversation.lastMessage.content,
+                  readAt: null,
+                  createdAt: conversation.lastMessage.sentAt,
+                },
+              ],
+            }}
+          />
+        ) : (
+          <EmptyState
+            title="select a conversation"
+            description="pick a thread from the list to read and reply."
+          />
+        )}
+      </InboxPanes>
     </main>
+  )
+}
+
+// The app sidebar consumes the same token width here, without importing auth.
+export function ResponsiveInboxFixture() {
+  const [collapsed, setCollapsed] = useState(false)
+  return (
+    <div className="flex">
+      <aside
+        className={`hidden h-dvh shrink-0 border-r border-line md:block ${collapsed ? 'w-19' : 'w-(--lx-sidebar-width)'}`}
+      >
+        <button className="min-h-11" onClick={() => setCollapsed(!collapsed)}>
+          {collapsed ? 'expand sidebar' : 'collapse sidebar'}
+        </button>
+      </aside>
+      <div className="min-w-0 flex-1">
+        <VisualInboxFixture />
+      </div>
+    </div>
   )
 }
