@@ -34,6 +34,10 @@ export async function expectBaseline(
   name: string,
   { mask = [] }: { mask?: string[] } = {},
 ) {
+  if (!process.env.E2E_PRIVATE_BASELINE_DIR)
+    throw new Error(
+      'Provider-backed baselines require E2E_PRIVATE_BASELINE_DIR outside the repository. Use pnpm e2e:components for committed synthetic baselines.',
+    )
   await expectNoPendingContent(page)
   await page.evaluate(() => document.fonts.ready)
   await page.waitForFunction(() =>

@@ -23,6 +23,7 @@ import {
   PRIVACY_LAST_UPDATED,
 } from '@/features/legal/legal-dates'
 import { InboxFixture, RecoveryFixture } from './lifecycle-inbox-fixtures'
+import { VisualInboxFixture } from './visual-inbox-fixture'
 import './fixture.css'
 
 // Real production UI with a memory boundary. This is not provider/auth/SSR QA.
@@ -132,8 +133,20 @@ const recovery = createRoute({
   path: '/recovery',
   component: RecoveryFixture,
 })
+const visualInbox = createRoute({
+  getParentRoute: () => root,
+  path: '/visual-inbox',
+  component: VisualInboxFixture,
+})
 const router = createRouter({
-  routeTree: root.addChildren([settings, terms, privacy, inbox, recovery]),
+  routeTree: root.addChildren([
+    settings,
+    terms,
+    privacy,
+    inbox,
+    recovery,
+    visualInbox,
+  ]),
   context: { auth: { isAuthenticated: false } },
 })
 

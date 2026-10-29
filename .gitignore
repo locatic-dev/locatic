@@ -25,6 +25,9 @@ todos.json
 /docs/OSS_REVIEW_STATUS.md
 /docs/OSS_RELEASE_OPERATIONS.md
 /docs/assets/ui-issue-tracker/
+# Provider-backed screenshots can contain member data. Commit only synthetic
+# component baselines from playwright/components/visual.spec.ts-snapshots/.
+/playwright/visual.*.spec.ts-snapshots/
 
 # Local catalog inputs and generated exports
 /scripts/admin1CodesASCII.txt
