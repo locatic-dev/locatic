@@ -6,8 +6,8 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 1 : 0,
-  snapshotPathTemplate: '{testDir}/{testFilePath}-snapshots/{arg}{ext}',
-  expect: { toHaveScreenshot: { maxDiffPixelRatio: 0.01 } },
+  snapshotPathTemplate:
+    '{testDir}/{testFilePath}-snapshots/{platform}/{arg}{ext}',
   use: { baseURL: 'http://127.0.0.1:3004', trace: 'retain-on-failure' },
   webServer: {
     command: 'pnpm exec vite --config playwright/fixtures/ui/vite.config.ts',
