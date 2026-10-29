@@ -73,21 +73,44 @@ export function robotsPolicyProblems(
     'ai-train': 'no',
   } as const
   const originSignals = new Set<string>()
-  let wildcard = false
+  const groups: { agents: string[]; rules: string[] }[] = []
+  let group = { agents: [] as string[], rules: [] as string[] }
   for (const line of lines(body)) {
     const agent = /^user-agent\s*:\s*(.*)$/i.exec(line)
-    if (agent) wildcard = agent[1] === '*'
-    if (wildcard && /^disallow\s*:\s*\/$/i.test(line)) {
-      problems.push('wildcard policy blocks everything')
+    if (agent) {
+      if (group.rules.length > 0) {
+        groups.push(group)
+        group = { agents: [], rules: [] }
+      }
+      group.agents.push(agent[1])
+    } else {
+      group.rules.push(line)
     }
-    const allow = /^allow\s*:\s*(.*)$/i.exec(line)
+  }
+  groups.push(group)
+  for (const { agents, rules } of groups) {
+    // A named agent ignores other wildcard groups, including the origin's
+    // private-path rules. Managed named groups must therefore block it fully.
     if (
-      wildcard &&
-      allow &&
-      PRIVATE_PATHS.some((path) => allow[1].startsWith(path))
+      agents.some((agent) => agent !== '*') &&
+      (rules.length === 0 ||
+        rules.some((rule) => !/^disallow\s*:\s*\/$/i.test(rule)))
     ) {
-      problems.push(`wildcard Allow overrides a private path: ${allow[1]}`)
+      problems.push('named User-agent group must only disallow everything')
     }
+    if (agents.includes('*')) {
+      if (rules.some((rule) => /^disallow\s*:\s*\/$/i.test(rule))) {
+        problems.push('wildcard policy blocks everything')
+      }
+      for (const rule of rules) {
+        const allow = /^allow\s*:\s*(.*)$/i.exec(rule)
+        if (allow && PRIVATE_PATHS.some((path) => allow[1].startsWith(path))) {
+          problems.push(`wildcard Allow overrides a private path: ${allow[1]}`)
+        }
+      }
+    }
+  }
+  for (const line of lines(body)) {
     const signal = /^content-signal\s*:\s*(.*)$/i.exec(line)
     if (!signal) continue
     for (const field of signal[1].split(',')) {
