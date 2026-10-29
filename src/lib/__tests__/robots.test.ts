@@ -18,7 +18,7 @@ describe('renderRobotsTxt', () => {
     const body = renderRobotsTxt(new URL('https://locatic.dev/robots.txt'))
     expect(body).toContain('User-agent: *\n')
     expect(body).toContain(
-      'Content-Signal: search=yes, ai-input=yes, ai-train=yes\n',
+      'Content-Signal: search=yes, ai-input=yes, ai-train=no\n',
     )
     for (const path of PRIVATE_PATHS) {
       expect(body).toContain(`Disallow: ${path}\n`)

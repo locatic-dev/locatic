@@ -8,14 +8,18 @@ import { AccountRecovery } from '@/features/viewer/account-recovery'
 import { Logo } from '@/components/ui/logo'
 import { rememberDiscoveryReturn } from '@/integrations/convex/metrics'
 import { buildOnboardingUrl, validateSignInSearch } from '@/lib/safe-redirect'
+import { authUiNeedsDocumentReload } from '@/integrations/clerk/ui-loading'
 import { seo } from '@/lib/seo'
 
 export const Route = createFileRoute('/sign-in/$')({
   // Accepts our `redirect` and, failing that, a same-origin destination from
   // Clerk's own `redirect_url` / `sign_in_force_redirect_url`.
   validateSearch: validateSignInSearch,
-  beforeLoad: async ({ context, search }) => {
+  beforeLoad: async ({ context, search, location }) => {
     if (!context.auth.isAuthenticated) {
+      if (authUiNeedsDocumentReload()) {
+        throw redirect({ href: location.href, reloadDocument: true })
+      }
       return { accountRecovery: null }
     }
 

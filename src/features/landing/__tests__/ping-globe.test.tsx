@@ -758,6 +758,20 @@ describe('PingGlobe drag', () => {
   })
 })
 
+/** Counts actual canvas clears while keeping the production renderer active. */
+function trackCanvasDraws() {
+  const clearRect = vi.fn()
+  const context = new Proxy(
+    {},
+    {
+      get: (_target, key) => (key === 'clearRect' ? clearRect : () => ({})),
+      set: () => true,
+    },
+  ) as CanvasRenderingContext2D
+  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(context)
+  return clearRect
+}
+
 describe('PingGlobe globe', () => {
   it('server-renders the card at item 0 as projected with the globe facing it', () => {
     const items = TOUR
@@ -804,6 +818,63 @@ describe('PingGlobe globe', () => {
     const left = Number.parseFloat(readVariable(anchor, '--gx'))
     expect(left).toBeGreaterThan(35)
     expect(left).toBeLessThan(55)
+  })
+
+  it.each([60, 120])(
+    'bounds autonomous canvas work at %i Hz while city anchors keep moving',
+    (hz) => {
+      const clearRect = trackCanvasDraws()
+      const { container } = render(<PingGlobe items={ITEMS} />)
+      const before = Number.parseFloat(
+        readVariable(cardAnchor(container), '--gx'),
+      )
+      clearRect.mockClear()
+
+      flushFrames(hz + 1, 1000 / hz)
+
+      expect(clearRect.mock.calls.length).toBeGreaterThanOrEqual(29)
+      expect(clearRect.mock.calls.length).toBeLessThanOrEqual(31)
+      expect(
+        Number.parseFloat(readVariable(cardAnchor(container), '--gx')),
+      ).toBeGreaterThan(before)
+    },
+  )
+
+  it('keeps irregular frames bounded and redraws immediately after a pause', () => {
+    const clearRect = trackCanvasDraws()
+    render(<PingGlobe items={ITEMS} />)
+    clearRect.mockClear()
+    for (const step of [8, 9, 12, 14, 9, 12, 8, 14, 9, 10, 8])
+      flushFrames(1, step)
+    expect(clearRect.mock.calls.length).toBeLessThanOrEqual(4)
+    fireEvent.click(screen.getByRole('button', { name: 'pause map animation' }))
+    expect(frames.size).toBe(0)
+    fireEvent.click(screen.getByRole('button', { name: 'play map animation' }))
+    clearRect.mockClear()
+    flushFrames(1, 1)
+    expect(clearRect).toHaveBeenCalledOnce()
+  })
+
+  it('draws direct manipulation at the display cadence', () => {
+    const clearRect = trackCanvasDraws()
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(420)
+    const { container } = render(<PingGlobe items={ITEMS} />)
+    flick(globeBox(container), 40)
+    clearRect.mockClear()
+    flushFrames(12, 1000 / 120)
+    expect(clearRect).toHaveBeenCalledTimes(12)
+  })
+
+  it('does not catch up a stalled frame with a rotation jump', () => {
+    const { container } = render(<PingGlobe items={ITEMS} />)
+    flushFrames(60)
+    const before = Number.parseFloat(
+      readVariable(cardAnchor(container), '--gx'),
+    )
+    flushFrames(1, 10_000)
+    const after = Number.parseFloat(readVariable(cardAnchor(container), '--gx'))
+    expect(Math.abs(after - before)).toBeLessThan(1)
+    expect(frames.size).toBe(1)
   })
 
   it('stops the frame loop while paused, hidden or off screen', () => {
