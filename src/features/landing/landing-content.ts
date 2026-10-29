@@ -10,7 +10,7 @@ export type ActiveMapCity = FunctionReturnType<
 
 /**
  * Fewer cities with activity than this and the landing shows no city dots
- * (plan item D7): a handful of dots reads as an empty
+ *: a handful of dots reads as an empty
  * product, not a map.
  */
 export const LANDING_MAP_MIN_CITIES = 5

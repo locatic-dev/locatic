@@ -78,7 +78,7 @@ export function OnboardingShell({
 
 /**
  * Back, skip and continue for a step. A disabled continue always says why in
- * visible text beside it (plan F11); a finish failure renders inline as an
+ * visible text beside it; a finish failure renders inline as an
  * alert and the answers stay in place for a retry.
  */
 export function StepNav({

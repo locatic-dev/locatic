@@ -207,7 +207,7 @@ function ExploreView({ viewer }: { viewer: ExploreViewer | null }) {
   const viewerId = viewer?.viewerId
   const currentScope = search.scope
   const currentMode = search.mode
-  // URL filters that apply to this mode (D2 language/topic, D3 collab).
+  // URL filters that apply to this mode (language/topic, collab).
   const modeFilters = getExploreModeFilters(search, currentMode)
   const hasModeFilters = Object.keys(modeFilters).length > 0
   const isGlobalFeed = isExploreProjectFeedGlobal(currentScope)
@@ -260,7 +260,7 @@ function ExploreView({ viewer }: { viewer: ExploreViewer | null }) {
   const isPostBrowseActive =
     currentMode === 'posts' && debouncedSearchQuery.length === 0
 
-  // Only members get a stored scope for the shell's Explore link (I5);
+  // Only members get a stored scope for the shell's Explore link;
   // public Explore keeps its state in the URL alone.
   useEffect(() => {
     if (isVisitor) return
@@ -323,7 +323,7 @@ function ExploreView({ viewer }: { viewer: ExploreViewer | null }) {
     builderCityIds: nearbyBuilderCityIds,
   })
 
-  // Members read their personal feeds, visitors the public ones (C1); the
+  // Members read their personal feeds, visitors the public ones; the
   // unused query of each pair is skipped. Visitors' feeds start from the
   // first page the route loader rendered on the server (first-page.ts).
   const projectFeedArgs =
@@ -893,7 +893,7 @@ function ExploreView({ viewer }: { viewer: ExploreViewer | null }) {
     : undefined
 
   // An explicitly chosen single city whose browse feed turned out empty
-  // (C2): name it, count its builders, list a few, and offer two actions.
+  //: name it, count its builders, list a few, and offer two actions.
   // Nothing here changes the scope without a click. The counts and builders
   // come from the rail's reads for the same city.
   const explicitCityId = currentScope === 'custom' ? railCityId : null

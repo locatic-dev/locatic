@@ -27,7 +27,7 @@ import type {
 import { compactNumber } from '@/lib/format'
 
 // Shared sections of the public profile (/u/$username) and the own profile
-// (/profile). Both routes render them in the order set by plan item C6:
+// (/profile). Both routes render them in this order:
 // identity, bio, actions, pinned projects, recent work, contribution graph
 // and languages, then network and the full activity tabs.
 

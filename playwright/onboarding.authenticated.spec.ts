@@ -1,4 +1,5 @@
 import type { Page } from '@playwright/test'
+import { resetOnboardingPersona } from './fixtures/reset-onboarding'
 import {
   currentPathname,
   gotoRetryingAbort,
@@ -13,7 +14,7 @@ import {
   test,
 } from './fixtures/test'
 
-// Onboarding with and without eligible builders (plan items B13, C10). The
+// Onboarding with and without eligible builders. The
 // follow step exists only when the chosen city has an eligible builder.
 // Nothing is saved before "finish", so these tests walk the steps and stop
 // short of it; the onboarding user stays un-onboarded for the next run.
@@ -44,6 +45,7 @@ test.describe('onboarding', () => {
   test.use({ storageState: SIGNED_OUT_STATE })
 
   test.beforeEach(async ({ page }) => {
+    await resetOnboardingPersona()
     requireE2EPrerequisite(
       Boolean(personas.onboardingEmail),
       'needs a Clerk user that has not finished onboarding (set E2E_CLERK_ONBOARDING_USER_EMAIL)',

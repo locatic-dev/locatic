@@ -11,7 +11,7 @@ export const NO_CITY_EXPLANATION =
 
 /**
  * City choice with the shared combobox, plus a "can't find my city" path that
- * continues with no city (plan U5).
+ * continues with no city.
  */
 export function CityStepFields({
   noCity,

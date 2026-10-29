@@ -1,0 +1,52 @@
+name: Dependency advisory audit
+
+on:
+  schedule:
+    - cron: '23 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dependency-audit-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  audit:
+    name: Audit (${{ matrix.scope }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        scope: [full, production]
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6
+        with:
+          run_install: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: package.json
+      # Audit the committed lockfile without installing packages or scripts.
+      # Keep pnpm's non-zero status for advisories AND registry failures.
+      - name: Audit lockfile
+        env:
+          AUDIT_SCOPE: ${{ matrix.scope }}
+        run: |
+          if [ "$AUDIT_SCOPE" = production ]; then
+            pnpm audit --prod --json > dependency-audit.json
+          else
+            pnpm audit --json > dependency-audit.json
+          fi
+      - name: Retain advisory or registry-error report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: dependency-audit-${{ matrix.scope }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: dependency-audit.json
+          if-no-files-found: error
+          retention-days: 14

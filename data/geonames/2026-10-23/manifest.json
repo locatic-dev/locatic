@@ -1,0 +1,37 @@
+{
+  "source": "GeoNames Gazetteer",
+  "snapshotDate": "2026-10-23",
+  "retrievedAt": "2026-10-23T08:08:44.362216+00:00",
+  "license": "CC-BY-4.0",
+  "inputs": {
+    "archive": {
+      "file": "cities15000.zip",
+      "url": "https://download.geonames.org/export/dump/cities15000.zip",
+      "sha256": "6d9ec0783783fd382b632dc120a9e1d401020ac98552fc74d05f40e56ea719b2"
+    },
+    "regions": {
+      "file": "admin1CodesASCII.txt",
+      "url": "https://download.geonames.org/export/dump/admin1CodesASCII.txt",
+      "sha256": "55153d45d5347e658eed69c1064563e929c6e199d51ed0649a61d2e629711d44"
+    },
+    "license": {
+      "file": "README.geonames.txt",
+      "url": "https://download.geonames.org/export/dump/readme.txt",
+      "sha256": "b1957379b6c1242c700c98ac9a8aa0a09f56c3c0a50ee72175527005f48ef2c5"
+    }
+  },
+  "extracted": {
+    "entry": "cities15000.txt",
+    "sha256": "4dd78861ab16e454e7e5cd162afa4598d35bd04dffc704fcc7a59eac5bcc3181"
+  },
+  "generator": {
+    "nodeVersion": "24.15.0",
+    "locale": "en",
+    "timestamp": 1792713600000,
+    "limit": 100000
+  },
+  "catalog": {
+    "rows": 30675,
+    "sha256": "f9f2aec81c8f402c0aac2d905065e24dc7b3be768c2d904e1a4d0b3d2fb2160b"
+  }
+}

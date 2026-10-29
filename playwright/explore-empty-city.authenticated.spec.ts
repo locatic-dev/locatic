@@ -13,7 +13,7 @@ import {
   test,
 } from './fixtures/test'
 
-// Empty-city persona (playwright/fixtures/fixtures.md, plan items C2, C10): an
+// Empty-city persona (playwright/fixtures/fixtures.md): an
 // onboarded exact-city member of a city with no other builders or projects.
 
 function exploreScope(page: Page) {

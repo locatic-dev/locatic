@@ -14,7 +14,7 @@ interface DotMapProps {
   height?: number
   className?: string
   /**
-   * Places to plot (plan item D5), snapped to the land-mask dot they fall
+   * Places to plot, snapped to the land-mask dot they fall
    * on. When neither `points` nor `focus` is given the map shows the
    * landing's illustrative example pins.
    */

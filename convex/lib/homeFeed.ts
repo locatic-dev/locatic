@@ -6,6 +6,10 @@ import {
   HOME_FEED_GROUP_KIND_VALUES,
 } from './constants'
 import type { Doc } from './types'
+import {
+  isAccountDeleted,
+  isAccountPastRestorationWindow,
+} from './account_deletion'
 
 export type HomeFeedTarget = NonNullable<Doc<'activity_events'>['target']>
 type HomeFeedGroupKind = (typeof HOME_FEED_GROUP_KIND_VALUES)[number]
@@ -183,6 +187,37 @@ export async function upsertHomeFeedItemForEvent(
   item: HomeFeedItemInput,
   target: HomeFeedTarget,
 ) {
+  const [recipient, actor] = await Promise.all([
+    ctx.db.get(item.userId),
+    ctx.db.get(item.actorId),
+  ])
+  if (
+    !recipient ||
+    !actor ||
+    isAccountDeleted(recipient) ||
+    isAccountDeleted(actor) ||
+    actor.deactivatedAt != null
+  ) {
+    return { action: 'skipped' as const, id: null }
+  }
+  if ('projectId' in target) {
+    const project = await ctx.db.get(target.projectId)
+    const owner = project ? await ctx.db.get(project.ownerId) : null
+    if (!owner || isAccountDeleted(owner) || owner.deactivatedAt != null)
+      return { action: 'skipped' as const, id: null }
+  } else if (target.kind === 'profile') {
+    const profile = await ctx.db.get(target.profile.userId)
+    if (!profile || isAccountDeleted(profile) || profile.deactivatedAt != null)
+      return { action: 'skipped' as const, id: null }
+  }
+  if ('postId' in target && target.postId) {
+    const post = await ctx.db.get(target.postId)
+    if (post) {
+      const author = await ctx.db.get(post.actorId)
+      if (!author || isAccountPastRestorationWindow(author, Date.now()))
+        return { action: 'skipped' as const, id: null }
+    }
+  }
   const groupKey = buildHomeFeedGroupKey(item.userId, item, target)
   const existing = await ctx.db
     .query('home_feed_items')

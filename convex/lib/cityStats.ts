@@ -9,11 +9,11 @@ import type { Doc } from './types'
 import { getMemberCityId } from './visibility'
 
 /**
- * City counters (plan item A4, decisions D8/D14). `cities.stats` is maintained
+ * City counters. `cities.stats` is maintained
  * on write by the mutations that change who or what counts for a city, so
  * read paths never aggregate:
  *
- * - `builderCount`: users who are exact-city members of the city (A2
+ * - `builderCount`: users who are exact-city members of the city (the
  *   visibility policy) and discoverable (`appearInExplore`, not deactivated,
  *   not deleted). Region-only and hidden users never count.
  * - `projectCount`: projects with `exploreOwner.isEligible` whose
@@ -32,10 +32,10 @@ import { getMemberCityId } from './visibility'
  *   or release would re-run every subscribed query showing a card from that
  *   city.
  *
- * Missing `stats` (rows written before A4, or cities nobody has counted for)
+ * Missing `stats` (rows written before the counters, or cities nobody has counted for)
  * read as zero.
  *
- * `activityCell` (plan item D5) is written with the counters: the city's
+ * `activityCell` is written with the counters: the city's
  * coarse cell while `builderCount` or `projectCount` is above zero, removed
  * otherwise. `readNearbyActiveCities` reads it by index.
  */
@@ -77,7 +77,7 @@ export function readCityStats(
 
 /**
  * A city is active for nearby lookups while it has a counted builder or
- * project. Counts come from A4, so hidden and region-only users never make a
+ * project. Counts come from `cities.stats`, so hidden and region-only users never make a
  * city active.
  */
 export function hasCityActivity(
@@ -96,7 +96,11 @@ export function getCityActivityCell(
 
 /** The city a user counts toward as a builder, or null. */
 export function getBuilderCityId(user: BuilderCandidate): Id<'cities'> | null {
-  if (!user.appearInExplore || user.deletedAt || user.deactivatedAt) {
+  if (
+    !user.appearInExplore ||
+    user.deletedAt != null ||
+    user.deactivatedAt != null
+  ) {
     return null
   }
   return getMemberCityId(user)
@@ -404,7 +408,7 @@ export async function recountCityStats(
   return true
 }
 
-/** Nearby cities a city page suggests and plots (plan item D5). */
+/** Nearby cities a city page suggests and plots. */
 const NEARBY_CITY_LIMIT = 5
 
 /** Rows read per cell; nine cells bound one lookup to 9 x 20 city reads. */
@@ -417,9 +421,9 @@ export type NearbyActiveCity = {
 }
 
 /**
- * The nearest active catalogue cities to `city`, closest first (plan item
- * D5). Reads only `by_activity_cell` for the city's cell and its eight
- * neighbours, one bounded `take` each; only cities with A4 activity hold a
+ * The nearest active catalogue cities to `city`, closest first.
+ * Reads only `by_activity_cell` for the city's cell and its eight
+ * neighbours, one bounded `take` each; only cities with counted activity hold a
  * cell, so the read is bounded by active cities near the city, never by the
  * catalogue. Candidates are ranked by great-circle distance. A cell with more
  * than `NEARBY_CELL_READ_LIMIT` active cities contributes an arbitrary subset

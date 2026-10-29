@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ComponentType } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -11,6 +11,9 @@ const mocks = vi.hoisted(() => ({
   completeOnboarding: vi.fn(),
   navigate: vi.fn(),
   search: {} as { redirect?: string },
+  lifecycle: null as string | null,
+  listGithubRepositories: vi.fn().mockResolvedValue([]),
+  importSelectedRepositories: vi.fn(),
 }))
 
 vi.mock('@tanstack/react-router', () => ({
@@ -31,6 +34,7 @@ vi.mock('@tanstack/react-query', async (importOriginal) => ({
       ? {
           data: {
             isAuthenticated: true,
+            status: mocks.lifecycle,
             needsOnboarding: true,
             viewer: {
               _id: 'user_viewer',
@@ -49,8 +53,8 @@ vi.mock('@/features/onboarding/mutations', () => ({
 }))
 
 vi.mock('@/features/github/actions', () => ({
-  useImportSelectedRepositories: () => vi.fn(),
-  useListGithubRepositories: () => vi.fn().mockResolvedValue([]),
+  useImportSelectedRepositories: () => mocks.importSelectedRepositories,
+  useListGithubRepositories: () => mocks.listGithubRepositories,
 }))
 
 vi.mock('@/features/follows/mutations', () => ({
@@ -79,7 +83,9 @@ async function finishWithSkips() {
 describe('onboarding completion', () => {
   afterEach(() => {
     mocks.search = {}
+    mocks.lifecycle = null
     vi.clearAllMocks()
+    cleanup()
   })
 
   it('goes to the preserved destination, query and hash included', async () => {
@@ -101,5 +107,24 @@ describe('onboarding completion', () => {
     expect(mocks.navigate).toHaveBeenCalledWith(
       expect.objectContaining({ to: '/explore' }),
     )
+  })
+
+  it('leaves onboarding if deletion arrives while it is mounted', async () => {
+    const client = new QueryClient()
+    const tree = () => (
+      <QueryClientProvider client={client}>
+        <OnboardingPage />
+      </QueryClientProvider>
+    )
+    const view = render(tree())
+    mocks.lifecycle = 'deletion_pending'
+    await act(async () => view.rerender(tree()))
+
+    expect(mocks.navigate).toHaveBeenCalledWith({
+      to: '/sign-in/$',
+      search: { redirect: undefined },
+      replace: true,
+    })
+    expect(screen.queryByRole('button', { name: /continue/ })).toBeNull()
   })
 })

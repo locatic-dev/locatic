@@ -121,7 +121,7 @@ describe('users.viewerBootstrap isEmailAdmin', () => {
   })
 })
 
-describe('users.publicProfileOverview (C6 profile payload)', () => {
+describe('users.publicProfileOverview (profile payload)', () => {
   let t: TestConvex<typeof schema>
   let bengaluru: Id<'cities'>
   let ada: Id<'users'>

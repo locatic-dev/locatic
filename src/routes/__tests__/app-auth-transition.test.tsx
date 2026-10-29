@@ -10,6 +10,7 @@ const state = vi.hoisted(() => ({
   loaded: true,
   authenticated: true,
   viewer: true,
+  lifecycle: null as string | null,
   error: false,
   navigate: vi.fn(),
 }))
@@ -56,13 +57,19 @@ vi.mock('@/integrations/convex/metrics', () => ({
 }))
 vi.mock('@tanstack/react-query', async (original) => ({
   ...(await original<typeof import('@tanstack/react-query')>()),
-  useQuery: () => ({ data: undefined }),
+  useQuery: ({ queryKey }: { queryKey: string[] }) => ({
+    data:
+      queryKey[1] === 'users:viewerBootstrap'
+        ? { status: state.lifecycle, viewer: null }
+        : undefined,
+  }),
   useSuspenseQuery: ({ queryKey }: { queryKey: string[] }) => {
     switch (queryKey[1]) {
       case 'users:viewerBootstrap':
         return {
           data: {
             isAuthenticated: state.viewer,
+            status: state.lifecycle ?? 'ready',
             viewer: state.viewer
               ? {
                   profile: { displayName: 'Ada', cityId: null },
@@ -127,12 +134,27 @@ beforeEach(() => {
     loaded: true,
     authenticated: true,
     viewer: true,
+    lifecycle: null,
     error: false,
   })
 })
 afterEach(cleanup)
 
 describe('mounted app authentication transitions', () => {
+  it('removes private content and routes to recovery when the account is deleted in a mounted session', () => {
+    const update = mountApp()
+    state.lifecycle = 'deletion_pending'
+    state.viewer = false
+    update()
+
+    expectNoFeedFallback()
+    expect(screen.queryByTestId('member-shell')).toBeNull()
+    expect(state.navigate).toHaveBeenCalledWith({
+      to: '/sign-in/$',
+      search: { redirect: '/home' },
+      replace: true,
+    })
+  })
   it('does not render Home when viewer loss precedes the auth notification', () => {
     const update = mountApp()
     expect(

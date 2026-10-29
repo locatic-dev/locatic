@@ -19,11 +19,13 @@ jobs:
     name: Quality
     runs-on: ubuntu-latest
     env:
-      VITE_CONVEX_URL: ${{ secrets.VITE_CONVEX_URL || 'https://example.convex.cloud' }}
+      VITE_CONVEX_URL: https://example.convex.cloud
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
@@ -39,3 +41,44 @@ jobs:
 
       - name: Run quality checks
         run: pnpm run ci:quality
+
+      - name: Verify archived city catalog
+        run: pnpm cities:catalog --check
+
+  build:
+    name: Build and bundle budget
+    runs-on: ubuntu-latest
+    env:
+      VITE_CONVEX_URL: https://example.convex.cloud
+      VITE_CLERK_PUBLISHABLE_KEY: pk_test_ZXhhbXBsZS5jbGVyay5hY2NvdW50cy5kZXYk
+      WRANGLER_SEND_METRICS: 'false'
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: package.json
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm ci:build
+
+  browser:
+    name: Deterministic browser components
+    # Keep the OS within the installed Playwright version's supported set.
+    runs-on: ubuntu-24.04
+    container:
+      image: mcr.microsoft.com/playwright:v1.60.0-noble
+      options: --ipc=host
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: package.json
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm e2e:components

@@ -2,6 +2,7 @@ import { ConvexError } from 'convex/values'
 
 import type { MutationCtx, QueryCtx } from '../_generated/server'
 import { getViewerAuthState } from './auth'
+import { isAccountDeleted } from './account_deletion'
 import type { Doc } from './types'
 
 type EmailAdminCtx = Pick<QueryCtx | MutationCtx, 'auth' | 'db'>
@@ -20,11 +21,11 @@ export function getConfiguredEmailAdminSubjects(
 /** Allowlisted (EMAIL_ADMIN_CLERK_IDS) and active. */
 export function isEmailAdminViewer(
   identitySubject: string,
-  viewer: Pick<Doc<'users'>, 'deletedAt' | 'deactivatedAt'>,
+  viewer: Pick<Doc<'users'>, 'deletedAt' | 'deactivatedAt' | 'purgedAt'>,
 ) {
   return (
-    !viewer.deletedAt &&
-    !viewer.deactivatedAt &&
+    !isAccountDeleted(viewer) &&
+    viewer.deactivatedAt == null &&
     getConfiguredEmailAdminSubjects().has(identitySubject)
   )
 }
@@ -37,7 +38,7 @@ export async function requireEmailAdmin(ctx: EmailAdminCtx) {
   if (state.kind === 'missingViewer') {
     throw new ConvexError('Viewer not found')
   }
-  if (state.viewer.deletedAt || state.viewer.deactivatedAt) {
+  if (isAccountDeleted(state.viewer) || state.viewer.deactivatedAt != null) {
     throw new ConvexError('Email admin account is inactive')
   }
   if (!isEmailAdminViewer(state.identity.subject, state.viewer)) {

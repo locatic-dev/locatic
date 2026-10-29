@@ -35,6 +35,7 @@ function parseArgs(argv) {
     limit: 200,
     countries: null,
     admin1: '',
+    timestamp: Date.now(),
   }
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -49,12 +50,17 @@ function parseArgs(argv) {
         .filter(Boolean)
     }
     if (arg === '--admin1') args.admin1 = argv[index + 1] ?? ''
+    if (arg === '--timestamp') args.timestamp = Number(argv[index + 1])
   }
 
   if (!args.input) {
     throw new Error(
       'Missing --input. Download cities500.txt or cities1000.txt from https://download.geonames.org/export/dump/ and pass its path here.',
     )
+  }
+
+  if (!Number.isSafeInteger(args.timestamp) || args.timestamp < 0) {
+    throw new Error('--timestamp must be a nonnegative integer in milliseconds')
   }
 
   return args
@@ -106,7 +112,7 @@ function toAliasList(name, asciiName, alternateNames) {
     base.add(trimmed.toLowerCase())
     if (base.size >= 8) break
   }
-  return [...base].sort((left, right) => left.localeCompare(right))
+  return [...base].sort((left, right) => left.localeCompare(right, 'en'))
 }
 
 function toSeedCity(line, admin1Lookup) {
@@ -214,9 +220,7 @@ ${rows.join(',\n')}
 `
 }
 
-function formatOutput(cities, outputPath) {
-  const timestamp = Date.now()
-
+function formatOutput(cities, outputPath, timestamp) {
   if (outputPath.endsWith('.jsonl')) {
     return cities
       .map((city) => JSON.stringify(toConvexImportCity(city, timestamp)))
@@ -257,7 +261,11 @@ async function main() {
   const outputPath =
     args.output || path.join(process.cwd(), 'scripts', 'generated-cities.ts')
 
-  await writeFile(outputPath, formatOutput(ranked, outputPath), 'utf8')
+  await writeFile(
+    outputPath,
+    formatOutput(ranked, outputPath, args.timestamp),
+    'utf8',
+  )
 
   process.stdout.write(`Wrote ${ranked.length} cities to ${outputPath}\n`)
 }

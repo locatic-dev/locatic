@@ -135,8 +135,8 @@ function ProjectFilterPopover({
 
 /**
  * Filter controls for the header band, laid out inline with the city
- * controls: primary language and topic in projects mode (plan item D2),
- * "open to collab" in builders mode (D3). Each lives in the URL, so a
+ * controls: primary language and topic in projects mode,
+ * "open to collab" in builders mode. Each lives in the URL, so a
  * filtered Explore link is shareable and survives a reload.
  */
 export function ExploreFilterBar({

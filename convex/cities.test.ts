@@ -26,6 +26,7 @@ import {
   seedPopulatedCity,
   seedProject,
   seedUser,
+  finishLifecycleOwnerSync,
   type FixtureCity,
   type PopulatedCityFixture,
 } from './__tests__/fixtures.helpers'
@@ -45,7 +46,7 @@ function as(t: TestConvex<typeof schema>, username: string) {
 }
 
 /**
- * Stats recomputed in the test from the raw rows, straight from the D8 rules
+ * Stats recomputed in the test from the raw rows, straight from the location-disclosure rules
  * rather than from convex/lib/cityStats.ts or the stored `exploreOwner`: a
  * builder is an exact-city member who is discoverable (appearInExplore, not
  * deactivated or deleted); a project counts when it is visible and its owner
@@ -206,7 +207,7 @@ const privacyArgs = {
   appearInPulse: true,
 }
 
-describe('city counters (A4)', () => {
+describe('city counters', () => {
   let t: TestConvex<typeof schema>
   let fixture: PopulatedCityFixture
 
@@ -266,6 +267,7 @@ describe('city counters (A4)', () => {
         website: null,
       },
     })
+    await finishLifecycleOwnerSync(t, fixture.users.alice)
     await expectCountersMatchRecount(t)
     expect(
       await t.query(api.cities.getStats, { cityId: hyderabad }),
@@ -291,6 +293,7 @@ describe('city counters (A4)', () => {
       ...privacyArgs,
       cityVisibility: 'hidden',
     })
+    await finishLifecycleOwnerSync(t, fixture.users.carol)
     await expectCountersMatchRecount(t)
 
     // Set another user region-only: frank leaves Hyderabad's counts.
@@ -298,6 +301,7 @@ describe('city counters (A4)', () => {
       ...privacyArgs,
       cityVisibility: 'region_only',
     })
+    await finishLifecycleOwnerSync(t, fixture.users.frank)
     await expectCountersMatchRecount(t)
 
     // A hidden user who switches to exact city joins with their project.
@@ -305,6 +309,7 @@ describe('city counters (A4)', () => {
       ...privacyArgs,
       cityVisibility: 'exact_city',
     })
+    await finishLifecycleOwnerSync(t, fixture.users.erin)
     await expectCountersMatchRecount(t)
 
     // Leaving discovery removes a builder without changing their city.
@@ -313,10 +318,12 @@ describe('city counters (A4)', () => {
       stackPrefs: [],
       appearInExplore: false,
     })
+    await finishLifecycleOwnerSync(t, fixture.users.erin)
     await expectCountersMatchRecount(t)
 
     // Delete a user: alice's builder and projects leave Hyderabad.
     await as(t, 'alice').mutation(api.users.deleteAccount, {})
+    await finishLifecycleOwnerSync(t, fixture.users.alice)
     await expectCountersMatchRecount(t)
     expect(await t.query(api.cities.getStats, { cityId: hyderabad })).toEqual(
       ZERO,
@@ -414,7 +421,7 @@ describe('city counters (A4)', () => {
     })
     expect(await bengaluruActivity()).toBe(newerCommitAt)
 
-    // New activity alone moves the mark in steps of at least an hour (S3).
+    // New activity alone moves the mark in steps of at least an hour.
     vi.setSystemTime(Date.now() + LAST_ACTIVITY_WRITE_STEP_MS)
     const postedAt = Date.now()
     await as(t, 'bob').mutation(api.posts.create, {
@@ -517,7 +524,7 @@ const NEW_YORK = searchFixtureCity(
 )
 const BERNAU = searchFixtureCity('Bernau', 'Brandenburg', 'Germany', 'DE')
 
-describe('cities.search (B10)', () => {
+describe('cities.search', () => {
   let t: TestConvex<typeof schema>
 
   beforeEach(async () => {
@@ -658,7 +665,7 @@ describe('cities.search (B10)', () => {
   })
 })
 
-describe('location disclosure in lists built from other users (A2 follow-ups)', () => {
+describe('location disclosure in lists built from other users', () => {
   let t: TestConvex<typeof schema>
   let fixture: PopulatedCityFixture
 
@@ -877,7 +884,7 @@ function recordingReader(db: DatabaseReader, log: ReadRecord[]) {
   }) as DatabaseReader
 }
 
-describe('city pages (D5)', () => {
+describe('city pages', () => {
   let t: TestConvex<typeof schema>
 
   beforeEach(() => {
@@ -943,7 +950,7 @@ describe('city pages (D5)', () => {
     expect(page?.recentWork).toEqual({ projects: [], hasMore: false })
     expect(page?.builders).toEqual([])
     expect(page?.posts).toEqual([])
-    // Bengaluru (about 130 km) is suggested with its A4 counts; Hyderabad is
+    // Bengaluru (about 130 km) is suggested with its counted builders; Hyderabad is
     // active too but outside the neighbouring cells.
     expect(page?.nearby).toEqual([
       expect.objectContaining({
@@ -992,7 +999,7 @@ describe('city pages (D5)', () => {
       new Set(page?.recentWork.projects.slice(0, 2).map((row) => row.repo)),
     ).toEqual(new Set(['city-notes', 'raymarch']))
     expect(page?.recentWork.hasMore).toBe(false)
-    // D4 order: newest public work first, then builders without the signal.
+    // Activity order: newest public work first, then builders without the signal.
     expect(page?.builders.map((builder) => builder.userId)).toEqual([
       alice,
       bob,
@@ -1074,7 +1081,10 @@ describe('city pages (D5)', () => {
     })
     const page = await getPage('bengaluru-in')
 
-    expect(page?.stats).toMatchObject({ builderCount: 2, projectCount: 3 })
+    expect(page?.stats?.builderCount).toBe(2)
+    // Public membership/locations change immediately; stored project counters catch up.
+    await finishLifecycleOwnerSync(t, fixture.users.bob)
+    expect((await getPage('bengaluru-in'))?.stats?.projectCount).toBe(3)
     expect(page?.builders.map((builder) => builder.userId)).not.toContain(
       fixture.users.bob,
     )
@@ -1167,7 +1177,7 @@ describe('city pages (D5)', () => {
   })
 })
 
-describe('landing map aggregate (D7)', () => {
+describe('landing map aggregate', () => {
   let t: TestConvex<typeof schema>
 
   beforeEach(() => {
@@ -1203,7 +1213,7 @@ describe('landing map aggregate (D7)', () => {
 
     const cities = await listForMap()
 
-    // Every dot is a city with builderCount > 0 under the A4 counters.
+    // Every dot is a city with builderCount > 0 under the maintained counters.
     for (const row of cities) {
       const stats = await t.run(async (ctx) => {
         const cityRow = await ctx.db

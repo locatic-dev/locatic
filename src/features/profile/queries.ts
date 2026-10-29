@@ -21,6 +21,6 @@ export {
   publicFollowGraphQueryOptions,
 } from '@/integrations/convex/query-options'
 
-// Read only by the two profile routes (plan item D6).
+// Read only by the two profile routes.
 export const publicProfileShippingLogQueryOptions = (username: string) =>
   convexQuery(api.users.publicProfileShippingLog, { username })

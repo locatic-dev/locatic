@@ -1,5 +1,4 @@
 export {
-  conversationDetailQueryOptions,
+  conversationSummaryQueryOptions,
   conversationRecipientPreviewQueryOptions,
-  conversationsQueryOptions,
 } from '@/integrations/convex/query-options'

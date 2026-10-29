@@ -123,7 +123,7 @@ export const Route = createFileRoute('/u/$username')({
     }
 
     if (overview.privacy.followGraphVisibility === 'public') {
-      void context.queryClient.prefetchQuery(
+      await context.queryClient.prefetchQuery(
         publicFollowGraphQueryOptions({
           username: params.username,
           kind: deps.network,
@@ -302,10 +302,17 @@ function PublicProfileContent({
   const [isRoutePending, startRouteTransition] = useTransition()
   const [loadingMoreGraph, setLoadingMoreGraph] =
     useState<ProfileNetworkTab | null>(null)
-  const [followersPage, setFollowersPage] =
-    useState<ProfileSocialPagePayload>(emptySocialPage)
-  const [followingPage, setFollowingPage] =
-    useState<ProfileSocialPagePayload>(emptySocialPage)
+  const [extendedGraphPages, setExtendedGraphPages] = useState<
+    Partial<
+      Record<
+        ProfileNetworkTab,
+        {
+          firstPage: ProfileSocialPagePayload
+          page: ProfileSocialPagePayload
+        }
+      >
+    >
+  >({})
   const isFollowGraphPublic =
     overview.privacy.followGraphVisibility === 'public'
   const showContributions = isProfileContributionsPublic(overview.privacy)
@@ -354,20 +361,6 @@ function PublicProfileContent({
       tab === 'liked' && overview.privacy.likedProjectsVisibility === 'public',
     staleTime: TAB_QUERY_STALE_TIME,
   })
-
-  useEffect(() => {
-    const page = activeSocialQuery.data as ProfileSocialPagePayload | undefined
-    if (!page) {
-      return
-    }
-
-    if (network === 'followers') {
-      setFollowersPage(page)
-      return
-    }
-
-    setFollowingPage(page)
-  }, [activeSocialQuery.data, network])
 
   useEffect(() => {
     void queryClient.prefetchQuery(publicProfileProjectsQueryOptions(username))
@@ -444,10 +437,16 @@ function PublicProfileContent({
       overview.privacy.likedProjectsVisibility === 'public' &&
       likedProjectsQuery.isLoading)
 
-  const socialItems =
-    network === 'followers' ? followersPage.page : followingPage.page
-  const hasMoreSocial =
-    network === 'followers' ? !followersPage.isDone : !followingPage.isDone
+  // Render the query snapshot during SSR and the first client render. Appended
+  // pages belong to that snapshot; a refetch starts a fresh cursor chain.
+  const firstSocialPage = activeSocialQuery.data
+  const extendedSocialPage = extendedGraphPages[network]
+  const socialPage =
+    firstSocialPage && extendedSocialPage?.firstPage === firstSocialPage
+      ? extendedSocialPage.page
+      : (firstSocialPage ?? emptySocialPage())
+  const socialItems = isFollowGraphPublic ? socialPage.page : []
+  const hasMoreSocial = isFollowGraphPublic && !socialPage.isDone
 
   const prefetchTab = (nextTab: ProfileContentTab) => {
     switch (nextTab) {
@@ -504,8 +503,18 @@ function PublicProfileContent({
       return
     }
 
-    const currentPage = kind === 'followers' ? followersPage : followingPage
-    if (currentPage.isDone || !isFollowGraphPublic) {
+    const firstPageOptions = publicFollowGraphQueryOptions({
+      username,
+      kind,
+      paginationOpts: { cursor: null, numItems: SOCIAL_PAGE_SIZE },
+    })
+    const firstPage = queryClient.getQueryData<ProfileSocialPagePayload>(
+      firstPageOptions.queryKey,
+    )
+    const extension = extendedGraphPages[kind]
+    const currentPage =
+      extension?.firstPage === firstPage ? extension?.page : firstPage
+    if (!currentPage || currentPage.isDone || !isFollowGraphPublic) {
       return
     }
 
@@ -523,15 +532,18 @@ function PublicProfileContent({
         }),
       )) as ProfileSocialPagePayload
 
-      const merge = (current: ProfileSocialPagePayload) => ({
-        ...page,
-        page: mergeSocialItems(current.page, page.page),
-      })
-      if (kind === 'followers') {
-        setFollowersPage(merge)
-      } else {
-        setFollowingPage(merge)
-      }
+      if (queryClient.getQueryData(firstPageOptions.queryKey) !== firstPage)
+        return
+      setExtendedGraphPages((current) => ({
+        ...current,
+        [kind]: {
+          firstPage,
+          page: {
+            ...page,
+            page: mergeSocialItems(currentPage.page, page.page),
+          },
+        },
+      }))
     } catch (error) {
       reportActionError(error, {
         title: "couldn't load more",
@@ -633,9 +645,11 @@ function PublicProfileContent({
 
       <ProfileShippingLog entries={shippingLogQuery.data ?? []} />
 
-      <ProfileContributionSection
-        githubContributions={overview.githubContributions}
-      />
+      {showContributions && (
+        <ProfileContributionSection
+          githubContributions={overview.githubContributions}
+        />
+      )}
 
       <ProfileLanguagesSection
         projects={[...overview.pinnedProjects, ...overview.recentProjects]}
@@ -657,6 +671,7 @@ function PublicProfileContent({
               userId: String(item.userId),
             }))}
             loading={networkIsLoading}
+            failed={activeSocialQuery.isError && !firstSocialPage}
             loadingMore={loadingMoreGraph === network}
             onChangeTab={(nextTab) => {
               if (isFollowGraphPublic) {
@@ -664,6 +679,7 @@ function PublicProfileContent({
               }
             }}
             onLoadMore={() => void handleLoadMoreGraph(network)}
+            onRetry={() => void activeSocialQuery.refetch()}
             onSelectUser={(nextUsername) =>
               void navigate({
                 to: '/u/$username',

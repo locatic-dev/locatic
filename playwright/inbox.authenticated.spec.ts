@@ -9,7 +9,7 @@ import {
 } from './fixtures/test'
 
 // Persona: the populated user in `fixtures/fixtures.md` needs at least one
-// inbox conversation and one pending outgoing request (C9).
+// inbox conversation and one pending outgoing request.
 
 function conversationRows(page: Page) {
   return page

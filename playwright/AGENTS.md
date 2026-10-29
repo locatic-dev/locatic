@@ -3,6 +3,7 @@
 End-to-end specs run against the Convex deployment and Clerk instance configured in `.env.local`; see `playwright.config.ts` for projects.
 
 - Name specs `*.public.spec.ts` (signed-out, `chromium-public`) or `*.authenticated.spec.ts` (stored Clerk session from `auth.setup.ts`, `chromium-authenticated`).
+- Provider-free component browser tests live in `components/` and run only with `playwright.components.config.ts` (`pnpm e2e:components`). Their Vite fixture imports production UI with memory saves; it must never import provider secrets or be treated as end-to-end backend evidence.
 - Never print or commit env values or `playwright/.clerk/` storage state.
 
 ## Fixtures

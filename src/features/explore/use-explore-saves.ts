@@ -2,7 +2,7 @@ import { useQueries } from '@tanstack/react-query'
 import type { Id } from '../../../convex/_generated/dataModel'
 import { savedStateQueryOptions } from '@/features/projects/saves'
 
-/** Most ids `api.projects.getSavedState` accepts per call (plan item D1). */
+/** Most ids `api.projects.getSavedState` accepts per call. */
 export const SAVED_STATE_CHUNK_SIZE = 40
 
 /**

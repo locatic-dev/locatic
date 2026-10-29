@@ -9,7 +9,7 @@ import type {
 /**
  * Automatic fetches allowed after a loaded page adds no visible rows, before
  * the feed stops and asks the viewer to keep looking. With 20-row pages the
- * automatic reads of one interaction stay within 60 index rows (plan D2/T5).
+ * automatic reads of one interaction stay within 60 index rows.
  */
 export const EXPLORE_AUTO_FETCH_LIMIT = 3
 

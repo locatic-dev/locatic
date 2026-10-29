@@ -3,6 +3,7 @@ import { ConvexError } from 'convex/values'
 import type { ActionCtx, MutationCtx, QueryCtx } from '../_generated/server'
 import { createDefaultViewerProfile } from './viewer'
 import { assertGithubUsernameAvailable } from './github_identity'
+import { isAccountDeleted } from './account_deletion'
 
 type AuthCapableCtx =
   | Pick<QueryCtx, 'auth'>
@@ -54,7 +55,7 @@ export async function getViewerFromAuth(
   ctx: Pick<QueryCtx, 'auth' | 'db'> | Pick<MutationCtx, 'auth' | 'db'>,
 ) {
   const state = await getViewerAuthState(ctx)
-  if (state.kind !== 'ready') {
+  if (state.kind !== 'ready' || isAccountDeleted(state.viewer)) {
     return null
   }
 
@@ -101,7 +102,16 @@ export async function getViewerOrThrow(
     throw new ConvexError('Viewer not found')
   }
 
+  assertAccountAvailable(state.viewer)
+
   return state.viewer
+}
+
+export function assertAccountAvailable(viewer: {
+  deletedAt?: number | null
+  purgedAt?: number | null
+}) {
+  if (isAccountDeleted(viewer)) throw new ConvexError('Account unavailable')
 }
 
 function getIdentityEmail(identity: Record<string, unknown>): string {
@@ -195,6 +205,7 @@ export async function getOrCreateViewer(ctx: MutationCtx) {
 
   const existingViewer = await getViewerByClerkId(ctx, identity.subject)
   if (existingViewer) {
+    assertAccountAvailable(existingViewer)
     return existingViewer
   }
 

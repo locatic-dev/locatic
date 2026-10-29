@@ -11,12 +11,17 @@ export function isContributionsVisibleOnPublicProfile(
 type ProfileAccessFields = {
   deletedAt?: number | null
   deactivatedAt?: number | null
+  purgedAt?: number | null
   privacy: { profileVisibility: 'public' | 'locatic_only' }
 }
 
 /** A gone account's profile is closed to everyone. */
 export function isProfileGone(user: ProfileAccessFields) {
-  return Boolean(user.deletedAt || user.deactivatedAt)
+  return (
+    user.deletedAt != null ||
+    user.deactivatedAt != null ||
+    user.purgedAt != null
+  )
 }
 
 /**

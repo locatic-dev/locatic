@@ -3,10 +3,8 @@ import { describe, expect, it } from 'vitest'
 import {
   mapConversationList,
   mapNotifications,
-  mapPrivateProfile,
   mapPrivateProfileOverview,
   mapProjectDetail,
-  mapPublicProfile,
   mapViewerLikedProjectIds,
   mapViewerSummary,
   mapViewer,
@@ -14,6 +12,22 @@ import {
 } from '../contracts'
 
 describe('contract mappers', () => {
+  it('preserves lifecycle-only recovery metadata without a member profile', () => {
+    expect(
+      mapViewerBootstrap({
+        isAuthenticated: true,
+        needsOnboarding: false,
+        status: 'deletion_pending',
+        viewer: null,
+        accountLifecycle: { canRestore: true, purgeAfter: 123 },
+      }),
+    ).toMatchObject({
+      status: 'deletion_pending',
+      viewer: null,
+      accountLifecycle: { canRestore: true, purgeAfter: 123 },
+    })
+  })
+
   it('maps explicit and legacy viewer bootstrap auth states', () => {
     expect(
       mapViewerBootstrap({
@@ -102,127 +116,6 @@ describe('contract mappers', () => {
     expect(mapped.cityName).toBe('Berlin, Germany')
     expect(mapped.appearInExplore).toBe(true)
     expect(mapped).not.toHaveProperty('syncGithubStarsOnLike')
-  })
-
-  it('maps nested private and public profile payloads', () => {
-    const privateProfile = mapPrivateProfile({
-      cityName: 'Bengaluru, India',
-      comments: [],
-      likedProjects: [],
-      posts: [],
-      projects: [],
-      viewer: {
-        _id: 'user_1',
-        appearInExplore: false,
-        exploreConfig: { cityIds: [], stackPrefs: ['TypeScript'] },
-        github: { username: 'octocat' },
-        githubContributions: {
-          totalContributions: 12,
-          syncedAt: 123,
-          weeks: [
-            {
-              days: [{ count: 2, date: '2026-05-01' }],
-            },
-          ],
-        },
-        notificationPrefs: {
-          comments: true,
-          commentReplies: true,
-          contributorRecognized: true,
-          dms: true,
-          newFollowers: true,
-          projectLikes: true,
-          updateLikes: true,
-          weeklyDigest: false,
-        },
-        onboardingSelectedOwnedProjectIds: [],
-        onboardingCompletedAt: null,
-        pinnedProfileProjectIds: [],
-        privacy: {
-          appearInPulse: true,
-          cityVisibility: 'exact_city',
-          commentHistoryVisibility: 'public',
-          followGraphVisibility: 'public',
-          likedProjectsVisibility: 'public',
-          profileVisibility: 'public',
-        },
-        profile: {
-          avatarUrl: null,
-          bio: '',
-          buildStatus: 'just_exploring',
-          cityId: null,
-          displayName: 'Octo',
-          socialLinks: {
-            bluesky: null,
-            github: 'octocat',
-            linkedin: null,
-            website: null,
-            x: null,
-          },
-        },
-        stats: {
-          commentsCount: 0,
-          contributionsCount: 0,
-          followersCount: 0,
-          followingCount: 0,
-          likedCount: 0,
-          projectsCount: 0,
-        },
-      },
-      contributions: [],
-      followers: [],
-      following: [],
-    } as never)
-
-    const publicProfile = mapPublicProfile({
-      comments: [],
-      contributions: [],
-      followers: [],
-      githubUsername: 'octocat',
-      following: [],
-      likedProjects: [],
-      posts: [],
-      privacy: {
-        appearInPulse: true,
-        cityVisibility: 'exact_city',
-        commentHistoryVisibility: 'public',
-        followGraphVisibility: 'public',
-        likedProjectsVisibility: 'public',
-        profileVisibility: 'public',
-      },
-      profile: {
-        avatarUrl: null,
-        bio: 'hello',
-        buildStatus: 'building_solo',
-        city: 'Berlin, Germany',
-        displayName: 'Octo',
-        socialLinks: {
-          bluesky: null,
-          github: 'octocat',
-          linkedin: null,
-          website: null,
-          x: null,
-        },
-      },
-      projects: [],
-      stats: {
-        commentsCount: 0,
-        contributionsCount: 0,
-        followersCount: 8,
-        followingCount: 4,
-        likedCount: 0,
-        projectsCount: 2,
-      },
-      userId: 'user_1',
-      viewerFollowsProfile: true,
-    } as never)
-
-    expect(privateProfile?.viewer.cityName).toBe('Bengaluru, India')
-    expect(privateProfile?.viewer.githubContributions?.totalContributions).toBe(
-      12,
-    )
-    expect(publicProfile?.viewerFollowsProfile).toBe(true)
-    expect(publicProfile?.profile.city).toBe('Berlin, Germany')
   })
 
   it('maps the lightweight private profile overview payload', () => {

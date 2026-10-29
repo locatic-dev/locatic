@@ -37,7 +37,7 @@ type NearbyBuilderVisibilityCandidate<TUserId, TCityId> = {
  * Convex page. Convex allows a single `.paginate()` per function execution,
  * so a feed query reads exactly one page and returns its continuation
  * unchanged: a page may filter down to nothing while `isDone` is still false,
- * and the client decides whether to fetch the next page (plan item A3).
+ * and the client decides whether to fetch the next page.
  */
 export async function filterExplorePage<TItem, TVisible = TItem>(
   result: PaginationResult<TItem>,
@@ -131,7 +131,7 @@ type ViewerCityProjectCandidate<TCityId> = {
 }
 
 /**
- * Own projects shown in an explicitly selected city (plan item C2): only in
+ * Own projects shown in an explicitly selected city: only in
  * `custom` scope, only once the city's ranked rows are exhausted (`isDone`),
  * so they always come after other builders' projects; only eligible projects
  * whose Explore city is one of the selected cities; newest commit first.
@@ -219,7 +219,7 @@ export function shouldReportPostSearchHasMore({
 
 /**
  * The comparison key for a language name, shared by stack preferences and the
- * `language` filter (plan item D2): trimmed and case-insensitive, so
+ * `language` filter: trimmed and case-insensitive, so
  * "TypeScript", "typescript" and " TYPESCRIPT " are one language.
  */
 export function normalizeExploreLanguage(value: string) {
@@ -227,7 +227,7 @@ export function normalizeExploreLanguage(value: string) {
 }
 
 /**
- * Explore project filters (plan item D2), normalised; null means "any".
+ * Explore project filters, normalised; null means "any".
  * `language` matches `github.primaryLanguage` only; `topic` matches the
  * canonical topics (`getProjectTopics`: edited Locatic tags when present,
  * otherwise GitHub topics), so a card's topics are exactly what the filter
@@ -275,7 +275,7 @@ export function matchesExploreProjectFilters<
 }
 
 /**
- * Accounts younger than this read as new builders (plan item D4). Mirrors
+ * Accounts younger than this read as new builders. Mirrors
  * `NEW_BUILDER_WINDOW_MS` in `src/lib/builder-activity.ts`; a test pins the
  * two together.
  */
@@ -290,7 +290,7 @@ export function isNewBuilderAccount(createdAt: number, now: number) {
 }
 
 /**
- * Build statuses the builders "open to collab" filter keeps (plan item D3):
+ * Build statuses the builders "open to collab" filter keeps:
  * the statuses that invite someone in. Mirrors `isCollaborationStatus` in
  * `src/components/ui/status-pill.tsx`, which decides where the pill shows.
  */

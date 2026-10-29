@@ -87,3 +87,19 @@ export function getSettingsDirty(
     initial.website !== current.website
   )
 }
+
+export function getSettingsUrlErrors(
+  form: Pick<SettingsAccountFormInput, 'website' | 'linkedin'>,
+) {
+  return {
+    website:
+      form.website.trim() && !normalizeSocialLinkValue('website', form.website)
+        ? 'Enter a valid website URL, such as https://example.com.'
+        : null,
+    linkedin:
+      form.linkedin.trim() &&
+      !normalizeSocialLinkValue('linkedin', form.linkedin)
+        ? 'Enter a valid LinkedIn URL.'
+        : null,
+  }
+}

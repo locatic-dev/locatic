@@ -12,7 +12,7 @@ import {
 } from './__tests__/fixtures.helpers'
 
 /**
- * Private saves (plan item D1): a saved list is readable only by the user who
+ * Private saves: a saved list is readable only by the user who
  * saved it, save and unsave are idempotent so toggling twice leaves no row,
  * and the card-state query is bounded.
  */

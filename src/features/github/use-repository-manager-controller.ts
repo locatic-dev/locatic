@@ -12,6 +12,7 @@ import {
   canPinRepositoryManagerItem,
   filterRepositoryManagerItems,
   getRepositoryViewQueryKeys,
+  getRepositoryImportFeedback,
   sortVisibleProjectPreviews,
   type GithubRepositoryManagerRecord,
   type RepositoryManagerItem,
@@ -230,9 +231,7 @@ export function useRepositoryManagerController({
       const importedCount = (result.reposNew ?? 0) + (result.reposUpdated ?? 0)
 
       setFeedback(
-        skippedRepos.length > 0
-          ? `${importedCount} repositories updated. ${skippedRepos.length} could not be imported right now.`
-          : `${importedCount} repositories are now synced with your profile.`,
+        getRepositoryImportFeedback(importedCount, skippedRepos.length),
       )
       setSelectedRepoFullNames([])
       await invalidateRepositoryViews()

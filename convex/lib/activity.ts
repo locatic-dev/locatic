@@ -4,7 +4,7 @@ import { getProjectActivityAt } from './cityStats'
 import type { Doc } from './types'
 
 /**
- * Builder activity signal (plan item D4). `users.stats.lastPublicActivityAt`
+ * Builder activity signal. `users.stats.lastPublicActivityAt`
  * is the time of the builder's most recent publicly visible work:
  *
  *   max(latest published release, latest live post, latest commit)

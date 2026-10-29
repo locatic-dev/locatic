@@ -21,7 +21,7 @@ export const Route = createFileRoute('/_app/saved')({
   component: SavedPage,
 })
 
-/** The viewer's private saved projects, most recently saved first (D1). */
+/** The viewer's private saved projects, most recently saved first. */
 function SavedPage() {
   const navigate = Route.useNavigate()
   const saved = usePaginatedQuery(

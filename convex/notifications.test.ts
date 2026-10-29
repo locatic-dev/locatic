@@ -24,7 +24,7 @@ async function allNotifications(t: TestConvex<typeof schema>) {
   return await t.run((ctx) => ctx.db.query('notifications').collect())
 }
 
-describe('notifications (C9)', () => {
+describe('notifications', () => {
   let t: TestConvex<typeof schema>
   let viewerId: Id<'users'>
   let actorId: Id<'users'>
@@ -120,7 +120,7 @@ describe('notifications (C9)', () => {
       type: 'dm_received',
       conversationId,
     })
-    // A legacy row: before S5, `dm_received` was created unread.
+    // A legacy row: `dm_received` used to be created unread.
     await seedNotification(t, {
       recipientId: viewerId,
       actorId,

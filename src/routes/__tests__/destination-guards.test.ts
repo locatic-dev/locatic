@@ -7,6 +7,7 @@ type GuardArgs = {
   needsOnboarding?: boolean
   href?: string
   search?: Record<string, unknown>
+  status?: string
 }
 
 function guardArgs({
@@ -14,6 +15,7 @@ function guardArgs({
   needsOnboarding = false,
   href = '/',
   search = {},
+  status,
 }: GuardArgs) {
   const url = new URL(href, 'https://locatic.test')
   return {
@@ -23,6 +25,10 @@ function guardArgs({
         ensureQueryData: async () => ({
           isAuthenticated: authenticated,
           needsOnboarding,
+          status,
+          accountLifecycle: status
+            ? { canRestore: status === 'deletion_pending', purgeAfter: 123 }
+            : undefined,
         }),
       },
     },
@@ -41,6 +47,7 @@ type BeforeLoad = (args: unknown) => Promise<unknown>
 async function beforeLoadOf(modulePath: string): Promise<BeforeLoad> {
   const routes: Record<string, () => Promise<{ Route: unknown }>> = {
     app: () => import('@/routes/_app'),
+    landing: () => import('@/routes/index'),
     city: () => import('@/routes/c.$slug'),
     explore: () => import('@/routes/explore'),
     onboarding: () => import('@/routes/onboarding'),
@@ -126,6 +133,42 @@ describe('_app guard', () => {
   })
 })
 
+describe.each(['deletion_pending', 'deletion_expired', 'purged'])(
+  'account recovery guards for %s',
+  (status) => {
+    it('checks lifecycle before honoring a supplied sign-in destination', async () => {
+      const beforeLoad = await beforeLoadOf('signIn')
+      await expect(
+        beforeLoad(
+          guardArgs({
+            authenticated: true,
+            status,
+            search: { redirect: '/settings?tab=account' },
+          }),
+        ),
+      ).resolves.toMatchObject({ accountRecovery: { status } })
+    })
+
+    it.each([
+      ['app', '/inbox'],
+      ['onboarding', '/onboarding'],
+      ['landing', '/'],
+      ['explore', '/explore'],
+      ['city', '/c/berlin'],
+    ])(
+      'routes %s to recovery instead of member or onboarding behavior',
+      async (route, href) => {
+        const beforeLoad = await beforeLoadOf(route)
+        await expect(
+          beforeLoad(guardArgs({ authenticated: true, status, href })),
+        ).rejects.toMatchObject({
+          options: { to: '/sign-in/$' },
+        })
+      },
+    )
+  },
+)
+
 describe('sign-in guard', () => {
   it('shows the sign-in page to signed-out visitors', async () => {
     const beforeLoad = await beforeLoadOf('signIn')
@@ -134,7 +177,7 @@ describe('sign-in guard', () => {
       beforeLoad(
         guardArgs({ authenticated: false, search: { redirect: '/explore' } }),
       ),
-    ).resolves.toBeUndefined()
+    ).resolves.toEqual({ accountRecovery: null })
   })
 
   it('sends a signed-in user to the preserved destination', async () => {

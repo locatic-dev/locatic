@@ -345,3 +345,13 @@ export function sortVisibleProjectPreviews(
     compareVisibleProjects(left, right, pinnedIds),
   )
 }
+
+export function getRepositoryImportFeedback(
+  importedCount: number,
+  skippedCount: number,
+) {
+  const noun = importedCount === 1 ? 'repository' : 'repositories'
+  return skippedCount > 0
+    ? `${importedCount} ${noun} updated. ${skippedCount} could not be imported right now.`
+    : `${importedCount} ${noun} ${importedCount === 1 ? 'is' : 'are'} now synced with your profile.`
+}

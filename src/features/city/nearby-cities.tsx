@@ -4,7 +4,7 @@ import { describeNearbyMap, formatCityCounts } from './copy'
 import type { CityPagePayload } from './types'
 
 /**
- * The one map surface (plan item D5): the city and its nearby active cities
+ * The one map surface: the city and its nearby active cities
  * on the dot map, and the same cities as a list of links. Renders nothing
  * when no nearby city has activity.
  */

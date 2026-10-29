@@ -6,6 +6,7 @@ import {
   canPinRepositoryManagerItem,
   filterRepositoryManagerItems,
   getRepositoryViewQueryKeys,
+  getRepositoryImportFeedback,
   sortVisibleProjectPreviews,
   updatePinnedProjectIds,
   updateVisibleProjectPreviews,
@@ -350,4 +351,18 @@ describe('optimistic preview helpers', () => {
       ['public-projects'],
     ])
   })
+})
+
+describe('repository import feedback', () => {
+  it.each([
+    [1, 0, '1 repository is now synced with your profile.'],
+    [2, 0, '2 repositories are now synced with your profile.'],
+    [1, 1, '1 repository updated. 1 could not be imported right now.'],
+    [0, 2, '0 repositories updated. 2 could not be imported right now.'],
+  ])(
+    'describes %i imported and %i skipped repositories',
+    (imported, skipped, expected) => {
+      expect(getRepositoryImportFeedback(imported, skipped)).toBe(expected)
+    },
+  )
 })

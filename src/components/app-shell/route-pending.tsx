@@ -248,7 +248,7 @@ export function ProjectRoutePending() {
 }
 
 /**
- * Mirrors the profile page order (plan item C6): the identity header (64px
+ * Mirrors the profile page order: the identity header (64px
  * avatar, name, handle, location and status pills), bio, meta and actions,
  * then one pinned card, the recent-work list (the same content-list
  * skeleton the page shows while it loads), then the contribution graph.

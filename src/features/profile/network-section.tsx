@@ -19,10 +19,12 @@ export function ProfileNetworkSection({
   hasMore,
   isPrivate = false,
   loading = false,
+  failed = false,
   items,
   loadingMore,
   onChangeTab,
   onLoadMore,
+  onRetry,
   onSelectUser,
 }: {
   activeTab: ProfileNetworkTab
@@ -30,10 +32,12 @@ export function ProfileNetworkSection({
   hasMore: boolean
   isPrivate?: boolean
   loading?: boolean
+  failed?: boolean
   items: SocialPreview[]
   loadingMore: boolean
   onChangeTab: (tab: ProfileNetworkTab) => void
   onLoadMore: () => void
+  onRetry?: () => void
   onSelectUser: (username: string) => void
 }) {
   return (
@@ -105,6 +109,19 @@ export function ProfileNetworkSection({
                 </div>
               </div>
             ))}
+          </div>
+        ) : failed ? (
+          <div role="alert" className="px-2 py-4 text-label text-text-muted">
+            <p className="m-0">couldn't load this network.</p>
+            {onRetry && (
+              <button
+                type="button"
+                onClick={onRetry}
+                className="mt-2 min-h-11 underline"
+              >
+                try again
+              </button>
+            )}
           </div>
         ) : items.length === 0 ? (
           <EmptyState size="compact" headingLevel={3} title={emptyLabel} />

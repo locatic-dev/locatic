@@ -1,5 +1,6 @@
 import { usePaginatedQuery } from 'convex/react'
 import type React from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import type { Id } from '../../../../convex/_generated/dataModel'
 import { api } from '../../../../convex/_generated/api'
 import { Button } from '@/components/ui/button'
@@ -13,6 +14,7 @@ import { CommentActions } from './comment-actions'
 import { commentComposerTextareaClass } from './composer-styles'
 import type { ProjectCommentView } from './types'
 import { CONTENT_LIMITS } from '../../../../convex/lib/content_limits'
+import { shouldAutoLoadDeepLinkPage } from '@/features/projects/deep-link'
 
 function ReplySkeleton() {
   return (
@@ -44,7 +46,8 @@ function ReplySkeleton() {
 export function CommentThread({
   activeHighlightedCommentId,
   commentItem,
-  commentRefs,
+  registerCommentElement,
+  highlightedCommentPath = [],
   depth,
   expandedIds,
   handleDeleteComment,
@@ -61,7 +64,8 @@ export function CommentThread({
 }: {
   activeHighlightedCommentId: string | null
   commentItem: ProjectCommentView
-  commentRefs: React.MutableRefObject<Record<string, HTMLElement | null>>
+  registerCommentElement?: (id: string, element: HTMLElement | null) => void
+  highlightedCommentPath?: string[]
   depth: number
   expandedIds: Set<string>
   handleDeleteComment: (commentId: Id<'comments'>) => Promise<void>
@@ -78,6 +82,13 @@ export function CommentThread({
   viewerId: string | null
 }) {
   const commentId = String(commentItem._id)
+  const registerElement = useCallback(
+    (element: HTMLElement | null) =>
+      registerCommentElement?.(commentId, element),
+    [commentId, registerCommentElement],
+  )
+  const loadTargetRef = useRef<string | null>(null)
+  const loadAttemptsRef = useRef(0)
   const comment = commentItem
   const repliesOpen = expandedIds.has(commentId)
   const previewReplies = comment.previewReplies ?? []
@@ -111,7 +122,35 @@ export function CommentThread({
     pendingChildReplies.length > 0
   const repliesRegionId = `comment-${commentId}-replies`
   const showReplySkeleton =
-    repliesPage.status === 'LoadingFirstPage' && visibleReplies.length === 0
+    shouldLoadReplies &&
+    repliesPage.status === 'LoadingFirstPage' &&
+    visibleReplies.length === 0
+  const pathIndex = highlightedCommentPath.indexOf(commentId)
+  const nextTarget =
+    activeHighlightedCommentId && pathIndex >= 0
+      ? (highlightedCommentPath[pathIndex + 1] ?? activeHighlightedCommentId)
+      : null
+
+  useEffect(() => {
+    if (!repliesOpen || !nextTarget || nextTarget === commentId) return
+    if (loadTargetRef.current !== nextTarget) {
+      loadTargetRef.current = nextTarget
+      loadAttemptsRef.current = 0
+    }
+    if (
+      shouldAutoLoadDeepLinkPage({
+        attempts: loadAttemptsRef.current,
+        isLoaded: visibleReplies.some(
+          (reply) => String(reply._id) === nextTarget,
+        ),
+        status: repliesPage.status,
+        targetId: nextTarget,
+      })
+    ) {
+      loadAttemptsRef.current += 1
+      repliesPage.loadMore(6)
+    }
+  }, [commentId, nextTarget, repliesOpen, repliesPage, visibleReplies])
 
   if (comment.isDeleted && !hasReplies) {
     return null
@@ -120,9 +159,7 @@ export function CommentThread({
   return (
     <article
       id={`comment-${commentId}`}
-      ref={(node) => {
-        commentRefs.current[commentId] = node
-      }}
+      ref={registerElement}
       className={
         nested
           ? 'relative min-w-0 border-l border-line pl-3 sm:pl-4'
@@ -249,7 +286,8 @@ export function CommentThread({
                     key={String(reply._id)}
                     activeHighlightedCommentId={activeHighlightedCommentId}
                     commentItem={reply}
-                    commentRefs={commentRefs}
+                    registerCommentElement={registerCommentElement}
+                    highlightedCommentPath={highlightedCommentPath}
                     depth={depth + 1}
                     expandedIds={expandedIds}
                     handleDeleteComment={handleDeleteComment}

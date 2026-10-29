@@ -42,7 +42,7 @@ test.describe('public landing', () => {
     const notFoundMain = page.locator('main#main-content')
     await expect(notFoundMain).toBeVisible()
     // The 404 page always draws the example pins, which ping; the landing
-    // map pings only while it shows the example (plan item D7).
+    // map pings only while it shows the example.
     await expect(page.locator('.lx-dot-map-ping').first()).toHaveCSS(
       'display',
       'none',
@@ -111,7 +111,7 @@ test.describe('public landing', () => {
     })
   }
 
-  test('shows real cities and activity cards, never examples (D7)', async ({
+  test('shows real cities and activity cards, never examples', async ({
     page,
   }) => {
     await page.goto('/')

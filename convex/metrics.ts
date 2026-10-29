@@ -8,7 +8,7 @@ import {
 } from './_generated/server'
 
 /**
- * Daily product counters (plan item E4, T7). Each counted action adds 1 to a
+ * Daily product counters. Each counted action adds 1 to a
  * `metrics_daily` row keyed by UTC day and metric key. Nothing identifies the
  * user, and page views are never counted. docs/metrics.md lists what each key
  * means and how to read it next to the dashboard's function breakdown.

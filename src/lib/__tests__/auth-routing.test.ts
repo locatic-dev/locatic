@@ -76,6 +76,28 @@ describe('auth routing helpers', () => {
     expect(fetchAuth).toHaveBeenCalledTimes(2)
   })
 
+  it('does not retain a failed in-flight auth read across a later signed-out request', async () => {
+    const failure = new Error('Not Found')
+    const fetchAuth = vi
+      .fn()
+      .mockRejectedValueOnce(failure)
+      .mockResolvedValueOnce({
+        isAuthenticated: false,
+        token: null,
+        userId: null,
+      })
+    const getAuthState = createClientRouteAuthStateGetter(fetchAuth)
+    const first = getAuthState()
+    expect(getAuthState()).toBe(first)
+    await expect(first).rejects.toBe(failure)
+    await expect(getAuthState()).resolves.toEqual({
+      isAuthenticated: false,
+      token: null,
+      userId: null,
+    })
+    expect(fetchAuth).toHaveBeenCalledTimes(2)
+  })
+
   it('treats project detail pages as standalone routes', () => {
     expect(isProjectDetailPath('/project/octocat/hello-world')).toBe(true)
     expect(isProjectDetailPath('/projects')).toBe(false)

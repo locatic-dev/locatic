@@ -10,7 +10,7 @@ export {
 } from '@/integrations/convex/query-options'
 
 /**
- * Maintained counters for one city (plan item A4); a public query. Skipped
+ * Maintained counters for one city; a public query. Skipped
  * (no subscription) without a city.
  */
 export const cityStatsQueryOptions = (cityId: Id<'cities'> | null) =>

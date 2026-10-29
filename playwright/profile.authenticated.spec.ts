@@ -8,7 +8,7 @@ import {
   test,
 } from './fixtures/test'
 
-test.describe('profiles for a signed-in builder (C6, C8)', () => {
+test.describe('profiles for a signed-in builder', () => {
   test('own profile keeps the shared section order', async ({ page }) => {
     await page.goto('/profile')
     requireOnboardedPersona(page)
@@ -23,7 +23,7 @@ test.describe('profiles for a signed-in builder (C6, C8)', () => {
             ?.textContent?.trim() ?? '',
       ),
     )
-    // The shipping log (D6) sits with recent work above the graph, and only
+    // The shipping log sits with recent work above the graph, and only
     // renders when the builder has releases or posts.
     const leading = [
       'pinned',

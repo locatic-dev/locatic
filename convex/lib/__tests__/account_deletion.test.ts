@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   ACCOUNT_PURGE_RETENTION_MS,
   getAccountDeletionWindow,
+  getDeactivationBeforeDeletion,
   shouldPurgeDeletedAccount,
 } from '../account_deletion'
 
@@ -82,5 +83,34 @@ describe('shouldPurgeDeletedAccount', () => {
         3_000,
       ),
     ).toBe(false)
+  })
+})
+
+describe('getDeactivationBeforeDeletion', () => {
+  it('returns the recorded state, including an active account and the epoch', () => {
+    expect(
+      getDeactivationBeforeDeletion({
+        deletedAt: 10,
+        deactivatedAt: 10,
+        deletionPreviousDeactivatedAt: null,
+      }),
+    ).toBeNull()
+    expect(
+      getDeactivationBeforeDeletion({
+        deletedAt: 10,
+        deactivatedAt: 10,
+        deletionPreviousDeactivatedAt: 0,
+      }),
+    ).toBe(0)
+  })
+
+  it('keeps every legacy deactivation, because its history is ambiguous', () => {
+    expect(
+      getDeactivationBeforeDeletion({ deletedAt: 10, deactivatedAt: 0 }),
+    ).toBe(0)
+    expect(
+      getDeactivationBeforeDeletion({ deletedAt: 0, deactivatedAt: 0 }),
+    ).toBe(0)
+    expect(getDeactivationBeforeDeletion({ deletedAt: 10 })).toBeNull()
   })
 })

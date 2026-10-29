@@ -28,7 +28,7 @@ import { useProjectSaveToggle } from '@/features/projects/saves'
 import { useExploreSavedProjectIds } from '../use-explore-saves'
 
 /**
- * The one explicitly selected city of an empty browse feed (plan item C2).
+ * The one explicitly selected city of an empty browse feed.
  * `builderCount` comes from the city counters (null while loading);
  * `localBuilders` is a short, bounded list of the city's builders.
  */
@@ -44,7 +44,7 @@ export type ExploreEmptyCity = {
 export type ExploreVisitor = { signInRedirect: string | undefined }
 
 /**
- * The URL filters narrowing the current feed (D2, D3): a plain description
+ * The URL filters narrowing the current feed: a plain description
  * ("primary language rust, topic #webgpu") and the action that clears them.
  */
 export type ExploreActiveFilters = {
@@ -525,7 +525,7 @@ function ExploreFeedBody({
   viewerId?: Id<'users'>
   visitor?: ExploreVisitor
 }) {
-  // Saved state for the loaded project cards (plan item D1), members only.
+  // Saved state for the loaded project cards, members only.
   const saveToggle = useProjectSaveToggle()
   const savedProjectIds = useExploreSavedProjectIds(
     state.mode === 'projects' && 'items' in state
@@ -613,7 +613,7 @@ function ExploreFeedBody({
   )
 
   if (state.items.length === 0) {
-    // Continuation remains, so this is never "no results" (D2).
+    // Continuation remains, so this is never "no results".
     return (
       <div className="py-6 text-center">
         <p className="font-mono text-label text-text-muted">
