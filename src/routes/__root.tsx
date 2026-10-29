@@ -9,7 +9,8 @@ import {
 } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
 import { useQueryErrorResetBoundary } from '@tanstack/react-query'
-import { auth } from '@clerk/tanstack-react-start/server'
+import { auth, clerkClient } from '@clerk/tanstack-react-start/server'
+import { resolveClerkRouteAuth } from '@/integrations/clerk/route-auth'
 import { LazyMotion, MotionConfig } from 'motion/react'
 import { ThemeProvider } from 'next-themes'
 import { Suspense, lazy, useEffect } from 'react'
@@ -56,18 +57,9 @@ const fetchClerkAuth = createServerFn({ method: 'GET' }).handler(async () => {
     )
   }
 
-  const authState = await auth()
-  const useConvexTokenTemplate = authState.sessionClaims?.aud !== 'convex'
-
-  return {
-    isAuthenticated: authState.isAuthenticated,
-    token: authState.isAuthenticated
-      ? await authState.getToken(
-          useConvexTokenTemplate ? { template: 'convex' } : undefined,
-        )
-      : null,
-    userId: authState.userId,
-  }
+  return resolveClerkRouteAuth(await auth(), (sessionId) =>
+    clerkClient().sessions.getSession(sessionId),
+  )
 })
 
 const getClientRouteAuthState = createClientRouteAuthStateGetter(() =>
