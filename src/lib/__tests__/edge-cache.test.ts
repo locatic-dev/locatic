@@ -73,6 +73,35 @@ describe('hasClerkSession', () => {
 })
 
 describe('isCacheableRequest', () => {
+  it.each([
+    'text/html',
+    '*/*',
+    'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+    'application/json;q=1, text/html;q=0.5',
+    '*/*;q=0.5',
+  ])('allows a supported HTML Accept header: %s', (accept) => {
+    expect(isCacheableRequest(get('/', undefined, 'GET', { accept }))).toBe(
+      true,
+    )
+  })
+
+  it.each([
+    'application/json',
+    'text/markdown',
+    'text/*',
+    'TEXT/HTML',
+    'text/html;q=0',
+    '*/*;q=0',
+    'text/html;q=0, */*;q=1',
+    'text/*;q=0, */*;q=1',
+    'text/html;q=invalid',
+    'text/html;profile="a,b";q=0',
+  ])('leaves other Accept headers to the renderer: %s', (accept) => {
+    expect(isCacheableRequest(get('/', undefined, 'GET', { accept }))).toBe(
+      false,
+    )
+  })
+
   it('accepts signed-out GETs of public pages', () => {
     for (const path of [
       '/',
@@ -193,6 +222,53 @@ describe('withEdgeCache', () => {
       settle: () => Promise.all(pending.splice(0)),
     }
   }
+
+  it.each(['application/json', 'text/markdown'])(
+    'never serves or refreshes HTML for %s requests across cache states',
+    async (accept) => {
+      const edge = setup()
+      const request = () => get('/about', undefined, 'GET', { accept })
+      const rejectFormat = () =>
+        Response.json(
+          { error: 'Only HTML requests are supported here' },
+          {
+            status: 406,
+          },
+        )
+
+      edge.render.mockImplementationOnce(async () => rejectFormat())
+      const cold = await edge.run(request())
+      expect(cold.status).toBe(406)
+      expect(edge.cache.put).not.toHaveBeenCalled()
+
+      await edge.run(get('/about', undefined, 'GET', { accept: 'text/html' }))
+      await edge.settle()
+      edge.cache.match.mockClear()
+      edge.cache.put.mockClear()
+
+      for (const age of [0, 120]) {
+        edge.advance(age)
+        edge.render.mockImplementationOnce(async () => rejectFormat())
+        const response = await edge.run(request())
+        expect(response.status).toBe(406)
+        expect(response.headers.get(CACHE_STATUS_HEADER)).toBeNull()
+        expect(await response.json()).toEqual({
+          error: 'Only HTML requests are supported here',
+        })
+        await edge.settle()
+        expect(edge.cache.match).not.toHaveBeenCalled()
+        expect(edge.cache.put).not.toHaveBeenCalled()
+      }
+
+      const htmlResponse = await edge.run(
+        get('/about', undefined, 'GET', { accept: 'text/html' }),
+      )
+      expect(htmlResponse.status).toBe(200)
+      expect(htmlResponse.headers.get(CACHE_STATUS_HEADER)).toBe('STALE')
+      expect(await htmlResponse.text()).toBe('<p>render 2</p>')
+      await edge.settle()
+    },
+  )
 
   it('renders, stores, then serves the stored copy while fresh', async () => {
     const edge = setup()
