@@ -13,6 +13,8 @@
 // Spoofed user agents only prove the WAF does not block by user agent; real
 // crawler traffic is confirmed in Cloudflare AI Crawl Control.
 
+import { robotsPolicyProblems } from '../src/lib/robots-policy.ts'
+
 const PRODUCTION_ORIGIN = 'https://locatic.dev'
 const SITEMAP_URL_LIMIT = 200
 const CONCURRENCY = 6
@@ -26,18 +28,12 @@ const CRAWLER_USER_AGENTS = {
     'Mozilla/5.0 (compatible; OAI-SearchBot/1.0; +https://openai.com/searchbot)',
   'ChatGPT-User':
     'Mozilla/5.0 (compatible; ChatGPT-User/1.0; +https://openai.com/bot)',
-  GPTBot: 'Mozilla/5.0 (compatible; GPTBot/1.1; +https://openai.com/gptbot)',
   'Claude-SearchBot':
     'Mozilla/5.0 (compatible; Claude-SearchBot/1.0; +claude-searchbot@anthropic.com)',
   'Claude-User':
     'Mozilla/5.0 (compatible; Claude-User/1.0; +Claude-User@anthropic.com)',
-  ClaudeBot:
-    'Mozilla/5.0 (compatible; ClaudeBot/1.0; +claudebot@anthropic.com)',
   PerplexityBot:
     'Mozilla/5.0 (compatible; PerplexityBot/1.0; +https://perplexity.ai/perplexitybot)',
-  'Google-Extended':
-    'Mozilla/5.0 (compatible; Google-Extended/1.0; +http://www.google.com/bot.html)',
-  CCBot: 'CCBot/2.0 (https://commoncrawl.org/faq/)',
 }
 
 // Pages that must render whatever the sitemap says; also the static entries
@@ -98,18 +94,13 @@ async function checkRobots() {
   const body = await response.text()
   if (response.status !== 200) {
     problem(`robots.txt: status ${response.status}`)
-  } else if (production) {
-    if (!body.includes(`Sitemap: ${PRODUCTION_ORIGIN}/sitemap.xml`)) {
-      problem('robots.txt: no sitemap line')
+  } else {
+    for (const message of robotsPolicyProblems(
+      body,
+      production ? `${PRODUCTION_ORIGIN}/sitemap.xml` : null,
+    )) {
+      problem(`robots.txt: ${message}`)
     }
-    if (/^Disallow: \/$/m.test(body)) {
-      problem('robots.txt: production blocks everything')
-    }
-    if ((body.match(/^User-agent:/gm) ?? []).length !== 1) {
-      problem('robots.txt: expected one User-agent group')
-    }
-  } else if (body !== 'User-agent: *\nDisallow: /\n') {
-    problem('robots.txt: staging must disallow everything')
   }
 }
 

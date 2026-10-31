@@ -177,7 +177,7 @@ async function renderOwnProfile(
 
 type ToastOptions = { action?: { label: string; onClick: () => void } }
 
-describe('own profile page (C6, C8)', () => {
+describe('own profile page', () => {
   afterEach(() => {
     cleanup()
     vi.clearAllMocks()

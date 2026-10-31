@@ -1,5 +1,5 @@
 /**
- * Onboarding step order (plan U5, D7). City first, then the optional status,
+ * Onboarding step order. City first, then the optional status,
  * profile and repository steps, then the optional follow step, which exists
  * only when the chosen city has at least one eligible builder.
  */

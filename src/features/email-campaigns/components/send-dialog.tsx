@@ -72,7 +72,7 @@ export function formatSendTime(timestamp: number) {
 /**
  * The confirmation step. The audience is counted live when it opens and
  * counted again, member by member, while sending, so the number is an
- * estimate (design D3).
+ * estimate.
  */
 export function SendDialog({
   campaignId,

@@ -20,7 +20,7 @@ import {
 } from './__tests__/fixtures.helpers'
 
 /**
- * Project card signals and the project page (plan items C3, C7, C8): latest
+ * Project card signals and the project page: latest
  * update is activity (release, post, push); sync status is separate and only
  * the owner learns that a refresh failed; "more from {city}" follows the
  * location policy; the pin cap fails with its specific reason.

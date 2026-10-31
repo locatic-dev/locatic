@@ -103,7 +103,7 @@ interface ProjectCardProps {
    * the caller passes no follow or save handler).
    */
   actionSlot?: ReactNode
-  /** Whether the viewer has saved this project (plan item D1). */
+  /** Whether the viewer has saved this project. */
   saved?: boolean
   savePending?: boolean
   followPending?: boolean

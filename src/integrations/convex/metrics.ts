@@ -5,7 +5,7 @@ import { makeFunctionReference } from 'convex/server'
 import type { ClientMetricKey } from '../../../convex/metrics'
 
 /**
- * Client side of the daily product counters (plan item E4; server in
+ * Client side of the daily product counters (server in
  * convex/metrics.ts, keys in docs/metrics.md). Reports are fire-and-forget:
  * a failed or signed-out report is dropped and never reaches the user.
  */

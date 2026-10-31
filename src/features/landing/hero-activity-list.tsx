@@ -2,7 +2,7 @@ import { Link } from '@tanstack/react-router'
 import type { PingItem } from './landing-content'
 
 /**
- * The globe's activity as plain links (plan item D7). Its cards move on their
+ * The globe's activity as plain links. Its cards move on their
  * own inside the decorative layer, so keyboards and screen readers reach the
  * same items, and where they lead, here: a stable list, visually hidden until
  * a link in it has focus, then shown in place below the globe.

@@ -62,7 +62,7 @@ async function suggestions(
   })
 }
 
-describe('onboarding builder suggestions (D7, D8)', () => {
+describe('onboarding builder suggestions', () => {
   let t: TestConvex<typeof schema>
   let fixture: PopulatedCityFixture
 
@@ -84,7 +84,7 @@ describe('onboarding builder suggestions (D7, D8)', () => {
 
     const result = await suggestions(t, 'newbie', bengaluru)
 
-    // D4 order. The fixture records no public activity signal, so every
+    // Activity order. The fixture records no public activity signal, so every
     // builder is in the unset group: newest account first.
     expect(result.map((builder) => builder.userId)).toEqual([carol, bob, alice])
     expect(result.map((builder) => builder.isNewBuilder)).toEqual([
@@ -180,7 +180,7 @@ describe('onboarding builder suggestions (D7, D8)', () => {
     ])
   })
 
-  it('orders by most recent public work, not followers (D4)', async () => {
+  it('orders by most recent public work, not followers', async () => {
     const city = await seedCity(t, { ...BERLIN, slug: 'berlin-rank-test' })
     // Seeded oldest account first, as sign-ups insert them.
     const popularIdle = await seedUser(t, {
@@ -235,7 +235,7 @@ describe('onboarding builder suggestions (D7, D8)', () => {
   })
 })
 
-describe('completeOnboarding (U5)', () => {
+describe('completeOnboarding', () => {
   let t: TestConvex<typeof schema>
 
   beforeEach(() => {

@@ -10,7 +10,7 @@ import {
   waitForFiniteAnimations,
 } from './fixtures/test'
 
-// B11 touch-target audit: at a 390px phone viewport every visible interactive
+// Touch-target audit: at a 390px phone viewport every visible interactive
 // control in the app shell is at least 44x44, tab captions are never
 // truncated, and the contribution graph keeps cells of at least 10px.
 

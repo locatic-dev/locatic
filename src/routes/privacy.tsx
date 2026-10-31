@@ -3,7 +3,7 @@ import { LegalPage } from '@/features/legal/legal-page'
 import { PRIVACY_MARKDOWN } from '@/features/legal/privacy-content'
 import {
   LEGAL_EFFECTIVE_DATE,
-  LEGAL_LAST_UPDATED,
+  PRIVACY_LAST_UPDATED,
 } from '@/features/legal/legal-dates'
 import { seo } from '@/lib/seo'
 
@@ -20,7 +20,7 @@ function PrivacyPage() {
     <LegalPage
       title="Privacy Policy"
       effective={LEGAL_EFFECTIVE_DATE}
-      lastUpdated={LEGAL_LAST_UPDATED}
+      lastUpdated={PRIVACY_LAST_UPDATED}
       markdown={PRIVACY_MARKDOWN}
     />
   )

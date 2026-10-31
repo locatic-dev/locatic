@@ -1,6 +1,6 @@
 # Metrics
 
-What Locatic counts, where the numbers live, and how to read cost next to them (plan item E4, technical decision T7). Counts are daily totals. Nothing is recorded per user or per page view.
+What Locatic counts, where the numbers live, and how to read cost next to them. Counts are daily totals. Nothing is recorded per user or per page view.
 
 ## Daily counters
 
@@ -47,7 +47,7 @@ Background work that runs with no traffic comes from the crons in `convex/crons.
 | `github_actions:refreshDueProjectContributors` | every six hours | `limit: 20` projects                                                 |
 | `cleanup:runDailyCleanup`                      | daily           | batches of 100 expired Home items, notifications and activity events |
 
-To measure idle cost, pick a day with little traffic and read the function breakdown for these five functions only (plus the internal mutations they call, such as `github:patchProjectMetadata`). Their daily sum is the idle background cost. The Pulse rebuild is no longer scheduled (plan item A0); do not attribute any saving to it without a before-and-after comparison of like-for-like days.
+The table covers discovery jobs. Email draft preparation, reconciliation, and cleanup also run on the schedules in `convex/crons.ts`. To estimate idle cost, measure every enabled cron and its scheduled work over the same low-traffic interval. The Pulse rebuild is no longer scheduled; do not attribute any saving to it without a before-and-after comparison of like-for-like days.
 
 ## Guardrails that protect these numbers
 

@@ -2,7 +2,13 @@ import resendTest from '@convex-dev/resend/test'
 import { convexTest } from 'convex-test'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { fixtureClerkId, NOW, seedUser } from './__tests__/fixtures.helpers'
+import {
+  fixtureClerkId,
+  NOW,
+  seedUser,
+  purgeFixtureAccount,
+  runAccountPurgePage,
+} from './__tests__/fixtures.helpers'
 import type { EmailId } from '@convex-dev/resend'
 
 import { api, internal } from './_generated/api'
@@ -247,6 +253,88 @@ describe('token unsubscribe mutations', () => {
     ])
   })
 
+  it.each(['unsubscribe', 'stopAll', 'oneClick'] as const)(
+    'does not recreate consent rows when %s runs after the consent purge stage',
+    async (entryPoint) => {
+      vi.useFakeTimers({ now: NOW })
+      const t = setup()
+      const userId = await seedUser(t, { username: 'ada' })
+      await t.run(async (ctx) => {
+        const user = (await ctx.db.get(userId))!
+        await ctx.db.patch(userId, {
+          notificationPrefs: { ...user.notificationPrefs, weeklyDigest: true },
+          deletedAt: NOW - 31 * 86_400_000,
+          deactivatedAt: NOW - 31 * 86_400_000,
+          purgeAfter: NOW,
+        })
+      })
+      const token = await signUnsubscribeToken(userId, 'product_updates')
+      // Stage 18 follows email_preference_changes. Keep the real multi-page
+      // worker paused here so a concurrent old link exercises the race.
+      for (let page = 0; page < 100; page++) {
+        const user = (await t.run((ctx) => ctx.db.get(userId)))!
+        if ((user.purgeProgress?.stage ?? 0) >= 18) break
+        await runAccountPurgePage(t, userId)
+      }
+      expect(
+        (await t.run((ctx) => ctx.db.get(userId)))?.purgeProgress?.stage,
+      ).toBe(18)
+      if (entryPoint === 'oneClick') {
+        expect(
+          await t.mutation(internal.emailPreferences.oneClickUnsubscribe, {
+            token,
+          }),
+        ).toBe(true)
+      } else {
+        const endpoint =
+          entryPoint === 'stopAll'
+            ? api.emailPreferences.stopAllWithToken
+            : api.emailPreferences.unsubscribeWithToken
+        expect(await t.mutation(endpoint, { token })).toMatchObject({
+          status: 'unsubscribed',
+        })
+      }
+      await purgeFixtureAccount(t, userId)
+      expect((await t.run((ctx) => ctx.db.get(userId)))?.purgedAt).toBe(NOW)
+      expect(await changes(t)).toEqual([])
+    },
+  )
+
+  it('does not write consent after the restoration deadline even before purge starts', async () => {
+    vi.useFakeTimers({ now: NOW })
+    const t = setup()
+    const userId = await seedUser(t, { username: 'ada' })
+    const token = await signUnsubscribeToken(userId, 'product_updates')
+    await t.run((ctx) =>
+      ctx.db.patch(userId, {
+        deletedAt: NOW - 30 * 86_400_000,
+        purgeAfter: NOW,
+      }),
+    )
+    expect(
+      await t.mutation(api.emailPreferences.unsubscribeWithToken, { token }),
+    ).toMatchObject({ status: 'unsubscribed' })
+    expect(await changes(t)).toEqual([])
+  })
+
+  it('still records an opt-out while a deleted account can be restored', async () => {
+    vi.useFakeTimers({ now: NOW })
+    const t = setup()
+    const userId = await seedUser(t, { username: 'ada' })
+    const token = await signUnsubscribeToken(userId, 'product_updates')
+    await t.run((ctx) =>
+      ctx.db.patch(userId, { deletedAt: NOW, purgeAfter: NOW + 86_400_000 }),
+    )
+    await t.mutation(api.emailPreferences.unsubscribeWithToken, { token })
+    expect(
+      (await t.run((ctx) => ctx.db.get(userId)))?.notificationPrefs
+        .productUpdates,
+    ).toBe(false)
+    expect(await changes(t)).toEqual([
+      expect.objectContaining({ userId, subscribed: false }),
+    ])
+  })
+
   it('answers success but records nothing for a purged account', async () => {
     vi.useFakeTimers()
     const t = setup()
@@ -254,7 +342,7 @@ describe('token unsubscribe mutations', () => {
     const updates = await signUnsubscribeToken(userId, 'product_updates')
     const digest = await signUnsubscribeToken(userId, 'weekly_digest')
     // The real purge, including its scheduled clean-up of email records.
-    await t.mutation(internal.users.scrubDeletedAccount, { userId })
+    await purgeFixtureAccount(t, userId)
     await t.finishAllScheduledFunctions(vi.runAllTimers)
     const tombstone = await t.run((ctx) => ctx.db.get(userId))
     expect(tombstone?.purgedAt).toEqual(expect.any(Number))

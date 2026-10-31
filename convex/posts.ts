@@ -74,6 +74,7 @@ const postPageItemValidator = v.object({
   }),
   createdAt: v.number(),
   updatedAt: v.number(),
+  editedAt: v.optional(v.number()),
   deletedAt: v.union(v.number(), v.null()),
   viewerHasLiked: v.boolean(),
   viewerReactionTypes: v.array(v.string()),
@@ -170,7 +171,7 @@ export const search = query({
             )
             .take(limit)
     // Search is discovery: only posts of discoverable owners, and a city
-    // filter matches the owner's current member city (D8).
+    // filter matches the owner's current member city.
     const filtered = (await filterDiscoverablePosts(ctx, posts))
       .filter(
         (post) =>
@@ -255,7 +256,7 @@ export const create = mutation({
       postsCount: (viewer.stats.postsCount ?? 0) + 1,
     }
     await ctx.db.patch(viewer._id, {
-      // A post on a hidden project is not public work (plan item D4).
+      // A post on a hidden project is not public work.
       stats: project.locatic.isVisible
         ? raiseLastPublicActivity(postStats, now, now)
         : postStats,
@@ -316,6 +317,7 @@ export const update = mutation({
     assertMaxLength('post', body)
     await enforceRateLimit(ctx, 'postEdit', String(viewer._id))
 
+    const now = Date.now()
     await ctx.db.patch(post._id, {
       body,
       searchText: buildPostSearchText({
@@ -323,7 +325,8 @@ export const update = mutation({
         projectFullName: post.projectSnapshot.fullName,
         topics: post.projectTopics,
       }),
-      updatedAt: Date.now(),
+      ...(body !== post.body ? { editedAt: now } : {}),
+      updatedAt: now,
     })
 
     const updatedPost = await ctx.db.get(post._id)

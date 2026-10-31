@@ -70,7 +70,7 @@ export function CityPill({
 
   if (cityId && !onRemove) {
     return (
-      // The city page (plan item D5) also resolves a city id, redirecting it
+      // The city page also resolves a city id, redirecting it
       // to the slug.
       <Link
         to="/c/$slug"

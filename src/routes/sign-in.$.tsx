@@ -3,19 +3,31 @@ import { SignIn } from '@clerk/tanstack-react-start'
 import { useEffect, useState } from 'react'
 import type { ViewerBootstrapPayload } from '@/features/contracts'
 import { viewerQueryOptions } from '@/features/viewer/queries'
+import { getAccountRecoveryState } from '@/features/viewer/lifecycle'
+import { AccountRecovery } from '@/features/viewer/account-recovery'
 import { Logo } from '@/components/ui/logo'
 import { rememberDiscoveryReturn } from '@/integrations/convex/metrics'
 import { buildOnboardingUrl, validateSignInSearch } from '@/lib/safe-redirect'
+import { authUiNeedsDocumentReload } from '@/integrations/clerk/ui-loading'
 import { seo } from '@/lib/seo'
 
 export const Route = createFileRoute('/sign-in/$')({
   // Accepts our `redirect` and, failing that, a same-origin destination from
   // Clerk's own `redirect_url` / `sign_in_force_redirect_url`.
   validateSearch: validateSignInSearch,
-  beforeLoad: async ({ context, search }) => {
+  beforeLoad: async ({ context, search, location }) => {
     if (!context.auth.isAuthenticated) {
-      return
+      if (authUiNeedsDocumentReload()) {
+        throw redirect({ href: location.href, reloadDocument: true })
+      }
+      return { accountRecovery: null }
     }
+
+    const bootstrap = (await context.queryClient.ensureQueryData(
+      viewerQueryOptions(),
+    )) as ViewerBootstrapPayload
+    const accountRecovery = getAccountRecoveryState(bootstrap)
+    if (accountRecovery) return { accountRecovery }
 
     // `validateSearch` has already sanitised the destination. It wins here;
     // the `_app` guard still sends users who need onboarding there first and
@@ -23,10 +35,6 @@ export const Route = createFileRoute('/sign-in/$')({
     if (search.redirect) {
       throw redirect({ href: search.redirect })
     }
-
-    const bootstrap = (await context.queryClient.ensureQueryData(
-      viewerQueryOptions(),
-    )) as ViewerBootstrapPayload
 
     throw redirect({ to: bootstrap.needsOnboarding ? '/onboarding' : '/home' })
   },
@@ -44,9 +52,14 @@ function SignInPage() {
   // (/sign-in/factor-one, /sign-in/sso-callback) navigate within this route
   // without our `redirect` parameter, and must not lose it.
   const searchDestination = Route.useSearch().redirect ?? null
+  const { accountRecovery } = Route.useRouteContext()
   const [initialDestination] = useState(searchDestination)
   const destination = searchDestination ?? initialDestination
   useEffect(() => rememberDiscoveryReturn(destination), [destination])
+
+  if (accountRecovery) {
+    return <AccountRecovery state={accountRecovery} destination={destination} />
+  }
 
   return (
     <main

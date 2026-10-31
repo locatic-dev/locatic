@@ -2,7 +2,7 @@ import type { Id } from '../_generated/dataModel'
 import type { Doc } from './types'
 
 /**
- * Location privacy policy (plan decision D8). Every public surface that shows
+ * Location privacy policy. Every public surface that shows
  * where a user is, or that lists users or their work by city, goes through
  * this module:
  *

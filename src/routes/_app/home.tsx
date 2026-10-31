@@ -90,7 +90,7 @@ function useExploreNavigation() {
     void navigate({ to: '/explore', search: getResumeExploreSearch() })
 }
 
-/** Persistent recovery block when the feed query fails (A5 contract). */
+/** Persistent recovery block when the feed query fails (contract). */
 function HomeErrorPage({ reset }: ErrorComponentProps) {
   const router = useRouter()
   const queryErrorResetBoundary = useQueryErrorResetBoundary()
@@ -162,7 +162,7 @@ function HomePage() {
     itemCount: items.length,
   })
   // "Builders near you" for a member who arrives following no one, from the
-  // viewer's city; nothing without a city (C5 state copy, C4 city links).
+  // viewer's city; nothing without a city (state copy, city links).
   // Decided once per visit: the first follow changes the feed state, and the
   // list must stay so they can follow more than one builder.
   const [suggestNearbyBuilders] = useState(

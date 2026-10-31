@@ -1,7 +1,7 @@
 import type { FunctionReturnType } from 'convex/server'
 import type { api } from '../../../convex/_generated/api'
 
-/** A public city page as `api.cities.getPage` returns it (plan item D5). */
+/** A public city page as `api.cities.getPage` returns it. */
 export type CityPagePayload = NonNullable<
   FunctionReturnType<typeof api.cities.getPage>
 >

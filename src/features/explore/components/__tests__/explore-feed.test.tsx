@@ -418,7 +418,7 @@ describe('ExploreFeed', () => {
     })
 
     expect(screen.getByText('Mira Builder')).toBeTruthy()
-    // Exact city: a pill linking to that city's Explore (C4).
+    // Exact city: a pill linking to that city's Explore.
     expect(
       screen.getByRole('link', { name: 'Bengaluru, Karnataka, India' }),
     ).toBeTruthy()
@@ -861,7 +861,7 @@ describe('ExploreFeed', () => {
     expect(props.onLoadMore).toHaveBeenCalledTimes(1)
   })
 
-  describe('filters and order (D2, D3)', () => {
+  describe('filters and order', () => {
     const activeFilters = {
       description: 'primary language rust, topic #webgpu',
       onClear: vi.fn(),
@@ -965,7 +965,7 @@ describe('ExploreFeed', () => {
     })
   })
 
-  describe('saves on project cards (D1)', () => {
+  describe('saves on project cards', () => {
     it('passes saved state and the toggle to signed-in cards', () => {
       saveMocks.savedIds = new Set(['project_1'])
       saveMocks.pendingIds = new Set()

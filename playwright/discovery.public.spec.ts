@@ -17,12 +17,12 @@ import {
   test,
 } from './fixtures/test'
 
-// Public discovery journey (plan items C1, C4, A6, C10). Signed-out visitors
+// Public discovery journey. Signed-out visitors
 // browse Explore without being sent to sign-in, reach a builder profile, sign
 // in and come back to it, follow the builder and see their work on Home. Data
 // comes from the populated persona's city (playwright/fixtures/fixtures.md).
 
-/** Home keeps the last 30 days of activity from people you follow (C5). */
+/** Home keeps the last 30 days of activity from people you follow. */
 const HOME_WINDOW_MS = 30 * 24 * 60 * 60 * 1000
 
 /**
@@ -91,6 +91,33 @@ async function openPublicExplore(page: Page, search = '') {
 }
 
 test.describe('public explore', () => {
+  for (const width of [320, 390]) {
+    test(`keeps builder identities readable at ${width}px`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 844 })
+      await openPublicExplore(page, '?mode=builders&scope=global')
+      const rows = await settledBuilderRows(page)
+      requireE2EPrerequisite(
+        (await rows.count()) > 0,
+        'needs a public builder in Explore (playwright/fixtures/fixtures.md)',
+      )
+      const widths = await rows.evaluateAll((identities) =>
+        identities.map(
+          (identity) =>
+            identity.lastElementChild?.getBoundingClientRect().width ?? 0,
+        ),
+      )
+      expect(Math.min(...widths)).toBeGreaterThanOrEqual(120)
+      const overflow = await page.evaluate(
+        () =>
+          document.documentElement.scrollWidth -
+          document.documentElement.clientWidth,
+      )
+      expect(overflow).toBeLessThanOrEqual(0)
+    })
+  }
+
   test('never enters sign-in and offers sign up', async ({ page }) => {
     const visited = recordNavigations(page)
     await openPublicExplore(page)

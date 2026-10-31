@@ -31,6 +31,7 @@ import {
   isTestSendingEnabled,
 } from './lib/email_provider'
 import { isProjectPubliclyInteractable } from './lib/project_access'
+import { isOwnerDiscoverable } from './lib/snapshots'
 import { cancelIfWaiting } from './lib/resend'
 import {
   normalizeProjectRouteKey,
@@ -434,8 +435,11 @@ export const searchProjects = query({
       if (seen.has(project._id)) continue
       seen.add(project._id)
       const activityAt = project.locatic.lastPublicActivityAt
+      const owner = await ctx.db.get(project.ownerId)
       if (
         !activityAt ||
+        !owner ||
+        !isOwnerDiscoverable(owner) ||
         !project.exploreOwner.isEligible ||
         !(await isProjectPubliclyInteractable(ctx, project))
       ) {
@@ -697,7 +701,7 @@ const SEND_PREVIEW_SAMPLE = 5
 
 // An estimate for the confirmation dialog from the first 100 members (full
 // user documents are large, so this stays a small read). The audience is
-// computed again, user by user, while sending (design D3); `capped` means
+// computed again, user by user, while sending; `capped` means
 // more members exist than were counted.
 export const getSendPreview = query({
   args: { campaignId: v.id('email_campaigns') },

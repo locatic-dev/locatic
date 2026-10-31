@@ -4,6 +4,8 @@ import type { Doc } from './types'
 import { getProjectTopics } from './topics'
 import { resolveProjectOwnerLogin } from './project_route'
 import { getPostCityId, isOwnerDiscoverable } from './snapshots'
+import { isProfileGone } from './privacy'
+import { isAccountPastRestorationWindow } from './account_deletion'
 import { resolveLocationDisclosure, toSnapshotLocation } from './visibility'
 
 type DbCtx = Pick<QueryCtx | MutationCtx, 'db'>
@@ -65,6 +67,13 @@ async function loadVisiblePostProject(
     return null
   }
 
+  // Historical collaborator posts can outlive their author's account while
+  // the independently owned project remains active.
+  if (post.actorId !== owner._id) {
+    const actor = await ctx.db.get(post.actorId)
+    if (!actor || isAccountPastRestorationWindow(actor, Date.now())) return null
+  }
+
   return { project, owner }
 }
 
@@ -100,9 +109,10 @@ async function toCurrentPostFields(
   const actorCity = actor?.profile.cityId
     ? await loadCity(actor.profile.cityId)
     : null
-  const actorLocation = actor
-    ? toSnapshotLocation(resolveLocationDisclosure(actor, actorCity))
-    : { cityId: null, cityName: null }
+  const actorLocation =
+    actor && !isProfileGone(actor)
+      ? toSnapshotLocation(resolveLocationDisclosure(actor, actorCity))
+      : { cityId: null, cityName: null }
   const projectTopics = getProjectTopics(project)
 
   return {
@@ -116,6 +126,12 @@ async function toCurrentPostFields(
     }),
     actorSnapshot: {
       ...post.actorSnapshot,
+      ...(actor
+        ? {
+            displayName: actor.profile.displayName,
+            avatarUrl: actor.profile.avatarUrl,
+          }
+        : {}),
       cityId: actorLocation.cityId,
       cityName: actorLocation.cityName,
     },

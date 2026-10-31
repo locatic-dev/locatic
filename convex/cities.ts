@@ -30,7 +30,7 @@ import {
 } from './lib/visibility'
 
 /**
- * City search (plan item B10): exact name or alias matches, then name and
+ * City search: exact name or alias matches, then name and
  * alias prefixes, then other full-text hits; ranking rules live in
  * `convex/lib/citySearch.ts`. An empty query returns the first active cities
  * by name. Returns full city documents.
@@ -82,7 +82,7 @@ const cityStatsValidator = v.object({
 })
 
 /**
- * Maintained counters for one city (plan item A4): exact-city, discoverable
+ * Maintained counters for one city: exact-city, discoverable
  * builders; their eligible projects; latest activity on those projects.
  * Null for an unknown city id. A single document read.
  */
@@ -94,7 +94,7 @@ export const getStats = query({
   handler: async (ctx, args) => await getCityStats(ctx.db, args.cityId),
 })
 
-// City page bounds (plan item D5, documented in docs/explore-home-logic.md).
+// City page bounds (documented in docs/explore-home-logic.md).
 // Recent work is one page of the city's projects. Builders and posts read a
 // few more rows than they show, because region-only, hidden and removed
 // accounts, and posts that fail the visibility checks, share the index range.
@@ -234,7 +234,7 @@ async function readCityRecentWork(db: DatabaseReader, city: Doc<'cities'>) {
 
 /**
  * Builders: exact-city members with public profiles, most recent public work
- * first (plan item D4) from one bounded read of `by_city_public_activity`,
+ * first from one bounded read of `by_city_public_activity`,
  * descending, so builders without the signal follow, newest account first.
  */
 async function readCityBuilders(
@@ -324,11 +324,11 @@ async function readCityPosts(db: DatabaseReader, city: Doc<'cities'>) {
 }
 
 /**
- * Everything a public city page shows (plan item D5), or null for an unknown
+ * Everything a public city page shows, or null for an unknown
  * or inactive city. Every read is indexed and bounded: the city by slug (or
  * id), one page of projects, one `take` of builders, one `take` of posts
  * plus their visibility reads, and the nearby lookup's nine cell reads.
- * Counts are the maintained A4 counters, never aggregated here. Exported for
+ * Counts are the maintained `cities.stats` counters, never aggregated here. Exported for
  * the read-shape test.
  */
 export async function readCityPage(db: DatabaseReader, slugOrId: string) {
@@ -381,7 +381,7 @@ function toNearbyCityRow({
 }
 
 /**
- * Public city page (plan item D5), the SSR loader's one query for
+ * Public city page, the SSR loader's one query for
  * `/c/$slug`. Public: the same reviewed payload for visitors and members
  * (public identities through the visibility policy, public project cards,
  * builders with public profiles only). Null for an unknown or inactive city.
@@ -465,8 +465,8 @@ async function readRecountPage(
 }
 
 /**
- * One-off recount of `cities.stats` (plan item A4). Not run on deploy or by a
- * cron; a person runs it once after A4 ships (after
+ * One-off recount of `cities.stats`. Not run on deploy or by a
+ * cron; a person runs it once after the counters ship (after
  * `internal.users.backfillOwnerState`), and again whenever the counters are
  * suspected to have drifted:
  *
@@ -585,7 +585,7 @@ export const seedDefaultCities = internalMutation({
 })
 
 /**
- * Rows the landing map reads (plan item D7). The map has a few hundred land
+ * Rows the landing map reads. The map has a few hundred land
  * dots, so more cities than this would only stack on the same dots; past
  * the limit the map shows an arbitrary subset of active cities.
  */
@@ -600,10 +600,10 @@ const activeMapCityValidator = v.object({
 })
 
 /**
- * Active catalogue cities with at least one counted builder (A4
- * `builderCount`, which already leaves out hidden and region-only users),
+ * Active catalogue cities with at least one counted builder
+ * (`stats.builderCount`, which already leaves out hidden and region-only users),
  * most builders first. One bounded read of `by_activity_cell`, which holds
- * only cities with A4 activity (D5), so the read never scans the catalogue.
+ * only cities with counted activity, so the read never scans the catalogue.
  * Exported for the read-shape test.
  */
 export async function readActiveMapCities(db: DatabaseReader) {
@@ -638,7 +638,7 @@ export async function readActiveMapCities(db: DatabaseReader) {
 }
 
 /**
- * Public aggregate for the landing map (plan item D7): the cities from
+ * Public aggregate for the landing map: the cities from
  * `readActiveMapCities`. City-level fields only: no user appears in the
  * payload.
  */

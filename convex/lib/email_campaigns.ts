@@ -7,6 +7,7 @@ import {
   isProjectPubliclyInteractable,
 } from './project_access'
 import type { Doc } from './types'
+import { isOwnerDiscoverable } from './snapshots'
 
 export const EMAIL_TEMPLATE_VERSION = 2
 
@@ -184,8 +185,11 @@ export async function assertDigestSelectionsPublic(
   if (content.kind !== 'digest') return
   for (const selected of content.projects) {
     const project = await ctx.db.get(selected.projectId)
+    const owner = project ? await ctx.db.get(project.ownerId) : null
     if (
       !project ||
+      !owner ||
+      !isOwnerDiscoverable(owner) ||
       !project.exploreOwner.isEligible ||
       !(await isProjectPubliclyInteractable(ctx, project))
     ) {

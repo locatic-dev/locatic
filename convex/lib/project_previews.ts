@@ -162,8 +162,8 @@ async function getOwnerCity(
 }
 
 /**
- * Public city label for a user under the visibility policy (plan decision
- * D8): the exact city display name for `exact_city`, the region/country label
+ * Public city label for a user under the visibility policy
+ * (`convex/lib/visibility.ts`): the exact city display name for `exact_city`, the region/country label
  * from the city record for `region_only` (country only for city-states such
  * as Berlin), and null for `hidden` or when no city is set. `city` must be
  * the user's profile city record.
@@ -409,7 +409,7 @@ export async function buildProjectCardPreview(
     reactionCounts: getProjectReactionCounts(project),
     commentsCount: project.locatic.commentsCount,
     postsCount: project.locatic.postsCount ?? 0,
-    // The card shows exactly the topics the Explore filter tests (D2).
+    // The card shows exactly the topics the Explore filter tests.
     topics: getProjectTopics(project),
     lastCommitAt: project.github.lastCommitAt,
     updatedAt: project.updatedAt,

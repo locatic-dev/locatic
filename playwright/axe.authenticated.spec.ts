@@ -8,7 +8,7 @@ import {
   test,
 } from './fixtures/test'
 
-// Axe on every signed-in route (plan items E3, C10), as the populated user.
+// Axe on every signed-in route, as the populated user.
 // Fails on critical and serious WCAG A/AA violations; see axe.ts.
 
 const ROUTES: Array<{ path: string; title: string }> = [

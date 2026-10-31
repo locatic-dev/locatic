@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// `.collect()` guardrail (plan item E3, Convex principle "bounded index reads").
+// `.collect()` guardrail (Convex principle "bounded index reads").
 //
 // Run: node scripts/check-collect-calls.mjs [--update]   (part of `pnpm check`)
 //
@@ -96,7 +96,7 @@ if (process.argv.includes('--update')) {
     `${JSON.stringify(
       {
         $comment:
-          'Existing .collect() calls outside internal migrations, per file#function (plan item E3). Lower or remove entries as reads become bounded; never raise one to accept a new call. Written by `node scripts/check-collect-calls.mjs --update`.',
+          'Existing .collect() calls outside internal migrations, per file#function. Lower or remove entries as reads become bounded; never raise one to accept a new call. Written by `node scripts/check-collect-calls.mjs --update`.',
         functions: Object.fromEntries(
           Object.entries(counts).sort(([a], [b]) => a.localeCompare(b)),
         ),

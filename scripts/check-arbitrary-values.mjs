@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Arbitrary-value guardrail (plan item E3).
+// Arbitrary-value guardrail.
 //
 // Run: node scripts/check-arbitrary-values.mjs [--update]   (part of `pnpm check`)
 //
@@ -112,7 +112,7 @@ if (process.argv.includes('--update')) {
     `${JSON.stringify(
       {
         $comment:
-          'Existing arbitrary values in src/features and src/routes (plan item E3). Lower or remove entries as files move to tokens; never raise one to accept a new hit. Written by `node scripts/check-arbitrary-values.mjs --update`.',
+          'Existing arbitrary values in src/features and src/routes. Lower or remove entries as files move to tokens; never raise one to accept a new hit. Written by `node scripts/check-arbitrary-values.mjs --update`.',
         files: counts,
       },
       null,

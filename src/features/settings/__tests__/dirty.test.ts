@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   getSettingsAccountStateFromForm,
   getSettingsDirty,
+  getSettingsUrlErrors,
   type SettingsAccountFormState,
 } from '../dirty'
 
@@ -84,5 +85,26 @@ describe('getSettingsDirty', () => {
     })
 
     expect(getSettingsDirty(base, current)).toBe(false)
+  })
+})
+
+describe('settings URL validation', () => {
+  it('allows blank and bare HTTPS links but distinguishes malformed values from empty input', () => {
+    expect(getSettingsUrlErrors({ website: '', linkedin: '  ' })).toEqual({
+      website: null,
+      linkedin: null,
+    })
+    expect(
+      getSettingsUrlErrors({
+        website: 'example.com',
+        linkedin: 'linkedin.com/in/demo',
+      }),
+    ).toEqual({ website: null, linkedin: null })
+    const errors = getSettingsUrlErrors({
+      website: 'not a valid website',
+      linkedin: 'not a valid profile',
+    })
+    expect(errors.website).toMatch(/valid.*URL/)
+    expect(errors.linkedin).toMatch(/valid.*URL/)
   })
 })

@@ -7,7 +7,7 @@ import {
   useCanGoBack,
   useRouter,
 } from '@tanstack/react-router'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { api } from '../../../convex/_generated/api'
 import type { Id } from '../../../convex/_generated/dataModel'
 import {
@@ -57,6 +57,7 @@ import { CommentThread } from '@/features/projects/comments/comment-thread'
 import { commentComposerTextareaClass } from '@/features/projects/comments/composer-styles'
 import { removeReplyDraft } from '@/features/projects/comments/drafts'
 import { useCommentThreadState } from '@/features/projects/comments/use-comment-thread-state'
+import { useCommentHighlight } from '@/features/projects/comments/use-comment-highlight'
 import type { ProjectCommentView } from '@/features/projects/comments/types'
 import { ProjectReadmeSection } from '@/features/projects/readme/project-readme-section'
 import { ProjectReleasesSection } from '@/features/projects/releases/project-releases-section'
@@ -100,10 +101,12 @@ export function ProjectView({
 }) {
   const routeSearch = projectRouteApi.useSearch()
   const highlightedCommentId = routeSearch.comment ?? null
-  const highlightedCommentPath =
-    'commentPath' in routeSearch
-      ? parseCommentPathSearch(routeSearch.commentPath)
-      : []
+  const rawCommentPath =
+    'commentPath' in routeSearch ? routeSearch.commentPath : undefined
+  const highlightedCommentPath = useMemo(
+    () => parseCommentPathSearch(rawCommentPath),
+    [rawCommentPath],
+  )
   const highlightedPostId =
     'post' in routeSearch ? (routeSearch.post ?? null) : null
   const highlightedReleaseId =
@@ -178,8 +181,6 @@ export function ProjectView({
   const projectCommentLoadAttemptsRef = useRef(0)
   const projectCommentLoadTargetRef = useRef<string | null>(null)
   const didSyncInitialProjectTabRef = useRef(false)
-  const commentRefs = useRef<Record<string, HTMLElement | null>>({})
-  const scrolledHighlightRef = useRef<string | null>(null)
   const {
     expand: expandCommentThread,
     expandedIds,
@@ -439,10 +440,30 @@ export function ProjectView({
     releasedHighlightId,
   })
   const activeHighlightedPostId = highlightedPostId ?? hashPostId
-  const commentExpansionPath = getCommentExpansionPath({
-    commentPath: highlightedCommentPath,
-    threadId: highlightedThreadId,
-  })
+  const commentExpansionPath = useMemo(
+    () =>
+      getCommentExpansionPath({
+        commentPath: highlightedCommentPath,
+        threadId: highlightedThreadId,
+      }),
+    [highlightedCommentPath, highlightedThreadId],
+  )
+  const releaseCommentHighlight = useCallback(
+    (target: string) => {
+      setReleasedHighlightId(target)
+      void navigate({
+        replace: true,
+        resetScroll: false,
+        hash: '',
+        search: stripProjectCommentSearch,
+      })
+    },
+    [navigate],
+  )
+  const registerCommentElement = useCommentHighlight(
+    activeHighlightedPostId ? null : activeHighlightedCommentId,
+    releaseCommentHighlight,
+  )
 
   useEffect(() => {
     if (
@@ -523,55 +544,6 @@ export function ProjectView({
     commentRoots,
     comments,
   ])
-
-  // Scroll the highlighted comment into view ONCE. Keeping comments.length in
-  // deps lets us retry until the element mounts, but the ref guard ensures we
-  // do not re-center on every reply expand/collapse.
-  useEffect(() => {
-    if (!activeHighlightedCommentId) {
-      return
-    }
-    if (scrolledHighlightRef.current === activeHighlightedCommentId) {
-      return
-    }
-
-    const commentElement = commentRefs.current[activeHighlightedCommentId]
-    if (!commentElement) {
-      return
-    }
-
-    scrolledHighlightRef.current = activeHighlightedCommentId
-    commentElement.scrollIntoView({
-      behavior: 'smooth',
-      block: 'center',
-    })
-  }, [activeHighlightedCommentId, comments.length])
-
-  // Flash the highlight briefly, then release it and strip the deep-link params
-  // so a refresh does not re-highlight and the comment becomes fully normal.
-  useEffect(() => {
-    if (!activeHighlightedCommentId) {
-      return
-    }
-
-    const target = activeHighlightedCommentId
-    const prefersReducedMotion =
-      typeof window !== 'undefined' &&
-      window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-    const timer = window.setTimeout(
-      () => {
-        setReleasedHighlightId(target)
-        void navigate({
-          replace: true,
-          hash: '',
-          search: stripProjectCommentSearch,
-        })
-      },
-      prefersReducedMotion ? 0 : 1800,
-    )
-
-    return () => window.clearTimeout(timer)
-  }, [activeHighlightedCommentId, navigate])
 
   const languages =
     detail.project.github.languages &&
@@ -789,6 +761,7 @@ export function ProjectView({
                     }
                     highlightedCommentPath={commentExpansionPath}
                     highlightedPostId={activeHighlightedPostId}
+                    onReleaseCommentHighlight={releaseCommentHighlight}
                     projectDetailQueryKey={projectDetailQueryKey}
                     viewerId={viewer?.id ? String(viewer.id) : null}
                   />
@@ -873,7 +846,7 @@ export function ProjectView({
                         <Link
                           to="/sign-in/$"
                           search={{ redirect: signInRedirect }}
-                          className="text-brand no-underline"
+                          className="text-brand underline underline-offset-2"
                         >
                           sign in
                         </Link>{' '}
@@ -896,7 +869,8 @@ export function ProjectView({
                               activeHighlightedCommentId
                             }
                             commentItem={commentItem}
-                            commentRefs={commentRefs}
+                            registerCommentElement={registerCommentElement}
+                            highlightedCommentPath={commentExpansionPath}
                             depth={0}
                             expandedIds={expandedIds}
                             handleDeleteComment={handleDeleteComment}

@@ -14,7 +14,7 @@ export type BuilderPreview = FunctionReturnType<
 /**
  * An Explore project row. `isViewerProject` is set only on the signed-in
  * feed: the viewer's own projects, listed last in an explicitly selected
- * city and marked "yours" (plan item C2).
+ * city and marked "yours".
  */
 export type ExploreProjectPreview = ProjectCardPreview & {
   isViewerProject?: boolean
