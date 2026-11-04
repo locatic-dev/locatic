@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { api } from '../../_generated/api'
 import type { Id } from '../../_generated/dataModel'
 import schema from '../../schema'
+import { FOLLOW_STATE_MAX_IDS } from '../../follows'
 import {
   NOW,
   fixtureClerkId,
@@ -139,5 +140,48 @@ describe('raw follow graph queries', () => {
       })
       expect(graph.page).toHaveLength(1)
     }
+  })
+})
+
+describe('follow state for visible users', () => {
+  it('reads only the requested pairs, however large the viewer graph is', async () => {
+    const t = convexTest(schema, modules)
+    const viewerId = await seedUser(t, { username: 'viewer' })
+    const followed: Id<'users'>[] = []
+    for (let index = 0; index < FOLLOW_STATE_MAX_IDS + 20; index++) {
+      const userId = await seedUser(t, { username: `builder${index}` })
+      await seedFollow(t, viewerId, userId)
+      followed.push(userId)
+    }
+    const stranger = await seedUser(t, { username: 'stranger' })
+    const viewer = t.withIdentity({ subject: fixtureClerkId('viewer') })
+
+    const state = await viewer.query(api.follows.getFollowState, {
+      userIds: [followed[3], stranger, followed[3], followed[50]],
+    })
+    expect(state).toEqual([followed[3], followed[50]])
+    expect(
+      await viewer.query(api.follows.getFollowState, { userIds: [] }),
+    ).toEqual([])
+  })
+
+  it('rejects oversized requests and signed-out or deleted viewers', async () => {
+    const t = convexTest(schema, modules)
+    const viewerId = await seedUser(t, { username: 'viewer' })
+    const userIds: Id<'users'>[] = []
+    for (let index = 0; index <= FOLLOW_STATE_MAX_IDS; index++)
+      userIds.push(await seedUser(t, { username: `builder${index}` }))
+    const viewer = t.withIdentity({ subject: fixtureClerkId('viewer') })
+
+    await expect(
+      viewer.query(api.follows.getFollowState, { userIds }),
+    ).rejects.toThrow(/at most/)
+    await expect(
+      t.query(api.follows.getFollowState, { userIds: [userIds[0]] }),
+    ).rejects.toThrow()
+    await t.run((ctx) => ctx.db.patch(viewerId, { deletedAt: NOW }))
+    await expect(
+      viewer.query(api.follows.getFollowState, { userIds: [userIds[0]] }),
+    ).rejects.toThrow()
   })
 })
