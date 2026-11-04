@@ -11,6 +11,7 @@ import {
   fixtureClerkId,
   seedActivityEvent,
   seedCity,
+  seedFollow,
   seedHomeFeedItem,
   seedPost,
   seedProject,
@@ -346,6 +347,7 @@ it('projects current owner privacy into every nested Home project before snapsho
     NOW,
     'project_posted',
   )
+  await seedFollow(t, other, owner)
   await seedHomeFeedItem(t, other, event)
   // Explicit stale copy: reads must not depend on how far the worker has progressed.
   await t.run(async (ctx) => {

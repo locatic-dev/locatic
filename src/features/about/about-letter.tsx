@@ -6,7 +6,7 @@ import {
   FOUNDERS,
   githubProfileUrl,
 } from '@/features/about/about-content'
-import { GITHUB_URL } from '@/lib/site-links'
+import { GITHUB_REPO_URL } from '@/lib/site-links'
 
 const OFFERINGS = [
   'Find developers and projects in any city in the world',
@@ -152,7 +152,7 @@ export function AboutLetter({ headingLevel }: { headingLevel: HeadingLevel }) {
         </p>
         <div>
           <Button asChild variant="secondary" size="touch">
-            <a href={GITHUB_URL} target="_blank" rel="noreferrer noopener">
+            <a href={GITHUB_REPO_URL} target="_blank" rel="noreferrer noopener">
               <BrandIcon name="github" size={14} />
               follow locatic on github
             </a>

@@ -271,7 +271,7 @@ export const unreadCount = query({
     const viewer = await getViewerOrThrow(ctx)
     const unread = await ctx.db
       .query('notifications')
-      .withIndex('by_recipient_read', (query) =>
+      .withIndex('by_recipient_read_created', (query) =>
         query.eq('recipientId', viewer._id).eq('isRead', false),
       )
       .filter((query) => query.neq(query.field('type'), 'dm_received'))
@@ -304,25 +304,76 @@ export const markRead = mutation({
   },
 })
 
-/** Marks every unread notification read. Called only from "mark all read". */
+/**
+ * Rows patched per "mark all read" transaction, far below Convex's
+ * per-transaction write limit. Larger backlogs continue in scheduled batches.
+ */
+export const MARK_ALL_READ_BATCH_SIZE = 200
+
+const markAllReadResultValidator = v.object({
+  cutoff: v.number(),
+  isDone: v.boolean(),
+})
+
+/**
+ * Marks one batch of the recipient's unread notifications created at or
+ * before `cutoff` read, oldest first, and schedules the next batch when this
+ * one was full. Marked rows leave the index range, so a repeated or retried
+ * batch only touches rows still unread, and rows created after `cutoff` are
+ * never touched.
+ */
+async function markNotificationsReadBatch(
+  ctx: MutationCtx,
+  recipientId: Id<'users'>,
+  cutoff: number,
+) {
+  const batch = await ctx.db
+    .query('notifications')
+    .withIndex('by_recipient_read_created', (query) =>
+      query
+        .eq('recipientId', recipientId)
+        .eq('isRead', false)
+        .lte('createdAt', cutoff),
+    )
+    .take(MARK_ALL_READ_BATCH_SIZE)
+
+  for (const notification of batch) {
+    await ctx.db.patch(notification._id, { isRead: true })
+  }
+
+  const isDone = batch.length < MARK_ALL_READ_BATCH_SIZE
+  if (!isDone) {
+    await ctx.scheduler.runAfter(0, internal.notifications.markAllReadBatch, {
+      recipientId,
+      cutoff,
+    })
+  }
+
+  return { cutoff, isDone }
+}
+
+/**
+ * "Mark all read": marks the viewer's notifications created at or before the
+ * request time. Notifications that arrive afterwards stay unread. The first
+ * batch commits here; any remainder finishes in scheduled batches, so the
+ * unread badge converges shortly after the call returns.
+ */
 export const markAllRead = mutation({
   args: {},
-  returns: v.null(),
+  returns: markAllReadResultValidator,
   handler: async (ctx) => {
     const viewer = await getViewerOrThrow(ctx)
-    const unreadNotifications = await ctx.db
-      .query('notifications')
-      .withIndex('by_recipient_read', (query) =>
-        query.eq('recipientId', viewer._id).eq('isRead', false),
-      )
-      .collect()
-
-    await Promise.all(
-      unreadNotifications.map((notification) =>
-        ctx.db.patch(notification._id, { isRead: true }),
-      ),
-    )
-
-    return null
+    return await markNotificationsReadBatch(ctx, viewer._id, Date.now())
   },
+})
+
+/** Scheduled continuation of `markAllRead`. */
+export const markAllReadBatch = internalMutation({
+  args: {
+    recipientId: v.id('users'),
+    cutoff: v.number(),
+  },
+  returns: markAllReadResultValidator,
+  handler: async (ctx, args) =>
+    await markNotificationsReadBatch(ctx, args.recipientId, args.cutoff),
 })

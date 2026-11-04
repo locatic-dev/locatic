@@ -767,6 +767,7 @@ export default defineSchema({
     .index('by_user_created', ['userId', 'createdAt'])
     .index('by_created_at', ['createdAt'])
     .index('by_actor_created', ['actorId', 'createdAt'])
+    .index('by_user_actor_created', ['userId', 'actorId', 'createdAt'])
     .index('by_user_dedupe', ['userId', 'dedupeKey'])
     .index('by_user_group_key', ['userId', 'groupKey']),
 
@@ -823,7 +824,7 @@ export default defineSchema({
     isRead: v.boolean(),
     createdAt: v.number(),
   })
-    .index('by_recipient_read', ['recipientId', 'isRead'])
+    .index('by_recipient_read_created', ['recipientId', 'isRead', 'createdAt'])
     .index('by_recipient_created', ['recipientId', 'createdAt'])
     .index('by_actor_created', ['actorId', 'createdAt'])
     .index('by_read_created', ['isRead', 'createdAt'])

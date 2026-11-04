@@ -8,7 +8,7 @@ import { enforceRateLimit } from './lib/rate_limits'
 import {
   backfillHomeFeedForFollow,
   enqueueActivityEventFanOut,
-  removeHomeFeedItemsForFollow,
+  scheduleHomeFeedRemovalForUnfollow,
 } from './lib/homeFeed'
 import {
   buildProfileNotificationTarget,
@@ -64,6 +64,43 @@ export const listFollowing = query({
       .query('follows')
       .withIndex('by_follower', (query) => query.eq('followerId', viewerId))
       .collect()
+  },
+})
+
+/** Most user ids one `getFollowState` call accepts (a page of cards). */
+export const FOLLOW_STATE_MAX_IDS = 40
+
+/**
+ * Which of `userIds` the viewer follows: one pair-index read per id, so the
+ * cost tracks the cards on screen rather than the viewer's whole graph.
+ */
+export const getFollowState = query({
+  args: { userIds: v.array(v.id('users')) },
+  returns: v.array(v.id('users')),
+  handler: async (ctx, args) => {
+    const userIds = [...new Set(args.userIds)]
+    if (userIds.length > FOLLOW_STATE_MAX_IDS) {
+      throw new ConvexError(
+        `Ask for at most ${FOLLOW_STATE_MAX_IDS} users at a time`,
+      )
+    }
+
+    const viewer = await getViewerOrThrow(ctx)
+    if (viewer.deletedAt != null || viewer.purgedAt != null) {
+      throw new ConvexError('Unauthorized')
+    }
+
+    const follows = await Promise.all(
+      userIds.map((userId) =>
+        ctx.db
+          .query('follows')
+          .withIndex('by_pair', (query) =>
+            query.eq('followerId', viewer._id).eq('followingId', userId),
+          )
+          .first(),
+      ),
+    )
+    return follows.flatMap((follow) => (follow ? [follow.followingId] : []))
   },
 })
 
@@ -197,7 +234,7 @@ export const unfollow = mutation({
       updatedAt: Date.now(),
     })
 
-    await removeHomeFeedItemsForFollow(ctx, viewer._id, targetUser._id)
+    await scheduleHomeFeedRemovalForUnfollow(ctx, viewer._id, targetUser._id)
     return null
   },
 })

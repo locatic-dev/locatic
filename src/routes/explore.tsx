@@ -29,7 +29,6 @@ import {
 } from '@/features/explore/state'
 import { citiesByIdsQueryOptions } from '@/features/cities/queries'
 import { cityStatsQueryOptions } from '@/features/explore/queries'
-import { followingQueryOptions } from '@/features/follows/queries'
 import { getAccountRecoveryState } from '@/features/viewer/lifecycle'
 import {
   viewerExplorePrefsQueryOptions,
@@ -153,9 +152,6 @@ export const Route = createFileRoute('/explore')({
     ) as Array<Id<'cities'>>
 
     await Promise.all([
-      context.queryClient.ensureQueryData(
-        followingQueryOptions(explorePrefs.viewerId),
-      ),
       selectedCityIds.length > 0
         ? context.queryClient.ensureQueryData(
             citiesByIdsQueryOptions(selectedCityIds),

@@ -3,7 +3,6 @@ import {
   useQuery,
   useQueryClient,
   useSuspenseQuery,
-  type QueryKey,
 } from '@tanstack/react-query'
 import { usePaginatedQuery } from 'convex/react'
 import { useCallback, useEffect, useState } from 'react'
@@ -14,7 +13,6 @@ import {
   projectSearchQueryOptions,
   postSearchQueryOptions,
 } from '@/features/explore/queries'
-import { followingQueryOptions } from '@/features/follows/queries'
 import {
   citiesByIdsQueryOptions,
   citiesSearchQueryOptions,
@@ -26,6 +24,10 @@ import {
   useResetExplorePosts,
   useResetExploreProjects,
 } from '@/features/explore/mutations'
+import {
+  getExploreFollowTargetIds,
+  useExploreFollowedUserIds,
+} from '@/features/explore/use-explore-follow-state'
 import { useOpenConversation } from '@/features/inbox/use-open-conversation'
 import { reportActionError } from '@/lib/action-error'
 import { showUndoToast } from '@/lib/undo-toast'
@@ -139,8 +141,6 @@ function VisitorExplore() {
 
 type ExploreViewer = {
   explorePrefs: ReturnType<typeof mapViewerExplorePrefs>
-  followedUserIds: Set<string>
-  followingQueryKey: QueryKey
   likedProjectIds: Set<string>
   viewerId: Id<'users'> | undefined
 }
@@ -159,21 +159,11 @@ function ViewerExplorePage() {
     viewerStateData as ViewerLikedProjectIdsPayload | undefined,
   )
   const viewerId = explorePrefs?.viewerId
-  const { data: followingData } = useSuspenseQuery(
-    followingQueryOptions(viewerId as Id<'users'>),
-  )
 
   return (
     <ExploreView
       viewer={{
         explorePrefs,
-        followedUserIds: new Set(
-          ((followingData as Array<Doc<'follows'>> | undefined) ?? []).map(
-            (follow) => String(follow.followingId),
-          ),
-        ),
-        followingQueryKey: followingQueryOptions(viewerId as Id<'users'>)
-          .queryKey,
         likedProjectIds: new Set(
           viewerState?.likedProjectIds.map(String) ?? [],
         ),
@@ -443,7 +433,6 @@ function ExploreView({ viewer }: { viewer: ExploreViewer | null }) {
     limit: postSearchLimit,
     q: debouncedSearchQuery,
   }).queryKey
-  const followingQueryKey = viewer?.followingQueryKey
 
   useEffect(() => {
     setPostSearchLimit(POST_SEARCH_DEFAULT_LIMIT)
@@ -485,7 +474,6 @@ function ExploreView({ viewer }: { viewer: ExploreViewer | null }) {
   }, [defaultCityIds, explorePrefs?.cityName, selectedCityLabels])
 
   const likedProjectIds = viewer?.likedProjectIds ?? new Set<string>()
-  const followedUserIds = viewer?.followedUserIds ?? new Set<string>()
   const items = (
     (scopedFeedPaged.results as Array<ExploreProjectPreview> | undefined) ?? []
   ).filter((item) => !dismissedIds.has(String(item.projectId)))
@@ -602,6 +590,16 @@ function ExploreView({ viewer }: { viewer: ExploreViewer | null }) {
     }
   }
   const feedState = getFeedState()
+  // Follow state for the cards on screen only; the live per-chunk queries
+  // catch up after a toggle while `followOverrides` holds the optimistic value.
+  const followedUserIds = useExploreFollowedUserIds(
+    getExploreFollowTargetIds({
+      feedState,
+      railBuilders: rail.nearbyBuilders,
+      viewerId,
+    }),
+    !isVisitor,
+  )
   const handleLoadMore = () => {
     switch (currentMode) {
       case 'builders':
@@ -803,9 +801,6 @@ function ExploreView({ viewer }: { viewer: ExploreViewer | null }) {
         await unfollowUser({ targetUserId: userId })
       } else {
         await followUser({ targetUserId: userId })
-      }
-      if (followingQueryKey) {
-        await queryClient.invalidateQueries({ queryKey: followingQueryKey })
       }
     } catch (error) {
       setFollowOverrides((current) => ({
