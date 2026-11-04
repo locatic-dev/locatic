@@ -226,3 +226,9 @@ export const conversationRecipientPreviewQueryOptions = (
 
 export const followingQueryOptions = (userId: Id<'users'>) =>
   convexQuery(api.follows.listFollowing, { userId })
+
+export const followStateQueryOptions = (userIds: Array<Id<'users'>>) =>
+  convexQuery(
+    api.follows.getFollowState,
+    userIds.length > 0 ? { userIds } : 'skip',
+  )

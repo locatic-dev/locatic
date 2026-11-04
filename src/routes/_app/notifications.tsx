@@ -110,9 +110,15 @@ function NotificationsPage() {
     setMarkingAll(true)
 
     try {
-      await markAllRead({})
+      // The server marks rows created up to `cutoff`; later arrivals stay
+      // unread, and the badge follows the server as remaining batches land.
+      const { cutoff } = await markAllRead({})
       setLocalReadIds(
-        new Set(notifications.map((notification) => String(notification._id))),
+        new Set(
+          notifications
+            .filter((notification) => notification.createdAt <= cutoff)
+            .map((notification) => String(notification._id)),
+        ),
       )
     } catch (error) {
       reportActionError(error, {

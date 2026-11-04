@@ -12,6 +12,7 @@ import {
   fanOutActivityEventToFollowersPage,
   getHomeFeedCutoff,
   getHomeFeedLegacyTarget,
+  removeHomeFeedItemsForUnfollowBatch,
 } from './lib/homeFeed'
 import { buildProjectCardPreview } from './lib/project_previews'
 import {
@@ -147,6 +148,33 @@ export const fanOutActivityEventBatch = internalMutation({
   },
 })
 
+/**
+ * Removes an unfollowed actor's rows from the follower's feed, one bounded
+ * batch per run, rescheduling itself until none remain or the follow returns.
+ */
+export const removeUnfollowedFeedItemsBatch = internalMutation({
+  args: {
+    followerId: v.id('users'),
+    actorId: v.id('users'),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const batch = await removeHomeFeedItemsForUnfollowBatch(
+      ctx,
+      args.followerId,
+      args.actorId,
+    )
+    if (!batch.isDone) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.home.removeUnfollowedFeedItemsBatch,
+        args,
+      )
+    }
+    return null
+  },
+})
+
 const homeFeedItemValidator = v.object({
   _id: v.id('home_feed_items'),
   _creationTime: v.number(),
@@ -191,14 +219,42 @@ type LiveActor = {
 
 const UNDISCLOSED_LOCATION: SnapshotLocation = { cityId: null, cityName: null }
 
+function distinctActorIds(actorIds: Array<Id<'users'>>) {
+  return [
+    ...new Map(actorIds.map((actorId) => [String(actorId), actorId])).values(),
+  ]
+}
+
+/**
+ * The actors on a feed page the viewer still follows, one pair-index read per
+ * distinct actor. Rows from an unfollowed actor are hidden until the
+ * background cleanup deletes them.
+ */
+async function loadFollowedActorIds(
+  ctx: QueryCtx,
+  viewerId: Id<'users'>,
+  actorIds: Array<Id<'users'>>,
+) {
+  const followed = await Promise.all(
+    distinctActorIds(actorIds).map(async (actorId) => {
+      const follow = await ctx.db
+        .query('follows')
+        .withIndex('by_pair', (query) =>
+          query.eq('followerId', viewerId).eq('followingId', actorId),
+        )
+        .first()
+      return follow ? String(actorId) : null
+    }),
+  )
+  return new Set(followed.filter((actorId) => actorId !== null))
+}
+
 /** One user read (and at most one city read) per distinct actor. */
 async function loadLiveActors(
   ctx: QueryCtx,
   actorIds: Array<Id<'users'>>,
 ): Promise<Map<string, LiveActor>> {
-  const distinctIds = [
-    ...new Map(actorIds.map((actorId) => [String(actorId), actorId])).values(),
-  ]
+  const distinctIds = distinctActorIds(actorIds)
   const entries = await Promise.all(
     distinctIds.map(async (actorId): Promise<[string, LiveActor]> => {
       const actor = await ctx.db.get(actorId)
@@ -325,13 +381,21 @@ export const list = query({
       )
       .order('desc')
       .paginate(args.paginationOpts)
+    const followedActorIds = await loadFollowedActorIds(
+      ctx,
+      viewer._id,
+      feedPage.page.map((item) => item.actorId),
+    )
+    const visibleItems = feedPage.page.filter((item) =>
+      followedActorIds.has(String(item.actorId)),
+    )
     const liveActors = await loadLiveActors(
       ctx,
-      feedPage.page.map((item) => item.actorId),
+      visibleItems.map((item) => item.actorId),
     )
 
     const page = await Promise.all(
-      feedPage.page.map(async (item) => {
+      visibleItems.map(async (item) => {
         const legacyTarget = getHomeFeedLegacyTarget(item)
         const previewTargets = item.previewTargets ?? []
         const enrichedTargets = await Promise.all(

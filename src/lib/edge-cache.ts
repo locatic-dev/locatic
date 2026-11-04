@@ -43,8 +43,48 @@ export function hasClerkSession(cookieHeader: string | null): boolean {
   })
 }
 
+/** Cache only unambiguous HTML requests; let the renderer negotiate the rest. */
+function acceptsCachedHtml(accept: string | null): boolean {
+  if (!accept) return true
+  // Quoted parameters need a full media-range parser; they can render uncached.
+  if (accept.includes('"')) return false
+
+  let documentRange = false
+  let specificity = -1
+  let quality = 0
+  for (const range of accept.split(',')) {
+    const [rawType, ...parameters] = range.trim().split(';')
+    const type = rawType.trim()
+    // Match the renderer's case-sensitive ranges; normalize only for precedence.
+    if (type === 'text/html' || type === '*/*') documentRange = true
+    const normalized = type.toLowerCase()
+    const rank =
+      normalized === 'text/html'
+        ? 2
+        : normalized === 'text/*'
+          ? 1
+          : normalized === '*/*'
+            ? 0
+            : -1
+    if (rank < 0 || rank < specificity) continue
+    // Cache only parameter-free ranges or a single valid quality weight.
+    const weight =
+      parameters.length === 0
+        ? 1
+        : parameters.length === 1
+          ? /^\s*q\s*=\s*(0(?:\.[0-9]{0,3})?|1(?:\.0{0,3})?)\s*$/i.exec(
+              parameters[0],
+            )?.[1]
+          : undefined
+    const nextQuality = Number(weight ?? 0)
+    quality = rank > specificity ? nextQuality : Math.max(quality, nextQuality)
+    specificity = rank
+  }
+  return documentRange && quality > 0
+}
+
 /**
- * A signed-out GET of a public page with no query string. Clerk also accepts
+ * A signed-out HTML GET of a public page with no query string. Clerk also accepts
  * a session token as a Bearer `Authorization` header, so one never reads or
  * fills the shared copy.
  */
@@ -55,7 +95,8 @@ export function isCacheableRequest(request: Request): boolean {
     url.search === '' &&
     CACHEABLE_PATH.test(url.pathname) &&
     !request.headers.has('authorization') &&
-    !hasClerkSession(request.headers.get('cookie'))
+    !hasClerkSession(request.headers.get('cookie')) &&
+    acceptsCachedHtml(request.headers.get('accept'))
   )
 }
 

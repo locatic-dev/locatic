@@ -415,19 +415,62 @@ export async function backfillHomeFeedForFollow(
   }
 }
 
-export async function removeHomeFeedItemsForFollow(
+/** Feed rows deleted per unfollow cleanup transaction. */
+export const HOME_FEED_UNFOLLOW_BATCH_SIZE = 100
+
+/**
+ * Schedules removal of the follower's feed rows from an actor they no longer
+ * follow. `home.list` already hides those rows, so the unfollow itself never
+ * reads the feed.
+ */
+export async function scheduleHomeFeedRemovalForUnfollow(
   ctx: MutationCtx,
-  followerId: Doc<'users'>['_id'],
-  followingId: Doc<'users'>['_id'],
+  followerId: Id<'users'>,
+  actorId: Id<'users'>,
 ) {
+  await ctx.scheduler.runAfter(
+    0,
+    internal.home.removeUnfollowedFeedItemsBatch,
+    {
+      followerId,
+      actorId,
+    },
+  )
+}
+
+/**
+ * Deletes one batch of the follower's feed rows from `actorId`. Each batch
+ * first re-checks the follow: once the follower follows the actor again, the
+ * rows belong to the new follow and the job stops without deleting.
+ */
+export async function removeHomeFeedItemsForUnfollowBatch(
+  ctx: MutationCtx,
+  followerId: Id<'users'>,
+  actorId: Id<'users'>,
+) {
+  const follow = await ctx.db
+    .query('follows')
+    .withIndex('by_pair', (query) =>
+      query.eq('followerId', followerId).eq('followingId', actorId),
+    )
+    .first()
+  if (follow) {
+    return { deletedCount: 0, isDone: true }
+  }
+
   const feedItems = await ctx.db
     .query('home_feed_items')
-    .withIndex('by_user_created', (query) => query.eq('userId', followerId))
-    .collect()
+    .withIndex('by_user_actor_created', (query) =>
+      query.eq('userId', followerId).eq('actorId', actorId),
+    )
+    .take(HOME_FEED_UNFOLLOW_BATCH_SIZE)
 
-  await Promise.all(
-    feedItems
-      .filter((item) => item.actorId === followingId)
-      .map((item) => ctx.db.delete(item._id)),
-  )
+  for (const item of feedItems) {
+    await ctx.db.delete(item._id)
+  }
+
+  return {
+    deletedCount: feedItems.length,
+    isDone: feedItems.length < HOME_FEED_UNFOLLOW_BATCH_SIZE,
+  }
 }
