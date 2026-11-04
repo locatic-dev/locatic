@@ -6,7 +6,7 @@ import { LOCATIC_DEFINITION } from '@/features/about/about-content'
 import { AboutDialog } from '../about-dialog'
 
 describe('AboutDialog', () => {
-  it('opens the letter with GitHub links to the founders and the organisation', async () => {
+  it('opens the letter with GitHub links to the founders and the repository', async () => {
     render(
       <AboutDialog>
         <button type="button">about</button>
@@ -30,7 +30,7 @@ describe('AboutDialog', () => {
       screen
         .getByRole('link', { name: /follow locatic on github/ })
         .getAttribute('href'),
-    ).toBe('https://github.com/locatic-dev')
+    ).toBe('https://github.com/locatic-dev/locatic')
     // Section headings sit under the dialog title.
     expect(
       screen.getByRole('heading', { level: 3, name: 'Who we are' }),
