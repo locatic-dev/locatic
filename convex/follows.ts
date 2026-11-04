@@ -8,7 +8,7 @@ import { enforceRateLimit } from './lib/rate_limits'
 import {
   backfillHomeFeedForFollow,
   enqueueActivityEventFanOut,
-  removeHomeFeedItemsForFollow,
+  scheduleHomeFeedRemovalForUnfollow,
 } from './lib/homeFeed'
 import {
   buildProfileNotificationTarget,
@@ -197,7 +197,7 @@ export const unfollow = mutation({
       updatedAt: Date.now(),
     })
 
-    await removeHomeFeedItemsForFollow(ctx, viewer._id, targetUser._id)
+    await scheduleHomeFeedRemovalForUnfollow(ctx, viewer._id, targetUser._id)
     return null
   },
 })
