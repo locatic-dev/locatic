@@ -823,7 +823,7 @@ export default defineSchema({
     isRead: v.boolean(),
     createdAt: v.number(),
   })
-    .index('by_recipient_read', ['recipientId', 'isRead'])
+    .index('by_recipient_read_created', ['recipientId', 'isRead', 'createdAt'])
     .index('by_recipient_created', ['recipientId', 'createdAt'])
     .index('by_actor_created', ['actorId', 'createdAt'])
     .index('by_read_created', ['isRead', 'createdAt'])

@@ -186,6 +186,31 @@ describe('notifications route', () => {
     ).toBeTruthy()
   })
 
+  it('marks only rows created up to the server cutoff read locally', async () => {
+    setLive(
+      [
+        notification('n2', 'bo', { createdAt: 20 }),
+        notification('n1', 'ana', { createdAt: 10 }),
+      ],
+      'Exhausted',
+    )
+    mocks.unreadCount = 2
+    mocks.markAllRead.mockResolvedValue({ cutoff: 15, isDone: false })
+
+    await renderNotifications()
+    await act(async () => {
+      screen.getByRole('button', { name: 'mark all read' }).click()
+    })
+
+    expect(mocks.markAllRead).toHaveBeenCalledWith({})
+    expect(
+      screen.getByRole('button', { name: /^ana started following you/ }),
+    ).toBeTruthy()
+    expect(
+      screen.getByRole('button', { name: /^unread: bo started following you/ }),
+    ).toBeTruthy()
+  })
+
   it('keeps loaded pages when a new notification arrives live', async () => {
     setLive(
       [notification('n1', 'ana'), notification('n2', 'bo')],
