@@ -16,7 +16,7 @@
 // the current counts; use it after removing hits, not to accept new ones.
 
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { join, relative } from 'node:path'
+import { join, posix } from 'node:path'
 
 const ROOT = process.cwd()
 const SCAN_DIRS = ['src/features', 'src/routes']
@@ -52,7 +52,8 @@ const KINDS = [
 function listFiles(dir) {
   return readdirSync(join(ROOT, dir), { withFileTypes: true }).flatMap(
     (entry) => {
-      const path = join(dir, entry.name)
+      // POSIX separators keep allowlist keys and TEST_FILE stable on Windows.
+      const path = posix.join(dir, entry.name)
       if (entry.isDirectory()) return listFiles(path)
       return SOURCE_FILE.test(entry.name) && !TEST_FILE.test(path) ? [path] : []
     },
@@ -70,10 +71,9 @@ function scan() {
       for (const { kind, pattern, accept } of KINDS) {
         for (const match of line.matchAll(pattern)) {
           if (accept && !accept(match)) continue
-          const path = relative(ROOT, join(ROOT, file))
-          hits[path] ??= {}
-          hits[path][kind] ??= []
-          hits[path][kind].push({ line: index + 1, text: match[0] })
+          hits[file] ??= {}
+          hits[file][kind] ??= []
+          hits[file][kind].push({ line: index + 1, text: match[0] })
         }
       }
     })

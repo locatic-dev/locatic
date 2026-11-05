@@ -1471,18 +1471,13 @@ export const publicFollowGraphPage = query({
     paginationOpts: paginationOptsValidator,
   },
   handler: async (ctx, args) => {
-    const viewer = await ctx.db
-      .query('users')
-      .withIndex('by_github_username', (query) =>
-        query.eq('github.username', args.username),
-      )
-      .unique()
+    // Members-only profiles keep their graph from signed-out visitors.
+    const { viewer } = await getAccessiblePublicProfileViewer(
+      ctx,
+      args.username,
+    )
 
-    if (!viewer || isProfileGone(viewer)) {
-      return emptyFollowPreviewPage(args.paginationOpts.cursor)
-    }
-
-    if (viewer.privacy.followGraphVisibility !== 'public') {
+    if (!viewer || viewer.privacy.followGraphVisibility !== 'public') {
       return emptyFollowPreviewPage(args.paginationOpts.cursor)
     }
 
