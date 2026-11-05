@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link, createFileRoute, redirect } from '@tanstack/react-router'
 import { Button } from '@/components/ui/button'
+import { BrandIcon } from '@/components/ui/brand-icon'
 import { PublicHeader } from '@/components/app-shell/public-header'
 import { PublicFooter } from '@/components/app-shell/public-footer'
 import { HeroActivityList } from '@/features/landing/hero-activity-list'
@@ -22,7 +23,7 @@ import {
   landingActivityQueryOptions,
   landingMapCitiesQueryOptions,
 } from '@/integrations/convex/query-options'
-import { GITHUB_URL } from '@/lib/site-links'
+import { GITHUB_REPO_URL } from '@/lib/site-links'
 import { seo } from '@/lib/seo'
 import { organizationNode, websiteNode } from '@/lib/structured-data'
 import { JsonLd } from '@/components/ui/json-ld'
@@ -75,12 +76,13 @@ function LandingPage() {
             </Button>
             <Button asChild variant="ghost" size="touch">
               <a
-                href={GITHUB_URL}
+                href={GITHUB_REPO_URL}
                 target="_blank"
                 rel="noreferrer noopener"
-                aria-label="Locatic on GitHub (opens in a new tab)"
+                aria-label="Star Locatic on GitHub (opens in a new tab)"
               >
-                github
+                <BrandIcon name="github" size={14} />
+                star us
               </a>
             </Button>
           </>
