@@ -141,6 +141,29 @@ describe('raw follow graph queries', () => {
       expect(graph.page).toHaveLength(1)
     }
   })
+
+  it('keeps a members-only profile graph from signed-out visitors', async () => {
+    await t.run(async (ctx) => {
+      const owner = await ctx.db.get(ownerId)
+      await ctx.db.patch(ownerId, {
+        privacy: {
+          ...owner!.privacy,
+          profileVisibility: 'locatic_only',
+          followGraphVisibility: 'public',
+        },
+      })
+    })
+    const member = t.withIdentity({ subject: fixtureClerkId('followed') })
+    for (const kind of ['followers', 'following'] as const) {
+      const args = { username: 'owner', kind, paginationOpts: PAGE }
+      expect(
+        (await t.query(api.users.publicFollowGraphPage, args)).page,
+      ).toEqual([])
+      expect(
+        (await member.query(api.users.publicFollowGraphPage, args)).page,
+      ).toHaveLength(1)
+    }
+  })
 })
 
 describe('follow state for visible users', () => {

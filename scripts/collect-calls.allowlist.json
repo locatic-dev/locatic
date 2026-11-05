@@ -10,7 +10,6 @@
     "convex/lib/reactions.ts#getViewerReactionTypesByTargetId": 1,
     "convex/projects.ts#getPublicProjectDetail": 1,
     "convex/projects.ts#listMine": 1,
-    "convex/projects.ts#listVisibleByUsername": 1,
     "convex/projects.ts#updateTopics": 1,
     "convex/projects.ts#updateVisibility": 1,
     "convex/projects.ts#upsertImportedRepositories": 1,
