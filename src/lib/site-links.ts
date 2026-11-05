@@ -1,7 +1,2 @@
-/**
- * Locatic on GitHub. `GITHUB_URL` is the organisation (site header and
- * structured data); `GITHUB_REPO_URL` is the app repository, which the
- * founders' letter links to.
- */
-export const GITHUB_URL = 'https://github.com/locatic-dev'
+/** Locatic's open-source repository, linked wherever the site mentions GitHub. */
 export const GITHUB_REPO_URL = 'https://github.com/locatic-dev/locatic'

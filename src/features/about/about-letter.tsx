@@ -141,10 +141,11 @@ export function AboutLetter({ headingLevel }: { headingLevel: HeadingLevel }) {
           everyone to discover.
         </p>
         <p>
-          If you like what we're building, please follow us on GitHub and share
-          it with your developer friends, colleagues and communities. And if you
-          have ideas, feedback or something you want to see on the platform,
-          write to us at{' '}
+          Locatic is open source. If you like what we're building, star the repo
+          on GitHub: it helps more builders find us. Share it with your
+          developer friends, colleagues and communities, and if you have ideas,
+          feedback or something you want to see on the platform, open an issue
+          or write to us at{' '}
           <a href={`mailto:${CONTACT_EMAIL}`} className={inlineLinkClassName}>
             {CONTACT_EMAIL}
           </a>
@@ -154,7 +155,7 @@ export function AboutLetter({ headingLevel }: { headingLevel: HeadingLevel }) {
           <Button asChild variant="secondary" size="touch">
             <a href={GITHUB_REPO_URL} target="_blank" rel="noreferrer noopener">
               <BrandIcon name="github" size={14} />
-              follow locatic on github
+              star locatic on github
             </a>
           </Button>
         </div>

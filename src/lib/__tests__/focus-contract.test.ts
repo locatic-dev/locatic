@@ -1,5 +1,5 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs'
-import { join, relative } from 'node:path'
+import { join, relative, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 
@@ -67,7 +67,8 @@ describe('focus contract', () => {
   it('never leaves a control with outline-none and no replacement focus indicator', () => {
     const offenders: Array<string> = []
     for (const file of sourceFiles(srcDir)) {
-      const path = relative(srcDir, file)
+      // Allowlist keys use POSIX separators on every platform.
+      const path = relative(srcDir, file).split(sep).join('/')
       if (path in OUTLINE_SUPPRESSION_ALLOWLIST) continue
       const literals = readFileSync(file, 'utf8').match(/(['"`])[^'"`]*\1/g)
       for (const literal of literals ?? []) {

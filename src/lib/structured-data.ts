@@ -10,7 +10,7 @@ import {
   githubProfileUrl,
 } from '@/features/about/about-content'
 import { SITE_URL } from '@/lib/seo'
-import { GITHUB_URL } from '@/lib/site-links'
+import { GITHUB_REPO_URL } from '@/lib/site-links'
 import { socialLinkHref } from '@/lib/social-links'
 
 export type JsonLdNode = { '@type': string } & Record<string, unknown>
@@ -47,7 +47,7 @@ export function organizationNode(): JsonLdNode {
     logo: `${SITE_URL}/icon-512.png`,
     description: LOCATIC_DEFINITION,
     email: CONTACT_EMAIL,
-    sameAs: [GITHUB_URL],
+    sameAs: [GITHUB_REPO_URL],
     founder: FOUNDERS.map((founder) => ({
       '@type': 'Person',
       name: founder.name,

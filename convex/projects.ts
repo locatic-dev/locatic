@@ -771,31 +771,6 @@ export const backfillProjectReactionCounts = internalMutation({
   },
 })
 
-export const listVisibleByUsername = query({
-  args: {
-    username: v.string(),
-  },
-  handler: async (ctx, args) => {
-    const owner = await ctx.db
-      .query('users')
-      .withIndex('by_github_username', (query) =>
-        query.eq('github.username', args.username),
-      )
-      .unique()
-
-    if (!owner) {
-      return []
-    }
-
-    return await ctx.db
-      .query('projects')
-      .withIndex('by_owner_visible', (query) =>
-        query.eq('ownerId', owner._id).eq('locatic.isVisible', true),
-      )
-      .collect()
-  },
-})
-
 export const updateVisibility = mutation({
   args: {
     projectId: v.id('projects'),
