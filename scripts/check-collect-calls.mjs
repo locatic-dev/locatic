@@ -18,7 +18,7 @@
 // the current counts; use it after removing calls, not to accept new ones.
 
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, posix } from 'node:path'
 
 const ROOT = process.cwd()
 const SCAN_DIR = 'convex'
@@ -33,7 +33,8 @@ const INTERNAL_REGISTRATION = /^internal(?:Mutation|Query|Action)$/
 function listFiles(dir) {
   return readdirSync(join(ROOT, dir), { withFileTypes: true }).flatMap(
     (entry) => {
-      const path = join(dir, entry.name)
+      // POSIX separators keep allowlist keys and SKIP stable on Windows.
+      const path = posix.join(dir, entry.name)
       if (SKIP.test(path)) return []
       if (entry.isDirectory()) return listFiles(path)
       return entry.name.endsWith('.ts') ? [path] : []
