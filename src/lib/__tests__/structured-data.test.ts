@@ -73,7 +73,7 @@ describe('site nodes', () => {
   it('describes the organisation with its founders and GitHub', () => {
     const org = organizationNode()
     expect(org['@id']).toBe(ORGANIZATION_ID)
-    expect(org.sameAs).toEqual(['https://github.com/locatic-dev'])
+    expect(org.sameAs).toEqual(['https://github.com/locatic-dev/locatic'])
     expect(org.founder).toContainEqual({
       '@type': 'Person',
       name: 'Avinash Changrani',

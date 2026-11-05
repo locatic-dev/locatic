@@ -30,6 +30,11 @@ export const ABOUT_FAQ = [
       'GitHub hosts code. Locatic is about the people behind it: who is building what, and where. It sits on top of your public GitHub work and adds city pages, follows, comments, posts and direct messages. There are no rankings or leaderboards; builders are ordered by their most recent public work.',
   },
   {
+    question: 'Is Locatic open source?',
+    answer:
+      'Yes. The code is on GitHub at github.com/locatic-dev/locatic under the MIT License. Star the repository to follow along, and open an issue or pull request if you want to report a bug or contribute.',
+  },
+  {
     question: 'My city is not listed. Can I still join?',
     answer:
       'Yes. Choose “can’t find my city” during onboarding and you still get global Explore. You join a city’s page once you set a city in your settings.',

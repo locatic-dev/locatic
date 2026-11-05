@@ -1,6 +1,7 @@
 import { Link } from '@tanstack/react-router'
 import * as m from 'motion/react-m'
 import { fadeUp, viewportOnce } from '@/lib/motion'
+import { GITHUB_REPO_URL } from '@/lib/site-links'
 
 const footerLinkClassName =
   'inline-flex min-h-11 items-center text-text-muted no-underline transition-colors hover:text-text'
@@ -33,6 +34,15 @@ export function PublicFooter() {
         <Link to="/terms" className={footerLinkClassName}>
           terms
         </Link>
+        <a
+          href={GITHUB_REPO_URL}
+          target="_blank"
+          rel="noreferrer noopener"
+          className={footerLinkClassName}
+          aria-label="Star Locatic on GitHub (opens in a new tab)"
+        >
+          star on github
+        </a>
       </nav>
       <p className="mt-3 mb-0">locatic · github with a map</p>
     </m.footer>
