@@ -4,6 +4,8 @@ Use Node 24 and the pnpm version in `package.json`. Follow [Contributor setup](d
 
 Keep changes focused. Describe the problem, resulting behavior, and verification in your pull request. Include regression tests for bugs. Keep unit tests beside the source and use `convex-test` for server authorization and privacy contracts.
 
+Target `dev` for ordinary contributions. Maintainers promote reviewed changes from `dev` to `main` through release PRs. Use merge commits for releases and branch synchronization; squash merges are suitable for short-lived feature branches. Send production hotfixes back to `dev` through a reviewed PR. Code owners are requested for review when a PR is ready.
+
 Run `pnpm ci:quality` and `pnpm ci:build` for changes across layers. Use `pnpm e2e:components` for browser behavior; full integration tests require the [documented personas](playwright/fixtures/fixtures.md). Format only changed files with `pnpm exec oxfmt <files>`. Do not edit generated routes or Convex bindings by hand.
 
 Follow the [maintenance policy](docs/DEPENDENCY_MAINTENANCE.md) for dependency changes. Include exposure, runtime, native-build, and license changes in the PR. Keep install safeguards enabled and review bot updates before merging.
