@@ -27,9 +27,7 @@ describe('AboutDialog', () => {
       screen.getAllByRole('link', { name: 'Avinash Changrani' }).length,
     ).toBeGreaterThan(0)
     expect(
-      screen
-        .getByRole('link', { name: /star locatic on github/ })
-        .getAttribute('href'),
+      screen.getByRole('link', { name: 'locatic' }).getAttribute('href'),
     ).toBe('https://github.com/locatic-dev/locatic')
     // Section headings sit under the dialog title.
     expect(
