@@ -24,7 +24,14 @@ export function getPublicAuthRedirect(pathname: string, href: string) {
 // Top bar shared by public pages (landing, legal, public Explore). Entrance
 // runs on CSS (`lx-hero-up`) — above-the-fold chrome must never wait on
 // hydration to become visible.
-export function PublicHeader({ navStart }: { navStart?: ReactNode }) {
+export function PublicHeader({
+  navStart,
+  navAfterExplore,
+}: {
+  navStart?: ReactNode
+  /** Rendered right after the explore link, before the account actions. */
+  navAfterExplore?: ReactNode
+}) {
   // Root route context through the router, so this shared component never
   // imports the root route module.
   const isAuthenticated = useRouteContext({
@@ -71,6 +78,7 @@ export function PublicHeader({ navStart }: { navStart?: ReactNode }) {
                 </Link>
               </Button>
             )}
+            {navAfterExplore}
             <Button asChild variant="secondary" size="touch">
               <Link to="/sign-in/$" search={{ redirect }}>
                 sign in

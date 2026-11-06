@@ -70,22 +70,21 @@ function LandingPage() {
     <div className="min-h-dvh overflow-x-clip bg-canvas text-text">
       <PublicHeader
         navStart={
-          <>
-            <Button asChild variant="ghost" size="touch">
-              <Link to="/about">about</Link>
-            </Button>
-            <Button asChild variant="ghost" size="touch">
-              <a
-                href={GITHUB_REPO_URL}
-                target="_blank"
-                rel="noreferrer noopener"
-                aria-label="Star Locatic on GitHub (opens in a new tab)"
-              >
-                <BrandIcon name="github" size={14} />
-                star us
-              </a>
-            </Button>
-          </>
+          <Button asChild variant="ghost" size="touch">
+            <Link to="/about">about</Link>
+          </Button>
+        }
+        navAfterExplore={
+          <Button asChild variant="ghost" size="touch">
+            <a
+              href={GITHUB_REPO_URL}
+              target="_blank"
+              rel="noreferrer noopener"
+              aria-label="Locatic on GitHub (opens in a new tab)"
+            >
+              <BrandIcon name="github" size={16} />
+            </a>
+          </Button>
         }
       />
 
