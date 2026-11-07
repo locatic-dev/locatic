@@ -8,6 +8,10 @@ This policy covers npm packages, the pnpm and Node toolchain, and GitHub Actions
 
 The separate [advisory audit](../.github/workflows/dependency-audit.yml) runs Mondays at 06:23 UTC or by manual dispatch. Full and production jobs audit the committed lockfile without installing packages and retain JSON reports for 14 days. Advisories and registry/setup errors fail the jobs.
 
+[Dependency review](../.github/workflows/dependency-review.yml) checks PRs targeting `dev` and `main` and fails when introduced dependencies have high or critical advisories. It uses a read-only token and does not execute PR code or receive provider secrets. The weekly audit remains necessary for newly published advisories affecting dependencies already present.
+
+Pin Actions to verified full commit SHAs and retain version comments for review. Review digest updates through the existing update process; do not replace pins with moving version tags.
+
 Each week, check both jobs, the Renovate dashboard, alerts, and stalled PRs. If there is no successful audit within eight days, inspect schedule/runner failures and dispatch it or run locally:
 
 ```sh

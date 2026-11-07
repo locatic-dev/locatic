@@ -10,6 +10,12 @@ Before enabling credentialed workflows, configure required PR reviews/checks and
 
 The existing App Deploy workflow runs after successful CI pushes to `dev` or `main`. It validates the target build, deploys Convex, and then deploys the Worker under one environment lock. A failed Convex deployment stops the Worker step. Merging into those branches can deploy; the separate manual QA workflow is not an automatic prerequisite.
 
+App Deploy accepts only CI push runs from this repository. It checks out the fixed target branch and compares its revision with the successful CI run before installing dependencies. If the branch has advanced, deployment stops; use the successful CI run for the current branch revision. Provider secrets are available only to their deployment steps.
+
+Environment branch restrictions apply to the workflow ref, which is `main` for the current `workflow_run` trigger, including development deployments. Production also requires independent approval. Keep `development` restricted to the workflow's `main` ref until changing this trigger. The source-branch and revision checks still select the development code.
+
+After promoting workflow changes to both protected branches, verify code-owner review and the `Dependency review` check before requiring them in rulesets. Enable SHA-only Actions enforcement only when all applicable branches use full commit pins. Review CodeQL PR results on both targets before requiring its merge gate; a successful analysis can still report alerts.
+
 Retain the [dependency/font/data notices](../THIRD_PARTY_NOTICES.md) with distributed artifacts. Review the exact source and asset inventory, licensing authority, and private security-report delivery before publication.
 
 ## Observe before retiring data

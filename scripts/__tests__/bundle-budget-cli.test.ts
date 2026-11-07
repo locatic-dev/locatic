@@ -57,14 +57,23 @@ function runBudget({
         ...manifestRoutes,
         '/': { preloads: ['/assets/missing.js'] },
       }
-    if (includeManifest)
+    if (includeManifest) {
+      writeFileSync(
+        join(directory, 'dist/server/assets/manifest.json'),
+        JSON.stringify({ routes: manifestRoutes }),
+      )
       writeFileSync(
         join(
           directory,
           'dist/server/assets/_tanstack-start-manifest-fixture.js',
         ),
-        `export const tsrStartManifest = () => (${JSON.stringify({ routes: manifestRoutes })})`,
+        `import { readFileSync } from 'node:fs'
+export const tsrStartManifest = () => JSON.parse(
+  readFileSync(new URL('./manifest.json', import.meta.url), 'utf8'),
+)
+`,
       )
+    }
     try {
       return {
         status: 0,
