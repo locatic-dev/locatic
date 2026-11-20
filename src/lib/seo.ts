@@ -10,10 +10,6 @@ export const DEFAULT_TITLE =
 export const DEFAULT_DESCRIPTION =
   'Locatic is a social network for developers that shows what people are building in each city. Discover projects, follow builders, talk to them.'
 
-/**
- * Checked-in public/og-image.png, proportionally fitted to 1200x630.
- * scripts/generate-brand-images.mjs overwrites it with older, different artwork.
- */
 export const SOCIAL_IMAGE = {
   url: `${SITE_URL}/og-image.png`,
   width: 1200,
