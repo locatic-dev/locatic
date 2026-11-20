@@ -1,7 +1,6 @@
-export function relativeTime(timestamp: number): string {
+export function relativeTime(timestamp: number, now = Date.now()): string {
   if (!Number.isFinite(timestamp)) return 'unknown'
 
-  const now = Date.now()
   const diff = Math.max(now - timestamp, 0)
   const seconds = Math.floor(diff / 1000)
   const minutes = Math.floor(seconds / 60)

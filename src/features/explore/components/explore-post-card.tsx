@@ -3,7 +3,8 @@ import { Link } from '@tanstack/react-router'
 import { LxAvatar } from '@/components/ui/lx-avatar'
 import { ReactionBar } from '@/features/projects/reactions/reaction-bar'
 import { X } from '@/lib/icons'
-import { relativeTime } from '@/lib/time'
+import { formatDate, relativeTime } from '@/lib/time'
+import { useHydratedNow } from '@/lib/use-hydrated-now'
 import type { ExplorePostPreview } from '@/features/explore/types'
 import { SignInLink } from './sign-in-link'
 
@@ -21,6 +22,7 @@ export function ExplorePostCard({
   /** Signed-out visitor: counts only, with a sign-in link to react. */
   visitor?: { signInRedirect: string | undefined }
 }) {
+  const now = useHydratedNow()
   const owner =
     post.projectSnapshot.ownerLogin ??
     post.projectSnapshot.fullName.split('/')[0] ??
@@ -52,7 +54,12 @@ export function ExplorePostCard({
                 <span className="text-text-muted">
                   {post.projectSnapshot.fullName}
                 </span>{' '}
-                · {relativeTime(post.createdAt)}
+                ·{' '}
+                <time dateTime={new Date(post.createdAt).toISOString()}>
+                  {now === null
+                    ? formatDate(post.createdAt)
+                    : relativeTime(post.createdAt, now)}
+                </time>
               </div>
             </div>
           </div>
