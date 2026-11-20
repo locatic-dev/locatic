@@ -19,6 +19,13 @@ describe('relativeTime', () => {
     expect(relativeTime(Date.now() - 5 * 60_000)).toBe('5m ago')
   })
 
+  it('uses the supplied clock snapshot instead of the ambient clock', () => {
+    const timestamp = Date.UTC(2026, 8, 30, 12)
+    expect(relativeTime(timestamp, timestamp + 59_500)).toBe('just now')
+    expect(relativeTime(timestamp, timestamp + 60_500)).toBe('1m ago')
+    expect(relativeTime(timestamp, timestamp - 1_000)).toBe('just now')
+  })
+
   it('returns hours ago', () => {
     expect(relativeTime(Date.now() - 3 * 3600_000)).toBe('3h ago')
   })

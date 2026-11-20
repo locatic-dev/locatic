@@ -1,7 +1,11 @@
 // @vitest-environment jsdom
-import { render, screen, within } from '@testing-library/react'
+import { act, render, screen, within } from '@testing-library/react'
 import type { AnchorHTMLAttributes, ReactNode } from 'react'
-import { describe, expect, it, vi } from 'vitest'
+import { hydrateRoot } from 'react-dom/client'
+import { renderToString } from 'react-dom/server'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { HYDRATED_NOW_TICK_MS } from '@/lib/use-hydrated-now'
 
 import type { Id } from '../../../../convex/_generated/dataModel'
 
@@ -209,5 +213,70 @@ describe('CityPageView', () => {
         .getByRole('link', { name: 'alice/city-notes' })
         .getAttribute('href'),
     ).toBe('/project/alice/city-notes')
+  })
+})
+
+describe('CityPageView recent post timestamps', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it.each([
+    [59_500, 250, 'just now'],
+    [59_500, 1_000, '1m ago'],
+    [3_599_500, 1_000, '1h ago'],
+  ])(
+    'hydrates at age %ims after a %ims delay without replacing server content',
+    async (serverAge, delay, label) => {
+      vi.setSystemTime(post.createdAt + serverAge)
+      const view = <CityPageView page={emptyPage({ posts: [post] })} />
+      const container = document.createElement('div')
+      container.innerHTML = renderToString(view)
+      document.body.append(container)
+      const row = container.querySelector('li')
+      const recoverable = vi.fn()
+      const consoleError = vi
+        .spyOn(console, 'error')
+        .mockImplementation(() => {})
+
+      vi.setSystemTime(post.createdAt + serverAge + delay)
+      const root = await act(async () =>
+        hydrateRoot(container, view, { onRecoverableError: recoverable }),
+      )
+      try {
+        expect(container.textContent).toContain(label)
+        expect(recoverable).not.toHaveBeenCalled()
+        expect(consoleError).not.toHaveBeenCalled()
+        expect(container.querySelector('li')).toBe(row)
+        expect(row?.textContent).toContain('Shipped offline maps')
+      } finally {
+        act(() => root.unmount())
+        container.remove()
+      }
+    },
+  )
+
+  it('renders a semantic UTC date on the server and ages on the shared clock after hydration', async () => {
+    vi.setSystemTime(post.createdAt + 59_500)
+    const view = <CityPageView page={emptyPage({ posts: [post] })} />
+    const container = document.createElement('div')
+    container.innerHTML = renderToString(view)
+    const time = container.querySelector('time')
+    expect(time?.textContent).toBe('Sep 1, 2026')
+    expect(time?.getAttribute('datetime')).toBe('2026-09-01T00:00:00.000Z')
+
+    const root = await act(async () => hydrateRoot(container, view))
+    try {
+      expect(time?.textContent).toBe('just now')
+      act(() => vi.advanceTimersByTime(HYDRATED_NOW_TICK_MS))
+      expect(time?.textContent).toBe('1m ago')
+      expect(time?.getAttribute('datetime')).toBe('2026-09-01T00:00:00.000Z')
+    } finally {
+      act(() => root.unmount())
+    }
   })
 })

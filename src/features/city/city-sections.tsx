@@ -7,7 +7,8 @@ import { ProjectCard } from '@/components/ui/project-card'
 import { StatusPill, isCollaborationStatus } from '@/components/ui/status-pill'
 import { LxAvatar } from '@/components/ui/lx-avatar'
 import { toProjectCardData } from '@/features/project-card-preview'
-import { relativeTime } from '@/lib/time'
+import { formatDate, relativeTime } from '@/lib/time'
+import { useHydratedNow } from '@/lib/use-hydrated-now'
 import { describeCityPage } from './city-summary'
 import {
   formatCityCounts,
@@ -176,6 +177,7 @@ function Builders({ page }: { page: CityPagePayload }) {
 }
 
 function PostRow({ post }: { post: CityPagePost }) {
+  const now = useHydratedNow()
   return (
     <li className="flex gap-3 py-2">
       <LxAvatar
@@ -206,7 +208,12 @@ function PostRow({ post }: { post: CityPagePost }) {
           >
             {post.project.fullName}
           </Link>{' '}
-          · {relativeTime(post.createdAt)}
+          ·{' '}
+          <time dateTime={new Date(post.createdAt).toISOString()}>
+            {now === null
+              ? formatDate(post.createdAt)
+              : relativeTime(post.createdAt, now)}
+          </time>
         </p>
         <p className="m-0 line-clamp-4 whitespace-pre-line wrap-anywhere text-body text-text">
           {post.body}
