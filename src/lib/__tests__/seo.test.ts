@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import {
   DEFAULT_DESCRIPTION,
@@ -82,15 +82,35 @@ describe('seo', () => {
 
   it('declares the social image with its real size', () => {
     const { meta } = seo({ path: '/' })
-    expect(metaContent(meta, 'og:image')).toBe(SOCIAL_IMAGE.url)
-    expect(metaContent(meta, 'og:image:width')).toBe('1200')
-    expect(metaContent(meta, 'og:image:height')).toBe('630')
+    expect(metaContent(meta, 'og:image')).toBe(
+      'https://locatic.dev/og-image.png',
+    )
+    expect(metaContent(meta, 'twitter:image')).toBe(SOCIAL_IMAGE.url)
+    expect(metaContent(meta, 'og:image:type')).toBe('image/png')
     expect(metaContent(meta, 'twitter:card')).toBe('summary_large_image')
     const file = new URL(
       `../../../public${new URL(SOCIAL_IMAGE.url).pathname}`,
       import.meta.url,
     )
-    expect(existsSync(file)).toBe(true)
+    const png = readFileSync(file)
+    expect(png.subarray(0, 8)).toEqual(
+      Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+    )
+    expect(png.toString('ascii', 12, 16)).toBe('IHDR')
+    const width = png.readUInt32BE(16)
+    const height = png.readUInt32BE(20)
+    expect(metaContent(meta, 'og:image:width')).toBe(String(width))
+    expect(metaContent(meta, 'og:image:height')).toBe(String(height))
+    expect({ width, height }).toEqual({ width: 1200, height: 630 })
+    expect(png.length).toBeLessThan(1_000_000)
+  })
+
+  it('shares accurate artwork alt text between Open Graph and X', () => {
+    const { meta } = seo({ path: '/' })
+    const alt =
+      'Locatic: github, with a map. A dotted globe with developer project cards from cities around the world.'
+    expect(metaContent(meta, 'og:image:alt')).toBe(alt)
+    expect(metaContent(meta, 'twitter:image:alt')).toBe(alt)
   })
 
   it('emits only a title and robots tag for noindex pages', () => {
